@@ -1,0 +1,103 @@
+"""Bridge: SWARM OS bus → backend in-memory state → WebSocket broadcast.
+
+Boots one consumer task per topic of interest. Lets the backend serve the
+frontend without polling — the dashboard reflects bus events immediately.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+from typing import TYPE_CHECKING
+
+from swarm_core.messages import Anomaly, FleetState, MissionProgress, Telemetry
+
+from backend.app.state import STATE
+from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus, RedisBus
+
+if TYPE_CHECKING:  # pragma: no cover
+    from backend.app.ws.telemetry import WSHub
+
+logger = logging.getLogger("backend.bus")
+
+
+class BusConsumer:
+    def __init__(self, hub: WSHub) -> None:
+        self._hub = hub
+        self._bus: Bus | None = None
+        self._tasks: list[asyncio.Task[None]] = []
+
+    async def start(self) -> None:
+        redis_url = os.getenv("REDIS_URL")
+        try:
+            self._bus = RedisBus(redis_url) if redis_url else InMemoryBus()
+            await self._bus.connect()
+            logger.info("backend bus: %s", type(self._bus).__name__)
+        except Exception as e:
+            logger.warning("backend redis unavailable (%s) — falling back to InMemoryBus", e)
+            self._bus = InMemoryBus()
+            await self._bus.connect()
+
+        self._tasks = [
+            asyncio.create_task(self._consume_telemetry()),
+            asyncio.create_task(self._consume_fleet()),
+            asyncio.create_task(self._consume_anomalies()),
+            asyncio.create_task(self._consume_progress()),
+        ]
+
+    async def stop(self) -> None:
+        import contextlib
+        for t in self._tasks:
+            t.cancel()
+        for t in self._tasks:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await t
+        if self._bus is not None:
+            await self._bus.close()
+
+    @property
+    def bus(self) -> Bus:
+        if self._bus is None:
+            raise RuntimeError("BusConsumer not started")
+        return self._bus
+
+    # ── consumers ────────────────────────────────────────────────────────────
+
+    async def _consume_telemetry(self) -> None:
+        async for _topic, payload in self.bus.subscribe("swarm:telemetry:*"):
+            try:
+                t = Telemetry.model_validate_json(payload)
+            except Exception:
+                continue
+            STATE.last_telemetry[t.agent_id] = t
+            await self._hub.broadcast({"kind": "telemetry", "data": json.loads(payload)})
+
+    async def _consume_fleet(self) -> None:
+        async for _topic, payload in self.bus.subscribe("swarm:fleet:state"):
+            try:
+                fs = FleetState.model_validate_json(payload)
+            except Exception:
+                continue
+            STATE.fleet[fs.agent_id] = fs
+            await self._hub.broadcast({"kind": "fleet", "data": json.loads(payload)})
+
+    async def _consume_anomalies(self) -> None:
+        async for _topic, payload in self.bus.subscribe("swarm:anomalies"):
+            try:
+                a = Anomaly.model_validate_json(payload)
+            except Exception:
+                continue
+            STATE.anomalies[a.id] = a
+            STATE.add_event("anomaly", json.loads(payload))
+            await self._hub.broadcast({"kind": "anomaly", "data": json.loads(payload)})
+
+    async def _consume_progress(self) -> None:
+        async for _topic, payload in self.bus.subscribe("swarm:missions:progress:*"):
+            try:
+                MissionProgress.model_validate_json(payload)
+            except Exception:
+                continue
+            STATE.add_event("progress", json.loads(payload))
+            await self._hub.broadcast({"kind": "progress", "data": json.loads(payload)})

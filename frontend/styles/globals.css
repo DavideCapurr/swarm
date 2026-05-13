@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    background: #000;
+    color: #f5f5f7;
+    font-family: -apple-system, Inter, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Thin orbital line motif — used as decorative separators in headers. */
+  .orbital-line {
+    border-bottom: 1px solid rgba(245, 245, 247, 0.08);
+  }
+}
