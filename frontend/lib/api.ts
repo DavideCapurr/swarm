@@ -12,7 +12,24 @@ function defaultApiUrl(): string {
   return "http://localhost:8000";
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? defaultApiUrl();
+function resolveApiUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!envUrl) return defaultApiUrl();
+  if (typeof window !== "undefined") {
+    try {
+      const u = new URL(envUrl);
+      const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+      const pageLocal =
+        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      if (local && !pageLocal) return defaultApiUrl();
+    } catch {
+      /* fall through */
+    }
+  }
+  return envUrl;
+}
+
+const API_URL = resolveApiUrl();
 
 export type Geo = { lat: number; lon: number; alt_m: number };
 
