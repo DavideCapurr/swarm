@@ -66,12 +66,15 @@ export default function ControlSurface() {
     const sock = new SwarmSocket();
     sock.connect();
     setLink("connecting");
-    let lastFrame = Date.now();
+    // 0 means "no frame yet" — keeps the badge in "connecting" until the
+    // first real WS message arrives, instead of flashing "live" for 6 s.
+    let lastFrame = 0;
     const heartbeat = setInterval(() => {
-      // If we haven't seen a frame in 6 s, downgrade to "lost".
-      setLink((curr) =>
-        Date.now() - lastFrame < 6_000 ? "connected" : curr === "connecting" ? "connecting" : "lost"
-      );
+      setLink((curr) => {
+        if (lastFrame === 0) return curr === "lost" ? "lost" : "connecting";
+        if (Date.now() - lastFrame < 6_000) return "connected";
+        return "lost";
+      });
     }, 2_000);
     const off = sock.onMessage((msg: WSMessage) => {
       lastFrame = Date.now();
