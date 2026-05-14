@@ -48,6 +48,24 @@ app.include_router(api_router)
 @app.websocket("/ws/telemetry")
 async def ws_telemetry(websocket: WebSocket) -> None:
     await hub.connect(websocket)
+    # Push a hello frame and the current snapshot so the client can confirm the
+    # link is alive even before the bus emits its next event.
+    try:
+        import json as _json
+        from backend.app.state import STATE
+
+        await websocket.send_text(_json.dumps({"kind": "hello", "data": {}}))
+        for fs in STATE.fleet.values():
+            await websocket.send_text(
+                _json.dumps({"kind": "fleet", "data": _json.loads(fs.model_dump_json())})
+            )
+        for t in STATE.last_telemetry.values():
+            await websocket.send_text(
+                _json.dumps({"kind": "telemetry", "data": _json.loads(t.model_dump_json())})
+            )
+    except Exception:
+        pass
+
     try:
         while True:
             # We don't expect inbound messages in commit 1 — just keep the socket alive.

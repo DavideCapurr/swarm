@@ -24,15 +24,26 @@ export type WSMessage =
 
 export type WSHandler = (msg: WSMessage) => void;
 
+export type WSLifecycle = "open" | "close";
+export type WSLifeHandler = (ev: WSLifecycle) => void;
+
 export class SwarmSocket {
   private ws?: WebSocket;
   private handlers = new Set<WSHandler>();
+  private lifeHandlers = new Set<WSLifeHandler>();
   private retry = 0;
+  private closed = false;
 
   connect(): void {
+    if (typeof window === "undefined") return; // SSR safety
+    // eslint-disable-next-line no-console
+    console.info("[swarm] ws connecting", WS_URL);
     this.ws = new WebSocket(WS_URL);
     this.ws.onopen = () => {
       this.retry = 0;
+      // eslint-disable-next-line no-console
+      console.info("[swarm] ws open");
+      this.lifeHandlers.forEach((h) => h("open"));
     };
     this.ws.onmessage = (ev) => {
       try {
@@ -42,14 +53,22 @@ export class SwarmSocket {
         /* ignore malformed frames */
       }
     };
+    this.ws.onerror = (e) => {
+      // eslint-disable-next-line no-console
+      console.warn("[swarm] ws error", e);
+    };
     this.ws.onclose = () => {
-      // Backoff reconnect, capped at ~10 s.
+      // eslint-disable-next-line no-console
+      console.info("[swarm] ws closed");
+      this.lifeHandlers.forEach((h) => h("close"));
+      if (this.closed) return;
       const delay = Math.min(10_000, 500 * 2 ** this.retry++);
       setTimeout(() => this.connect(), delay);
     };
   }
 
   close(): void {
+    this.closed = true;
     this.ws?.close();
     this.ws = undefined;
   }
@@ -57,5 +76,10 @@ export class SwarmSocket {
   onMessage(h: WSHandler): () => void {
     this.handlers.add(h);
     return () => this.handlers.delete(h);
+  }
+
+  onLifecycle(h: WSLifeHandler): () => void {
+    this.lifeHandlers.add(h);
+    return () => this.lifeHandlers.delete(h);
   }
 }

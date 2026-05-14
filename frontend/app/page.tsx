@@ -66,12 +66,15 @@ export default function ControlSurface() {
     const sock = new SwarmSocket();
     sock.connect();
     setLink("connecting");
-    let lastFrame = Date.now();
+    // `lastFrame` stays 0 until we actually receive a frame — otherwise the
+    // heartbeat would flash a fake "connected" before the WS has spoken.
+    let lastFrame = 0;
     const heartbeat = setInterval(() => {
-      // If we haven't seen a frame in 6 s, downgrade to "lost".
-      setLink((curr) =>
-        Date.now() - lastFrame < 6_000 ? "connected" : curr === "connecting" ? "connecting" : "lost"
-      );
+      setLink((curr) => {
+        if (lastFrame === 0) return curr;        // still waiting for the first frame
+        if (Date.now() - lastFrame < 6_000) return "connected";
+        return "lost";
+      });
     }, 2_000);
     const off = sock.onMessage((msg: WSMessage) => {
       lastFrame = Date.now();
