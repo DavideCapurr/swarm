@@ -1,0 +1,2142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SWARM — Brand Aesthetic v1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Satoshi:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@page { size: 210mm 297mm; margin: 0; }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+:root{
+  --swarm-absolute-black:#030406;
+  --swarm-obsidian:#0B0E11;
+  --swarm-gunmetal:#1A2026;
+  --swarm-graphite:#2A3138;
+  --swarm-ash:#6B7480;
+  --swarm-muted-silver:#A8AFB8;
+  --swarm-bone:#C8CDD3;
+  --swarm-platinum:#EEF0F3;
+  --swarm-mist-hi:#D3D6DA;
+  --swarm-mist-mid:#9398A0;
+  --swarm-mist-lo:#3F4348;
+  --ink:#1A1C1F;
+  --ink-2:#3F4348;
+  --ink-3:#6B7080;
+  --swarm-orbital-blue:#B6FF00;
+  --swarm-launch-amber:#E81450;
+  --swarm-signal-green:#6A4FFF;
+  --font-editorial:'Cormorant Garamond','EB Garamond',Georgia,serif;
+  --font-display:'Satoshi','Inter',system-ui,sans-serif;
+  --font-body:'Satoshi','Inter',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono','SF Mono',monospace;
+  --font-grotesk:'Space Grotesk',system-ui,sans-serif;
+  --tw:0.32em;
+  --te:0.18em;
+}
+
+html,body{margin:0;padding:0;background:#222;}
+body{font-family:var(--font-body);font-size:9pt;line-height:1.5;color:var(--swarm-platinum);}
+
+.spread{
+  width:210mm;height:297mm;
+  position:relative;overflow:hidden;
+  page-break-after:always;
+  break-after:page;
+}
+.spread:last-child{page-break-after:auto;}
+
+/* --- surfaces ------------------------------------- */
+.spread.brand{
+  background:
+    radial-gradient(ellipse 96% 70% at 50% 38%,
+      var(--swarm-mist-hi) 0%,
+      #B8BDC3 30%,
+      var(--swarm-mist-mid) 62%,
+      #5C6168 86%,
+      var(--swarm-mist-lo) 100%);
+  color:var(--ink);
+}
+.spread.product{background:var(--swarm-absolute-black);color:var(--swarm-platinum);}
+.spread.split{background:var(--swarm-absolute-black);color:var(--swarm-platinum);}
+
+/* --- shared chrome -------------------------------- */
+.head-bar{
+  position:absolute;top:8mm;left:14mm;right:14mm;
+  display:flex;justify-content:space-between;align-items:flex-start;
+  font-family:var(--font-grotesk);
+  font-size:6.5pt;letter-spacing:0.22em;text-transform:uppercase;
+  font-weight:500;
+}
+.spread.brand .head-bar{color:var(--ink);}
+.spread.product .head-bar{color:var(--swarm-muted-silver);}
+.head-bar .mid{display:flex;gap:14mm;align-items:flex-start;}
+.head-bar .right{text-align:right;}
+.head-bar .swarm-mini{font-family:var(--font-editorial);font-weight:500;letter-spacing:0.36em;font-size:8pt;text-transform:uppercase;}
+.spread.product .head-bar .swarm-mini{color:var(--swarm-platinum);}
+
+.foot-bar{
+  position:absolute;bottom:7mm;left:14mm;right:14mm;
+  display:flex;justify-content:space-between;align-items:flex-end;
+  font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;text-transform:uppercase;
+}
+.spread.brand .foot-bar{color:var(--ink-3);}
+.spread.product .foot-bar{color:var(--swarm-ash);}
+.foot-bar b{font-weight:500;}
+.spread.brand .foot-bar b{color:var(--ink);}
+.spread.product .foot-bar b{color:var(--swarm-platinum);}
+
+/* --- the orbit signature, always there ------------ */
+.orbits{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;}
+.orbits svg{width:100%;height:100%;display:block;}
+
+/* --- the wordmark --------------------------------- */
+.wordmark{
+  font-family:var(--font-editorial);
+  font-weight:500;
+  letter-spacing:var(--tw);
+  text-transform:uppercase;
+  padding-left:var(--tw);
+  display:inline-block;
+  line-height:1;
+}
+.lockup{display:flex;flex-direction:column;align-items:center;gap:6mm;}
+.lockup .ring{
+  width:6mm;height:6mm;border-radius:50%;
+  border:0.35mm solid currentColor;
+  background:transparent;
+}
+.lockup.sm{gap:3mm;}
+.lockup.sm .ring{width:3.2mm;height:3.2mm;border-width:0.28mm;}
+.lockup.xs{gap:1.8mm;}
+.lockup.xs .ring{width:2.2mm;height:2.2mm;border-width:0.22mm;}
+.lockup.lg{gap:9mm;}
+.lockup.lg .ring{width:9mm;height:9mm;border-width:0.4mm;}
+
+.serif{font-family:var(--font-editorial);}
+.mono{font-family:var(--font-mono);}
+.grotesk{font-family:var(--font-grotesk);}
+.geist{font-family:var(--font-display);}
+.italic{font-style:italic;}
+
+.eyebrow{font-family:var(--font-grotesk);font-size:6.5pt;letter-spacing:var(--te);text-transform:uppercase;font-weight:500;}
+.eyebrow-mono{font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;text-transform:uppercase;}
+
+.spread-num-mark{
+  position:absolute;left:14mm;bottom:18mm;
+  font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;text-transform:uppercase;
+}
+.spread.brand .spread-num-mark{color:var(--ink-3);}
+.spread.product .spread-num-mark{color:var(--swarm-ash);}
+
+.hairline{height:0.2mm;background:currentColor;opacity:0.45;}
+.spread.brand .hairline{background:var(--ink);opacity:0.18;}
+.spread.product .hairline{background:var(--swarm-gunmetal);opacity:1;}
+
+/* ============================================== */
+/* SPREAD 01 — COVER                              */
+/* ============================================== */
+.cover-stage{
+  position:absolute;
+  left:14mm;right:14mm;top:50%;
+  transform:translateY(-52%);
+  text-align:center;
+}
+.cover-stage .ring{
+  width:7mm;height:7mm;border-radius:50%;
+  border:0.4mm solid var(--ink);
+  margin:0 auto 14mm;
+}
+.cover-stage .word{
+  font-family:var(--font-editorial);
+  font-weight:500;
+  letter-spacing:0.42em;
+  font-size:88pt;
+  color:var(--ink);
+  padding-left:0.42em;
+  line-height:0.9;
+}
+.cover-stage .claim-en{
+  margin-top:22mm;
+  font-family:var(--font-editorial);
+  font-weight:400;
+  font-size:18pt;
+  color:var(--ink);
+  letter-spacing:0.005em;
+}
+.cover-stage .claim-it{
+  margin-top:3mm;
+  font-family:var(--font-editorial);
+  font-style:italic;
+  font-weight:400;
+  font-size:16pt;
+  color:var(--ink-2);
+}
+
+.cover-orbits svg ellipse{stroke:var(--ink);stroke-width:0.18;fill:none;opacity:0.42;}
+.cover-orbits svg ellipse.faint{opacity:0.22;}
+
+/* ============================================== */
+/* SPREAD 02 — COLOPHON                           */
+/* ============================================== */
+.colophon{
+  position:absolute;left:14mm;right:14mm;top:24mm;bottom:18mm;
+  display:flex;flex-direction:column;gap:6mm;
+}
+.colophon h1{
+  font-family:var(--font-editorial);font-weight:400;font-size:36pt;
+  margin:0;letter-spacing:-0.005em;line-height:1.05;color:var(--ink);
+}
+.colophon h1 .dim{color:var(--ink-2);font-style:italic;}
+.colophon .meta-row{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:0.2mm solid rgba(26,28,31,0.32);
+  padding-top:3mm;gap:6mm;
+  font-family:var(--font-mono);font-size:6.5pt;letter-spacing:0.16em;
+  text-transform:uppercase;color:var(--ink-2);
+}
+.colophon .meta-row b{display:block;color:var(--ink);font-weight:500;margin-top:1.5mm;letter-spacing:0.04em;text-transform:none;font-family:var(--font-editorial);font-size:11pt;}
+.colophon .index{
+  margin-top:auto;
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:1.6mm 9mm;
+}
+.colophon .index .item{
+  display:grid;grid-template-columns:7mm 1fr;
+  align-items:baseline;gap:2mm;
+  padding:1.2mm 0;
+  border-bottom:0.12mm solid rgba(26,28,31,0.18);
+  font-size:7.5pt;
+}
+.colophon .index .item .n{font-family:var(--font-mono);font-size:6pt;color:var(--ink-3);letter-spacing:0.1em;}
+.colophon .index .item .t{font-family:var(--font-editorial);font-weight:400;color:var(--ink);font-size:9pt;}
+.colophon .index .item .t em{font-style:italic;color:var(--ink-2);font-weight:400;}
+
+/* ============================================== */
+/* SPREAD 03 — MANIFESTO                          */
+/* ============================================== */
+.manifesto{
+  position:absolute;left:18mm;right:18mm;top:50%;transform:translateY(-50%);
+}
+.manifesto .lede{
+  font-family:var(--font-editorial);font-weight:400;
+  font-size:34pt;line-height:1.08;color:var(--ink);
+  letter-spacing:-0.005em;
+}
+.manifesto .lede .dim{color:var(--ink-2);font-style:italic;}
+.manifesto .lede-it{
+  margin-top:6mm;
+  font-family:var(--font-editorial);font-style:italic;font-weight:400;
+  font-size:18pt;line-height:1.2;color:var(--ink-2);
+  max-width:22ch;
+}
+.manifesto .body{
+  margin-top:18mm;
+  display:grid;grid-template-columns:1fr 1fr;gap:10mm;
+  font-family:var(--font-display);font-size:9pt;line-height:1.55;color:var(--ink);
+  max-width:62ch;
+}
+.manifesto .body p{margin:0 0 4mm;}
+
+/* ============================================== */
+/* SPREAD 04 — FORMULA 60/40                      */
+/* ============================================== */
+.formula-spread{
+  position:absolute;left:0;right:0;top:24mm;bottom:18mm;
+  display:grid;grid-template-columns:60fr 40fr;
+}
+.formula-spread .col{
+  padding:16mm 12mm;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.formula-spread .dream{background:transparent;color:var(--ink);}
+.formula-spread .command{
+  background:var(--swarm-absolute-black);
+  color:var(--swarm-platinum);
+  position:relative;
+}
+.formula-spread .pct{
+  font-family:var(--font-editorial);font-weight:400;
+  font-size:130pt;line-height:0.85;letter-spacing:-0.02em;
+}
+.formula-spread .dream .pct{color:var(--ink);}
+.formula-spread .command .pct{color:var(--swarm-platinum);}
+.formula-spread .pct .sign{font-size:48pt;vertical-align:top;margin-left:2mm;}
+.formula-spread .label{
+  font-family:var(--font-editorial);font-size:24pt;font-style:italic;font-weight:400;
+  margin-top:6mm;
+}
+.formula-spread .label-it{font-family:var(--font-mono);font-size:7pt;letter-spacing:0.22em;text-transform:uppercase;margin-top:2mm;}
+.formula-spread .desc{
+  font-family:var(--font-display);font-size:9pt;line-height:1.55;
+  max-width:32ch;margin-top:12mm;
+}
+.formula-spread .desc b{font-weight:500;}
+.formula-spread .dream .desc{color:var(--ink-2);}
+.formula-spread .command .desc{color:var(--swarm-muted-silver);}
+.formula-spread .what{
+  font-family:var(--font-mono);font-size:6.5pt;letter-spacing:0.18em;text-transform:uppercase;
+  margin-top:auto;
+}
+.formula-spread .dream .what{color:var(--ink-3);}
+.formula-spread .command .what{color:var(--swarm-ash);}
+
+/* ============================================== */
+/* SPREAD 05 — RECOGNITION TEST                   */
+/* ============================================== */
+.rec-grid{
+  position:absolute;left:14mm;right:14mm;top:36mm;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;
+}
+.rec-card{
+  aspect-ratio:1/1.1;
+  border-radius:1.5mm;
+  position:relative;overflow:hidden;
+  background:radial-gradient(ellipse 110% 75% at 50% 38%,
+    #C8CDD3 0%,#9398A0 60%,#5C6168 100%);
+  border:0.2mm solid rgba(26,28,31,0.18);
+}
+.rec-card .mini-orbits{position:absolute;inset:0;}
+.rec-card .mini-lockup{
+  position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  text-align:center;
+}
+.rec-card .mini-ring{
+  width:3mm;height:3mm;border-radius:50%;
+  border:0.25mm solid var(--ink);margin:0 auto 4mm;
+}
+.rec-card .mini-word{
+  font-family:var(--font-editorial);font-weight:500;
+  font-size:24pt;letter-spacing:0.34em;color:var(--ink);padding-left:0.34em;
+}
+.rec-card.masked .mini-ring,
+.rec-card.masked .mini-word{filter:blur(6mm);opacity:0.05;}
+.rec-card.empty .mini-ring{display:none;}
+.rec-card.empty .mini-word{display:none;}
+.rec-card .label{
+  position:absolute;left:3mm;top:3mm;
+  font-family:var(--font-mono);font-size:5.5pt;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-2);
+}
+.rec-card .verdict{
+  position:absolute;left:3mm;right:3mm;bottom:3mm;
+  font-family:var(--font-editorial);font-style:italic;font-size:9pt;color:var(--ink);
+}
+.rec-rules{
+  position:absolute;left:14mm;right:14mm;bottom:24mm;
+  font-family:var(--font-display);font-size:8.5pt;line-height:1.6;color:var(--ink);
+  max-width:74ch;
+}
+.rec-rules b{font-weight:500;color:var(--ink);}
+.rec-rules .em{font-family:var(--font-editorial);font-style:italic;color:var(--ink-2);}
+
+/* ============================================== */
+/* SPREAD 06 — THE RING                           */
+/* ============================================== */
+.ring-spread{
+  position:absolute;left:14mm;right:14mm;top:28mm;bottom:22mm;
+  display:grid;grid-template-rows:auto auto 1fr;gap:8mm;
+}
+.ring-construct{
+  background:rgba(255,255,255,0.06);
+  border:0.2mm solid rgba(26,28,31,0.18);
+  border-radius:1.5mm;
+  padding:8mm;display:grid;grid-template-columns:1.2fr 1fr;gap:8mm;align-items:center;
+}
+.ring-construct svg{width:100%;height:auto;}
+.ring-construct .specs{font-family:var(--font-mono);font-size:7pt;line-height:1.9;color:var(--ink-2);}
+.ring-construct .specs .row{display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid rgba(26,28,31,0.2);padding:1.5mm 0;}
+.ring-construct .specs .row span:first-child{color:var(--ink-3);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;}
+.ring-construct .specs .row b{color:var(--ink);text-align:right;font-weight:500;font-family:var(--font-editorial);font-size:9pt;}
+.ring-states{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;}
+.ring-state{
+  background:var(--swarm-absolute-black);color:var(--swarm-platinum);
+  border-radius:1.5mm;padding:6mm 5mm;
+  display:flex;flex-direction:column;justify-content:space-between;min-height:36mm;
+}
+.ring-state .rc{width:10mm;height:10mm;border-radius:50%;border:0.35mm solid currentColor;margin-bottom:5mm;}
+.ring-state.connected{color:var(--swarm-orbital-blue);}
+.ring-state.operational{color:var(--swarm-signal-green);}
+.ring-state.attention{color:var(--swarm-launch-amber);}
+.ring-state .lab{font-family:var(--font-mono);font-size:6pt;letter-spacing:0.2em;text-transform:uppercase;color:var(--swarm-ash);}
+.ring-state .nm{font-family:var(--font-editorial);font-size:13pt;color:var(--swarm-platinum);margin-top:1mm;}
+.ring-state .ht{font-family:var(--font-mono);font-size:6.5pt;color:var(--swarm-muted-silver);margin-top:3mm;letter-spacing:0.04em;}
+
+/* ============================================== */
+/* SPREAD 07 — THE ELLIPSE                        */
+/* ============================================== */
+.ellipse-spread{
+  position:absolute;left:14mm;right:14mm;top:28mm;bottom:22mm;
+  display:grid;grid-template-rows:auto 1fr auto;gap:6mm;
+}
+.ellipse-row{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;
+}
+.ellipse-cell{
+  aspect-ratio:1/1.1;
+  background:linear-gradient(180deg,#C8CDD3,#7C828A);
+  border:0.2mm solid rgba(26,28,31,0.2);border-radius:1.5mm;
+  position:relative;overflow:hidden;
+}
+.ellipse-cell .lab{
+  position:absolute;left:3mm;top:3mm;
+  font-family:var(--font-mono);font-size:5.5pt;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-3);
+}
+.ellipse-cell .caption{
+  position:absolute;left:3mm;right:3mm;bottom:3mm;
+  font-family:var(--font-editorial);font-style:italic;font-size:8.5pt;color:var(--ink);
+}
+.ellipse-cell svg{position:absolute;inset:0;width:100%;height:100%;}
+.ellipse-cell svg ellipse{stroke:var(--ink);fill:none;stroke-width:0.2;}
+.ellipse-rules{
+  font-family:var(--font-display);font-size:8.5pt;line-height:1.6;color:var(--ink);
+  display:grid;grid-template-columns:1fr 1fr;gap:8mm;
+}
+.ellipse-rules .col b{display:block;font-family:var(--font-mono);font-size:6pt;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-3);margin-bottom:1.5mm;}
+
+/* ============================================== */
+/* SPREAD 08 — COLOR MONO                         */
+/* ============================================== */
+.palette-spread{
+  position:absolute;left:14mm;right:14mm;top:28mm;bottom:22mm;
+  display:grid;grid-template-rows:1fr auto;gap:5mm;
+}
+.palette{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  border-radius:1.5mm;overflow:hidden;
+}
+.sw{
+  padding:6mm 5mm;display:flex;flex-direction:column;justify-content:space-between;
+  border-right:0.15mm solid rgba(255,255,255,0.06);position:relative;min-height:0;
+}
+.sw:last-child{border-right:0;}
+.sw .top .lb{font-family:var(--font-mono);font-size:5.5pt;letter-spacing:0.2em;text-transform:uppercase;}
+.sw .top .nm{font-family:var(--font-editorial);font-size:14pt;margin-top:1mm;letter-spacing:-0.005em;}
+.sw .bot .hx{font-family:var(--font-mono);font-size:7pt;letter-spacing:0.04em;}
+.sw .bot .us{font-family:var(--font-display);font-size:7.5pt;line-height:1.45;margin-top:2mm;}
+.sw.mist{background:radial-gradient(ellipse 110% 80% at 50% 38%, var(--swarm-mist-hi) 0%, var(--swarm-mist-mid) 60%, var(--swarm-mist-lo) 100%);color:var(--ink);}
+.sw.mist .top .lb{color:var(--ink-3);}
+.sw.mist .bot .hx{color:var(--ink-2);}
+.sw.mist .bot .us{color:var(--ink-2);}
+.sw.absolute{background:var(--swarm-absolute-black);color:var(--swarm-platinum);}
+.sw.absolute .top .lb{color:var(--swarm-ash);}
+.sw.absolute .bot .hx,.sw.absolute .bot .us{color:var(--swarm-muted-silver);}
+.sw.obsidian{background:var(--swarm-obsidian);color:var(--swarm-platinum);}
+.sw.obsidian .top .lb,.sw.obsidian .bot .hx,.sw.obsidian .bot .us{color:var(--swarm-muted-silver);}
+.sw.gunmetal{background:var(--swarm-gunmetal);color:var(--swarm-platinum);}
+.sw.gunmetal .top .lb,.sw.gunmetal .bot .hx,.sw.gunmetal .bot .us{color:var(--swarm-muted-silver);}
+.sw.platinum{background:var(--swarm-platinum);color:var(--ink);}
+.sw.platinum .top .lb,.sw.platinum .bot .hx,.sw.platinum .bot .us{color:rgba(26,28,31,0.6);}
+.sw.silver{background:var(--swarm-muted-silver);color:var(--ink);}
+.sw.silver .top .lb,.sw.silver .bot .hx,.sw.silver .bot .us{color:rgba(26,28,31,0.55);}
+.color-rules{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;color:var(--ink);}
+.color-rules .rule{
+  padding:5mm;
+  background:rgba(255,255,255,0.18);
+  border:0.15mm solid rgba(26,28,31,0.2);
+  border-radius:1.5mm;
+}
+.color-rules .rule .n{font-family:var(--font-mono);font-size:5.5pt;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2mm;}
+.color-rules .rule h4{font-family:var(--font-editorial);font-size:13pt;font-weight:500;margin:0 0 2mm;color:var(--ink);letter-spacing:-0.005em;}
+.color-rules .rule p{font-family:var(--font-display);font-size:8pt;line-height:1.5;color:var(--ink-2);margin:0;}
+
+/* ============================================== */
+/* SPREAD 09 — ACTIVATION ACCENTS (product)        */
+/* ============================================== */
+.accents-spread{
+  position:absolute;left:14mm;right:14mm;top:28mm;bottom:22mm;
+  display:grid;grid-template-rows:1fr auto;gap:5mm;
+}
+.accents-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm;}
+.accent-card{
+  background:var(--swarm-obsidian);
+  border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;
+  padding:8mm 6mm;display:flex;flex-direction:column;justify-content:space-between;min-height:0;
+}
+.accent-card.connected{border-color:var(--swarm-orbital-blue);}
+.accent-card.operational{border-color:var(--swarm-signal-green);}
+.accent-card.attention{border-color:var(--swarm-launch-amber);}
+.accent-card .lb{font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;text-transform:uppercase;}
+.accent-card.connected .lb{color:var(--swarm-orbital-blue);}
+.accent-card.operational .lb{color:var(--swarm-signal-green);}
+.accent-card.attention .lb{color:var(--swarm-launch-amber);}
+.accent-card .nm{font-family:var(--font-editorial);font-size:22pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:2mm;}
+.accent-card .stripe{height:0.8mm;border-radius:1mm;margin:5mm 0 3mm;}
+.accent-card.connected .stripe{background:var(--swarm-orbital-blue);box-shadow:0 0 4mm rgba(182,255,0,0.5);}
+.accent-card.operational .stripe{background:var(--swarm-signal-green);box-shadow:0 0 4mm rgba(106,79,255,0.45);}
+.accent-card.attention .stripe{background:var(--swarm-launch-amber);box-shadow:0 0 4mm rgba(232,20,80,0.45);}
+.accent-card .hex{font-family:var(--font-mono);font-size:7.5pt;color:var(--swarm-muted-silver);letter-spacing:0.04em;}
+.accent-card .use{font-family:var(--font-display);font-size:7.5pt;color:var(--swarm-muted-silver);line-height:1.5;margin-top:3mm;}
+.accents-rule{
+  background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;
+  padding:6mm;color:var(--swarm-muted-silver);
+  font-family:var(--font-display);font-size:8.5pt;line-height:1.6;
+}
+.accents-rule b{font-family:var(--font-editorial);font-style:italic;font-weight:400;color:var(--swarm-platinum);font-size:11pt;}
+.accents-rule .em{color:var(--swarm-platinum);}
+
+/* ============================================== */
+/* SPREAD 10 — 85% RULE                            */
+/* ============================================== */
+.rule85{
+  position:absolute;left:14mm;right:14mm;top:28mm;bottom:22mm;
+  display:flex;flex-direction:column;gap:6mm;
+}
+.rule85 .lede{
+  font-family:var(--font-editorial);font-weight:400;font-size:32pt;line-height:1.05;
+  color:var(--swarm-platinum);letter-spacing:-0.01em;max-width:22ch;
+}
+.rule85 .lede .dim{color:var(--swarm-ash);font-style:italic;}
+.rule85 .bar{
+  height:18mm;border-radius:1mm;overflow:hidden;
+  display:grid;grid-template-columns:85fr 5fr 5fr 5fr;
+  border:0.18mm solid var(--swarm-gunmetal);
+}
+.rule85 .bar .seg{padding:3mm;font-family:var(--font-mono);font-size:6pt;letter-spacing:0.18em;text-transform:uppercase;display:flex;flex-direction:column;justify-content:space-between;}
+.rule85 .bar .mono{background:var(--swarm-absolute-black);color:var(--swarm-muted-silver);}
+.rule85 .bar .blue{background:rgba(182,255,0,0.14);color:var(--swarm-orbital-blue);border-left:0.5mm solid var(--swarm-orbital-blue);}
+.rule85 .bar .green{background:rgba(106,79,255,0.12);color:var(--swarm-signal-green);border-left:0.5mm solid var(--swarm-signal-green);}
+.rule85 .bar .amber{background:rgba(232,20,80,0.12);color:var(--swarm-launch-amber);border-left:0.5mm solid var(--swarm-launch-amber);}
+.rule85 .bar .seg b{font-family:var(--font-editorial);font-weight:500;font-size:11pt;letter-spacing:-0.005em;}
+.rule85 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5mm;}
+.rule85 .grid .gc{background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;color:var(--swarm-muted-silver);font-family:var(--font-display);font-size:8pt;line-height:1.6;}
+.rule85 .grid .gc h5{margin:0 0 2mm;font-family:var(--font-editorial);font-size:13pt;font-weight:400;color:var(--swarm-platinum);font-style:italic;}
+.rule85 .grid .gc .n{font-family:var(--font-mono);font-size:5.5pt;letter-spacing:0.22em;text-transform:uppercase;color:var(--swarm-ash);margin-bottom:1.5mm;}
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SPREAD 01 — COVER
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits cover-orbits">
+    <svg viewBox="0 0 210 297" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="105" cy="178" rx="120" ry="34"/>
+      <ellipse cx="105" cy="178" rx="92" ry="26" class="faint"/>
+      <ellipse cx="105" cy="178" rx="64" ry="18"/>
+      <ellipse cx="105" cy="178" rx="38" ry="11" class="faint"/>
+    </svg>
+  </div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid">
+      <span>Brand Aesthetic · v1.0</span>
+      <span>12 · 05 · 2026</span>
+    </div>
+    <div class="right">Internal</div>
+  </div>
+  <div class="cover-stage">
+    <div class="ring"></div>
+    <div class="word">SWARM</div>
+    <div class="claim-en">The future is already here.</div>
+    <div class="claim-it">Il futuro è già qui.</div>
+  </div>
+  <div class="foot-bar">
+    <div>From<br/><b>Dormio family</b></div>
+    <div style="text-align:center">Brand aesthetic<br/><b>The ring, written.</b></div>
+    <div style="text-align:right">Formula<br/><b>60% Dream / 40% Command</b></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SPREAD 02 — COLOPHON
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="148" rx="138" ry="36" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.25"/><ellipse cx="105" cy="148" rx="100" ry="26" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.18"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>02 · Colophon</span></div>
+    <div class="right">Brand Aesthetic · v1.0</div>
+  </div>
+  <div class="colophon">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— A new category</div>
+    <h1>A design system <span class="dim">for a future</span><br/>that arrives quietly.</h1>
+    <div class="meta-row">
+      <div>Edition<b>v1.0</b></div>
+      <div>Published<b>12 · 05 · 2026</b></div>
+      <div>Lineage<b>Dormio family</b></div>
+      <div>Status<b>Internal · reference</b></div>
+    </div>
+    <div class="index">
+      <div class="item"><span class="n">01</span><span class="t">Cover</span></div>
+      <div class="item"><span class="n">02</span><span class="t">Colophon</span></div>
+      <div class="item"><span class="n">03</span><span class="t">Manifesto</span></div>
+      <div class="item"><span class="n">04</span><span class="t">Formula <em>60 / 40</em></span></div>
+      <div class="item"><span class="n">05</span><span class="t">Recognition test</span></div>
+      <div class="item"><span class="n">06</span><span class="t">The ring</span></div>
+      <div class="item"><span class="n">07</span><span class="t">The ellipse</span></div>
+      <div class="item"><span class="n">08</span><span class="t">Color <em>monochrome</em></span></div>
+      <div class="item"><span class="n">09</span><span class="t">Color <em>activation</em></span></div>
+      <div class="item"><span class="n">10</span><span class="t">The 85% rule</span></div>
+      <div class="item"><span class="n">11</span><span class="t">Wordmark construction</span></div>
+      <div class="item"><span class="n">12</span><span class="t">Display specimens</span></div>
+      <div class="item"><span class="n">13</span><span class="t">Body &amp; UI</span></div>
+      <div class="item"><span class="n">14</span><span class="t">Telemetry</span></div>
+      <div class="item"><span class="n">15</span><span class="t">Iconography</span></div>
+      <div class="item"><span class="n">16</span><span class="t">Motion</span></div>
+      <div class="item"><span class="n">17</span><span class="t">Layout &amp; grid</span></div>
+      <div class="item"><span class="n">18</span><span class="t">Cards &amp; surfaces</span></div>
+      <div class="item"><span class="n">19</span><span class="t">Components</span></div>
+      <div class="item"><span class="n">20</span><span class="t">Voice <em>canon claims</em></span></div>
+      <div class="item"><span class="n">21</span><span class="t">Voice <em>mechanics</em></span></div>
+      <div class="item"><span class="n">22</span><span class="t">Voice <em>vocabulary</em></span></div>
+      <div class="item"><span class="n">23</span><span class="t">App <em>marketing</em></span></div>
+      <div class="item"><span class="n">24</span><span class="t">App <em>Control</em></span></div>
+      <div class="item"><span class="n">25</span><span class="t">App <em>mobile</em></span></div>
+      <div class="item"><span class="n">26</span><span class="t">Packaging</span></div>
+      <div class="item"><span class="n">27</span><span class="t">Social &amp; card</span></div>
+      <div class="item"><span class="n">28</span><span class="t">Deck cover</span></div>
+      <div class="item"><span class="n">29</span><span class="t">Brand test</span></div>
+      <div class="item"><span class="n">30</span><span class="t">Closing</span></div>
+    </div>
+  </div>
+  <div class="spread-num-mark">02 / 30</div>
+  <div class="foot-bar"><div>Dormio family · 2026</div><div style="text-align:right">A reference, not a rule.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 03 — MANIFESTO
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="220" rx="140" ry="38" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.32"/><ellipse cx="105" cy="220" rx="98" ry="26" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.2"/><ellipse cx="105" cy="220" rx="62" ry="16" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.14"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>03 · Manifesto</span></div>
+    <div class="right">— A new category</div>
+  </div>
+  <div class="manifesto">
+    <div class="lede">
+      We wrote the future.<br/>
+      <span class="dim">Then we brought it here.</span>
+    </div>
+    <div class="lede-it">Abbiamo scritto il futuro.<br/>Poi lo abbiamo portato qui.</div>
+    <div class="body">
+      <p>SWARM is a future-consumer-technology brand built on autonomous, distributed intelligence — the spiritual successor of the Dormio family. Not a startup of drones; a new category where autonomy becomes simple, desirable, and iconic.</p>
+      <p>Many units. One intention. The voice mirrors the product — coordinated and quiet. SWARM does not justify itself, does not bounce, does not whoosh. It arrives.</p>
+      <p>Color appears only when something activates. Type whispers. Negative space is a feature. The ring is the signature. The ellipse is the memory.</p>
+      <p>SWARM publishes in English and Italian with matching weight. Each Italian claim has the rhythm of its English counterpart. Periods are weapons.</p>
+    </div>
+  </div>
+  <div class="spread-num-mark">03 / 30</div>
+  <div class="foot-bar"><div>Many units. One intention.</div><div style="text-align:right">Molte unità. <b>Una sola intenzione.</b></div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 04 — FORMULA 60/40
+     ============================================================ -->
+<section class="spread split">
+  <div class="formula-spread">
+    <div class="col dream" style="background:radial-gradient(ellipse 110% 80% at 50% 40%, var(--swarm-mist-hi) 0%, #9398A0 60%, var(--swarm-mist-lo) 100%);">
+      <div>
+        <div class="eyebrow-mono" style="color:var(--ink-3);">— Side A · Brand surface</div>
+        <div class="pct">60<span class="sign">%</span></div>
+        <div class="label">Dream.</div>
+        <div class="label-it" style="color:var(--ink-3);">Sogno.</div>
+      </div>
+      <div class="desc">
+        Sky, orbit, hangar. <b>Cold light, dark glass.</b> Imagery makes you stop. Claims make you wait. The future is stated, not sold.
+      </div>
+      <div class="what">Editorial · serif · mist · ellipse</div>
+    </div>
+    <div class="col command">
+      <div>
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Side B · Product surface</div>
+        <div class="pct">40<span class="sign">%</span></div>
+        <div class="label" style="color:var(--swarm-platinum);">Command.</div>
+        <div class="label-it" style="color:var(--swarm-ash);">Comando.</div>
+      </div>
+      <div class="desc">
+        Telemetry, coordinates, machined edges. <b>The proof comes next</b> — monospace, numbered, present-tense. Silent, precise, inevitable.
+      </div>
+      <div class="what">Technical · mono · black · circle</div>
+    </div>
+  </div>
+  <div class="head-bar" style="z-index:5;">
+    <div class="swarm-mini" style="color:var(--ink);">SWARM</div>
+    <div class="mid"><span style="color:var(--ink);">04 · Formula</span></div>
+    <div class="right" style="color:var(--swarm-muted-silver);">60 / 40</div>
+  </div>
+  <div class="spread-num-mark" style="color:var(--swarm-ash);z-index:5;">04 / 30</div>
+</section>
+
+<!-- ============================================================
+     SPREAD 05 — RECOGNITION TEST
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="100" rx="160" ry="42" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.2"/><ellipse cx="105" cy="100" rx="118" ry="30" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.14"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>05 · Recognition test</span></div>
+    <div class="right">Cover the wordmark.</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— The test</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:24pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.1;margin-top:3mm;max-width:30ch;">Cover the word with your thumb.<br/><span style="color:var(--ink-2);font-style:italic;">Is it still SWARM?</span></div>
+  </div>
+  <div class="rec-grid" style="top:64mm;">
+    <div class="rec-card">
+      <div class="label">A · full lockup</div>
+      <svg class="mini-orbits" viewBox="0 0 100 110" preserveAspectRatio="none"><ellipse cx="50" cy="74" rx="58" ry="14" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.5"/><ellipse cx="50" cy="74" rx="40" ry="10" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.32"/><ellipse cx="50" cy="74" rx="24" ry="6" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.22"/></svg>
+      <div class="mini-lockup">
+        <div class="mini-ring"></div>
+        <div class="mini-word">SWARM</div>
+      </div>
+      <div class="verdict">Reads as SWARM.</div>
+    </div>
+    <div class="rec-card masked">
+      <div class="label">B · wordmark masked</div>
+      <svg class="mini-orbits" viewBox="0 0 100 110" preserveAspectRatio="none"><ellipse cx="50" cy="74" rx="58" ry="14" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.5"/><ellipse cx="50" cy="74" rx="40" ry="10" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.32"/><ellipse cx="50" cy="74" rx="24" ry="6" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.22"/></svg>
+      <div class="mini-lockup">
+        <div class="mini-ring"></div>
+        <div class="mini-word">SWARM</div>
+      </div>
+      <div class="verdict">Still reads as SWARM.</div>
+    </div>
+    <div class="rec-card empty">
+      <div class="label">C · ellipses alone</div>
+      <svg class="mini-orbits" viewBox="0 0 100 110" preserveAspectRatio="none"><ellipse cx="50" cy="55" rx="60" ry="14" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.55"/><ellipse cx="50" cy="55" rx="42" ry="10" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.36"/><ellipse cx="50" cy="55" rx="26" ry="6" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.24"/><ellipse cx="50" cy="55" rx="14" ry="3.5" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.16"/></svg>
+      <div class="verdict">— and yet, still SWARM.</div>
+    </div>
+  </div>
+  <div class="rec-rules">
+    <b>The rule.</b> Cover the wordmark with your thumb. If the <span class="em">orbital ellipses</span>, the <span class="em">mist gradient</span>, and the <span class="em">serif rhythm</span> still carry the brand on their own — ship it. If they don't — quiet it down. Recognition lives in the geometry, not in the letters. <br/><br/>
+    <b>The signature.</b> Every SWARM artefact carries the same three threads: a <span class="em">ring</span> (origin), an <span class="em">ellipse</span> (orbit), and a wide-tracked serif (the wordmark). Together they form a single trace that reads in two seconds, in any size, in any tongue.
+  </div>
+  <div class="spread-num-mark">05 / 30</div>
+</section>
+
+<!-- ============================================================
+     SPREAD 06 — THE RING · NODO ZERO
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="148" rx="150" ry="40" stroke="#1A2026" stroke-width="0.3" fill="none"/><ellipse cx="105" cy="148" rx="108" ry="28" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>06 · The ring</span><span>Nodo Zero</span></div>
+    <div class="right">Origin · orbit · signal</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— The signature</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;line-height:1.05;margin-top:3mm;max-width:28ch;">A single ring. <span style="color:var(--swarm-ash);font-style:italic;">Above five letters. On absolute black.</span></div>
+  </div>
+  <div class="ring-spread" style="top:60mm;">
+    <div class="ring-construct" style="background:rgba(238,240,243,0.03);border-color:var(--swarm-gunmetal);">
+      <svg viewBox="0 0 320 180">
+        <g stroke="#2A3138" stroke-width="0.4" fill="none" stroke-dasharray="1.5 2.5">
+          <line x1="160" y1="6" x2="160" y2="174"/>
+          <line x1="6" y1="60" x2="314" y2="60"/>
+          <line x1="6" y1="120" x2="314" y2="120"/>
+          <circle cx="160" cy="60" r="32"/>
+          <circle cx="160" cy="60" r="14"/>
+        </g>
+        <circle cx="160" cy="60" r="14" stroke="#EEF0F3" stroke-width="1.2" fill="none"/>
+        <text x="160" y="135" font-family="Cormorant Garamond, serif" font-size="22" font-weight="500" letter-spacing="9" text-anchor="middle" fill="#EEF0F3">S W A R M</text>
+        <g font-family="IBM Plex Mono, monospace" font-size="5" letter-spacing="0.6" fill="#6B7480">
+          <text x="8" y="56">A — Ø 1.0X</text>
+          <text x="8" y="116">B — CLEAR 1.0X</text>
+          <text x="312" y="56" text-anchor="end">STROKE 1.25</text>
+          <text x="312" y="116" text-anchor="end">CAP 1.5X</text>
+          <text x="8" y="174">D — TRACKING 0.32EM</text>
+          <text x="312" y="174" text-anchor="end">WEIGHT 500</text>
+        </g>
+      </svg>
+      <div class="specs" style="color:var(--swarm-muted-silver);">
+        <div class="row"><span>Ring stroke</span><b style="color:var(--swarm-platinum);">1.25 px</b></div>
+        <div class="row"><span>Wordmark</span><b style="color:var(--swarm-platinum);">Cormorant Garamond 500</b></div>
+        <div class="row"><span>Tracking</span><b style="color:var(--swarm-platinum);">0.32 em</b></div>
+        <div class="row"><span>Case</span><b style="color:var(--swarm-platinum);">UPPERCASE</b></div>
+        <div class="row"><span>Min size</span><b style="color:var(--swarm-platinum);">12 px / 3 mm</b></div>
+        <div class="row"><span>Clear space</span><b style="color:var(--swarm-platinum);">1× ring Ø all sides</b></div>
+        <div class="row"><span>Never</span><b style="color:var(--swarm-platinum);">Filled · italic · color</b></div>
+      </div>
+    </div>
+    <div class="ring-construct" style="display:none;"></div>
+    <div class="ring-states">
+      <div class="ring-state">
+        <div class="rc" style="border-color:var(--swarm-platinum);"></div>
+        <div><div class="lab">State · rest</div><div class="nm">Cold White</div><div class="ht">#EEF0F3 · default</div></div>
+      </div>
+      <div class="ring-state connected">
+        <div class="rc" style="box-shadow:0 0 4mm rgba(123,231,255,0.32);"></div>
+        <div><div class="lab" style="color:var(--swarm-orbital-blue);">State · connected</div><div class="nm">Orbital Blue</div><div class="ht">#7BE7FF · link · focus</div></div>
+      </div>
+      <div class="ring-state operational">
+        <div class="rc" style="box-shadow:0 0 4mm rgba(184,255,102,0.28);"></div>
+        <div><div class="lab" style="color:var(--swarm-signal-green);">State · operational</div><div class="nm">Signal Green</div><div class="ht">#B8FF66 · online</div></div>
+      </div>
+      <div class="ring-state attention">
+        <div class="rc" style="box-shadow:0 0 4mm rgba(255,180,92,0.28);"></div>
+        <div><div class="lab" style="color:var(--swarm-launch-amber);">State · attention</div><div class="nm">Launch Amber</div><div class="ht">#FFB45C · pre-launch</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">06 / 30</div>
+  <div class="foot-bar"><div>The ring breathes — 4 s</div><div style="text-align:right">Origin · orbit · signal</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 07 — THE ELLIPSE
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="180" rx="170" ry="44" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.2"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>07 · The ellipse</span></div>
+    <div class="right">The universal signature</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Geometry</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.05;margin-top:3mm;max-width:28ch;">Where the ring goes, <span style="color:var(--ink-2);font-style:italic;">the orbit follows.</span></div>
+  </div>
+  <div class="ellipse-spread" style="top:60mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Variants</div>
+    <div class="ellipse-row">
+      <div class="ellipse-cell">
+        <div class="lab">01 · flat</div>
+        <svg viewBox="0 0 100 110" preserveAspectRatio="none"><line x1="0" y1="55" x2="100" y2="55" stroke="#1A1C1F" stroke-width="0.3" opacity="0.55"/></svg>
+        <div class="caption">Horizon. From above.</div>
+      </div>
+      <div class="ellipse-cell">
+        <div class="lab">02 · shallow</div>
+        <svg viewBox="0 0 100 110" preserveAspectRatio="none"><ellipse cx="50" cy="55" rx="46" ry="6" stroke="#1A1C1F" stroke-width="0.3" fill="none" opacity="0.55"/></svg>
+        <div class="caption">Distant orbit.</div>
+      </div>
+      <div class="ellipse-cell">
+        <div class="lab">03 · canonical</div>
+        <svg viewBox="0 0 100 110" preserveAspectRatio="none"><ellipse cx="50" cy="55" rx="46" ry="14" stroke="#1A1C1F" stroke-width="0.3" fill="none" opacity="0.55"/><ellipse cx="50" cy="55" rx="32" ry="10" stroke="#1A1C1F" stroke-width="0.3" fill="none" opacity="0.36"/></svg>
+        <div class="caption">The default.</div>
+      </div>
+      <div class="ellipse-cell">
+        <div class="lab">04 · circle</div>
+        <svg viewBox="0 0 100 110" preserveAspectRatio="none"><circle cx="50" cy="55" r="32" stroke="#1A1C1F" stroke-width="0.3" fill="none" opacity="0.55"/></svg>
+        <div class="caption">Head-on. The mark.</div>
+      </div>
+    </div>
+    <div class="ellipse-rules">
+      <div class="col">
+        <b>Use</b>
+        Always at least one per surface. Stroke at 1.25 px platinum, 1 px gunmetal, or 0.2 mm ink at 18–55 % opacity — never filled. Stack two or three for density. Always perspective-aligned (lower in the canvas implies more tilt). Pair with a single ring above it when the wordmark is present.
+      </div>
+      <div class="col">
+        <b>Avoid</b>
+        No closed ellipses with fill. No gradient strokes. No more than four stacked — the rhythm collapses past four. Never rotated off the horizontal axis (max ±2°). Never crossed by another ellipse. Never broken by the wordmark — let the wordmark sit through, not over.
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">07 / 30</div>
+  <div class="foot-bar"><div>One ring, many orbits</div><div style="text-align:right">Un anello, molte orbite</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 08 — COLOR · MONOCHROME
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="148" rx="160" ry="42" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>08 · Color · Monochrome</span></div>
+    <div class="right">85 % black, platinum, silver</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— The world</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;line-height:1.05;margin-top:3mm;max-width:30ch;">Color appears <span style="color:var(--swarm-ash);font-style:italic;">only when something activates.</span></div>
+  </div>
+  <div class="palette-spread" style="top:60mm;">
+    <div class="palette">
+      <div class="sw mist">
+        <div class="top"><div class="lb">Brand surface</div><div class="nm">Mist</div></div>
+        <div class="bot"><div class="hx">#D3D6DA → #3F4348</div><div class="us">Radial silver gradient. Editorial pages, packaging, print.</div></div>
+      </div>
+      <div class="sw absolute">
+        <div class="top"><div class="lb">Core · page</div><div class="nm">Absolute Black</div></div>
+        <div class="bot"><div class="hx">#030406</div><div class="us">The default canvas. Almost everything sits on this.</div></div>
+      </div>
+      <div class="sw obsidian">
+        <div class="top"><div class="lb">Surface · elevated</div><div class="nm">Obsidian</div></div>
+        <div class="bot"><div class="hx">#0B0E11</div><div class="us">Panels, cards, side rails, overlays.</div></div>
+      </div>
+      <div class="sw gunmetal">
+        <div class="top"><div class="lb">Border · 2nd elevation</div><div class="nm">Gunmetal</div></div>
+        <div class="bot"><div class="hx">#1A2026</div><div class="us">1 px hairlines, dividers, map traces.</div></div>
+      </div>
+      <div class="sw platinum">
+        <div class="top"><div class="lb">Primary text · wordmark</div><div class="nm">Platinum</div></div>
+        <div class="bot"><div class="hx">#EEF0F3</div><div class="us">Headlines, the wordmark, the ring at rest.</div></div>
+      </div>
+      <div class="sw silver">
+        <div class="top"><div class="lb">Secondary text</div><div class="nm">Muted Silver</div></div>
+        <div class="bot"><div class="hx">#A8AFB8</div><div class="us">Body, telemetry labels, captions.</div></div>
+      </div>
+    </div>
+    <div class="color-rules" style="color:var(--swarm-platinum);">
+      <div class="rule" style="background:var(--swarm-obsidian);border-color:var(--swarm-gunmetal);">
+        <div class="n" style="color:var(--swarm-ash);">Rule 01</div>
+        <h4 style="color:var(--swarm-platinum);">Black is the canvas.</h4>
+        <p style="color:var(--swarm-muted-silver);">A SWARM page is more black than content. Never a white default. Never a gradient on chrome — only the mist on brand surfaces.</p>
+      </div>
+      <div class="rule" style="background:var(--swarm-obsidian);border-color:var(--swarm-gunmetal);">
+        <div class="n" style="color:var(--swarm-ash);">Rule 02</div>
+        <h4 style="color:var(--swarm-platinum);">Accents are state.</h4>
+        <p style="color:var(--swarm-muted-silver);">Blue, green, amber are not decoration. If it isn't a status, it isn't allowed to use them.</p>
+      </div>
+      <div class="rule" style="background:var(--swarm-obsidian);border-color:var(--swarm-gunmetal);">
+        <div class="n" style="color:var(--swarm-ash);">Rule 03</div>
+        <h4 style="color:var(--swarm-platinum);">Borders, not shadows.</h4>
+        <p style="color:var(--swarm-muted-silver);">1 px Gunmetal hairlines + 1 px inset platinum highlight on the top edge. Machined, never soft.</p>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">08 / 30</div>
+  <div class="foot-bar"><div>Black is the canvas.</div><div style="text-align:right">Il nero è la tela.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 09 — COLOR · ACTIVATION ACCENTS
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="148" rx="150" ry="38" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>09 · Activation accents</span></div>
+    <div class="right">State only · ≤ 2 % of any spread</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Activation</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;line-height:1.05;margin-top:3mm;max-width:28ch;">Three colors. <span style="color:var(--swarm-ash);font-style:italic;">Each one a state, never a decoration.</span></div>
+  </div>
+  <div class="accents-spread" style="top:60mm;">
+    <div class="accents-grid">
+      <div class="accent-card connected">
+        <div>
+          <div class="lb">Connected</div>
+          <div class="nm">Orbital Blue</div>
+          <div class="stripe"></div>
+          <div class="hex">#7BE7FF</div>
+        </div>
+        <div class="use">Link · focus · live data channel · the moment something becomes addressable.</div>
+      </div>
+      <div class="accent-card operational">
+        <div>
+          <div class="lb">Operational</div>
+          <div class="nm">Signal Green</div>
+          <div class="stripe"></div>
+          <div class="hex">#B8FF66</div>
+        </div>
+        <div class="use">Online · confirmed · in flight · the system is doing what it said it would.</div>
+      </div>
+      <div class="accent-card attention">
+        <div>
+          <div class="lb">Attention</div>
+          <div class="nm">Launch Amber</div>
+          <div class="stripe"></div>
+          <div class="hex">#FFB45C</div>
+        </div>
+        <div class="use">Pre-launch · low warning · a unit asks to be looked at, not feared.</div>
+      </div>
+    </div>
+    <div class="accents-rule">
+      <b>Activation accents — state only.</b><br/>
+      A blue on a marketing page that doesn't represent a state is wrong. A green is operational. An amber is attention. Nothing decorative. Nothing aesthetic. <span class="em">The accent is a verb, not an adjective.</span>
+    </div>
+  </div>
+  <div class="spread-num-mark">09 / 30</div>
+  <div class="foot-bar"><div>Accents are state.</div><div style="text-align:right">Gli accenti sono stato.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 10 — THE 85% RULE
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="140" ry="36" stroke="#1A2026" stroke-width="0.3" fill="none"/><ellipse cx="105" cy="160" rx="98" ry="24" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>10 · The 85 % rule</span></div>
+    <div class="right">When color is allowed</div>
+  </div>
+  <div class="rule85" style="top:32mm;">
+    <div class="lede">
+      Eighty-five per cent of every spread is black, platinum, or silver. <span class="dim">The rest is permission.</span>
+    </div>
+    <div>
+      <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-bottom:3mm;">— Visual budget</div>
+      <div class="bar">
+        <div class="seg mono">
+          <span>85 %</span>
+          <b>Monochrome</b>
+        </div>
+        <div class="seg blue"><span>5 %</span><b>Connected</b></div>
+        <div class="seg green"><span>5 %</span><b>Operational</b></div>
+        <div class="seg amber"><span>5 %</span><b>Attention</b></div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="gc">
+        <div class="n">Allowed</div>
+        <h5>When color fires.</h5>
+        <ul style="margin:2mm 0 0 0;padding:0;list-style:none;">
+          <li>· The ring lights — a unit comes online.</li>
+          <li>· A pill announces status — 007 / 128 online.</li>
+          <li>· A focus ring forms — the orbital blue, by definition.</li>
+          <li>· A map node pulses once — attention requested.</li>
+        </ul>
+      </div>
+      <div class="gc">
+        <div class="n">Forbidden</div>
+        <h5>When color is wrong.</h5>
+        <ul style="margin:2mm 0 0 0;padding:0;list-style:none;">
+          <li>· Headlines in blue. The brand does not paint.</li>
+          <li>· Gradient backgrounds on UI panels.</li>
+          <li>· Hover states that swap color. Brightness only.</li>
+          <li>· Two activation accents in the same component.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">10 / 30</div>
+  <div class="foot-bar"><div>If it isn't a state, it isn't allowed.</div><div style="text-align:right">Se non è uno stato, non è ammesso.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 11 — WORDMARK CONSTRUCTION
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="220" rx="170" ry="42" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.22"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>11 · Wordmark</span><span>Construction</span></div>
+    <div class="right">Cormorant Garamond · 500</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Geometry</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.05;margin-top:3mm;max-width:30ch;">A serif, against type. <span style="color:var(--ink-2);font-style:italic;">A circle, above letters.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:62mm;bottom:24mm;display:grid;grid-template-rows:auto 1fr;gap:6mm;">
+    <div style="background:rgba(255,255,255,0.18);border:0.15mm solid rgba(26,28,31,0.2);border-radius:1.5mm;padding:10mm 12mm;">
+      <svg viewBox="0 0 540 220" style="width:100%;height:auto;">
+        <g stroke="#1A1C1F" stroke-width="0.4" fill="none" stroke-dasharray="2 3" opacity="0.32">
+          <line x1="270" y1="6" x2="270" y2="214"/>
+          <line x1="6" y1="60" x2="534" y2="60"/>
+          <line x1="6" y1="140" x2="534" y2="140"/>
+          <line x1="6" y1="180" x2="534" y2="180"/>
+          <circle cx="270" cy="60" r="36"/>
+          <circle cx="270" cy="60" r="14"/>
+        </g>
+        <circle cx="270" cy="60" r="14" stroke="#1A1C1F" stroke-width="1.6" fill="none"/>
+        <text x="270" y="160" font-family="Cormorant Garamond, serif" font-size="58" font-weight="500" letter-spacing="22" text-anchor="middle" fill="#1A1C1F">S W A R M</text>
+        <g font-family="IBM Plex Mono, monospace" font-size="7" letter-spacing="1.4" fill="#5C6168">
+          <text x="8" y="58">A · RING Ø = 1.0X</text>
+          <text x="8" y="138">B · CLEAR SPACE 1.0X</text>
+          <text x="8" y="178">C · CAP HEIGHT 1.5X</text>
+          <text x="8" y="208">D · TRACKING 0.42EM</text>
+        </g>
+        <g font-family="IBM Plex Mono, monospace" font-size="7" letter-spacing="1.4" fill="#5C6168" text-anchor="end">
+          <text x="532" y="58">STROKE 1.25</text>
+          <text x="532" y="138">CONTRAST · HIGH</text>
+          <text x="532" y="178">WEIGHT 500</text>
+          <text x="532" y="208">UPPERCASE ONLY</text>
+        </g>
+      </svg>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4mm;">
+      <div style="background:rgba(255,255,255,0.18);border:0.15mm solid rgba(26,28,31,0.2);border-radius:1.5mm;padding:4mm;display:flex;flex-direction:column;justify-content:space-between;">
+        <div class="wordmark" style="font-size:14pt;color:var(--ink);letter-spacing:0.12em;padding-left:0.12em;">SWARM</div>
+        <div class="eyebrow-mono" style="color:var(--ink-3);">0.12 em · body</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.18);border:0.15mm solid rgba(26,28,31,0.2);border-radius:1.5mm;padding:4mm;display:flex;flex-direction:column;justify-content:space-between;">
+        <div class="wordmark" style="font-size:14pt;color:var(--ink);letter-spacing:0.22em;padding-left:0.22em;">SWARM</div>
+        <div class="eyebrow-mono" style="color:var(--ink-3);">0.22 em · title</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.18);border:0.15mm solid rgba(26,28,31,0.2);border-radius:1.5mm;padding:4mm;display:flex;flex-direction:column;justify-content:space-between;">
+        <div class="wordmark" style="font-size:14pt;color:var(--ink);letter-spacing:0.42em;padding-left:0.42em;">SWARM</div>
+        <div class="eyebrow-mono" style="color:var(--ink-3);">0.42 em · canonical wordmark</div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">11 / 30</div>
+  <div class="foot-bar"><div>A circle, above letters.</div><div style="text-align:right">Un cerchio, sopra le lettere.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 12 — DISPLAY SPECIMENS
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="180" rx="170" ry="48" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.18"/><ellipse cx="105" cy="180" rx="118" ry="32" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.12"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>12 · Display specimens</span></div>
+    <div class="right">Cormorant Garamond · 400 / 500</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Six canon claims</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:24pt;color:var(--ink);letter-spacing:-0.005em;margin-top:3mm;">Six lines, two tongues. <span style="color:var(--ink-2);font-style:italic;">The voice in one page.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:54mm;bottom:22mm;display:flex;flex-direction:column;gap:5mm;">
+    <div style="border-top:0.15mm solid rgba(26,28,31,0.25);padding-top:3mm;">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Canon · 01 · Signature</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:30pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.05;margin-top:2mm;">The future is already here.</div>
+      <div style="font-family:var(--font-editorial);font-style:italic;font-size:16pt;color:var(--ink-2);letter-spacing:0;margin-top:1mm;">Il futuro è già qui.</div>
+    </div>
+    <div style="border-top:0.15mm solid rgba(26,28,31,0.25);padding-top:3mm;">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Canon · 02 · Brand promise</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.1;margin-top:2mm;">We wrote the future. Then we brought it here.</div>
+      <div style="font-family:var(--font-editorial);font-style:italic;font-size:13pt;color:var(--ink-2);margin-top:1mm;">Abbiamo scritto il futuro. Poi lo abbiamo portato qui.</div>
+    </div>
+    <div style="border-top:0.15mm solid rgba(26,28,31,0.25);padding-top:3mm;">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Canon · 03 · Sky</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.1;margin-top:2mm;">The sky, rewritten.</div>
+      <div style="font-family:var(--font-editorial);font-style:italic;font-size:15pt;color:var(--ink-2);margin-top:1mm;">Il cielo, riscritto.</div>
+    </div>
+    <div style="border-top:0.15mm solid rgba(26,28,31,0.25);padding-top:3mm;">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Canon · 04 · Intention</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.1;margin-top:2mm;">Many units. One intention.</div>
+      <div style="font-family:var(--font-editorial);font-style:italic;font-size:15pt;color:var(--ink-2);margin-top:1mm;">Molte unità. Una sola intenzione.</div>
+    </div>
+    <div style="border-top:0.15mm solid rgba(26,28,31,0.25);padding-top:3mm;">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Canon · 05 · Command</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.1;margin-top:2mm;">Tomorrow, under command.</div>
+      <div style="font-family:var(--font-editorial);font-style:italic;font-size:13pt;color:var(--ink-2);margin-top:1mm;">Domani, sotto comando.</div>
+    </div>
+    <div style="border-top:0.15mm solid rgba(26,28,31,0.25);padding-top:3mm;">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Canon · 06 · Autonomy</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--ink);letter-spacing:-0.005em;line-height:1.1;margin-top:2mm;">Autonomy, made visible.</div>
+      <div style="font-family:var(--font-editorial);font-style:italic;font-size:13pt;color:var(--ink-2);margin-top:1mm;">Autonomia, resa visibile.</div>
+    </div>
+  </div>
+  <div class="spread-num-mark">12 / 30</div>
+  <div class="foot-bar"><div>Seven words. Or fewer.</div><div style="text-align:right">Sette parole. O meno.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 13 — BODY & UI
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="155" ry="40" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>13 · Body &amp; UI</span></div>
+    <div class="right">Geist · 300 / 400 / 500</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Body &amp; UI</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:3mm;max-width:32ch;">A neutral sans. <span style="color:var(--swarm-ash);font-style:italic;">For everything that must read.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:58mm;bottom:24mm;display:grid;grid-template-rows:auto 1fr auto;gap:5mm;">
+    <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:8mm;">
+      <div class="eyebrow-mono" style="color:var(--swarm-ash);">Specimen</div>
+      <div style="font-family:var(--font-display);font-size:24pt;font-weight:400;color:var(--swarm-platinum);letter-spacing:-0.015em;line-height:1.04;margin-top:4mm;">Autonomy is no longer aspirational. SWARM coordinates rather than commands.</div>
+      <div style="font-family:var(--font-display);font-size:10pt;font-weight:400;color:var(--swarm-muted-silver);line-height:1.55;margin-top:4mm;max-width:62ch;">Body copy lives at 9–11 pt with a 1.5 line height. UI sits between 13 and 15 px depending on density, always 400 or 500 weight, never bold, never italic.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Display scale · Geist</div>
+        <div style="margin-top:3mm;font-family:var(--font-mono);font-size:8pt;color:var(--swarm-muted-silver);line-height:2;">
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">Hero</span><span style="text-align:right;color:var(--swarm-platinum);">144 / 1.04 · −0.015em</span></div>
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">H1</span><span style="text-align:right;color:var(--swarm-platinum);">64 / 1.04 · −0.01em</span></div>
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">H2</span><span style="text-align:right;color:var(--swarm-platinum);">40 / 1.15</span></div>
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">H3</span><span style="text-align:right;color:var(--swarm-platinum);">28 / 1.15</span></div>
+        </div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Body scale · Geist</div>
+        <div style="margin-top:3mm;font-family:var(--font-mono);font-size:8pt;color:var(--swarm-muted-silver);line-height:2;">
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">Lede</span><span style="text-align:right;color:var(--swarm-platinum);">17 / 1.5</span></div>
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">Body</span><span style="text-align:right;color:var(--swarm-platinum);">15 / 1.5</span></div>
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">UI</span><span style="text-align:right;color:var(--swarm-platinum);">13 / 1.4</span></div>
+          <div style="display:grid;grid-template-columns:80px 1fr;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6pt;">Eyebrow</span><span style="text-align:right;color:var(--swarm-platinum);">11 / 1.2 · +0.18em</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:4mm;text-align:center;">
+        <div style="font-family:var(--font-display);font-size:11pt;color:var(--swarm-platinum);font-weight:300;">Aa · 300 Light</div>
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-top:2mm;">Long-form body</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:4mm;text-align:center;">
+        <div style="font-family:var(--font-display);font-size:11pt;color:var(--swarm-platinum);font-weight:400;">Aa · 400 Regular</div>
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-top:2mm;">Default body / UI</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:4mm;text-align:center;">
+        <div style="font-family:var(--font-display);font-size:11pt;color:var(--swarm-platinum);font-weight:500;">Aa · 500 Medium</div>
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-top:2mm;">Emphasis / button label</div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">13 / 30</div>
+  <div class="foot-bar"><div>Neutral · geometric · quiet</div><div style="text-align:right">Neutro · geometrico · quieto</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 14 — TELEMETRY
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="150" ry="38" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>14 · Telemetry</span></div>
+    <div class="right">IBM Plex Mono · 400 / 500</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Data &amp; numerals</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:3mm;max-width:32ch;">Numbers, padded. <span style="color:var(--swarm-ash);font-style:italic;">Time, in fixed columns.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:58mm;bottom:24mm;display:grid;grid-template-rows:1fr 1fr;gap:5mm;">
+    <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:7mm;display:grid;grid-template-columns:1fr 1fr;gap:6mm;align-items:center;">
+      <div>
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Stat</div>
+        <div style="font-family:var(--font-mono);font-size:48pt;color:var(--swarm-platinum);letter-spacing:-0.02em;line-height:1;margin-top:2mm;">007 / 128</div>
+        <div style="font-family:var(--font-mono);font-size:7pt;color:var(--swarm-muted-silver);letter-spacing:0.18em;text-transform:uppercase;margin-top:3mm;">UNITS · ONLINE</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:9pt;color:var(--swarm-muted-silver);line-height:2;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1.5mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6.5pt;">Coordinates</span><span style="text-align:right;color:var(--swarm-platinum);">41.901°N · 12.491°E</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1.5mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6.5pt;">Altitude</span><span style="text-align:right;color:var(--swarm-platinum);">240 m</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1.5mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6.5pt;">Timestamp</span><span style="text-align:right;color:var(--swarm-platinum);">21:48 · CET</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1.5mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6.5pt;">T-minus</span><span style="text-align:right;color:var(--swarm-platinum);">T − 02:14</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;padding:1.5mm 0;"><span style="color:var(--swarm-ash);letter-spacing:0.14em;text-transform:uppercase;font-size:6.5pt;">Unit ID</span><span style="text-align:right;color:var(--swarm-platinum);">UNIT 042 · RING-B</span></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Stat · 40pt</div>
+        <div style="font-family:var(--font-mono);font-size:24pt;color:var(--swarm-platinum);letter-spacing:-0.02em;margin-top:3mm;">98.4 %</div>
+        <div class="eyebrow-mono" style="color:var(--swarm-muted-silver);margin-top:2mm;">LINK HEALTH</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Meta · 13pt</div>
+        <div style="font-family:var(--font-mono);font-size:11pt;color:var(--swarm-platinum);line-height:1.6;margin-top:3mm;letter-spacing:0.04em;">SECTOR · CETO-3<br/>045° 12′ N<br/>012° 29′ E<br/>WIND 4.2 m/s</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Always</div>
+        <div style="font-family:var(--font-display);font-size:8.5pt;color:var(--swarm-muted-silver);line-height:1.6;margin-top:3mm;">Digits, never words. Padded with leading zeros for sequence: <span style="color:var(--swarm-platinum);font-family:var(--font-mono);">001 · 007 · 042</span>. Coordinates in DD°MM′ format with a fixed point.</div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">14 / 30</div>
+  <div class="foot-bar"><div>007 / 128 units online.</div><div style="text-align:right">Telemetry is mono.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 15 — ICONOGRAPHY
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="150" ry="38" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>15 · Iconography</span></div>
+    <div class="right">1.5 px · round · 24 grid</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Geometry, reused</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:3mm;max-width:32ch;">Geometric primitives. <span style="color:var(--swarm-ash);font-style:italic;">The ring, reused.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:60mm;bottom:24mm;display:grid;grid-template-rows:auto 1fr;gap:5mm;">
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:2.5mm;">
+      <!-- 16 icons -->
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg><span>Node</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5" fill="#EEF0F3" stroke="none"/></svg><span>Signal</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="4" ry="10"/></svg><span>Orbit</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5" fill="#EEF0F3"/><circle cx="4" cy="6" r="1.25" fill="#EEF0F3"/><circle cx="20" cy="6" r="1.25" fill="#EEF0F3"/><circle cx="4" cy="18" r="1.25" fill="#EEF0F3"/><circle cx="20" cy="18" r="1.25" fill="#EEF0F3"/><path d="M12 12 L4 6 M12 12 L20 6 M12 12 L4 18 M12 12 L20 18" opacity="0.5"/></svg><span>Swarm</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 3"/></svg><span>Patrol</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3 V6 M12 18 V21 M3 12 H6 M18 12 H21 M5.5 5.5 L7.5 7.5 M16.5 16.5 L18.5 18.5 M5.5 18.5 L7.5 16.5 M16.5 7.5 L18.5 5.5"/></svg><span>Beacon</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 12 L6 4 M12 12 L18 4 M12 12 L4 18 M12 12 L20 18"/></svg><span>Link</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14 L12 4 L20 14"/><circle cx="12" cy="17" r="3"/></svg><span>Hangar</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12 H21 M12 3 a14 8 0 0 1 0 18 a14 8 0 0 1 0 -18"/></svg><span>Globe</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 V21 M3 12 H21"/><circle cx="12" cy="12" r="9"/></svg><span>Target</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 a8 4 0 0 0 16 0 a8 4 0 0 0 -16 0 Z"/><circle cx="12" cy="12" r="1.5" fill="#EEF0F3"/></svg><span>Lens</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L21 8 V16 L12 21 L3 16 V8 Z"/><circle cx="12" cy="12" r="2"/></svg><span>Unit</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7 V12 L15 14"/></svg><span>Timing</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="3"/><circle cx="18" cy="12" r="3"/><path d="M9 12 H15"/></svg><span>Pair</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="12" height="10" rx="1"/><path d="M9 10 V7 a3 3 0 0 1 6 0 V10"/><circle cx="12" cy="15" r="1" fill="#EEF0F3"/></svg><span>Secure</span></div>
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#EEF0F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18 H22 M5 18 V12 L12 6 L19 12 V18"/></svg><span>Base</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Construction</div>
+        <svg viewBox="0 0 220 100" style="width:100%;height:auto;margin-top:3mm;">
+          <g stroke="#2A3138" stroke-width="0.4" fill="none" stroke-dasharray="1.5 2">
+            <rect x="40" y="10" width="80" height="80"/>
+            <line x1="40" y1="50" x2="120" y2="50"/>
+            <line x1="80" y1="10" x2="80" y2="90"/>
+            <circle cx="80" cy="50" r="36"/>
+            <circle cx="80" cy="50" r="28"/>
+          </g>
+          <circle cx="80" cy="50" r="28" stroke="#EEF0F3" stroke-width="1.5" fill="none"/>
+          <g font-family="IBM Plex Mono, monospace" font-size="6" letter-spacing="0.8" fill="#6B7480">
+            <text x="138" y="22">24×24 GRID</text>
+            <text x="138" y="36">CONTENT 20PX</text>
+            <text x="138" y="56">STROKE 1.5PX</text>
+            <text x="138" y="70">ROUND CAPS</text>
+            <text x="138" y="84">ROUND JOINS</text>
+          </g>
+        </svg>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;font-family:var(--font-display);font-size:8pt;color:var(--swarm-muted-silver);line-height:1.6;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Rules</div>
+        <div style="margin-top:2mm;">
+          <b style="color:var(--swarm-platinum);">Stroke-only.</b> 1.5 px, round caps, round joins. Never filled — except a single dot for "signal", "node count", or "unit ID".<br/><br/>
+          <b style="color:var(--swarm-platinum);">Grid.</b> 24×24 square; visual content fills 20 px. The ring lives on the 20 px circle whenever possible.<br/><br/>
+          <b style="color:var(--swarm-platinum);">Color.</b> Platinum at rest. Muted Silver when secondary. State color only when the icon <em>is</em> that state.<br/><br/>
+          <b style="color:var(--swarm-platinum);">Emoji.</b> Never. Unicode allowed only when it carries the geometry: <span style="color:var(--swarm-platinum);font-family:var(--font-mono);">○ &middot; — ↗</span>.
+        </div>
+      </div>
+    </div>
+  </div>
+  <style>
+    .ic{aspect-ratio:1/1;background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;display:flex;align-items:center;justify-content:center;position:relative;}
+    .ic svg{width:48%;height:48%;}
+    .ic span{position:absolute;bottom:1.5mm;left:2mm;font-family:var(--font-mono);font-size:5pt;letter-spacing:0.16em;color:var(--swarm-ash);text-transform:uppercase;}
+  </style>
+  <div class="spread-num-mark">15 / 30</div>
+  <div class="foot-bar"><div>Custom first. Lucide as the fallback.</div><div style="text-align:right">Stroke-only.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 16 — MOTION
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="150" ry="38" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>16 · Motion</span></div>
+    <div class="right">cubic-bezier(0.2, 0.7, 0.1, 1)</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Slow. Precise. Settled.</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:3mm;max-width:32ch;">SWARM does not bounce. <span style="color:var(--swarm-ash);font-style:italic;">SWARM does not whoosh.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:60mm;bottom:24mm;display:flex;flex-direction:column;gap:5mm;">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;display:flex;flex-direction:column;justify-content:space-between;min-height:54mm;">
+        <div style="height:18mm;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 60 60" style="width:18mm;height:18mm;">
+            <circle cx="30" cy="30" r="22" fill="none" stroke="#2A3138" stroke-width="1.5"/>
+            <path d="M30 8 a22 22 0 0 1 22 22" stroke="#EEF0F3" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="eyebrow-mono" style="color:var(--swarm-ash);">Loader · 900 ms</div>
+          <div style="font-family:var(--font-editorial);font-size:16pt;font-weight:400;color:var(--swarm-platinum);margin-top:1mm;letter-spacing:-0.005em;">A single revolution.</div>
+          <div style="font-family:var(--font-display);font-size:8pt;color:var(--swarm-muted-silver);margin-top:3mm;line-height:1.5;">One ring tracing once, slowly. Never a spinner. Glacial easing.</div>
+        </div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;display:flex;flex-direction:column;justify-content:space-between;min-height:54mm;">
+        <div style="height:18mm;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 60 60" style="width:18mm;height:18mm;">
+            <circle cx="30" cy="30" r="22" fill="none" stroke="#EEF0F3" stroke-width="1.5" opacity="0.85"/>
+            <circle cx="30" cy="30" r="14" fill="none" stroke="#EEF0F3" stroke-width="1" opacity="0.4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="eyebrow-mono" style="color:var(--swarm-ash);">Breath · 4 000 ms</div>
+          <div style="font-family:var(--font-editorial);font-size:16pt;font-weight:400;color:var(--swarm-platinum);margin-top:1mm;letter-spacing:-0.005em;">The ring breathes.</div>
+          <div style="font-family:var(--font-display);font-size:8pt;color:var(--swarm-muted-silver);margin-top:3mm;line-height:1.5;">Opacity 0.6 → 1.0 → 0.6 over four seconds. The only ambient animation.</div>
+        </div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;display:flex;flex-direction:column;justify-content:space-between;min-height:54mm;">
+        <div style="height:18mm;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 60 60" style="width:18mm;height:18mm;">
+            <circle cx="30" cy="30" r="14" fill="none" stroke="#7BE7FF" stroke-width="1.5"/>
+            <circle cx="30" cy="30" r="22" fill="none" stroke="#7BE7FF" stroke-width="0.6" opacity="0.5"/>
+            <circle cx="30" cy="30" r="28" fill="none" stroke="#7BE7FF" stroke-width="0.4" opacity="0.25"/>
+          </svg>
+        </div>
+        <div>
+          <div class="eyebrow-mono" style="color:var(--swarm-ash);">Connect · 2 400 ms</div>
+          <div style="font-family:var(--font-editorial);font-size:16pt;font-weight:400;color:var(--swarm-platinum);margin-top:1mm;letter-spacing:-0.005em;">State pulses once.</div>
+          <div style="font-family:var(--font-display);font-size:8pt;color:var(--swarm-muted-silver);margin-top:3mm;line-height:1.5;">When something activates, a soft halo expands once. Then silence.</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Easing</div>
+        <div style="font-family:var(--font-mono);font-size:9pt;color:var(--swarm-platinum);margin-top:2mm;letter-spacing:0.02em;">cubic-bezier(0.2, 0.7, 0.1, 1)</div>
+        <div style="font-family:var(--font-display);font-size:7.5pt;color:var(--swarm-muted-silver);margin-top:2mm;line-height:1.5;">A long, settled deceleration. The Swarm easing.</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Hover</div>
+        <div style="font-family:var(--font-editorial);font-size:13pt;font-style:italic;color:var(--swarm-platinum);margin-top:2mm;letter-spacing:-0.005em;">Brightness only.</div>
+        <div style="font-family:var(--font-display);font-size:7.5pt;color:var(--swarm-muted-silver);margin-top:2mm;line-height:1.5;">filter: brightness(1.1). Never a color change.</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Press</div>
+        <div style="font-family:var(--font-editorial);font-size:13pt;font-style:italic;color:var(--swarm-platinum);margin-top:2mm;letter-spacing:-0.005em;">Scale 0.98 · 120 ms.</div>
+        <div style="font-family:var(--font-display);font-size:7.5pt;color:var(--swarm-muted-silver);margin-top:2mm;line-height:1.5;">No color flash, no bounce-back.</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Focus</div>
+        <div style="font-family:var(--font-editorial);font-size:13pt;font-style:italic;color:var(--swarm-orbital-blue);margin-top:2mm;letter-spacing:-0.005em;">Orbital Blue ring.</div>
+        <div style="font-family:var(--font-display);font-size:7.5pt;color:var(--swarm-muted-silver);margin-top:2mm;line-height:1.5;">1 px at 2 px offset. The only allowed color — focus is a state.</div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">16 / 30</div>
+  <div class="foot-bar"><div>Fades over slides.</div><div style="text-align:right">Le dissolvenze al posto degli slittamenti.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 17 — LAYOUT &amp; GRID
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="150" ry="38" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>17 · Layout</span></div>
+    <div class="right">12 col · 8 px scale</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Grid &amp; scale</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:3mm;max-width:32ch;">Black is the loudest element. <span style="color:var(--swarm-ash);font-style:italic;">Negative space is a feature.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:60mm;bottom:24mm;display:grid;grid-template-columns:1.4fr 1fr;gap:6mm;">
+    <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;">
+      <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-bottom:3mm;">12 column · 16 px gutter</div>
+      <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:1.5mm;height:90mm;">
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+        <span style="background:linear-gradient(to bottom,rgba(123,231,255,0.05),rgba(123,231,255,0));border-left:0.18mm solid var(--swarm-gunmetal);border-right:0.18mm solid var(--swarm-gunmetal);"></span>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:6.5pt;color:var(--swarm-ash);letter-spacing:0.18em;text-transform:uppercase;margin-top:3mm;">1140 max · 24 col margins · 16 gutter</div>
+    </div>
+    <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;">
+      <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-bottom:3mm;">Spacing scale · 4 / 8 px</div>
+      <div style="font-family:var(--font-mono);font-size:8pt;color:var(--swarm-muted-silver);line-height:2;">
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S1</span><div style="height:0.4mm;background:#EEF0F3;width:4px"></div><span style="text-align:right;color:var(--swarm-ash);">4 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S2</span><div style="height:0.4mm;background:#EEF0F3;width:8px"></div><span style="text-align:right;color:var(--swarm-ash);">8 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S3</span><div style="height:0.4mm;background:#EEF0F3;width:12px"></div><span style="text-align:right;color:var(--swarm-ash);">12 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S4</span><div style="height:0.4mm;background:#EEF0F3;width:16px"></div><span style="text-align:right;color:var(--swarm-ash);">16 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S5</span><div style="height:0.4mm;background:#EEF0F3;width:24px"></div><span style="text-align:right;color:var(--swarm-ash);">24 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S6</span><div style="height:0.4mm;background:#EEF0F3;width:32px"></div><span style="text-align:right;color:var(--swarm-ash);">32 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S7</span><div style="height:0.4mm;background:#EEF0F3;width:48px"></div><span style="text-align:right;color:var(--swarm-ash);">48 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S8</span><div style="height:0.4mm;background:#EEF0F3;width:64px"></div><span style="text-align:right;color:var(--swarm-ash);">64 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S9</span><div style="height:0.4mm;background:#EEF0F3;width:96px"></div><span style="text-align:right;color:var(--swarm-ash);">96 px</span></div>
+        <div style="display:grid;grid-template-columns:24px 1fr 40px;align-items:center;border-top:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;border-bottom:0.12mm solid var(--swarm-gunmetal);"><span style="color:var(--swarm-ash);font-size:5.5pt;letter-spacing:0.14em;text-transform:uppercase;">S10</span><div style="height:0.4mm;background:#EEF0F3;width:128px"></div><span style="text-align:right;color:var(--swarm-ash);">128 px</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">17 / 30</div>
+  <div class="foot-bar"><div>More black than content.</div><div style="text-align:right">Più nero che contenuto.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 18 — CARDS &amp; SURFACES
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="150" ry="38" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>18 · Cards &amp; surfaces</span></div>
+    <div class="right">Obsidian · hairline · inset highlight</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Elevation</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:3mm;max-width:32ch;">Borders, not shadows. <span style="color:var(--swarm-ash);font-style:italic;">Machined, never soft.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:60mm;bottom:24mm;display:grid;grid-template-rows:1fr 1fr;gap:4mm;">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;box-shadow:inset 0 0.1mm 0 rgba(238,240,243,0.06);position:relative;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Surface · default</div>
+        <div style="font-family:var(--font-editorial);font-size:15pt;color:var(--swarm-platinum);margin-top:8mm;letter-spacing:-0.005em;">Many units. <span style="color:var(--swarm-ash);font-style:italic;">One intention.</span></div>
+        <div style="font-family:var(--font-display);font-size:8pt;color:var(--swarm-muted-silver);margin-top:3mm;line-height:1.5;">Obsidian fill, 1 px Gunmetal border, 1 px inset Platinum highlight at 6 % opacity on the top edge. Radius 6 px.</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;box-shadow:inset 0 0.1mm 0 rgba(238,240,243,0.06);position:relative;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Surface · elevated</div>
+        <div style="background:rgba(11,14,17,0.72);border:0.18mm solid var(--swarm-gunmetal);border-radius:1mm;padding:5mm;margin-top:4mm;backdrop-filter:blur(20px);">
+          <div style="font-family:var(--font-mono);font-size:7pt;color:var(--swarm-muted-silver);letter-spacing:0.08em;text-transform:uppercase;">— Unit 042</div>
+          <div style="font-family:var(--font-editorial);font-size:13pt;color:var(--swarm-platinum);margin-top:1mm;">Yours is being<br/>brought here.</div>
+        </div>
+        <div style="font-family:var(--font-display);font-size:7.5pt;color:var(--swarm-muted-silver);margin-top:3mm;line-height:1.5;">Overlay panels: rgba(11,14,17,0.72) + backdrop-filter blur 20 px. Used sparingly.</div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-orbital-blue);border-radius:1.5mm;padding:6mm;box-shadow:inset 0 0.1mm 0 rgba(238,240,243,0.06), 0 0 6mm rgba(123,231,255,0.16);">
+        <div class="eyebrow-mono" style="color:var(--swarm-orbital-blue);">Surface · connected (state)</div>
+        <div style="font-family:var(--font-editorial);font-size:15pt;color:var(--swarm-platinum);margin-top:8mm;letter-spacing:-0.005em;">Channel open. <span style="color:var(--swarm-orbital-blue);font-style:italic;">Live.</span></div>
+        <div style="font-family:var(--font-display);font-size:8pt;color:var(--swarm-muted-silver);margin-top:3mm;line-height:1.5;">The accent border + 24 px dim glow fire only when the card represents a state. Decorative borders are forbidden.</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Tokens</div>
+        <div style="font-family:var(--font-mono);font-size:7.5pt;color:var(--swarm-muted-silver);line-height:1.9;margin-top:2mm;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:6pt;letter-spacing:0.16em;text-transform:uppercase;">Background</span><span style="text-align:right;color:var(--swarm-platinum);">--surface · #0B0E11</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:6pt;letter-spacing:0.16em;text-transform:uppercase;">Border</span><span style="text-align:right;color:var(--swarm-platinum);">--border · #1A2026</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:6pt;letter-spacing:0.16em;text-transform:uppercase;">Inset</span><span style="text-align:right;color:var(--swarm-platinum);">inset 0 1 0 rgba(238,240,243,0.04)</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.12mm solid var(--swarm-gunmetal);padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:6pt;letter-spacing:0.16em;text-transform:uppercase;">Radius</span><span style="text-align:right;color:var(--swarm-platinum);">6 px</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;padding:1mm 0;"><span style="color:var(--swarm-ash);font-size:6pt;letter-spacing:0.16em;text-transform:uppercase;">Padding</span><span style="text-align:right;color:var(--swarm-platinum);">24 / 32 px</span></div>
+        </div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;font-family:var(--font-display);font-size:8.5pt;color:var(--swarm-muted-silver);line-height:1.55;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);">Rules</div>
+        <ul style="margin:3mm 0 0 0;padding-left:4mm;">
+          <li>No drop-shadows. Borders only. The hairline is the elevation.</li>
+          <li>The inset 1 px Platinum highlight implies a glassy top edge — never a full bevel.</li>
+          <li>Radius is 6 px on cards, 4 px on inputs, 2 px on pills. The ring is the only true circle.</li>
+          <li>State borders (Blue / Green / Amber) replace Gunmetal only when the card <em>is</em> the state.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">18 / 30</div>
+  <div class="foot-bar"><div>Almost sharp.</div><div style="text-align:right">Quasi affilato.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 19 — COMPONENTS
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="160" rx="150" ry="38" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>19 · Components</span></div>
+    <div class="right">Buttons · pills · inputs</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Components</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--swarm-platinum);letter-spacing:-0.01em;margin-top:3mm;max-width:32ch;">Sentence case. <span style="color:var(--swarm-ash);font-style:italic;">No exclamation. Ever.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:60mm;bottom:24mm;display:flex;flex-direction:column;gap:4mm;">
+    <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;">
+      <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-bottom:4mm;">Buttons</div>
+      <div style="display:flex;gap:4mm;flex-wrap:wrap;align-items:center;">
+        <div style="font-family:var(--font-display);font-size:9pt;font-weight:500;padding:3mm 6mm;background:var(--swarm-platinum);color:var(--swarm-absolute-black);border-radius:1mm;">Reserve Unit 001</div>
+        <div style="font-family:var(--font-display);font-size:9pt;font-weight:500;padding:3mm 6mm;background:transparent;color:var(--swarm-platinum);border:0.18mm solid var(--swarm-graphite);border-radius:1mm;">Read the manifesto</div>
+        <div style="font-family:var(--font-display);font-size:9pt;font-weight:500;padding:3mm 6mm;background:transparent;color:var(--swarm-muted-silver);border:0.18mm solid transparent;border-radius:1mm;">Cancel</div>
+        <div style="font-family:var(--font-display);font-size:9pt;font-weight:500;padding:3mm 6mm;background:transparent;color:var(--swarm-platinum);border:0.18mm solid var(--swarm-orbital-blue);border-radius:1mm;outline:0.18mm solid var(--swarm-orbital-blue);outline-offset:0.6mm;">Connect</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;margin-top:5mm;font-family:var(--font-mono);font-size:6.5pt;letter-spacing:0.14em;color:var(--swarm-ash);text-transform:uppercase;">
+        <span>Primary · platinum</span>
+        <span>Secondary · ghost</span>
+        <span>Tertiary · text</span>
+        <span>Focus · orbital blue</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3mm;">
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-bottom:4mm;">Pills · status</div>
+        <div style="display:flex;flex-direction:column;gap:3mm;">
+          <div style="display:inline-flex;align-items:center;gap:2mm;padding:1.5mm 3mm;border:0.18mm solid var(--swarm-gunmetal);border-radius:0.6mm;font-family:var(--font-mono);font-size:7pt;letter-spacing:0.18em;color:var(--swarm-muted-silver);text-transform:uppercase;width:fit-content;"><span style="width:1.6mm;height:1.6mm;border-radius:50%;background:var(--swarm-platinum);"></span>Rest</div>
+          <div style="display:inline-flex;align-items:center;gap:2mm;padding:1.5mm 3mm;border:0.18mm solid var(--swarm-orbital-blue);border-radius:0.6mm;font-family:var(--font-mono);font-size:7pt;letter-spacing:0.18em;color:var(--swarm-orbital-blue);text-transform:uppercase;width:fit-content;"><span style="width:1.6mm;height:1.6mm;border-radius:50%;background:var(--swarm-orbital-blue);box-shadow:0 0 2mm var(--swarm-orbital-blue);"></span>Connected</div>
+          <div style="display:inline-flex;align-items:center;gap:2mm;padding:1.5mm 3mm;border:0.18mm solid var(--swarm-signal-green);border-radius:0.6mm;font-family:var(--font-mono);font-size:7pt;letter-spacing:0.18em;color:var(--swarm-signal-green);text-transform:uppercase;width:fit-content;"><span style="width:1.6mm;height:1.6mm;border-radius:50%;background:var(--swarm-signal-green);box-shadow:0 0 2mm var(--swarm-signal-green);"></span>Operational · 007 / 128</div>
+          <div style="display:inline-flex;align-items:center;gap:2mm;padding:1.5mm 3mm;border:0.18mm solid var(--swarm-launch-amber);border-radius:0.6mm;font-family:var(--font-mono);font-size:7pt;letter-spacing:0.18em;color:var(--swarm-launch-amber);text-transform:uppercase;width:fit-content;"><span style="width:1.6mm;height:1.6mm;border-radius:50%;background:var(--swarm-launch-amber);box-shadow:0 0 2mm var(--swarm-launch-amber);"></span>Attention · Unit 042</div>
+        </div>
+      </div>
+      <div style="background:var(--swarm-obsidian);border:0.18mm solid var(--swarm-gunmetal);border-radius:1.5mm;padding:6mm;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-bottom:4mm;">Inputs</div>
+        <div style="display:flex;flex-direction:column;gap:3mm;">
+          <div>
+            <div class="eyebrow-mono" style="color:var(--swarm-ash);font-size:5.5pt;">Sector</div>
+            <div style="margin-top:1mm;font-family:var(--font-display);font-size:9pt;background:transparent;color:var(--swarm-platinum);border:0.18mm solid var(--swarm-gunmetal);border-radius:1mm;padding:3mm 3.5mm;">CETO-3</div>
+          </div>
+          <div>
+            <div class="eyebrow-mono" style="color:var(--swarm-ash);font-size:5.5pt;">Unit ID</div>
+            <div style="margin-top:1mm;font-family:var(--font-mono);font-size:9pt;background:transparent;color:var(--swarm-platinum);border:0.18mm solid var(--swarm-orbital-blue);border-radius:1mm;padding:3mm 3.5mm;">042</div>
+          </div>
+          <div>
+            <div class="eyebrow-mono" style="color:var(--swarm-ash);font-size:5.5pt;">Search (placeholder)</div>
+            <div style="margin-top:1mm;font-family:var(--font-display);font-size:9pt;background:transparent;color:var(--swarm-ash);border:0.18mm solid var(--swarm-gunmetal);border-radius:1mm;padding:3mm 3.5mm;">Find a unit, a sector, an orbit…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">19 / 30</div>
+  <div class="foot-bar"><div>Reserve. Not RESERVE NOW!</div><div style="text-align:right">Prenota. Non PRENOTA SUBITO!</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 20 — VOICE · CANON CLAIMS
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="180" rx="170" ry="46" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.18"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>20 · Voice · Canon claims</span></div>
+    <div class="right">Six claims, two tongues</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Claims · sculpted, short, certain</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:24pt;color:var(--ink);letter-spacing:-0.005em;margin-top:3mm;">The voice in word counts.</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:52mm;bottom:22mm;display:flex;flex-direction:column;gap:2mm;">
+    <div style="display:grid;grid-template-columns:24mm 1fr 40mm;gap:6mm;align-items:baseline;padding:3mm 0;border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Signature</div>
+      <div>
+        <div style="font-family:var(--font-editorial);font-weight:400;font-size:30pt;color:var(--ink);line-height:1.04;letter-spacing:-0.005em;">Many units. One intention.</div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:14pt;color:var(--ink-2);margin-top:1mm;">Molte unità. Una sola intenzione.</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:6.5pt;color:var(--ink-3);letter-spacing:0.08em;text-align:right;text-transform:uppercase;">4 words · 2 sentences</div>
+    </div>
+    <div style="display:grid;grid-template-columns:24mm 1fr 40mm;gap:6mm;align-items:baseline;padding:3mm 0;border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Product</div>
+      <div>
+        <div style="font-family:var(--font-editorial);font-weight:400;font-size:24pt;color:var(--ink);line-height:1.06;letter-spacing:-0.005em;">Autonomy, made visible.</div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:13pt;color:var(--ink-2);margin-top:1mm;">Autonomia, resa visibile.</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:6.5pt;color:var(--ink-3);letter-spacing:0.08em;text-align:right;text-transform:uppercase;">3 words · 1 sentence</div>
+    </div>
+    <div style="display:grid;grid-template-columns:24mm 1fr 40mm;gap:6mm;align-items:baseline;padding:3mm 0;border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Sky</div>
+      <div>
+        <div style="font-family:var(--font-editorial);font-weight:400;font-size:24pt;color:var(--ink);line-height:1.06;letter-spacing:-0.005em;">The sky, rewritten.</div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:13pt;color:var(--ink-2);margin-top:1mm;">Il cielo, riscritto.</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:6.5pt;color:var(--ink-3);letter-spacing:0.08em;text-align:right;text-transform:uppercase;">3 words · em-dash cadence</div>
+    </div>
+    <div style="display:grid;grid-template-columns:24mm 1fr 40mm;gap:6mm;align-items:baseline;padding:3mm 0;border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Cadence</div>
+      <div>
+        <div style="font-family:var(--font-editorial);font-weight:400;font-size:20pt;color:var(--ink);line-height:1.1;letter-spacing:-0.005em;">Precise. Silent. Inevitable.</div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:12pt;color:var(--ink-2);margin-top:1mm;">Precisa. Silenziosa. Inevitabile.</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:6.5pt;color:var(--ink-3);letter-spacing:0.08em;text-align:right;text-transform:uppercase;">3 words · 3 sentences</div>
+    </div>
+    <div style="display:grid;grid-template-columns:24mm 1fr 40mm;gap:6mm;align-items:baseline;padding:3mm 0;border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Command</div>
+      <div>
+        <div style="font-family:var(--font-editorial);font-weight:400;font-size:20pt;color:var(--ink);line-height:1.1;letter-spacing:-0.005em;">Tomorrow, under command.</div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:12pt;color:var(--ink-2);margin-top:1mm;">Domani, sotto comando.</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:6.5pt;color:var(--ink-3);letter-spacing:0.08em;text-align:right;text-transform:uppercase;">3 words · imperative</div>
+    </div>
+    <div style="display:grid;grid-template-columns:24mm 1fr 40mm;gap:6mm;align-items:baseline;padding:3mm 0;">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">CTA</div>
+      <div>
+        <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);line-height:1.1;letter-spacing:-0.005em;">Reserve Unit 001.</div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:11pt;color:var(--ink-2);margin-top:1mm;">Prenota l'Unità 001.</div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:6.5pt;color:var(--ink-3);letter-spacing:0.08em;text-align:right;text-transform:uppercase;">imperative · numeral</div>
+    </div>
+  </div>
+  <div class="spread-num-mark">20 / 30</div>
+  <div class="foot-bar"><div>Periods are weapons.</div><div style="text-align:right">I punti sono armi.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 21 — VOICE · MECHANICS / DO · DON'T
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="200" rx="160" ry="40" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.16"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>21 · Voice · Mechanics</span></div>
+    <div class="right">How we sound · How we don't</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Mechanics</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:24pt;color:var(--ink);letter-spacing:-0.005em;margin-top:3mm;">Seven words. <span style="color:var(--ink-2);font-style:italic;">Or fewer.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:52mm;bottom:22mm;display:flex;flex-direction:column;gap:5mm;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;">
+      <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(26,28,31,0.18);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Sentence</div>
+        <div style="font-family:var(--font-editorial);font-size:14pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;">Seven words.<br/><span style="color:var(--ink-2);font-style:italic;">Or fewer.</span></div>
+        <div style="font-family:var(--font-mono);font-size:7pt;color:var(--ink-2);margin-top:3mm;letter-spacing:0.04em;">Periods are weapons.</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(26,28,31,0.18);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Person</div>
+        <div style="font-family:var(--font-editorial);font-size:14pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;">Third &middot; imperative.</div>
+        <div style="font-family:var(--font-mono);font-size:7pt;color:var(--ink-2);margin-top:3mm;letter-spacing:0.04em;">Rarely "we". Almost never "you".</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(26,28,31,0.18);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Case</div>
+        <div style="font-family:var(--font-editorial);font-size:14pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;">Sentence case.</div>
+        <div style="font-family:var(--font-mono);font-size:7pt;color:var(--ink-2);margin-top:3mm;letter-spacing:0.04em;">UPPERCASE only in the wordmark.</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(26,28,31,0.18);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Numerals</div>
+        <div style="font-family:var(--font-mono);font-size:13pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.01em;">007 · 128 · 0.4 km</div>
+        <div style="font-family:var(--font-mono);font-size:7pt;color:var(--ink-2);margin-top:3mm;letter-spacing:0.04em;">Always digits. Telemetry is mono.</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3mm;">
+      <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(184,255,102,0.32);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:#4F7A2A;">○ SWARM speaks like this</div>
+        <ul style="margin:3mm 0 0;padding:0;list-style:none;font-family:var(--font-editorial);font-size:11pt;color:var(--ink);line-height:1.4;">
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"Reserve Unit 001."</li>
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"007 / 128 units online."</li>
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"The ring is lit. The system is yours."</li>
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"One intention. Many units."</li>
+          <li style="padding:1mm 0;">"Quiet. Precise. Already arrived."</li>
+        </ul>
+      </div>
+      <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(255,180,92,0.32);border-radius:1.5mm;padding:5mm;">
+        <div class="eyebrow-mono" style="color:#8B5A18;">× Never this</div>
+        <ul style="margin:3mm 0 0;padding:0;list-style:none;font-family:var(--font-editorial);font-size:11pt;color:var(--ink-2);line-height:1.4;text-decoration:line-through;text-decoration-color:rgba(255,180,92,0.5);text-decoration-thickness:0.18mm;">
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"Next-gen autonomous AI drones."</li>
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"Our cutting-edge platform empowers you…"</li>
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"Revolutionizing the future of swarm intelligence."</li>
+          <li style="padding:1mm 0;border-bottom:0.1mm solid rgba(26,28,31,0.18);">"Powerful. Robust. Scalable."</li>
+          <li style="padding:1mm 0;">"Get ready for what's coming!"</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">21 / 30</div>
+  <div class="foot-bar"><div>Em-dashes for pivots.</div><div style="text-align:right">Trattini per i cambi di passo.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 22 — VOICE · VOCABULARY
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="210" rx="160" ry="40" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.18"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>22 · Voice · Vocabulary</span></div>
+    <div class="right">Use · Avoid</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Vocabulary</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:24pt;color:var(--ink);letter-spacing:-0.005em;margin-top:3mm;">SWARM speaks rarely. <span style="color:var(--ink-2);font-style:italic;">When it does, it leaves a mark.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:52mm;bottom:22mm;display:flex;flex-direction:column;gap:6mm;">
+    <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(184,255,102,0.32);border-radius:1.5mm;padding:6mm;">
+      <div class="eyebrow-mono" style="color:#4F7A2A;margin-bottom:3mm;">○ Use</div>
+      <div style="display:flex;flex-wrap:wrap;gap:1.5mm;">
+        <span class="vchip">autonomy</span><span class="vchip">intention</span><span class="vchip">command</span><span class="vchip">orbit</span><span class="vchip">node</span><span class="vchip">unit</span><span class="vchip">signal</span><span class="vchip">ring</span><span class="vchip">silent</span><span class="vchip">precise</span><span class="vchip">inevitable</span><span class="vchip">arrived</span><span class="vchip">written</span><span class="vchip">brought here</span><span class="vchip">under command</span>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(255,180,92,0.32);border-radius:1.5mm;padding:6mm;">
+      <div class="eyebrow-mono" style="color:#8B5A18;margin-bottom:3mm;">× Avoid</div>
+      <div style="display:flex;flex-wrap:wrap;gap:1.5mm;">
+        <span class="vchip no">drone</span><span class="vchip no">AI</span><span class="vchip no">neural</span><span class="vchip no">smart</span><span class="vchip no">next-gen</span><span class="vchip no">revolutionize</span><span class="vchip no">disrupt</span><span class="vchip no">unlock</span><span class="vchip no">empower</span><span class="vchip no">powerful</span><span class="vchip no">scalable</span><span class="vchip no">robust</span><span class="vchip no">cutting-edge</span><span class="vchip no">platform</span><span class="vchip no">solution</span>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,0.22);border:0.15mm solid rgba(26,28,31,0.18);border-radius:1.5mm;padding:6mm;display:grid;grid-template-columns:1fr 1fr;gap:6mm;">
+      <div>
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Bilingual cadence</div>
+        <div style="font-family:var(--font-editorial);font-size:14pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.2;">Every claim publishes in EN and IT <span style="color:var(--ink-2);font-style:italic;">with matching rhythm.</span></div>
+      </div>
+      <div style="font-family:var(--font-display);font-size:8.5pt;color:var(--ink-2);line-height:1.6;">
+        The Italian is not a translation — it is a counterweight. <span style="color:var(--ink);">"Many units. One intention."</span> ↔ <span style="color:var(--ink);">"Molte unità. Una sola intenzione."</span> The em-dash and the period travel together.
+      </div>
+    </div>
+  </div>
+  <style>
+    .vchip{font-family:var(--font-mono);font-size:7.5pt;letter-spacing:0.04em;padding:1.5mm 2.5mm;border-radius:0.5mm;border:0.15mm solid rgba(26,28,31,0.32);color:var(--ink);}
+    .vchip.no{color:var(--ink-3);text-decoration:line-through;text-decoration-color:rgba(255,180,92,0.55);text-decoration-thickness:0.18mm;border-color:rgba(255,180,92,0.32);}
+  </style>
+  <div class="spread-num-mark">22 / 30</div>
+  <div class="foot-bar"><div>Periods are weapons.</div><div style="text-align:right">I punti sono armi.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 23 — APP · MARKETING SITE
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="180" rx="170" ry="44" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.2"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>23 · App · Marketing</span></div>
+    <div class="right">swarm.systems</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Application · brand surface</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--ink);letter-spacing:-0.005em;margin-top:2mm;">Marketing site. <span style="color:var(--ink-2);font-style:italic;">Hero in editorial mode.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:50mm;bottom:24mm;">
+    <div style="aspect-ratio:16/10;background:radial-gradient(ellipse 110% 70% at 50% 40%, #C8CDD3 0%, #9398A0 60%, #3F4348 100%);border-radius:1.5mm;position:relative;overflow:hidden;border:0.15mm solid rgba(26,28,31,0.2);">
+      <svg viewBox="0 0 800 500" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+        <ellipse cx="400" cy="320" rx="500" ry="80" stroke="#1A1C1F" stroke-width="0.6" fill="none" opacity="0.42"/>
+        <ellipse cx="400" cy="320" rx="350" ry="56" stroke="#1A1C1F" stroke-width="0.6" fill="none" opacity="0.28"/>
+        <ellipse cx="400" cy="320" rx="220" ry="36" stroke="#1A1C1F" stroke-width="0.6" fill="none" opacity="0.2"/>
+      </svg>
+      <div style="position:absolute;top:6mm;left:8mm;right:8mm;display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:2mm;">
+          <div style="width:2.5mm;height:2.5mm;border:0.25mm solid var(--ink);border-radius:50%;"></div>
+          <div style="font-family:var(--font-editorial);font-size:9pt;font-weight:500;letter-spacing:0.36em;color:var(--ink);padding-left:0.36em;">SWARM</div>
+        </div>
+        <div style="display:flex;gap:5mm;font-family:var(--font-display);font-size:7pt;color:var(--ink-2);">
+          <span>Product</span><span>Control</span><span>Manifesto</span><span>Reserve</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:6pt;color:var(--ink);border:0.15mm solid var(--ink-2);border-radius:0.6mm;padding:1mm 2.5mm;">EN · IT</div>
+      </div>
+      <div style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;">
+        <div style="width:5mm;height:5mm;border:0.32mm solid var(--ink);border-radius:50%;margin:0 auto 6mm;"></div>
+        <div style="font-family:var(--font-editorial);font-weight:500;font-size:36pt;letter-spacing:0.42em;color:var(--ink);padding-left:0.42em;line-height:1;">SWARM</div>
+        <div style="font-family:var(--font-editorial);font-size:18pt;color:var(--ink);margin-top:10mm;letter-spacing:-0.005em;">The future is <span style="color:var(--ink-2);font-style:italic;">already</span> here.</div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:13pt;color:var(--ink-2);margin-top:2mm;">Il futuro è già qui.</div>
+        <div style="display:flex;justify-content:center;gap:3mm;margin-top:9mm;">
+          <div style="font-family:var(--font-display);font-size:8pt;font-weight:500;padding:2.5mm 5mm;background:var(--ink);color:#EEF0F3;border-radius:1mm;">Reserve Unit 001</div>
+          <div style="font-family:var(--font-display);font-size:8pt;font-weight:500;padding:2.5mm 5mm;background:transparent;color:var(--ink);border:0.15mm solid var(--ink-2);border-radius:1mm;">Read the manifesto</div>
+        </div>
+      </div>
+      <div style="position:absolute;bottom:5mm;left:8mm;right:8mm;display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:5.5pt;color:var(--ink-3);letter-spacing:0.22em;text-transform:uppercase;">
+        <span>Dormio family · 2026</span>
+        <span>Many units. One intention.</span>
+        <span>↗ swarm.systems</span>
+      </div>
+    </div>
+    <div style="margin-top:5mm;display:grid;grid-template-columns:repeat(3,1fr);gap:4mm;">
+      <div style="font-family:var(--font-display);font-size:8pt;color:var(--ink-2);line-height:1.55;">
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Hero</div>
+        <p style="margin:1.5mm 0 0;">Mist gradient ground · serif wordmark · three perspective orbits · bilingual claim · primary CTA on ink.</p>
+      </div>
+      <div style="font-family:var(--font-display);font-size:8pt;color:var(--ink-2);line-height:1.55;">
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Nav</div>
+        <p style="margin:1.5mm 0 0;">Four entries, EN · IT toggle, ring + serif lock-up. Hover dims; no underline.</p>
+      </div>
+      <div style="font-family:var(--font-display);font-size:8pt;color:var(--ink-2);line-height:1.55;">
+        <div class="eyebrow-mono" style="color:var(--ink-3);">Below the fold</div>
+        <p style="margin:1.5mm 0 0;">Manifesto, ring construction, the formula 60 / 40, reserve module — each its own dark or mist surface.</p>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">23 / 30</div>
+  <div class="foot-bar"><div>The hero whispers.</div><div style="text-align:right">L'eroe sussurra.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 24 — APP · CONTROL UI
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="180" rx="160" ry="42" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>24 · App · Control</span></div>
+    <div class="right">Operator surface</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Application · product surface</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--swarm-platinum);letter-spacing:-0.005em;margin-top:2mm;">Control. <span style="color:var(--swarm-ash);font-style:italic;">Many units, one map.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:50mm;bottom:24mm;">
+    <div style="aspect-ratio:16/10;background:var(--swarm-absolute-black);border-radius:1.5mm;border:0.18mm solid var(--swarm-gunmetal);overflow:hidden;position:relative;">
+      <div style="display:flex;justify-content:space-between;padding:3mm 4mm;border-bottom:0.18mm solid var(--swarm-gunmetal);align-items:center;font-family:var(--font-mono);font-size:6.5pt;letter-spacing:0.18em;text-transform:uppercase;color:var(--swarm-ash);">
+        <div style="display:flex;align-items:center;gap:4mm;">
+          <span style="display:inline-flex;align-items:center;gap:1mm;color:var(--swarm-platinum);"><span style="width:1.6mm;height:1.6mm;border:0.18mm solid var(--swarm-platinum);border-radius:50%;"></span><span style="font-family:var(--font-editorial);font-weight:500;letter-spacing:0.36em;font-size:7.5pt;padding-left:0.36em;">SWARM</span></span>
+          <span>/ control</span>
+          <span style="color:var(--swarm-platinum);">/ session 0142</span>
+        </div>
+        <div style="display:flex;gap:4mm;align-items:center;">
+          <span>11 · 05 · 26</span>
+          <span>21:48 CET</span>
+          <span style="display:inline-flex;align-items:center;gap:1mm;padding:0.5mm 2mm;border:0.18mm solid var(--swarm-signal-green);border-radius:0.4mm;color:var(--swarm-signal-green);"><span style="width:1.2mm;height:1.2mm;background:var(--swarm-signal-green);border-radius:50%;box-shadow:0 0 1.5mm var(--swarm-signal-green);"></span>007 / 128 online</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 60mm;height:calc(100% - 11mm);">
+        <div style="position:relative;overflow:hidden;background:radial-gradient(ellipse 70% 60% at 50% 50%, #08101A 0%, #030406 80%);">
+          <svg viewBox="0 0 800 460" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%;">
+            <g stroke="#1A2026" stroke-width="0.6" fill="none">
+              <ellipse cx="400" cy="230" rx="340" ry="120"/>
+              <ellipse cx="400" cy="230" rx="240" ry="84"/>
+              <ellipse cx="400" cy="230" rx="140" ry="48"/>
+              <line x1="0" y1="230" x2="800" y2="230"/>
+              <line x1="400" y1="40" x2="400" y2="420"/>
+            </g>
+            <g fill="none" stroke="#A8AFB8" stroke-width="0.6" stroke-dasharray="2 4" opacity="0.55"><circle cx="400" cy="230" r="160"/></g>
+            <g>
+              <circle cx="560" cy="230" r="3.5" fill="#B8FF66"/>
+              <circle cx="560" cy="230" r="10" fill="none" stroke="#B8FF66" stroke-width="0.6" opacity="0.5"/>
+              <circle cx="240" cy="230" r="3.5" fill="#B8FF66"/>
+              <circle cx="400" cy="80" r="3.5" fill="#B8FF66"/>
+              <circle cx="400" cy="380" r="3.5" fill="#B8FF66"/>
+              <circle cx="500" cy="120" r="2.5" fill="#A8AFB8"/>
+              <circle cx="300" cy="340" r="2.5" fill="#A8AFB8"/>
+              <circle cx="320" cy="130" r="2.5" fill="#A8AFB8"/>
+              <circle cx="510" cy="340" r="2.5" fill="#A8AFB8"/>
+              <circle cx="610" cy="160" r="4" fill="#FFB45C"/>
+              <circle cx="610" cy="160" r="14" fill="none" stroke="#FFB45C" stroke-width="0.8" opacity="0.6"/>
+            </g>
+            <g font-family="IBM Plex Mono, monospace" font-size="9" letter-spacing="1.4" fill="#A8AFB8">
+              <line x1="610" y1="160" x2="690" y2="120" stroke="#FFB45C" stroke-width="0.6"/>
+              <text x="694" y="118" fill="#FFB45C">UNIT 042</text>
+              <text x="694" y="130">PRE-LAUNCH · T-02:14</text>
+            </g>
+            <g font-family="IBM Plex Mono, monospace" font-size="9" letter-spacing="1.4" fill="#6B7480">
+              <text x="20" y="32">SECTOR · CETO-3</text>
+              <text x="20" y="448">41.901°N · 12.491°E</text>
+              <text x="780" y="32" text-anchor="end">ALT 240M</text>
+              <text x="780" y="448" text-anchor="end">WIND 4.2 M/S</text>
+            </g>
+          </svg>
+        </div>
+        <div style="border-left:0.18mm solid var(--swarm-gunmetal);background:var(--swarm-obsidian);padding:4mm;display:flex;flex-direction:column;gap:3mm;">
+          <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Fleet</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:2mm;border-bottom:0.18mm solid var(--swarm-gunmetal);"><span style="font-family:var(--font-mono);font-size:13pt;color:var(--swarm-platinum);letter-spacing:-0.02em;">007/128</span><span class="eyebrow-mono" style="color:var(--swarm-ash);">online</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:2mm;border-bottom:0.18mm solid var(--swarm-gunmetal);"><span style="font-family:var(--font-mono);font-size:13pt;color:var(--swarm-platinum);letter-spacing:-0.02em;">98.4%</span><span class="eyebrow-mono" style="color:var(--swarm-ash);">link health</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:2mm;border-bottom:0.18mm solid var(--swarm-gunmetal);"><span style="font-family:var(--font-mono);font-size:13pt;color:var(--swarm-platinum);letter-spacing:-0.02em;">T −02:14</span><span class="eyebrow-mono" style="color:var(--swarm-ash);">unit 042</span></div>
+          <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-top:2mm;">— Units</div>
+          <div style="display:flex;flex-direction:column;gap:2mm;font-family:var(--font-mono);font-size:7pt;color:var(--swarm-muted-silver);">
+            <div style="display:flex;justify-content:space-between;"><span>001 · RING-A</span><span style="display:inline-flex;align-items:center;gap:1mm;color:var(--swarm-signal-green);"><span style="width:1.2mm;height:1.2mm;background:var(--swarm-signal-green);border-radius:50%;box-shadow:0 0 1.5mm var(--swarm-signal-green);"></span>OP</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>007 · RING-A</span><span style="display:inline-flex;align-items:center;gap:1mm;color:var(--swarm-signal-green);"><span style="width:1.2mm;height:1.2mm;background:var(--swarm-signal-green);border-radius:50%;box-shadow:0 0 1.5mm var(--swarm-signal-green);"></span>OP</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>042 · RING-B</span><span style="display:inline-flex;align-items:center;gap:1mm;color:var(--swarm-launch-amber);"><span style="width:1.2mm;height:1.2mm;background:var(--swarm-launch-amber);border-radius:50%;box-shadow:0 0 1.5mm var(--swarm-launch-amber);"></span>ATT</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>118 · RING-D</span><span style="display:inline-flex;align-items:center;gap:1mm;color:var(--swarm-orbital-blue);"><span style="width:1.2mm;height:1.2mm;background:var(--swarm-orbital-blue);border-radius:50%;box-shadow:0 0 1.5mm var(--swarm-orbital-blue);"></span>LNK</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:5mm;font-family:var(--font-display);font-size:8pt;color:var(--swarm-muted-silver);line-height:1.55;max-width:80ch;">
+      Control is the operator surface — a single map, a quiet panel, one pill that breathes when something happens. <span style="color:var(--swarm-platinum);">Never a dashboard;</span> a viewport. The ellipses live both as map graticules and as orbit projections — the same primitive the brand wears on the cover.
+    </div>
+  </div>
+  <div class="spread-num-mark">24 / 30</div>
+  <div class="foot-bar"><div>One map. One intention.</div><div style="text-align:right">Una mappa. Una sola intenzione.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 25 — APP · MOBILE
+     ============================================================ -->
+<section class="spread product">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="180" rx="160" ry="40" stroke="#1A2026" stroke-width="0.3" fill="none"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>25 · App · Mobile</span></div>
+    <div class="right">Reserve · 9 : 19.5</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--swarm-ash);">— Application · device</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--swarm-platinum);letter-spacing:-0.005em;margin-top:2mm;">Reserve. <span style="color:var(--swarm-ash);font-style:italic;">A unit is being brought here.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:54mm;bottom:24mm;display:grid;grid-template-columns:60mm 1fr;gap:8mm;align-items:center;">
+    <div style="aspect-ratio:9/19.5;background:var(--swarm-absolute-black);border:0.32mm solid var(--swarm-graphite);border-radius:8mm;padding:3mm;position:relative;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:5pt;color:var(--swarm-ash);padding:1mm 2mm;letter-spacing:0.1em;"><span>21:48</span><span>SWARM · 007 / 128</span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2mm;margin-top:5mm;">
+        <div style="width:3mm;height:3mm;border:0.25mm solid var(--swarm-platinum);border-radius:50%;"></div>
+        <div style="font-family:var(--font-editorial);font-size:7pt;font-weight:500;letter-spacing:0.36em;color:var(--swarm-platinum);padding-left:0.36em;">SWARM</div>
+      </div>
+      <div style="padding:8mm 3mm 0;">
+        <div class="eyebrow-mono" style="color:var(--swarm-ash);font-size:4.5pt;">— Unit 001</div>
+        <div style="font-family:var(--font-editorial);font-size:14pt;color:var(--swarm-platinum);line-height:1.1;letter-spacing:-0.005em;margin-top:1.5mm;">Yours is being<br/>brought here.</div>
+      </div>
+      <div style="margin:4mm 2mm;border:0.18mm solid var(--swarm-gunmetal);border-radius:1mm;background:var(--swarm-obsidian);padding:3mm;">
+        <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-muted-silver);letter-spacing:0.1em;">Status</span><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-platinum);letter-spacing:0.04em;"><span style="display:inline-block;width:1.2mm;height:1.2mm;border-radius:50%;background:var(--swarm-signal-green);margin-right:1mm;box-shadow:0 0 1.5mm var(--swarm-signal-green);"></span>Operational</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2mm;padding-top:2mm;border-top:0.12mm solid var(--swarm-gunmetal);"><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-muted-silver);letter-spacing:0.1em;">ETA</span><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-platinum);letter-spacing:0.04em;">06 · 12 · 26</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2mm;padding-top:2mm;border-top:0.12mm solid var(--swarm-gunmetal);"><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-muted-silver);letter-spacing:0.1em;">Ring lit</span><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-platinum);letter-spacing:0.04em;">Signal Green</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2mm;padding-top:2mm;border-top:0.12mm solid var(--swarm-gunmetal);"><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-muted-silver);letter-spacing:0.1em;">Sector</span><span style="font-family:var(--font-mono);font-size:6pt;color:var(--swarm-platinum);letter-spacing:0.04em;">Roma · CETO-3</span></div>
+      </div>
+      <div style="position:absolute;left:3mm;right:3mm;bottom:5mm;padding:3mm;text-align:center;background:var(--swarm-platinum);color:var(--swarm-absolute-black);border-radius:1mm;font-family:var(--font-display);font-size:8pt;font-weight:500;">Continue</div>
+    </div>
+    <div>
+      <div class="eyebrow-mono" style="color:var(--swarm-ash);margin-bottom:3mm;">Notes</div>
+      <div style="font-family:var(--font-display);font-size:9pt;color:var(--swarm-muted-silver);line-height:1.6;">
+        The mobile surface is the most personal carrier of the brand. <span style="color:var(--swarm-platinum);">The ring breathes under the wordmark.</span> The display claim is one sentence, ≤ 5 words, in the serif. Everything below is mono — coordinates, ETA, status, sector — because at this point the dream is over and the unit is on its way.<br/><br/>
+        Buttons stay sentence case. The CTA is platinum-on-black, never accent-colored. The status dot is the only place a green or amber may appear here, because the dot <em>is</em> the state.
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">25 / 30</div>
+  <div class="foot-bar"><div>Continue.</div><div style="text-align:right">Continua.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 26 — PACKAGING
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="210" rx="160" ry="38" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.16"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>26 · Packaging</span></div>
+    <div class="right">Founders' Edition</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Application · object</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--ink);letter-spacing:-0.005em;margin-top:2mm;">Packaging. <span style="color:var(--ink-2);font-style:italic;">A black field with the ring at centre.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:54mm;bottom:24mm;display:grid;grid-template-columns:1fr 1fr;gap:6mm;">
+    <div style="aspect-ratio:4/5;background:var(--swarm-absolute-black);position:relative;border-radius:1.5mm;overflow:hidden;border:0.18mm solid var(--swarm-gunmetal);padding:8mm;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="position:absolute;left:50%;top:50%;width:64%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;border:0.32mm solid rgba(238,240,243,0.45);"></div>
+      <div style="position:absolute;left:50%;top:50%;width:32%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;border:0.18mm solid rgba(238,240,243,0.18);"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3mm;margin-top:4mm;">
+        <div style="width:3.5mm;height:3.5mm;border:0.32mm solid var(--swarm-platinum);border-radius:50%;"></div>
+        <div style="font-family:var(--font-editorial);font-size:11pt;font-weight:500;letter-spacing:0.36em;color:var(--swarm-platinum);padding-left:0.36em;">SWARM</div>
+      </div>
+      <div style="text-align:center;font-family:var(--font-mono);font-size:5.5pt;color:var(--swarm-ash);letter-spacing:0.22em;text-transform:uppercase;">Unit 001<br/><b style="color:var(--swarm-platinum);font-weight:500;display:block;margin-top:1mm;">Founders' Edition</b></div>
+    </div>
+    <div>
+      <div class="eyebrow-mono" style="color:var(--ink-3);">Side legend</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:16pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.2;">Many units. <span style="color:var(--ink-2);font-style:italic;">One intention.</span></div>
+      <div style="margin-top:3mm;font-family:var(--font-editorial);font-style:italic;font-size:10pt;color:var(--ink-2);">Molte unità. Una sola intenzione.</div>
+      <div style="margin-top:6mm;font-family:var(--font-display);font-size:8pt;color:var(--ink-2);line-height:1.55;">
+        Black anodized finish. The wordmark on the front face is at 11 pt min. The centre-ring is debossed at 0.4 mm depth, not printed. Side legends are screen-printed in platinum at 7 pt with 0.32 em tracking — the cadence is the same on the box as on the cover.<br/><br/>
+        <span style="color:var(--ink);">Never</span> add a sticker. <span style="color:var(--ink);">Never</span> add a tagline. The box is the claim.
+      </div>
+      <div style="margin-top:6mm;display:grid;grid-template-columns:1fr 1fr;gap:3mm;font-family:var(--font-mono);font-size:6.5pt;color:var(--ink-3);letter-spacing:0.04em;">
+        <div style="border-top:0.18mm solid rgba(26,28,31,0.32);padding-top:2mm;"><span class="eyebrow-mono" style="color:var(--ink-3);">Substrate</span><br/><span style="color:var(--ink);">Black anodized aluminum</span></div>
+        <div style="border-top:0.18mm solid rgba(26,28,31,0.32);padding-top:2mm;"><span class="eyebrow-mono" style="color:var(--ink-3);">Print</span><br/><span style="color:var(--ink);">Screen · Platinum #EEF0F3</span></div>
+        <div style="border-top:0.18mm solid rgba(26,28,31,0.32);padding-top:2mm;"><span class="eyebrow-mono" style="color:var(--ink-3);">Deboss</span><br/><span style="color:var(--ink);">0.4 mm depth</span></div>
+        <div style="border-top:0.18mm solid rgba(26,28,31,0.32);padding-top:2mm;"><span class="eyebrow-mono" style="color:var(--ink-3);">Liner</span><br/><span style="color:var(--ink);">Obsidian felt · matte</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">26 / 30</div>
+  <div class="foot-bar"><div>The box is the claim.</div><div style="text-align:right">La scatola è la promessa.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 27 — SOCIAL &amp; CARD
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="220" rx="160" ry="38" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.16"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>27 · Social &amp; card</span></div>
+    <div class="right">1.91 : 1 · 1.75 : 1</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Application · share &amp; carry</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--ink);letter-spacing:-0.005em;margin-top:2mm;">Social card · business card. <span style="color:var(--ink-2);font-style:italic;">Same skeleton.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:54mm;bottom:24mm;display:flex;flex-direction:column;gap:5mm;">
+    <div style="aspect-ratio:1.91/1;background:var(--swarm-absolute-black);border-radius:1.5mm;position:relative;overflow:hidden;border:0.18mm solid var(--swarm-gunmetal);padding:8mm 10mm;display:flex;flex-direction:column;justify-content:space-between;">
+      <svg viewBox="0 0 760 400" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;"><ellipse cx="380" cy="280" rx="500" ry="60" stroke="#1A2026" stroke-width="0.6" fill="none"/><ellipse cx="380" cy="280" rx="320" ry="36" stroke="#1A2026" stroke-width="0.6" fill="none"/></svg>
+      <div style="display:flex;align-items:center;gap:2.5mm;position:relative;">
+        <div style="width:3mm;height:3mm;border:0.25mm solid var(--swarm-platinum);border-radius:50%;"></div>
+        <div style="font-family:var(--font-editorial);font-weight:500;font-size:11pt;letter-spacing:0.36em;color:var(--swarm-platinum);padding-left:0.36em;">SWARM</div>
+      </div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:32pt;color:var(--swarm-platinum);letter-spacing:-0.01em;line-height:1;max-width:18ch;position:relative;">Many units. <span style="color:var(--swarm-ash);font-style:italic;">One intention.</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;color:var(--swarm-ash);font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;text-transform:uppercase;position:relative;">
+        <div>Molte unità<br/><b style="color:var(--swarm-platinum);font-weight:500;">Una sola intenzione.</b></div>
+        <div style="text-align:right">↗<br/><b style="color:var(--swarm-platinum);font-weight:500;">swarm.systems</b></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4mm;">
+      <div style="aspect-ratio:1.75/1;background:var(--swarm-absolute-black);border-radius:1mm;border:0.18mm solid var(--swarm-gunmetal);padding:5mm;display:flex;flex-direction:column;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:2mm;">
+          <div style="width:2mm;height:2mm;border:0.18mm solid var(--swarm-platinum);border-radius:50%;"></div>
+          <div style="font-family:var(--font-editorial);font-weight:500;font-size:7.5pt;letter-spacing:0.36em;color:var(--swarm-platinum);padding-left:0.36em;">SWARM</div>
+        </div>
+        <div>
+          <div style="font-family:var(--font-editorial);font-size:12pt;color:var(--swarm-platinum);letter-spacing:-0.005em;">Founder</div>
+          <div style="font-family:var(--font-mono);font-size:5.5pt;color:var(--swarm-ash);letter-spacing:0.22em;text-transform:uppercase;margin-top:0.5mm;">Dormio family · Roma</div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:5.5pt;color:var(--swarm-muted-silver);letter-spacing:0.12em;">founder@swarm.systems<br/>+39 · under command</div>
+      </div>
+      <div style="aspect-ratio:1.75/1;background:var(--swarm-absolute-black);border-radius:1mm;border:0.18mm solid var(--swarm-gunmetal);padding:5mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2mm;">
+        <div style="font-family:var(--font-editorial);font-size:13pt;color:var(--swarm-platinum);letter-spacing:-0.005em;max-width:18ch;line-height:1.15;">The future is already here.</div>
+        <div style="font-family:var(--font-mono);font-size:5pt;letter-spacing:0.22em;color:var(--swarm-ash);text-transform:uppercase;">— Il futuro è già qui.</div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">27 / 30</div>
+  <div class="foot-bar"><div>Same skeleton.</div><div style="text-align:right">Stesso scheletro.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 28 — DECK COVER
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="200" rx="160" ry="38" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.16"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>28 · Deck cover</span></div>
+    <div class="right">Reserve · 16 : 9</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Application · deck</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:22pt;color:var(--ink);letter-spacing:-0.005em;margin-top:2mm;">Deck cover. <span style="color:var(--ink-2);font-style:italic;">A slide that earns silence.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:54mm;bottom:24mm;">
+    <div style="aspect-ratio:16/9;background:var(--swarm-absolute-black);border-radius:1.5mm;border:0.18mm solid var(--swarm-gunmetal);padding:10mm 12mm;position:relative;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;">
+      <svg viewBox="0 0 800 450" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;"><ellipse cx="400" cy="320" rx="600" ry="64" stroke="#1A2026" stroke-width="0.6" fill="none"/><ellipse cx="400" cy="320" rx="400" ry="42" stroke="#1A2026" stroke-width="0.6" fill="none"/></svg>
+      <div style="display:flex;justify-content:space-between;align-items:center;color:var(--swarm-ash);font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;text-transform:uppercase;position:relative;">
+        <div style="display:flex;align-items:center;gap:2mm;color:var(--swarm-platinum);">
+          <div style="width:2.5mm;height:2.5mm;border:0.25mm solid var(--swarm-platinum);border-radius:50%;"></div>
+          <div style="font-family:var(--font-editorial);font-weight:500;font-size:8pt;letter-spacing:0.36em;padding-left:0.36em;">SWARM</div>
+        </div>
+        <div>Reserve · 2026</div>
+        <div>Confidential</div>
+      </div>
+      <div style="position:relative;">
+        <div style="font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;color:var(--swarm-ash);text-transform:uppercase;margin-bottom:4mm;">— Reserve · 01 / 24</div>
+        <div style="font-family:var(--font-editorial);font-weight:400;font-size:38pt;letter-spacing:-0.01em;color:var(--swarm-platinum);line-height:1.04;max-width:18ch;">Autonomy, <span style="color:var(--swarm-ash);font-style:italic;">made visible.</span></div>
+        <div style="font-family:var(--font-editorial);font-style:italic;font-size:16pt;color:var(--swarm-ash);margin-top:3mm;">Autonomia, resa visibile.</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;color:var(--swarm-ash);font-family:var(--font-mono);font-size:6pt;letter-spacing:0.22em;text-transform:uppercase;position:relative;">
+        <div>By<br/><b style="color:var(--swarm-platinum);font-weight:500;">Founders</b></div>
+        <div style="text-align:center">Dormio family<br/><b style="color:var(--swarm-platinum);font-weight:500;">2026</b></div>
+        <div style="text-align:right">↗<br/><b style="color:var(--swarm-platinum);font-weight:500;">swarm.systems</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="spread-num-mark">28 / 30</div>
+  <div class="foot-bar"><div>A slide that earns silence.</div><div style="text-align:right">Una slide che merita silenzio.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 29 — THE BRAND TEST
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="178" rx="160" ry="40" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.18"/><ellipse cx="105" cy="178" rx="116" ry="28" stroke="#1A1C1F" stroke-width="0.18" fill="none" opacity="0.12"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>29 · The brand test</span></div>
+    <div class="right">Seven questions</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:24mm;">
+    <div class="eyebrow-mono" style="color:var(--ink-3);">— Every asset must pass</div>
+    <div style="font-family:var(--font-editorial);font-weight:400;font-size:26pt;color:var(--ink);letter-spacing:-0.005em;margin-top:3mm;max-width:30ch;">If yes — ship it. <span style="color:var(--ink-2);font-style:italic;">If no — quiet it down.</span></div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:62mm;bottom:24mm;display:grid;grid-template-columns:1fr 1fr;gap:0;border-left:0.18mm solid rgba(26,28,31,0.32);border-top:0.18mm solid rgba(26,28,31,0.32);">
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">01</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.1;">Recognizable in 2 seconds?</div>
+    </div>
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">02</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.1;">Feels premium?</div>
+    </div>
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">03</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.1;">Makes you dream?</div>
+    </div>
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">04</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.1;">Feels already real?</div>
+    </div>
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">05</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.1;">Has the ring as its signature?</div>
+    </div>
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">06</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.1;">Belongs to the Dormio family?</div>
+    </div>
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">07</div>
+      <div style="font-family:var(--font-editorial);font-weight:400;font-size:18pt;color:var(--ink);margin-top:2mm;letter-spacing:-0.005em;line-height:1.1;">Simple enough to go mass?</div>
+    </div>
+    <div style="padding:8mm 6mm;border-right:0.18mm solid rgba(26,28,31,0.32);border-bottom:0.18mm solid rgba(26,28,31,0.32);background:rgba(26,28,31,0.04);">
+      <div class="eyebrow-mono" style="color:var(--ink-3);">∞</div>
+      <div style="font-family:var(--font-editorial);font-style:italic;font-weight:400;font-size:16pt;color:var(--ink-2);margin-top:2mm;letter-spacing:-0.005em;line-height:1.15;">Cover the wordmark.<br/>Is it still SWARM?</div>
+    </div>
+  </div>
+  <div class="spread-num-mark">29 / 30</div>
+  <div class="foot-bar"><div>Seven yeses. Then ship.</div><div style="text-align:right">Sette sì. Poi si spedisce.</div></div>
+</section>
+
+<!-- ============================================================
+     SPREAD 30 — CLOSING
+     ============================================================ -->
+<section class="spread brand">
+  <div class="orbits"><svg viewBox="0 0 210 297" preserveAspectRatio="none"><ellipse cx="105" cy="178" rx="160" ry="44" stroke="#1A1C1F" stroke-width="0.22" fill="none" opacity="0.4"/><ellipse cx="105" cy="178" rx="116" ry="32" stroke="#1A1C1F" stroke-width="0.22" fill="none" opacity="0.28"/><ellipse cx="105" cy="178" rx="76" ry="22" stroke="#1A1C1F" stroke-width="0.22" fill="none" opacity="0.18"/></svg></div>
+  <div class="head-bar">
+    <div class="swarm-mini">SWARM</div>
+    <div class="mid"><span>30 · Closing</span></div>
+    <div class="right">— End of system</div>
+  </div>
+  <div style="position:absolute;left:14mm;right:14mm;top:50%;transform:translateY(-50%);text-align:center;">
+    <div style="width:6mm;height:6mm;border:0.4mm solid var(--ink);border-radius:50%;margin:0 auto 12mm;"></div>
+    <div style="font-family:var(--font-editorial);font-weight:500;letter-spacing:0.42em;font-size:50pt;color:var(--ink);padding-left:0.42em;line-height:1;">SWARM</div>
+    <div style="font-family:var(--font-editorial);font-size:20pt;color:var(--ink);margin-top:18mm;letter-spacing:-0.005em;">The future is already here.</div>
+    <div style="font-family:var(--font-editorial);font-style:italic;font-size:15pt;color:var(--ink-2);margin-top:2mm;">Il futuro è già qui.</div>
+  </div>
+  <div class="foot-bar">
+    <div>Brand Aesthetic · v1.0<br/><b>12 · 05 · 2026</b></div>
+    <div style="text-align:center;">A Dormio family brand<br/><b>swarm.systems</b></div>
+    <div style="text-align:right;">— End<br/><b>30 / 30</b></div>
+  </div>
+</section>
+
+</body>
+</html>

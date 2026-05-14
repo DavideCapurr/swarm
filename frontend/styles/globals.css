@@ -1,0 +1,140 @@
+/* SWARM operator surface — base styles.
+   Canonical reference: docs/design-system/v1.html */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    background: #030406; /* absolute-black */
+    color: #EEF0F3;      /* platinum */
+    font-family: "Satoshi", "Inter", system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Focus ring — Orbital Blue, only allowed color for focus state. */
+  :focus-visible {
+    outline: 1px solid #B6FF00;
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgba(182, 255, 0, 0.25);
+    color: #EEF0F3;
+  }
+}
+
+@layer components {
+  /* The SWARM wordmark — editorial serif, uppercase, wide tracking. */
+  .swarm-wordmark {
+    font-family: "Cormorant Garamond", "EB Garamond", Georgia, serif;
+    font-weight: 500;
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    padding-left: 0.36em; /* compensate visual centering with tracking */
+    line-height: 1;
+  }
+
+  /* The ring — paired with the wordmark in the head bar. */
+  .swarm-ring {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    background: transparent;
+  }
+
+  /* Eyebrow — Space Grotesk uppercase. */
+  .eyebrow {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: #6B7480; /* ash */
+  }
+
+  /* Eyebrow mono — for telemetry-style labels. */
+  .eyebrow-mono {
+    font-family: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+    font-size: 10px;
+    line-height: 1.2;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: #6B7480; /* ash */
+  }
+
+  /* Hairline divider. */
+  .hairline {
+    height: 1px;
+    background: #1A2026; /* gunmetal */
+  }
+
+  /* Card — borders, not shadows. */
+  .card {
+    background: #0B0E11; /* obsidian */
+    border: 1px solid #1A2026; /* gunmetal hairline */
+    border-radius: 6px;
+    box-shadow: inset 0 1px 0 rgba(238, 240, 243, 0.06);
+  }
+
+  /* Status dot with halo. */
+  .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .dot-rest        { background: #EEF0F3; }
+  .dot-connected   { background: #B6FF00; box-shadow: 0 0 6px rgba(182,255,0,0.55); }
+  .dot-operational { background: #6A4FFF; box-shadow: 0 0 6px rgba(106,79,255,0.5); }
+  .dot-attention   { background: #E81450; box-shadow: 0 0 6px rgba(232,20,80,0.5); }
+
+  /* Pill / chip — sentence case, uppercase eyebrow style for status. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid #1A2026;
+    border-radius: 2px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #A8AFB8; /* muted-silver */
+  }
+  .pill-connected   { border-color: #B6FF00; color: #B6FF00; }
+  .pill-operational { border-color: #6A4FFF; color: #6A4FFF; }
+  .pill-attention   { border-color: #E81450; color: #E81450; }
+
+  /* Mono numeric — telemetry numerals, padded with leading zeros. */
+  .mono-num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* MapLibre — soften the default attribution styling to match the brand. */
+.maplibregl-ctrl-attrib {
+  background: rgba(11, 14, 17, 0.7) !important;
+  color: #6B7480 !important;
+  font-family: "IBM Plex Mono", ui-monospace, monospace !important;
+  font-size: 9px !important;
+  letter-spacing: 0.06em !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: #A8AFB8 !important;
+}
