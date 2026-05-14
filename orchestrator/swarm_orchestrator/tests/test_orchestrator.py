@@ -52,7 +52,7 @@ async def test_anomaly_to_done_end_to_end() -> None:
     orch_task = asyncio.create_task(orch.run())
 
     # Track mission progress on the bus.
-    awards: list[dict] = []
+    awards: list[dict[str, object]] = []
     progress_phases: list[str] = []
 
     async def watch_awards() -> None:
@@ -97,5 +97,6 @@ async def test_anomaly_to_done_end_to_end() -> None:
         await tick
 
     assert len(awards) == 1
-    assert awards[0]["winner_agent_id"].startswith("sim-")
+    winner = awards[0]["winner_agent_id"]
+    assert isinstance(winner, str) and winner.startswith("sim-")
     assert "DONE" in progress_phases

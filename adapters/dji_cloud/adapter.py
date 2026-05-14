@@ -112,6 +112,7 @@ class DJICloudAdapter:
     async def connect(self) -> None:
         self._require_config()
         assert httpx is not None and mqtt is not None
+        assert self._cloud_base_url is not None
         self._http = httpx.AsyncClient(
             base_url=self._cloud_base_url,
             headers=self._auth_headers(),
