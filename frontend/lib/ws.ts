@@ -9,9 +9,9 @@ function defaultWsUrl(): string {
   // LAN (e.g. http://192.168.x.x:3000) without an explicit NEXT_PUBLIC_WS_URL.
   if (typeof window !== "undefined") {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${window.location.hostname}:8000/ws/telemetry`;
+    return `${proto}//${window.location.hostname}:8765/ws/telemetry`;
   }
-  return "ws://localhost:8000/ws/telemetry";
+  return "ws://localhost:8765/ws/telemetry";
 }
 
 function resolveWsUrl(): string {

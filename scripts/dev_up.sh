@@ -46,7 +46,7 @@ python3 -m sim.swarm_sim.runner &
 SIM_PID=$!
 
 echo "[dev_up] starting backend (FastAPI)…"
-uvicorn backend.app.main:app --host 0.0.0.0 --port "${BACKEND_PORT:-8000}" &
+uvicorn backend.app.main:app --host 0.0.0.0 --port "${BACKEND_PORT:-8765}" &
 BACKEND_PID=$!
 
 echo "[dev_up] starting frontend (Next.js)…"
@@ -55,6 +55,6 @@ FRONT_PID=$!
 
 echo "[dev_up] all services running."
 echo "          dashboard:  http://localhost:3000"
-echo "          backend:    http://localhost:${BACKEND_PORT:-8000}/health"
-echo "          ws:         ws://localhost:${BACKEND_PORT:-8000}/ws/telemetry"
+echo "          backend:    http://localhost:${BACKEND_PORT:-8765}/health"
+echo "          ws:         ws://localhost:${BACKEND_PORT:-8765}/ws/telemetry"
 wait $SIM_PID $BACKEND_PID $FRONT_PID

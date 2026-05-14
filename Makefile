@@ -35,7 +35,7 @@ infra:
 	docker compose up -d postgres redis
 
 backend: infra
-	$(VENV)/bin/uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+	$(VENV)/bin/uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8765
 
 frontend:
 	cd frontend && (pnpm dev || npm run dev)
