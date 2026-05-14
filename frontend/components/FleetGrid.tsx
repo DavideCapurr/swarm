@@ -57,29 +57,35 @@ export function FleetGrid({ fleet, anomalies, onSelect }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <Eyebrow>Fleet</Eyebrow>
+      <Eyebrow mono>Fleet</Eyebrow>
 
-      {/* ── Stat rows (mono, padded) ─────────────────────────────────────── */}
+      {/* ── Stat rows (mono, padded). Quiet panel — rows appear only when
+            there is something to say (spec spread 24 · "breathes when
+            something happens"). ─────────────────────────────────────────── */}
       <div className="flex flex-col">
         <StatRow
           value={`${String(onlineCount).padStart(3, "0")} / ${String(totalCount).padStart(3, "0")}`}
           label="online"
         />
         <StatRow value={`${link.toFixed(1)} %`} label="link health" />
-        <StatRow
-          value={attentionUnit ? `unit ${unitLabel(attentionUnit.agent_id).split(" ·")[0]}` : "—"}
-          label="attention"
-        />
-        <StatRow
-          value={unverifiedAnomaly ? `c ${unverifiedAnomaly.confidence.toFixed(2)}` : "—"}
-          label="anomaly · pending"
-        />
+        {attentionUnit && (
+          <StatRow
+            value={`unit ${unitLabel(attentionUnit.agent_id).split(" ·")[0]}`}
+            label="attention"
+          />
+        )}
+        {unverifiedAnomaly && (
+          <StatRow
+            value={`c ${unverifiedAnomaly.confidence.toFixed(2)}`}
+            label="anomaly · pending"
+          />
+        )}
       </div>
 
       {/* ── Anomalies ────────────────────────────────────────────────────── */}
       {anomalies.length > 0 && (
         <>
-          <Eyebrow className="mt-2">Anomalies</Eyebrow>
+          <Eyebrow mono className="mt-2">Anomalies</Eyebrow>
           <div className="flex flex-col">
             {anomalies.slice(0, 4).map((a) => (
               <div
@@ -106,10 +112,10 @@ export function FleetGrid({ fleet, anomalies, onSelect }: Props) {
       )}
 
       {/* ── Units list ───────────────────────────────────────────────────── */}
-      <Eyebrow className="mt-2">Units</Eyebrow>
+      <Eyebrow mono className="mt-2">Units</Eyebrow>
       <div className="flex flex-col">
         {fleet.length === 0 && (
-          <div className="text-mutedSilver text-ui font-mono py-6 text-center">
+          <div className="text-muted-silver text-ui font-mono py-6 text-center">
             no units online.
           </div>
         )}
@@ -142,9 +148,7 @@ export function FleetGrid({ fleet, anomalies, onSelect }: Props) {
 function StatRow({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex items-end justify-between py-2 border-b border-gunmetal">
-      <span className="mono-num text-platinum" style={{ fontSize: 17 }}>
-        {value}
-      </span>
+      <span className="mono-num text-platinum text-lede">{value}</span>
       <span className="eyebrow-mono">{label}</span>
     </div>
   );

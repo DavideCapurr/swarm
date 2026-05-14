@@ -185,13 +185,14 @@ export default function ControlSurface() {
         <EventFeed events={events} />
       </footer>
 
-      {/* ── CANON FOOTER — bilingual cadence, the brand signature. ─────── */}
+      {/* ── CANON FOOTER — the Control spread's bilingual cadence
+            (docs/design-system/v1.html · spread 24 foot-bar). ───────────── */}
       <div className="bg-absolute-black border-t border-gunmetal px-4 flex items-center justify-between">
-        <span className="font-editorial italic text-eyebrow text-muted-silver">
-          Many units. One intention.
+        <span className="font-editorial text-eyebrow text-muted-silver">
+          One map. One intention.
         </span>
-        <span className="font-editorial italic text-eyebrow text-muted-silver">
-          Molte unità. Una sola intenzione.
+        <span className="font-editorial text-eyebrow text-muted-silver">
+          Una mappa. Una sola intenzione.
         </span>
       </div>
     </main>
