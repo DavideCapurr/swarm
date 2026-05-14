@@ -33,9 +33,10 @@ export const tokens = {
     ink3: "#6B7080",
 
     // ── Activation accents (the 15%) ──────────────────────────────────────
-    orbitalBlue: "#B6FF00",   // CONNECTED — ring just lit
-    signalGreen: "#6A4FFF",   // OPERATIONAL — carrying out a mission
-    launchAmber: "#E81450",   // ATTENTION — needs human / has failed
+    // Spec: accents are state, not decoration.
+    orbitalBlue: "#7BE7FF",   // CONNECTED · focus · live channel
+    signalGreen: "#B8FF66",   // OPERATIONAL · online · confirmed
+    launchAmber: "#FFB45C",   // ATTENTION · pre-launch · warning
   },
 
   // ── Semantic aliases used across the dashboard ────────────────────────────
@@ -47,9 +48,9 @@ export const tokens = {
     inkSecondary: "#A8AFB8",  // mutedSilver
     inkMuted: "#6B7480",      // ash
     rest: "#EEF0F3",          // platinum — neutral state dot
-    connected: "#B6FF00",     // orbitalBlue
-    operational: "#6A4FFF",   // signalGreen
-    attention: "#E81450",     // launchAmber
+    connected: "#7BE7FF",     // orbitalBlue
+    operational: "#B8FF66",   // signalGreen
+    attention: "#FFB45C",     // launchAmber
   },
 
   // ── Typography ──────────────────────────────────────────────────────────
@@ -59,9 +60,9 @@ export const tokens = {
     editorial:
       "'Cormorant Garamond', 'EB Garamond', Georgia, serif",
     display:
-      "'Satoshi', 'Inter', system-ui, -apple-system, sans-serif",
+      "'Geist', 'Inter', system-ui, -apple-system, sans-serif",
     body:
-      "'Satoshi', 'Inter', system-ui, -apple-system, sans-serif",
+      "'Geist', 'Inter', system-ui, -apple-system, sans-serif",
     mono:
       "'IBM Plex Mono', 'SF Mono', ui-monospace, monospace",
     grotesk:
@@ -109,7 +110,7 @@ export const tokens = {
   // ── Borders — hairlines only ────────────────────────────────────────────
   border: {
     hairline: "1px solid #1A2026",  // gunmetal
-    hairlineFocus: "1px solid #B6FF00",  // orbital-blue focus ring
+    hairlineFocus: "1px solid #7BE7FF",  // orbital-blue focus ring
     insetHighlight: "inset 0 1px 0 rgba(238,240,243,0.06)",
   },
 

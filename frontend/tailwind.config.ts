@@ -66,9 +66,9 @@ const config: Config = {
       },
       boxShadow: {
         "inset-highlight": "inset 0 1px 0 rgba(238,240,243,0.06)",
-        "halo-orbital": "0 0 8px rgba(182,255,0,0.55)",
-        "halo-signal": "0 0 8px rgba(106,79,255,0.5)",
-        "halo-launch": "0 0 8px rgba(232,20,80,0.5)",
+        "halo-orbital": "0 0 8px rgba(123,231,255,0.55)",
+        "halo-signal": "0 0 8px rgba(184,255,102,0.5)",
+        "halo-launch": "0 0 8px rgba(255,180,92,0.55)",
       },
       transitionTimingFunction: {
         swarm: tokens.motion.easing,

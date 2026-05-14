@@ -8,12 +8,13 @@ export const metadata: Metadata = {
 
 // SWARM brand fonts — loaded from Google Fonts.
 // Editorial · Cormorant Garamond · for headings + the wordmark
-// Display/body · Satoshi (fallback Inter)
+// Display/body · Geist (fallback Inter) · UI
 // Mono · IBM Plex Mono · for telemetry, coordinates, numerals
 // Grotesk · Space Grotesk · for eyebrows + structural labels
 const FONTS_HREF =
   "https://fonts.googleapis.com/css2" +
   "?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500" +
+  "&family=Geist:wght@300;400;500;600;700" +
   "&family=Inter:wght@300;400;500;600;700" +
   "&family=IBM+Plex+Mono:wght@300;400;500;600" +
   "&family=Space+Grotesk:wght@400;500;600" +

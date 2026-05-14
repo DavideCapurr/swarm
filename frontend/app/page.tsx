@@ -14,6 +14,9 @@ import { FleetGrid } from "@/components/FleetGrid";
 import { EventFeed } from "@/components/EventFeed";
 import { StatusPill } from "@/components/StatusPill";
 import { UnitDetail } from "@/components/UnitDetail";
+import { AwarenessScore } from "@/components/AwarenessScore";
+import { DockCard } from "@/components/DockCard";
+import { AnomalyCard } from "@/components/AnomalyCard";
 import { agentStateToSwarm } from "@/lib/tokens";
 
 type LinkState = "connected" | "connecting" | "lost";
@@ -126,6 +129,60 @@ export default function ControlSurface() {
 
   const selectedUnit = selectedAgentId ? fleet[selectedAgentId] ?? null : null;
 
+  // ── Awareness score ────────────────────────────────────────────────────
+  // Synthetic indicator: how trustworthy the territorial model is right now.
+  // Components: unit readiness, link health, open anomalies, fleet presence.
+  const linkHealthAvg = fleetList.length
+    ? (fleetList.reduce((s, f) => s + (f.link_quality ?? 1), 0) / fleetList.length) * 100
+    : 0;
+  const readinessRatio = totalCount ? onlineCount / totalCount : 0;
+  const anomalyPenalty = Math.min(20, pendingAnomalies * 6);
+  const errorPenalty = fleetList.some((f) => agentStateToSwarm(f.fsm_state) === "attention") ? 10 : 0;
+  const awareness =
+    totalCount === 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            100,
+            55 + readinessRatio * 25 + (linkHealthAvg / 100) * 15 - anomalyPenalty - errorPenalty
+          )
+        );
+
+  // ── Operating mode ─────────────────────────────────────────────────────
+  // Five modes (spec §4): rest · patrol · verification · escalation · maint.
+  const verifiedAnomaly = anomalyList.find((a) => a.verified);
+  const pendingAnomaly = anomalyList.find((a) => !a.verified);
+  const operatingMode: "rest" | "patrol" | "verification" | "escalation" | "maintenance" =
+    fleetList.some((f) => agentStateToSwarm(f.fsm_state) === "attention")
+      ? "maintenance"
+      : verifiedAnomaly
+        ? "escalation"
+        : pendingAnomaly
+          ? "verification"
+          : airborneCount > 0
+            ? "patrol"
+            : "rest";
+
+  const MODE_STATE: Record<typeof operatingMode, "rest" | "connected" | "operational" | "attention"> = {
+    rest: "rest",
+    patrol: "operational",
+    verification: "attention",
+    escalation: "attention",
+    maintenance: "attention",
+  } as const;
+  // The unit currently verifying the active anomaly, by proximity.
+  const verifier = pendingAnomaly
+    ? fleetList
+        .filter((f) => !["DOCKED", "OFFLINE", "ERROR"].includes(f.fsm_state))
+        .sort((a, b) => {
+          const da = Math.hypot(a.geo.lat - pendingAnomaly.geo.lat, a.geo.lon - pendingAnomaly.geo.lon);
+          const db = Math.hypot(b.geo.lat - pendingAnomaly.geo.lat, b.geo.lon - pendingAnomaly.geo.lon);
+          return da - db;
+        })[0]
+    : undefined;
+  const focusAnomaly = pendingAnomaly ?? verifiedAnomaly;
+
   return (
     <main className="min-h-screen grid grid-rows-[44px_1fr_220px_28px]">
       {/* ── HEAD BAR ───────────────────────────────────────────────────── */}
@@ -144,6 +201,9 @@ export default function ControlSurface() {
         <div className="flex items-center gap-6">
           <span className="mono-num text-platinum text-ui">{date}</span>
           <span className="mono-num text-platinum text-ui">{clock} UTC</span>
+          <StatusPill state={MODE_STATE[operatingMode]}>
+            {`mode · ${operatingMode}`}
+          </StatusPill>
           <StatusPill state={fleetSwarmState}>
             {`${String(onlineCount).padStart(3, "0")} / ${String(totalCount).padStart(3, "0")} online`}
           </StatusPill>
@@ -154,7 +214,7 @@ export default function ControlSurface() {
       </header>
 
       {/* ── VIEWPORT + UNITS / DETAIL ───────────────────────────────────── */}
-      <section className="grid grid-cols-[1fr_340px] min-h-0">
+      <section className="grid grid-cols-[1fr_380px] min-h-0">
         <div className="relative overflow-hidden bg-absolute-black border-r border-gunmetal">
           <MapView fleet={fleetList} anomalies={anomalyList} telemetry={telemetry} />
           {/* Aggregate stats overlay — top-left of the viewport. */}
@@ -164,8 +224,12 @@ export default function ControlSurface() {
               {String(dockedCount).padStart(3, "0")} docked · {String(airborneCount).padStart(3, "0")} airborne
             </span>
           </div>
+          {/* Bottom-left intent line — the operating mode in long form. */}
+          <div className="absolute left-4 bottom-12 eyebrow-mono">
+            <span className="text-platinum">{operatingModeCopy(operatingMode)}</span>
+          </div>
         </div>
-        <aside className="bg-obsidian p-4 overflow-y-auto">
+        <aside className="bg-obsidian p-4 overflow-y-auto flex flex-col gap-3">
           {selectedUnit ? (
             <UnitDetail
               unit={selectedUnit}
@@ -174,11 +238,23 @@ export default function ControlSurface() {
               onClose={() => setSelectedAgentId(null)}
             />
           ) : (
-            <FleetGrid
-              fleet={fleetList}
-              anomalies={anomalyList}
-              onSelect={(id) => setSelectedAgentId(id)}
-            />
+            <>
+              <AwarenessScore
+                awareness={awareness}
+                units={{ online: onlineCount, total: totalCount }}
+                pendingAnomalies={pendingAnomalies}
+                linkHealth={linkHealthAvg}
+              />
+              {focusAnomaly && (
+                <AnomalyCard anomaly={focusAnomaly} verifier={verifier} />
+              )}
+              <DockCard fleet={fleetList} />
+              <FleetGrid
+                fleet={fleetList}
+                anomalies={anomalyList}
+                onSelect={(id) => setSelectedAgentId(id)}
+              />
+            </>
           )}
         </aside>
       </section>
@@ -200,6 +276,23 @@ export default function ControlSurface() {
       </div>
     </main>
   );
+}
+
+function operatingModeCopy(
+  mode: "rest" | "patrol" | "verification" | "escalation" | "maintenance"
+): string {
+  switch (mode) {
+    case "rest":
+      return "territory under awareness · system at rest";
+    case "patrol":
+      return "patrol in progress · coverage refreshing";
+    case "verification":
+      return "anomaly verifying · awaiting confidence";
+    case "escalation":
+      return "event verified · operator decision required";
+    case "maintenance":
+      return "unit attention required · routing adjusted";
+  }
 }
 
 function LinkBadge({ state }: { state: LinkState }) {
