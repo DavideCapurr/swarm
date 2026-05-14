@@ -45,11 +45,17 @@ function target(e: EventLog): string {
 
 function body(e: EventLog): string {
   if (e.kind === "anomaly") {
-    const kind = (e.kind_label ?? e.anomaly_kind ?? (e as { kind?: string }).kind ?? "smoke").toString();
-    // The shadowed `kind` field is the event tag — anomaly payloads use `kind` for both;
-    // fall back to a hard-coded copy until backend rename lands.
+    const kind = (e.anomaly_kind ?? "smoke").toString().toLowerCase();
     const conf = (e.confidence as number) ?? 0;
-    return `Smoke detected. c ${conf.toFixed(2)}.`;
+    const subject =
+      kind === "smoke"
+        ? "thermal irregularity"
+        : kind === "intruder"
+          ? "movement pattern"
+          : kind;
+    const band =
+      conf >= 0.85 ? "verified" : conf >= 0.65 ? "medium-confidence" : "low-confidence";
+    return `${band} ${subject} · sector requires verification. c ${conf.toFixed(2)}.`;
   }
   if (e.kind === "progress") {
     const phase = (e.phase as string) ?? "—";
@@ -57,7 +63,7 @@ function body(e: EventLog): string {
     return `${phase.toLowerCase()} · ${pct}%.`;
   }
   if (e.kind === "telemetry") {
-    return "Telemetry frame.";
+    return "telemetry frame.";
   }
   return JSON.stringify(e).slice(0, 80);
 }

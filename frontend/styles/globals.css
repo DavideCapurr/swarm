@@ -14,7 +14,7 @@
   body {
     background: #030406; /* absolute-black */
     color: #EEF0F3;      /* platinum */
-    font-family: "Satoshi", "Inter", system-ui, -apple-system, sans-serif;
+    font-family: "Geist", "Inter", system-ui, -apple-system, sans-serif;
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -22,12 +22,12 @@
 
   /* Focus ring — Orbital Blue, only allowed color for focus state. */
   :focus-visible {
-    outline: 1px solid #B6FF00;
+    outline: 1px solid #7BE7FF;
     outline-offset: 2px;
   }
 
   ::selection {
-    background: rgba(182, 255, 0, 0.25);
+    background: rgba(123, 231, 255, 0.22);
     color: #EEF0F3;
   }
 }
@@ -97,9 +97,9 @@
     border-radius: 50%;
   }
   .dot-rest        { background: #EEF0F3; }
-  .dot-connected   { background: #B6FF00; box-shadow: 0 0 6px rgba(182,255,0,0.55); }
-  .dot-operational { background: #6A4FFF; box-shadow: 0 0 6px rgba(106,79,255,0.5); }
-  .dot-attention   { background: #E81450; box-shadow: 0 0 6px rgba(232,20,80,0.5); }
+  .dot-connected   { background: #7BE7FF; box-shadow: 0 0 6px rgba(123,231,255,0.55); }
+  .dot-operational { background: #B8FF66; box-shadow: 0 0 6px rgba(184,255,102,0.5); }
+  .dot-attention   { background: #FFB45C; box-shadow: 0 0 6px rgba(255,180,92,0.55); }
 
   /* Pill / chip — sentence case, uppercase eyebrow style for status. */
   .pill {
@@ -115,9 +115,9 @@
     text-transform: uppercase;
     color: #A8AFB8; /* muted-silver */
   }
-  .pill-connected   { border-color: #B6FF00; color: #B6FF00; }
-  .pill-operational { border-color: #6A4FFF; color: #6A4FFF; }
-  .pill-attention   { border-color: #E81450; color: #E81450; }
+  .pill-connected   { border-color: #7BE7FF; color: #7BE7FF; }
+  .pill-operational { border-color: #B8FF66; color: #B8FF66; }
+  .pill-attention   { border-color: #FFB45C; color: #FFB45C; }
 
   /* Mono numeric — telemetry numerals, padded with leading zeros. */
   .mono-num {

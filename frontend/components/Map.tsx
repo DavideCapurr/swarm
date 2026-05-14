@@ -168,8 +168,8 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
         inner.style.width = "6px";
         inner.style.height = "6px";
         inner.style.borderRadius = "50%";
-        inner.style.background = "#E81450";
-        inner.style.boxShadow = "0 0 6px rgba(232,20,80,0.6)";
+        inner.style.background = "#FFB45C";
+        inner.style.boxShadow = "0 0 6px rgba(255,180,92,0.6)";
 
         const ring = document.createElement("span");
         ring.style.position = "absolute";
@@ -178,7 +178,7 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
         ring.style.width = "24px";
         ring.style.height = "24px";
         ring.style.borderRadius = "50%";
-        ring.style.border = "1px solid #E81450";
+        ring.style.border = "1px solid #FFB45C";
         ring.style.opacity = "0.6";
         ring.style.animation = "breath 4s cubic-bezier(0.2, 0.7, 0.1, 1) infinite";
 
