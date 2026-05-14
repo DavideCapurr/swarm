@@ -12,6 +12,18 @@ if [ ! -f .env ]; then
   cp .env.example .env
   echo "[dev_up] created .env from .env.example"
 fi
+
+# One-shot migration: port 8000 collides with other local dev servers, so we
+# moved the backend to 8765. Rewrite stale .env values in place.
+if grep -qE '(BACKEND_PORT=8000|localhost:8000)' .env; then
+  sed -i.bak \
+    -e 's|^BACKEND_PORT=8000$|BACKEND_PORT=8765|' \
+    -e 's|http://localhost:8000|http://localhost:8765|g' \
+    -e 's|ws://localhost:8000|ws://localhost:8765|g' \
+    .env
+  echo "[dev_up] migrated .env: backend port 8000 → 8765 (backup at .env.bak)"
+fi
+
 set -a
 # shellcheck disable=SC1091
 source .env
