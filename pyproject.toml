@@ -59,6 +59,7 @@ ignore = [
 [tool.mypy]
 python_version = "3.11"
 strict = true
+warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
