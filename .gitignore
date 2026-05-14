@@ -41,3 +41,4 @@ logs/
 data/
 *.sqlite
 *.db
+frontend/package-lock.json
