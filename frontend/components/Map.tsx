@@ -205,7 +205,9 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
       {/* Map container */}
       <div ref={containerRef} className="absolute inset-0" />
 
-      {/* Orbit graticule overlay — the brand signature, traced over the map. */}
+      {/* Orbit graticule overlay — the brand signature, traced over the map.
+          Mirrors spread 24: three concentric ellipses, a solid axial cross,
+          a dashed operating-perimeter circle. */}
       <svg
         className="pointer-events-none absolute inset-0 w-full h-full"
         viewBox="0 0 800 500"
@@ -215,25 +217,24 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
           <ellipse cx="400" cy="250" rx="340" ry="120" />
           <ellipse cx="400" cy="250" rx="240" ry="84" />
           <ellipse cx="400" cy="250" rx="140" ry="48" />
-        </g>
-        <g
-          stroke="#1A2026"
-          strokeWidth="0.4"
-          opacity="0.4"
-          fill="none"
-          strokeDasharray="2 6"
-        >
           <line x1="0" y1="250" x2="800" y2="250" />
-          <line x1="400" y1="0" x2="400" y2="500" />
+          <line x1="400" y1="40" x2="400" y2="460" />
+        </g>
+        <g fill="none" stroke="#A8AFB8" strokeWidth="0.6" strokeDasharray="2 4" opacity="0.45">
+          <circle cx="400" cy="250" r="160" />
         </g>
       </svg>
 
-      {/* Cartographic eyebrow overlay — bottom-left coords stamp. */}
-      <div className="pointer-events-none absolute left-4 bottom-4 eyebrow-mono">
-        sector · vineyard-01
+      {/* Cartographic corner stamps — four quadrants, the spec's ambient
+          context strip (spread 24). */}
+      <div className="pointer-events-none absolute right-4 top-4 eyebrow-mono mono-num text-right">
+        alt 240m
       </div>
-      <div className="pointer-events-none absolute right-4 bottom-4 eyebrow-mono mono-num">
+      <div className="pointer-events-none absolute right-4 bottom-4 eyebrow-mono mono-num text-right">
         44.700°N · 8.030°E
+      </div>
+      <div className="pointer-events-none absolute left-4 bottom-4 eyebrow-mono mono-num">
+        wind 4.2 m/s
       </div>
     </div>
   );

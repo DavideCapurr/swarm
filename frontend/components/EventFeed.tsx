@@ -68,12 +68,12 @@ export function EventFeed({ events }: Props) {
   return (
     <div className="flex flex-col gap-3 h-full">
       <div className="flex items-baseline justify-between">
-        <Eyebrow>Events</Eyebrow>
+        <Eyebrow mono>Events</Eyebrow>
         <span className="eyebrow-mono">{ordered.length} · last 50</span>
       </div>
       <div className="flex flex-col overflow-y-auto pr-2">
         {ordered.length === 0 && (
-          <div className="text-mutedSilver text-ui font-mono py-6 text-center">
+          <div className="text-muted-silver text-ui font-mono py-6 text-center">
             no events yet.
           </div>
         )}
