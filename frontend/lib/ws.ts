@@ -9,12 +9,32 @@ function defaultWsUrl(): string {
   // LAN (e.g. http://192.168.x.x:3000) without an explicit NEXT_PUBLIC_WS_URL.
   if (typeof window !== "undefined") {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${window.location.hostname}:8000/ws/telemetry`;
+    return `${proto}//${window.location.hostname}:8765/ws/telemetry`;
   }
-  return "ws://localhost:8000/ws/telemetry";
+  return "ws://localhost:8765/ws/telemetry";
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? defaultWsUrl();
+function resolveWsUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_WS_URL;
+  if (!envUrl) return defaultWsUrl();
+  // Ignore a baked-in localhost env value when the page itself is being
+  // served from a different host (LAN access): the browser would otherwise
+  // try to dial its own machine instead of the backend.
+  if (typeof window !== "undefined") {
+    try {
+      const u = new URL(envUrl);
+      const local = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+      const pageLocal =
+        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      if (local && !pageLocal) return defaultWsUrl();
+    } catch {
+      /* fall through */
+    }
+  }
+  return envUrl;
+}
+
+const WS_URL = resolveWsUrl();
 
 export type WSMessage =
   | { kind: "telemetry"; data: import("./api").Telemetry }

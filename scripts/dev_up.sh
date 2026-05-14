@@ -12,6 +12,18 @@ if [ ! -f .env ]; then
   cp .env.example .env
   echo "[dev_up] created .env from .env.example"
 fi
+
+# One-shot migration: port 8000 collides with other local dev servers, so we
+# moved the backend to 8765. Rewrite stale .env values in place.
+if grep -qE '(BACKEND_PORT=8000|localhost:8000)' .env; then
+  sed -i.bak \
+    -e 's|^BACKEND_PORT=8000$|BACKEND_PORT=8765|' \
+    -e 's|http://localhost:8000|http://localhost:8765|g' \
+    -e 's|ws://localhost:8000|ws://localhost:8765|g' \
+    .env
+  echo "[dev_up] migrated .env: backend port 8000 → 8765 (backup at .env.bak)"
+fi
+
 set -a
 # shellcheck disable=SC1091
 source .env
@@ -46,7 +58,7 @@ python3 -m sim.swarm_sim.runner &
 SIM_PID=$!
 
 echo "[dev_up] starting backend (FastAPI)…"
-uvicorn backend.app.main:app --host 0.0.0.0 --port "${BACKEND_PORT:-8000}" &
+uvicorn backend.app.main:app --host 0.0.0.0 --port "${BACKEND_PORT:-8765}" &
 BACKEND_PID=$!
 
 echo "[dev_up] starting frontend (Next.js)…"
@@ -55,6 +67,6 @@ FRONT_PID=$!
 
 echo "[dev_up] all services running."
 echo "          dashboard:  http://localhost:3000"
-echo "          backend:    http://localhost:${BACKEND_PORT:-8000}/health"
-echo "          ws:         ws://localhost:${BACKEND_PORT:-8000}/ws/telemetry"
+echo "          backend:    http://localhost:${BACKEND_PORT:-8765}/health"
+echo "          ws:         ws://localhost:${BACKEND_PORT:-8765}/ws/telemetry"
 wait $SIM_PID $BACKEND_PID $FRONT_PID
