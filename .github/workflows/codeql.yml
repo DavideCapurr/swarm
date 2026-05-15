@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   schedule:
     # Weekly deep scan in addition to PR runs. Catches issues in transitive
     # deps that landed without our involvement.
@@ -26,18 +25,23 @@ jobs:
       matrix:
         include:
           - language: python
+            build-mode: none
           - language: javascript-typescript
+            build-mode: none
 
     steps:
       # actions/checkout@v4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       # github/codeql-action/init@v3.30.7
+      # Phase 0: default query suite only. The `security-and-quality` suite
+      # is heavier and tends to surface style issues; we promote to it in
+      # Phase 6 once SwarmOS has a stable surface area.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@fbed2d2d53d0343436c1d6332dae0b38394d3917
         with:
           languages: ${{ matrix.language }}
-          queries: +security-and-quality
+          build-mode: ${{ matrix.build-mode }}
 
       # github/codeql-action/analyze@v3.30.7
       - name: Perform CodeQL Analysis

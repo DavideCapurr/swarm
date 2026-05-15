@@ -5,8 +5,9 @@ on:
     branches: ["**"]
   pull_request:
   schedule:
-    # The Docker base images may pick up new CVEs even when we don't change
-    # anything; a daily scan catches that drift.
+    # Daily scan in addition to PR runs. The Docker base images may pick up
+    # new CVEs even when we don't change anything; daily scans catch that
+    # drift.
     - cron: "11 3 * * *"
 
 permissions:
@@ -22,15 +23,18 @@ jobs:
       # actions/checkout@v4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
-      # Scan the digest-pinned images from docker-compose.yml. If either has a
-      # new CRITICAL or HIGH unfixed CVE the job fails.
+      # Phase 0 posture: scan upstream base images and *report* HIGH/CRITICAL
+      # CVEs without failing the build. Rationale: we can't ship a fix to a
+      # base image we don't own; the visibility is the value here. Phase 4
+      # rebases on minimal images and Phase 6 turns this into a blocking gate
+      # (`exit-code: "1"`) once we own the dockerfile chain.
       - name: Scan postgres image
         # aquasecurity/trivy-action@0.35.0
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         with:
           image-ref: timescale/timescaledb@sha256:51eb3bcdfc41f481c797026813d9d457fb5cbc8ea370a65640d8cda13a4040c1
           format: table
-          exit-code: "1"
+          exit-code: "0"
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
@@ -40,7 +44,7 @@ jobs:
         with:
           image-ref: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
           format: table
-          exit-code: "1"
+          exit-code: "0"
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
