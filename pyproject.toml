@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mavlink = ["mavsdk>=2.0,<3", "pymavlink>=2.4.40,<3"]
+mavlink = ["mavsdk>=2.0,<4", "pymavlink>=2.4.40,<3"]
 dji = ["paho-mqtt>=2.0,<3"]
 dev = [
     "pytest>=9.0.3,<10",
