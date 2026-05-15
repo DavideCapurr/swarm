@@ -27,7 +27,7 @@ test-python:
 	$(VENV)/bin/pytest -q --cov=core --cov=adapters --cov=orchestrator --cov=swarm_os
 
 test-frontend:
-	cd frontend && corepack pnpm test --run 2>/dev/null || true
+	cd frontend && corepack pnpm typecheck
 
 # ── run ─────────────────────────────────────────────────────────────────────
 infra:

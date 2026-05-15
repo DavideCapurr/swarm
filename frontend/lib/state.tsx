@@ -85,7 +85,7 @@ export type SwarmState = {
 
 const SwarmContext = createContext<SwarmState | null>(null);
 
-const DEFAULT_OPERATOR_ID = "op-001";
+const DEFAULT_OPERATOR_ID = "op-0001";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

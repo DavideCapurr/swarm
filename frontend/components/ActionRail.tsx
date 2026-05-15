@@ -59,7 +59,7 @@ export function ActionRail({ selectedAgentId }: { selectedAgentId?: string | nul
 
   const targets: Record<WiredIntent, string | null> = {
     verify: focus ? `anomaly:${focus.id}` : null,
-    hold_patrol: "fleet:all",
+    hold_patrol: "session:current",
     dismiss: focus ? `anomaly:${focus.id}` : null,
     return: focusedUnit ? `unit:${focusedUnit}` : null,
   };
