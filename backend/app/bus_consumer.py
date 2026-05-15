@@ -16,6 +16,8 @@ from swarm_core.messages import Anomaly, FleetState, MissionProgress, Telemetry
 
 from backend.app.state import STATE
 from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus, RedisBus
+from swarm_os import SWARM_STATE
+from swarm_os.coordinator import SwarmCoordinator
 
 if TYPE_CHECKING:  # pragma: no cover
     from backend.app.ws.telemetry import WSHub
@@ -28,6 +30,7 @@ class BusConsumer:
         self._hub = hub
         self._bus: Bus | None = None
         self._tasks: list[asyncio.Task[None]] = []
+        self._coordinator = SwarmCoordinator(SWARM_STATE)
 
     async def start(self) -> None:
         redis_url = os.getenv("REDIS_URL")
@@ -73,6 +76,8 @@ class BusConsumer:
                 continue
             STATE.last_telemetry[t.agent_id] = t
             await self._hub.broadcast({"kind": "telemetry", "data": json.loads(payload)})
+            for frame in await self._coordinator.apply_telemetry(t):
+                await self._hub.broadcast(frame)
 
     async def _consume_fleet(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:fleet:state"):
@@ -82,6 +87,8 @@ class BusConsumer:
                 continue
             STATE.fleet[fs.agent_id] = fs
             await self._hub.broadcast({"kind": "fleet", "data": json.loads(payload)})
+            for frame in await self._coordinator.apply_fleet_state(fs):
+                await self._hub.broadcast(frame)
 
     async def _consume_anomalies(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:anomalies"):
@@ -92,12 +99,16 @@ class BusConsumer:
             STATE.anomalies[a.id] = a
             STATE.add_event("anomaly", json.loads(payload))
             await self._hub.broadcast({"kind": "anomaly", "data": json.loads(payload)})
+            for frame in await self._coordinator.apply_anomaly(a):
+                await self._hub.broadcast(frame)
 
     async def _consume_progress(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:missions:progress:*"):
             try:
-                MissionProgress.model_validate_json(payload)
+                progress = MissionProgress.model_validate_json(payload)
             except Exception:
                 continue
             STATE.add_event("progress", json.loads(payload))
             await self._hub.broadcast({"kind": "progress", "data": json.loads(payload)})
+            for frame in await self._coordinator.apply_mission_progress(progress):
+                await self._hub.broadcast(frame)
