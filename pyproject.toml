@@ -34,7 +34,7 @@ dji = ["paho-mqtt>=2.0,<3"]
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=0.23,<2",
-    "pytest-cov>=4.1,<7",
+    "pytest-cov>=4.1,<8",
     "ruff>=0.4,<1",
     "mypy>=1.9,<2",
     "types-redis",
