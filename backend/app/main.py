@@ -54,14 +54,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="SwarmOS Backend", version="0.1.0", lifespan=lifespan)
 
-# Order matters: outermost first. Security headers wrap everything (so even
-# 4xx/5xx responses carry them). Body-size limit must run before the body is
-# read, so it sits on the raw ASGI layer. CORS is added last but Starlette
-# applies it before our other middlewares because it's a CORSMiddleware.
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RequestTimeoutMiddleware)
-app.add_middleware(BodySizeLimitMiddleware)
+# Middleware order matters. Starlette wraps middleware in the order they're
+# added: first added = innermost, last added = outermost. We want
+# SecurityHeadersMiddleware OUTERMOST so it tags every response, including
+# CORS preflight (which CORSMiddleware short-circuits without delegating
+# inward), 413s from BodySizeLimitMiddleware, and 504s from
+# RequestTimeoutMiddleware. So we add it last.
+app.add_middleware(BodySizeLimitMiddleware)  # innermost: cap request bytes
 app.add_middleware(CORSMiddleware, **cors_kwargs())  # type: ignore[arg-type]
+app.add_middleware(RequestTimeoutMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)  # outermost: every response
 
 app.include_router(api_router)
 

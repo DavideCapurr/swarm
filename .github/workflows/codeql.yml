@@ -20,6 +20,11 @@ jobs:
     name: analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # CodeQL is free on public repos and requires GitHub Advanced Security
+    # on private ones. Skip on private repos until GHAS lands in Phase 6 —
+    # bandit + semgrep + eslint-plugin-security cover the same surface in
+    # the meantime.
+    if: github.event.repository.visibility != 'private'
     strategy:
       fail-fast: false
       matrix:

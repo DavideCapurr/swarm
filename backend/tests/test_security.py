@@ -89,6 +89,17 @@ def test_operator_id_regex_fullmatch_only() -> None:
 # ── Security headers middleware ───────────────────────────────────────────────
 
 
+_HEADER_NAMES = (
+    "content-security-policy",
+    "x-content-type-options",
+    "x-frame-options",
+    "referrer-policy",
+    "permissions-policy",
+    "cross-origin-opener-policy",
+    "cross-origin-resource-policy",
+)
+
+
 def test_security_headers_attached() -> None:
     app = FastAPI()
     app.add_middleware(SecurityHeadersMiddleware)
@@ -100,18 +111,45 @@ def test_security_headers_attached() -> None:
     client = TestClient(app)
     r = client.get("/ping")
     assert r.status_code == 200
-    for header in (
-        "content-security-policy",
-        "x-content-type-options",
-        "x-frame-options",
-        "referrer-policy",
-        "permissions-policy",
-        "cross-origin-opener-policy",
-        "cross-origin-resource-policy",
-    ):
+    for header in _HEADER_NAMES:
         assert header in r.headers, f"missing header: {header}"
     assert r.headers["x-frame-options"] == "DENY"
     assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_security_headers_on_cors_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CORS preflight responses must also carry the security headers.
+
+    Regression: when SecurityHeadersMiddleware is registered before
+    CORSMiddleware (i.e. innermost), CORS short-circuits OPTIONS and skips
+    the headers middleware. The middleware order in backend.app.main puts
+    SecurityHeadersMiddleware OUTERMOST so this works for preflight too.
+    """
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from backend.app.security import cors_kwargs
+
+    monkeypatch.setenv("SWARM_ALLOWED_ORIGINS", "https://swarm.example.com")
+    app = FastAPI()
+    # Order mirrors backend.app.main: CORS innermost, headers outermost.
+    app.add_middleware(CORSMiddleware, **cors_kwargs())  # type: ignore[arg-type]
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    @app.get("/ping")
+    def _ping() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    client = TestClient(app)
+    r = client.options(
+        "/ping",
+        headers={
+            "Origin": "https://swarm.example.com",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert r.status_code == 200
+    for header in _HEADER_NAMES:
+        assert header in r.headers, f"preflight missing header: {header}"
 
 
 # ── Body size limit ───────────────────────────────────────────────────────────
