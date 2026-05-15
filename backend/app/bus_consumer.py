@@ -68,6 +68,14 @@ class BusConsumer:
 
     # ── consumers ────────────────────────────────────────────────────────────
 
+    # ── Phase 2 cleanup note ──────────────────────────────────────────────────
+    # The dual-emit of raw `telemetry`/`fleet`/`anomaly`/`progress` frames was
+    # removed in Phase 2 once the Console started reading only the projected
+    # Phase 1 frames (`unit`, `dock`, `sector`, `awareness`, `mission`,
+    # `anomaly_view`, `event`, `operator`, `session`). Raw payloads still flow
+    # into the in-memory `STATE` for legacy REST endpoints (`/fleet`,
+    # `/telemetry/latest`, `/anomalies/raw`) used by external smoke tests.
+
     async def _consume_telemetry(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:telemetry:*"):
             try:
@@ -75,7 +83,6 @@ class BusConsumer:
             except Exception:
                 continue
             STATE.last_telemetry[t.agent_id] = t
-            await self._hub.broadcast({"kind": "telemetry", "data": json.loads(payload)})
             for frame in await self._coordinator.apply_telemetry(t):
                 await self._hub.broadcast(frame)
 
@@ -86,7 +93,6 @@ class BusConsumer:
             except Exception:
                 continue
             STATE.fleet[fs.agent_id] = fs
-            await self._hub.broadcast({"kind": "fleet", "data": json.loads(payload)})
             for frame in await self._coordinator.apply_fleet_state(fs):
                 await self._hub.broadcast(frame)
 
@@ -98,7 +104,6 @@ class BusConsumer:
                 continue
             STATE.anomalies[a.id] = a
             STATE.add_event("anomaly", json.loads(payload))
-            await self._hub.broadcast({"kind": "anomaly", "data": json.loads(payload)})
             for frame in await self._coordinator.apply_anomaly(a):
                 await self._hub.broadcast(frame)
 
@@ -109,6 +114,5 @@ class BusConsumer:
             except Exception:
                 continue
             STATE.add_event("progress", json.loads(payload))
-            await self._hub.broadcast({"kind": "progress", "data": json.loads(payload)})
             for frame in await self._coordinator.apply_mission_progress(progress):
                 await self._hub.broadcast(frame)

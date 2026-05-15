@@ -50,6 +50,11 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["core", "adapters", "orchestrator", "sim", "backend", "."]
 namespaces = true
+# pytest discovers test packages via `testpaths`; we don't ship them.
+# Newer setuptools collapses overlapping namespace roots (top-level
+# `tests/` + `backend/tests/`) into a single namespace package and then
+# fails when the `fuzz` subpackage can't be found under both roots.
+exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
 
 [tool.ruff]
 line-length = 100
