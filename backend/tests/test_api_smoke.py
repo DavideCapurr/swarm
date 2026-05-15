@@ -20,10 +20,15 @@ from swarm_core.messages import (
 
 from backend.app.api.routes import router
 from backend.app.state import STATE
+from swarm_os import SWARM_STATE
 
 
 @pytest.fixture
 def client() -> TestClient:
+    SWARM_STATE.anomalies.clear()
+    SWARM_STATE.missions.clear()
+    SWARM_STATE.units.clear()
+    SWARM_STATE.events.clear()
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)

@@ -18,13 +18,13 @@ setup-frontend:
 # ── lint & test ─────────────────────────────────────────────────────────────
 lint:
 	$(VENV)/bin/ruff check .
-	$(VENV)/bin/mypy core adapters orchestrator sim backend
+	$(VENV)/bin/mypy core adapters orchestrator sim backend swarm_os
 	cd frontend && corepack pnpm typecheck
 
 test: test-python test-frontend
 
 test-python:
-	$(VENV)/bin/pytest -q --cov=core --cov=adapters --cov=orchestrator
+	$(VENV)/bin/pytest -q --cov=core --cov=adapters --cov=orchestrator --cov=swarm_os
 
 test-frontend:
 	cd frontend && corepack pnpm test --run 2>/dev/null || true

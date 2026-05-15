@@ -9,8 +9,8 @@ of every phase.
 | Phase | Description                                           | Status |
 |-------|-------------------------------------------------------|--------|
 | 0     | Repo discipline + security baseline + shared types    | **done** |
-| 1     | SwarmOS Sim Kernel + endpoints + actions              | next |
-| 2     | Console Operating Shell + routing + components        | pending |
+| 1     | SwarmOS Sim Kernel + endpoints + actions              | **done** |
+| 2     | Console Operating Shell + routing + components        | next |
 | 3     | Truth Layer (no DERIVED)                              | pending |
 | 4     | Persistence (Timescale + Alembic + audit)             | pending |
 | 5     | Real Adapter (MAVLink or DJI — TBD)                   | pending |
@@ -63,6 +63,39 @@ of every phase.
 - [x] Voice audit grep returns zero hits
 - [x] Brand audit grep returns only allowlisted hairline/dot-glow tokens
 
+## Phase 1 — completed checklist
+
+- [x] Added `swarm_os/` in-memory Sim Kernel:
+      `state.py`, `fsm.py`, `sectors.py`, `awareness.py`, `scheduler.py`,
+      `event_detector.py`, `command_bus.py`, `coordinator.py`
+- [x] Added simulator projection integration at `adapters/simulator/runner.py`
+- [x] Projected raw `FleetState`, `Telemetry`, `Anomaly`, and
+      `MissionProgress` bus messages into Console-facing `UnitState`,
+      `Sector`, `AwarenessBreakdown`, `AnomalyView`, `MissionView`, and
+      typed `Event` records
+- [x] Added Phase 1 REST endpoints: `/session`, `/awareness`, `/docks`,
+      `/sectors`, `/units`, `/missions`, view-oriented `/anomalies`,
+      filtered `/events`
+- [x] Preserved legacy endpoints: `/fleet`, `/telemetry/latest`, `/events`
+      fallback, and raw anomalies at `/anomalies/raw`
+- [x] Added action endpoints: `/actions/verify`, `/actions/hold-patrol`,
+      `/actions/dismiss`, `/actions/return`
+- [x] Wired `X-Operator-Id` regex validation, per-IP/operator rate limiting,
+      closed-enum `rejected_reason`, and 202 accepted command responses
+- [x] Added WS dual-emission for legacy payloads plus
+      `unit|dock|sector|awareness|mission|anomaly_view|event|operator`
+      frames
+- [x] Added targeted tests for SwarmOS mode rules, sector scoring, awareness,
+      coordinator projections, command bus, snapshot endpoints, action
+      validation, and 31st-call rate limiting
+- [x] `make lint` green
+- [x] `make test` green: 177 passed, 16 skipped; `swarm_os/` coverage ≥ 70%
+- [x] `make audit` green: pip-audit clean, pnpm audit clean, Bandit no
+      medium/high findings
+
+Next: Phase 2 — Console Operating Shell. Do not start Phase 2 until the next
+explicit phase request.
+
 ## Open decisions
 
 - **Phase 5 vendor choice**: MAVLink (PX4/ArduPilot) vs DJI — to be decided
@@ -77,8 +110,5 @@ of every phase.
 
 ## Last updated
 
-2026-05-15: Phase 0 re-verified from code on GitHub main base. Runtime
-refresh applied: Node 24 LTS, pnpm 11 via Corepack, Next.js 16.2.6,
-React 19.2.6, uv frozen Python install, MAVSDK/protobuf removed from the
-Phase 0-4 install surface, and PostCSS audit override applied through
-pnpmfile. Next: Phase 1 — SwarmOS Sim Kernel.
+2026-05-15: Phase 1 completed from GitHub main commit
+`2390f872908a4a52588287a3865b3da96c785750`.

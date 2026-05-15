@@ -48,7 +48,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["core", "adapters", "orchestrator", "sim", "backend"]
+where = ["core", "adapters", "orchestrator", "sim", "backend", "."]
 namespaces = true
 
 [tool.ruff]
@@ -82,6 +82,7 @@ testpaths = [
     "adapters/tests",
     "orchestrator/swarm_orchestrator/tests",
     "backend/tests",
+    "swarm_os/tests",
     "tests/fuzz",
 ]
 
