@@ -1,8 +1,21 @@
 /**
  * WebSocket client to the backend's telemetry fan-out hub.
  *
- * Emits typed events; callers subscribe via `onMessage`.
+ * Emits typed events; callers subscribe via `onMessage`. The union below
+ * mirrors the kinds projected by `swarm_os.coordinator.SwarmCoordinator`.
  */
+
+import type {
+  AnomalyView,
+  AwarenessBreakdown,
+  DockState,
+  MissionView,
+  OperatorCommand,
+  Sector,
+  Session,
+  TimelineEvent,
+  UnitState,
+} from "./api";
 
 function defaultWsUrl(): string {
   // Derive from the current page so the dashboard works when opened over the
@@ -37,10 +50,15 @@ function resolveWsUrl(): string {
 const WS_URL = resolveWsUrl();
 
 export type WSMessage =
-  | { kind: "telemetry"; data: import("./api").Telemetry }
-  | { kind: "fleet"; data: import("./api").FleetMember }
-  | { kind: "anomaly"; data: import("./api").Anomaly }
-  | { kind: "progress"; data: { mission_id: string; phase: string; progress_pct: number } };
+  | { kind: "session"; data: Session }
+  | { kind: "unit"; data: UnitState }
+  | { kind: "dock"; data: DockState }
+  | { kind: "sector"; data: Sector }
+  | { kind: "awareness"; data: AwarenessBreakdown }
+  | { kind: "mission"; data: MissionView }
+  | { kind: "anomaly_view"; data: AnomalyView }
+  | { kind: "event"; data: TimelineEvent }
+  | { kind: "operator"; data: OperatorCommand };
 
 export type WSHandler = (msg: WSMessage) => void;
 

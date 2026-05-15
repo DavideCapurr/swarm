@@ -10,7 +10,7 @@ of every phase.
 |-------|-------------------------------------------------------|--------|
 | 0     | Repo discipline + security baseline + shared types    | **done** |
 | 1     | SwarmOS Sim Kernel + endpoints + actions              | **done** |
-| 2     | Console Operating Shell + routing + components        | next |
+| 2     | Console Operating Shell + routing + components        | **done** |
 | 3     | Truth Layer (no DERIVED)                              | pending |
 | 4     | Persistence (Timescale + Alembic + audit)             | pending |
 | 5     | Real Adapter (MAVLink or DJI — TBD)                   | pending |
@@ -96,6 +96,57 @@ of every phase.
 Next: Phase 2 — Console Operating Shell. Do not start Phase 2 until the next
 explicit phase request.
 
+## Phase 2 — completed checklist
+
+- [x] Lifted `ControlSurface` from `frontend/app/page.tsx` (314 LOC) into
+      `frontend/components/TerritoryControl.tsx`; root `/` now serves the
+      `(console)` route group.
+- [x] Added state provider `frontend/lib/state.tsx` (`SwarmStateProvider` +
+      `useSwarm()` + `useFocusAnomaly()` + `useUnit()`) wired to a single
+      `SwarmSocket` + Phase 1 REST snapshots.
+- [x] Added Phase 2 derivation helpers `frontend/lib/derive.ts` flagged
+      `derived: true` (operating mode, verifier, primary dock, mode copy,
+      anomaly copy) until Phase 3 emits the truth frames.
+- [x] Extended `frontend/lib/api.ts` with all Console-facing aggregate
+      types + new REST methods (`/session`, `/awareness`, `/docks`,
+      `/sectors`, `/units`, `/missions`, view-oriented `/anomalies`,
+      filtered `/events`, operator action posts).
+- [x] Typed `frontend/lib/ws.ts` `WSMessage` union for the new kinds
+      (`session|unit|dock|sector|awareness|mission|anomaly_view|event|operator`);
+      LAN-aware URL resolution preserved.
+- [x] Routed under `app/(console)/`: `layout.tsx` mounts provider + HeadBar
+      + Footer; `page.tsx` renders `<TerritoryControl/>`; `/verify`,
+      `/verify/[id]`, `/system`. Mobile under `app/m/`: `layout.tsx`,
+      `page.tsx`, `[anomaly]/page.tsx`.
+- [x] Added 17 new components (PDF §5.10):
+      `HeadBar`, `Footer`, `RightRail`, `ActionRail`, `RiskState`,
+      `NextPatrol`, `WeatherLock`, `LinkHealth`, `AnomalySummary`,
+      `SectorLayer`, `RouteLayer`, `LiveFeedFrame`, `DockDetail`,
+      `UnitReadiness`, `MobileAlertScreen`, `MobileAnomalyScreen`, plus
+      the lifted `TerritoryControl`.
+- [x] Added named inline SVG icon set `frontend/icons/index.tsx` (24px,
+      stroke 1.5, round caps). No external icon kit.
+- [x] `LiveFeedFrame` renders the honest `UNIT NNN VIEWPORT PENDING /
+      STREAM OFFLINE` placeholder — never a stock clip.
+- [x] Map overlays `SectorLayer` (sector polygons + risk band stroke) and
+      `RouteLayer` (mission waypoints + observed tracks) render on the
+      MapView via the children render-prop.
+- [x] `ActionRail` wires `verify / hold-patrol / dismiss / return` to the
+      Phase 1 action endpoints with operator-id header + outcome eyebrow.
+      Advisory intents remain disabled with `intent only` copy.
+- [x] WS cleanup: removed dual-emit of raw
+      `telemetry|fleet|anomaly|progress` frames from `bus_consumer.py`;
+      Console now reads only the projected Phase 1 frames. Legacy REST
+      endpoints stay live for backwards compatibility.
+- [x] Voice audit grep returns zero hits across `frontend/components` +
+      `frontend/app`.
+- [x] Brand audit grep returns only the design-system allowlist (inset
+      highlight + state dot halos in `globals.css`).
+- [x] `make lint` green: ruff + mypy + frontend `tsc --noEmit`.
+- [x] `make test` green: 177 passed, 16 skipped.
+- [x] `make audit` green: pip-audit clean, pnpm audit clean, Bandit no
+      medium/high findings.
+
 ## Open decisions
 
 - **Phase 5 vendor choice**: MAVLink (PX4/ArduPilot) vs DJI — to be decided
@@ -110,5 +161,6 @@ explicit phase request.
 
 ## Last updated
 
-2026-05-15: Phase 1 completed from GitHub main commit
+2026-05-15: Phase 2 completed on branch `claude/phase-2-start-CMUg1`.
+Phase 1 was completed at GitHub main commit
 `2390f872908a4a52588287a3865b3da96c785750`.
