@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
-from collections.abc import AsyncIterator
-from typing import Protocol
+from collections.abc import AsyncIterator, Awaitable
+from typing import Any, Protocol, cast
 
 
 class Bus(Protocol):
@@ -85,7 +85,7 @@ class RedisBus:
 
         self._redis = from_url(self._url, decode_responses=True)
         # Force a real round-trip to surface connection errors immediately.
-        await self._redis.ping()  # type: ignore[attr-defined]
+        await cast(Awaitable[Any], self._redis.ping())  # type: ignore[attr-defined]
 
     async def close(self) -> None:
         import contextlib

@@ -34,7 +34,7 @@ def pytest_pyfunc_call(pyfuncitem: object) -> bool | None:
         return None
 
     funcargs = getattr(pyfuncitem, "funcargs", {})
-    names = getattr(pyfuncitem, "_fixtureinfo").argnames
+    names = pyfuncitem._fixtureinfo.argnames  # type: ignore[attr-defined]
     kwargs = {name: funcargs[name] for name in names}
     asyncio.run(obj(**kwargs))
     return True
