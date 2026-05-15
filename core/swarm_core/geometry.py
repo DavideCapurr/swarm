@@ -74,6 +74,90 @@ def point_in_polygon(p: Geo, polygon: list[Geo]) -> bool:
     return inside
 
 
+def centroid(polygon: list[Geo]) -> Geo:
+    """Arithmetic centroid of a polygon's vertices.
+
+    Good enough for the sector grid: rectangles' arithmetic centroid coincides
+    with the geometric centroid. For irregular polygons later, swap in
+    shapely.centroid.
+    """
+    if not polygon:
+        raise ValueError("centroid: empty polygon")
+    n = len(polygon)
+    return Geo(
+        lat=sum(p.lat for p in polygon) / n,
+        lon=sum(p.lon for p in polygon) / n,
+        alt_m=sum(p.alt_m for p in polygon) / n,
+    )
+
+
+def sector_grid(center: Geo, half_extent_m: float, n: int) -> list[list[Geo]]:
+    """NxN square sector grid centered on `center`, half-side `half_extent_m`.
+
+    Returns a list of `n*n` polygons. Each polygon is the 4 corner `Geo`s in
+    CCW order (SW, SE, NE, NW). Local equirectangular approximation —
+    accurate enough for the demo wedge (<10 km extent). For larger or
+    higher-precision needs we delegate to pyproj/shapely.
+
+    Cell size on Earth's surface ≈ `2 * half_extent_m / n` meters per side.
+    """
+    if n <= 0:
+        raise ValueError(f"sector_grid: n must be > 0, got {n}")
+    if half_extent_m <= 0:
+        raise ValueError(f"sector_grid: half_extent_m must be > 0, got {half_extent_m}")
+
+    # Meters → degrees at this latitude. lat-degree is ~constant; lon-degree
+    # shrinks with cos(lat).
+    lat_rad = math.radians(center.lat)
+    cos_lat = max(math.cos(lat_rad), 1e-6)  # avoid /0 at poles
+    deg_per_m_lat = 1.0 / (EARTH_RADIUS_M * math.pi / 180.0)
+    deg_per_m_lon = deg_per_m_lat / cos_lat
+
+    half_lat_deg = half_extent_m * deg_per_m_lat
+    half_lon_deg = half_extent_m * deg_per_m_lon
+    cell_lat_deg = (2 * half_lat_deg) / n
+    cell_lon_deg = (2 * half_lon_deg) / n
+
+    sw_lat = center.lat - half_lat_deg
+    sw_lon = center.lon - half_lon_deg
+
+    sectors: list[list[Geo]] = []
+    for row in range(n):
+        for col in range(n):
+            lat0 = sw_lat + row * cell_lat_deg
+            lat1 = lat0 + cell_lat_deg
+            lon0 = sw_lon + col * cell_lon_deg
+            lon1 = lon0 + cell_lon_deg
+            sectors.append(
+                [
+                    Geo(lat=lat0, lon=lon0),
+                    Geo(lat=lat0, lon=lon1),
+                    Geo(lat=lat1, lon=lon1),
+                    Geo(lat=lat1, lon=lon0),
+                ]
+            )
+    return sectors
+
+
+def closest_sector(p: Geo, sectors: list[list[Geo]]) -> int | None:
+    """Return the index of the sector whose centroid is closest to `p`.
+
+    `None` if `sectors` is empty. Ties broken by lower index. Containment is
+    *not* a precondition — the point can be outside all sectors and the
+    closest-centroid one is still returned.
+    """
+    if not sectors:
+        return None
+    best_idx = 0
+    best_d = haversine_m(p, centroid(sectors[0]))
+    for i in range(1, len(sectors)):
+        d = haversine_m(p, centroid(sectors[i]))
+        if d < best_d:
+            best_d = d
+            best_idx = i
+    return best_idx
+
+
 def tile_polygon(polygon: list[Geo], slices: int) -> list[list[Geo]]:
     """Naive vertical slicing of a convex-ish polygon for COVER decomposition.
 

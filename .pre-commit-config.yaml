@@ -1,0 +1,52 @@
+# Pre-commit hooks for SwarmOS.
+#
+# Install once with `pip install pre-commit && pre-commit install` (already
+# wired in `make setup`). Hooks then run on every `git commit`.
+#
+# Each hook has a security rationale:
+#   - gitleaks            S17 — block secrets from being committed
+#   - detect-secrets      S17 — second-source secrets detector
+#   - check-yaml          generic — catch malformed YAML before CI
+#   - check-toml          generic — catch malformed pyproject/etc.
+#   - check-merge-conflict — catch unresolved merges
+#   - check-added-large-files — discourage committing huge artifacts
+#   - end-of-file-fixer   generic
+#   - trailing-whitespace generic
+#   - ruff format / check S? — Python style + safety lints
+#   - mypy is too slow for pre-commit; runs in CI only.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-symlinks
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: forbid-submodules
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        exclude: package-lock\.json|uv\.lock

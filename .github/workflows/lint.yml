@@ -5,12 +5,20 @@ on:
     branches: ["**"]
   pull_request:
 
+# S5: GITHUB_TOKEN least-privilege. Lint workflow only needs to clone the
+# repo; no write to issues, packages, or anything else.
+permissions:
+  contents: read
+
 jobs:
   python:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # S4: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # S4: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.11"
           cache: pip
@@ -25,15 +33,26 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # S4: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # S4: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: "20"
-      - name: Install deps
-        run: npm install --no-audit --no-fund
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # S3: install with audit disabled (driven by .npmrc audit=false), then
+      # gate explicitly on `high`-or-above CVEs. Running audit twice with
+      # different thresholds produces confusing exit codes; this separates
+      # "install succeeded" from "no known high CVEs".
+      - name: Install deps (npm, ignore-scripts honored from .npmrc)
+        run: npm ci --no-audit --no-fund
+      - name: npm audit (fail on high)
+        run: npm audit --audit-level=high
       - name: ESLint
         run: npm run lint

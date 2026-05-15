@@ -1,0 +1,55 @@
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly deep scan in addition to PR runs. Catches issues in transitive
+    # deps that landed without our involvement.
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+  # CodeQL needs to write SARIF results.
+  actions: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # CodeQL is free on public repos and requires GitHub Advanced Security
+    # on private ones. Skip on private repos until GHAS lands in Phase 6 —
+    # bandit + semgrep + eslint-plugin-security cover the same surface in
+    # the meantime.
+    if: github.event.repository.visibility != 'private'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      # github/codeql-action/init@v3.30.7
+      # Phase 0: default query suite only. The `security-and-quality` suite
+      # is heavier and tends to surface style issues; we promote to it in
+      # Phase 6 once SwarmOS has a stable surface area.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@fbed2d2d53d0343436c1d6332dae0b38394d3917
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # github/codeql-action/analyze@v3.30.7
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@fbed2d2d53d0343436c1d6332dae0b38394d3917
+        with:
+          category: "/language:${{ matrix.language }}"

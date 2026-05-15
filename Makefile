@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo clean
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit clean
 
 PY := python3
 VENV := .venv
@@ -48,6 +48,23 @@ orchestrator:
 
 demo:
 	@./scripts/demo_wildfire.sh
+
+# ── security audit ──────────────────────────────────────────────────────────
+# `make audit` is the one-stop check before pushing. It mirrors what CI runs
+# under .github/workflows/sast.yml + secret-scanning.yml + image-scan.yml +
+# dependency-review.yml. Locally we skip image-scan (needs Docker daemon).
+audit: audit-python audit-frontend audit-bandit
+
+audit-python:
+	$(VENV)/bin/pip-audit --skip-editable
+
+audit-frontend:
+	cd frontend && (pnpm audit --audit-level=high || npm audit --audit-level=high)
+
+audit-bandit:
+	$(VENV)/bin/bandit -r core adapters orchestrator sim backend swarm_os \
+		--severity-level medium \
+		--skip B101,B311
 
 # ── cleanup ─────────────────────────────────────────────────────────────────
 clean:

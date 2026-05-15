@@ -75,7 +75,48 @@ Run the wildfire scenario manually:
 ```bash
 make test      # pytest (core, adapters, orchestrator, backend) + frontend vitest
 make lint      # ruff + mypy + eslint + tsc
+make audit     # pip-audit + npm audit + bandit
 ```
+
+## Security
+
+SwarmOS controls drones in the physical world; security is a hard
+invariant, not aspirational. The full posture is documented in
+[`SECURITY.md`](SECURITY.md) (disclosure policy + supported versions) and
+[`docs/security/threat-model.md`](docs/security/threat-model.md) (STRIDE +
+threat scenarios + controls). The incident response runbook lives at
+[`docs/security/incident-response.md`](docs/security/incident-response.md).
+
+Active controls — these are part of the product, not aspirational:
+
+- Lockfiles committed (`frontend/package-lock.json`, `uv.lock`).
+- `frontend/.npmrc` with `ignore-scripts=true` (no postinstall execution
+  during install).
+- GitHub Actions pinned by full 40-character SHA.
+- Docker images pinned by `@sha256:` digest.
+- CORS allowlist (env-driven via `SWARM_ALLOWED_ORIGINS`, never `*`).
+- WebSocket Origin enforcement.
+- Security headers on every HTTP response (CSP, X-Content-Type-Options,
+  X-Frame-Options DENY, Referrer-Policy, Permissions-Policy, HSTS in
+  prod).
+- Pydantic strict mode on all Console-facing aggregates.
+- Request body size limit (1 MB) and request timeout (30 s).
+- Per-IP token-bucket rate limiter for action endpoints (Phase 1).
+- CI: Dependabot, Dependency Review, CodeQL, Bandit, Semgrep, Trivy,
+  gitleaks, ESLint security plugin, npm audit.
+- Local: pre-commit hooks (gitleaks, detect-secrets, ruff, end-of-file,
+  trailing whitespace, large file guard).
+
+Report a vulnerability:
+https://github.com/DavideCapurr/swarm/security/advisories/new
+
+## For Claude Code sessions
+
+[`CLAUDE.md`](CLAUDE.md) is the entry point for any Claude Code session in
+this repo: terminology, hard rules, current phase, conventions. The full
+development plan is at
+[`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md). Execution
+progress lives at [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Architecture
 
