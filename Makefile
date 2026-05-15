@@ -4,23 +4,22 @@ PY := python3
 VENV := .venv
 PIP := $(VENV)/bin/pip
 PYTHON := $(VENV)/bin/python
+UV := uv
 
 # ── setup ───────────────────────────────────────────────────────────────────
 setup: setup-python setup-frontend
 
 setup-python:
-	$(PY) -m venv $(VENV)
-	$(PIP) install --upgrade pip
-	$(PIP) install -e ".[dev,mavlink,dji]"
+	$(UV) sync --frozen --extra dev --extra mavlink --extra dji --python $(PY)
 
 setup-frontend:
-	cd frontend && (pnpm install || npm install)
+	cd frontend && corepack pnpm install --frozen-lockfile
 
 # ── lint & test ─────────────────────────────────────────────────────────────
 lint:
 	$(VENV)/bin/ruff check .
 	$(VENV)/bin/mypy core adapters orchestrator sim backend
-	cd frontend && (pnpm typecheck || npm run typecheck)
+	cd frontend && corepack pnpm typecheck
 
 test: test-python test-frontend
 
@@ -28,7 +27,7 @@ test-python:
 	$(VENV)/bin/pytest -q --cov=core --cov=adapters --cov=orchestrator
 
 test-frontend:
-	cd frontend && (pnpm test --run || npm test -- --run) 2>/dev/null || true
+	cd frontend && corepack pnpm test --run 2>/dev/null || true
 
 # ── run ─────────────────────────────────────────────────────────────────────
 infra:
@@ -38,7 +37,7 @@ backend: infra
 	$(VENV)/bin/uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8765
 
 frontend:
-	cd frontend && (pnpm dev || npm run dev)
+	cd frontend && corepack pnpm dev
 
 sim:
 	$(PYTHON) -m sim.swarm_sim.runner
@@ -56,10 +55,10 @@ demo:
 audit: audit-python audit-frontend audit-bandit
 
 audit-python:
-	$(VENV)/bin/pip-audit --skip-editable
+	$(VENV)/bin/pip-audit --skip-editable --cache-dir .cache/pip-audit
 
 audit-frontend:
-	cd frontend && (pnpm audit --audit-level=high || npm audit --audit-level=high)
+	cd frontend && corepack pnpm audit --audit-level=high
 
 audit-bandit:
 	$(VENV)/bin/bandit -r core adapters orchestrator sim backend swarm_os \

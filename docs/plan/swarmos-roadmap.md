@@ -13,7 +13,7 @@ temporaneamente derivato dal client deve essere marcato `DERIVED`.
 Vincolo trasversale aggiunto dall'utente: SwarmOS e il repo SWARM devono
 essere **safe il più possibile sul piano cybersecurity**, con attenzione
 esplicita al pattern di attacco descritto nella risposta di OpenAI
-all'attacco supply-chain TanStack su npm. Per questo lo Phase 0 include una
+all'attacco supply-chain TanStack nel frontend JavaScript. Per questo lo Phase 0 include una
 *security baseline* obbligatoria, e ogni fase successiva ha una sezione
 "Security additions" che chiude i gap nuovi che essa stessa apre.
 
@@ -59,17 +59,18 @@ ancorata allo stato attuale del repo come trovato dall'esplorazione.
 - **OperatorCommand** — l'oggetto che incapsula l'intent dell'operator dopo
   la validazione policy (battery/link/geofence/weather/priority).
 
-### Stato attuale del repo (post-esplorazione)
+### Stato attuale del repo (post-Phase 0, verificato 2026-05-15)
 
 Backend (Python, FastAPI):
 - `core/swarm_core/messages.py` ha già `Telemetry`, `FleetState`, `Anomaly`,
   `MissionTask`, `MissionProgress`, `Bid`, `Award`, `CaptureResult` +
   primitives (`Geo`, `Waypoint`, `Attitude`) ed enum (`AgentState`,
-  `AnomalyKind`, `SensorKind`). Mancano i contratti Console (`UnitState`,
+  `AnomalyKind`, `SensorKind`) + i contratti Console (`UnitState`,
   `DockState`, `Sector`, `AwarenessBreakdown`, `MissionView`,
   `AnomalyView`, `Event`, `OperatorCommand`, `Session`).
 - `core/swarm_core/geometry.py` (`haversine_m`, `point_in_polygon`,
-  `tile_polygon`, `bbox`, `midpoint`) — base solida per `sectors`.
+  `tile_polygon`, `bbox`, `midpoint`, `sector_grid`, `closest_sector`) —
+  base solida per `sectors`.
 - `core/swarm_core/missions.py` con `MissionKind` enum e DSL
   `PATROL()/VERIFY()/COVER()/RELAY()/RTL_DOCK()`.
 - `core/swarm_core/allocator.py` + `fsm.py` (drone-level FSM) +
@@ -84,7 +85,7 @@ Backend (Python, FastAPI):
   `backend/app/api/routes.py` con `/health`, `/fleet`, `/anomalies`,
   `/telemetry/latest`, `/events`; `backend/app/ws/telemetry.py`.
 
-Frontend (Next.js 15, React 19, MapLibre):
+Frontend (Next.js 16, React 19, MapLibre):
 - Single page `app/page.tsx` (`ControlSurface`, 314 righe) già
   design-compliant: HEAD BAR + viewport + EventFeed + canon footer +
   awareness/anomaly/dock cards. NO route group.
@@ -95,16 +96,16 @@ Frontend (Next.js 15, React 19, MapLibre):
   `StatusPill`, `Eyebrow`.
 
 Infra / supply chain:
-- `docker-compose.yml`: `timescale/timescaledb:latest-pg16` (floating),
-  `redis:7-alpine` (floating).
-- `.github/workflows/{lint,test}.yml`: `actions/checkout@v4`, `setup-*@v5`
-  (tag pin, non SHA). `npm install --no-audit --no-fund` esplicito —
-  audit disattivato.
-- `package-lock.json` committato; `pyproject.toml` con minimi `>=` ma
-  nessun lockfile Python.
-- Niente `.npmrc`, `SECURITY.md`, Dependabot, dependency-review workflow,
-  `pip-audit` in CI.
-- CORS attuale: `allow_origins=["*"]`. WS senza origin check.
+- `docker-compose.yml`: Timescale + Redis digest-pinned con hardening
+  container e resource limits.
+- `.github/workflows/{lint,test}.yml`: GitHub Actions SHA-pinned, Python
+  install via `uv sync --frozen`, frontend via Corepack + pnpm.
+- `pnpm-lock.yaml` e `uv.lock` committati; `frontend/.pnpmrc` disabilita
+  lifecycle scripts e forza peer strict.
+- `SECURITY.md`, threat model, incident response, Dependabot, dependency
+  review, CodeQL, Bandit, Semgrep, Trivy, gitleaks presenti.
+- CORS allowlist env-driven; WS evil Origin rifiutato pre-accept HTTP 403
+  o close 1008.
 
 ## Strategia generale
 
@@ -194,7 +195,7 @@ swarm/
     dependabot.yml
   SECURITY.md
   uv.lock                # Python lockfile
-  frontend/.npmrc        # ignore-scripts=true, audit-level=moderate
+  frontend/.pnpmrc       # ignore-scripts=true, audit-level=high
 ```
 
 ## Phase 0 — Repo discipline + security baseline
@@ -215,21 +216,23 @@ supply chain.
    `describe_sector()`, `describe_mode()`, lista `FORBIDDEN_WORDS`.
 4. **geometry.py extensions**: `sector_grid(center, half_extent_m, n)`,
    `closest_sector(p, sectors)`.
-5. **Makefile**: target `make audit` (= `pip-audit` + `npm audit
+5. **Makefile**: target `make audit` (= `pip-audit` + `pnpm audit
    --audit-level=high`). Target `make demo` resta intatto.
 6. **README**: sezione Security che linka `SECURITY.md` e descrive
    lockfile + `make audit`.
 
 ### File toccati in Phase 0
-- `frontend/.npmrc` (NEW) — S1: `ignore-scripts=true`,
-  `engine-strict=true`, `audit-level=moderate`, `fund=false`
-- `.nvmrc`, `frontend/.nvmrc` (NEW) — S2: Node 20 LTS pin
-- `frontend/package.json` (EDIT) — `"engines": {"node": ">=20.10 <21"}`
+- `frontend/.pnpmrc` (NEW) — S1: `ignore-scripts=true`,
+  `engine-strict=true`, `audit-level=high`, `fund=false`,
+  `strict-peer-dependencies=true`
+- `.nvmrc`, `frontend/.nvmrc` (NEW) — S2: Node 24 LTS line
+- `frontend/package.json` (EDIT) — `"packageManager": "pnpm@11.1.2"` and
+  `"engines": {"node": ">=24 <25"}`
 - `.github/workflows/lint.yml` + `test.yml` (EDIT) — S3 drop `--no-audit`,
   S4 SHA-pin (full 40-char) di `actions/checkout`, `actions/setup-python`,
   `actions/setup-node`, S5 `permissions: contents: read`
-- `.github/dependabot.yml` (NEW) — S6: weekly per `npm`, `pip`, `docker`,
-  `github-actions`, raggruppato minor+patch
+- `.github/dependabot.yml` (NEW) — S6: weekly per frontend JavaScript,
+  `pip`, `docker`, `github-actions`, raggruppato minor+patch
 - `.github/workflows/dependency-review.yml` (NEW) — S12: blocca PR con
   CVE high
 - `docker-compose.yml` (EDIT) — S7: digest-pin via `@sha256:…` (l'utente
@@ -281,13 +284,13 @@ supply chain.
 - `curl -H "Origin: https://evil.example" -I http://localhost:8765/health`
   → nessun `Access-Control-Allow-Origin: https://evil`.
 - `websocat -H "Origin: https://evil.example" ws://localhost:8765/ws/telemetry`
-  → chiusura 1008.
+  → rifiuto pre-accept HTTP 403 oppure chiusura 1008.
 - `curl -I http://localhost:8765/health` mostra Content-Security-Policy,
   X-Content-Type-Options, Referrer-Policy.
 - `grep -E "@sha256:" docker-compose.yml` ritorna due match.
 - `grep -E 'uses: actions/.+@[0-9a-f]{40}' .github/workflows/*.yml` per
   ogni action.
-- `test -f frontend/.npmrc && grep ignore-scripts frontend/.npmrc`.
+- `test -f frontend/.pnpmrc && grep ignore-scripts frontend/.pnpmrc`.
 
 ## Phase 1 — SwarmOS Sim Kernel
 
@@ -547,7 +550,7 @@ regolatori).
    permette di avere fleet mista durante test.
 
 ### Security additions Phase 5
-- Sigstore / npm provenance check per dipendenze vendor (es. mavsdk).
+- Sigstore / package provenance check per dipendenze vendor (es. mavsdk).
 - Validazione stream URL contro allowlist scheme (solo `rtsps://`,
   `https://`).
 - mTLS tra adapter e bus (se vendor adapter gira out-of-process).
@@ -847,11 +850,11 @@ Threat categories considerate, con strategia di copertura:
   request timeout, slow-client (Slowloris) protection (Phase 0+1)
 
 ### B. Supply chain (TanStack-class e oltre)
-- npm `ignore-scripts=true` (Phase 0)
+- pnpm `ignore-scripts=true` (Phase 0)
 - GitHub Actions SHA-pinned, `permissions:` least-privilege (Phase 0)
 - Docker digest-pinned (Phase 0)
-- npm + pip audit attivi in CI (Phase 0)
-- Lockfile committato (npm già, uv lockfile in Phase 0)
+- pnpm + pip audit attivi in CI (Phase 0)
+- Lockfile committato (`pnpm-lock.yaml` e `uv.lock` in Phase 0)
 - Dependabot weekly raggruppato (Phase 0)
 - Dependency-review workflow su PR (Phase 0)
 - SBOM CycloneDX in release (Phase 6)
@@ -961,12 +964,12 @@ Tabella ampliata per coprire le 13 categorie sopra. Le voci marcate
 
 | #    | Cambiamento | Fase | Categ. | Effetto |
 |------|-------------|------|--------|---------|
-| S1   | `frontend/.npmrc` con `ignore-scripts=true` + `engine-strict=true` + `audit-level=moderate` + `fund=false` | P0 | B | No postinstall arbitrario; pin Node major |
-| S2   | `.nvmrc` Node 20 LTS pin | P0 | B | Riproducibilità |
-| S3   | Drop `--no-audit --no-fund`; aggiungere `npm audit --audit-level=high` step | P0 | B | Audit attivo in CI |
+| S1   | `frontend/.pnpmrc` con `ignore-scripts=true` + `engine-strict=true` + `audit-level=high` + `fund=false` + `strict-peer-dependencies=true` | P0 | B | No postinstall arbitrario; pin Node major |
+| S2   | `.nvmrc` Node 24 LTS line | P0 | B | Runtime supportato e riproducibile |
+| S3   | Install frontend via `corepack pnpm install --frozen-lockfile --ignore-scripts`; aggiungere `pnpm audit --audit-level=high` step | P0 | B | Audit attivo in CI |
 | S4   | SHA-pin (40 char) di tutte le GitHub Actions | P0 | B | No takeover via tag re-push |
 | S5   | `permissions: contents: read` esplicito per workflow | P0 | B | GITHUB_TOKEN least-privilege |
-| S6   | `.github/dependabot.yml` weekly (npm, pip, docker, actions) | P0 | B | Alert + patch auto |
+| S6   | `.github/dependabot.yml` weekly (frontend JavaScript, pip, docker, actions) | P0 | B | Alert + patch auto |
 | S7   | Docker digest-pin `@sha256:…` (timescale + redis) | P0 | B,F | No silent base image update |
 | S8   | CORS allowlist env-driven + WS Origin check + close 1008 | P0 | A,E | No `*`, no WS cross-origin |
 | S9   | Security headers middleware: CSP, X-CTO nosniff, X-Frame-Options DENY, Referrer-Policy no-referrer, Permissions-Policy geolocation=(), HSTS in prod | P0 | A,L | Hardening HTTP |
@@ -989,7 +992,7 @@ Tabella ampliata per coprire le 13 categorie sopra. Le voci marcate
 | S26  | `docs/security/threat-model.md` con STRIDE per service | P0 | J | Threat model formale |
 | S27  | `docs/security/incident-response.md` runbook | P0 | J | Procedura IR |
 | S28  | Fuzz tests `tests/fuzz/test_messages_fuzz.py` per Pydantic models | P0 | K | Robustness parser |
-| S29  | `make audit` target: `pip-audit` + `npm audit --audit-level=high` + `bandit` + `semgrep` | P0 | B,K | Single command audit |
+| S29  | `make audit` target: `pip-audit` + `pnpm audit --audit-level=high` + `bandit` + `semgrep` | P0 | B,K | Single command audit |
 | S30  | Operator handle regex `^op-[a-z0-9]{4,32}$` + enum chiuso `rejected_reason` | P1 | A,C | No echo input |
 | S31  | Rate-limit middleware token-bucket 30 req/min/IP su `/actions/*` | P1 | A | Anti-flood |
 | S32  | structlog JSON + correlation IDs + audit logger separato | P1 | I | Audit-grade logging |
@@ -1003,7 +1006,7 @@ Tabella ampliata per coprire le 13 categorie sopra. Le voci marcate
 | S40  | NTP / time-sync requirement documentato | P4 | I | Audit logs trustworthy |
 | S41  | Stream URL allowlist scheme `rtsps://` `https://` only | P5 | H | Anti-SSRF/RCE |
 | S42  | Telemetry rate-limit inbound (Hz cap sanity) | P5 | H | Vendor sanity |
-| S43  | Sigstore / npm provenance check per dipendenze vendor | P5 | B,H | Supply chain vendor |
+| S43  | Sigstore / package provenance check per dipendenze vendor | P5 | B,H | Supply chain vendor |
 | S44  | Webhook signature verification se vendor lo offre | P5 | H | Source authenticity |
 | S45  | Adapter auth: vendor API keys via vault | P5 | D,H | No secrets at rest in env |
 | S46  | Drone link encryption (vendor-dependent) — documentato | P5 | E,H | Trasporto drone cifrato |

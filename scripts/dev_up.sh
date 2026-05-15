@@ -62,7 +62,7 @@ uvicorn backend.app.main:app --host 0.0.0.0 --port "${BACKEND_PORT:-8765}" &
 BACKEND_PID=$!
 
 echo "[dev_up] starting frontend (Next.js)…"
-(cd frontend && (pnpm dev 2>/dev/null || npm run dev)) &
+(cd frontend && corepack pnpm dev) &
 FRONT_PID=$!
 
 echo "[dev_up] all services running."

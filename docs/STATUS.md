@@ -34,7 +34,7 @@ of every phase.
       rate-limit, body/timeout limits, error_response)
 - [x] `backend/app/main.py` updated: CORS allowlist + security middleware +
       WS origin check + structured error handlers
-- [x] `frontend/.npmrc`, `.nvmrc`, `frontend/.nvmrc`
+- [x] `frontend/.pnpmrc`, `.nvmrc`, `frontend/.nvmrc`
 - [x] `frontend/package.json` engines field + eslint-plugin-security
 - [x] `frontend/next.config.mjs` security headers
 - [x] `frontend/eslint.config.mjs` with security plugin rules
@@ -51,7 +51,7 @@ of every phase.
 - [x] `uv.lock` committed (92 packages locked)
 - [x] `pyproject.toml` pins tightened (upper bounds) + pytest bumped to
       9.0.3+ (CVE-2025-71176 fix)
-- [x] `Makefile` `audit` target (pip-audit + npm audit + bandit)
+- [x] `Makefile` `audit` target (pip-audit + pnpm audit + bandit)
 - [x] `README.md` security section + links to CLAUDE.md and plan
 - [x] Tests added: `test_messages_v1.py`, `test_voice.py`,
       `test_geometry_sectors.py`, `backend/tests/test_security.py`
@@ -68,10 +68,17 @@ of every phase.
 - **Phase 5 vendor choice**: MAVLink (PX4/ArduPilot) vs DJI — to be decided
   with the user when we approach Phase 5. Either is supported by the
   adapter base.
+- **Phase 5 MAVLink runtime**: MAVSDK-Python is deferred until Phase 5
+  because its current protobuf pin failed Phase 0 audit on 2026-05-15.
+  Re-evaluate a secure MAVLink runtime before live hardware execution.
 - **Phase 6 deploy target**: Kubernetes vs compose-prod — to be decided
   based on customer requirements.
 - **Phase 6 auth provider**: pure JWT vs OIDC bridge — TBD; default JWT.
 
 ## Last updated
 
-Phase 0 done. Next session: Phase 1 — SwarmOS Sim Kernel.
+2026-05-15: Phase 0 re-verified from code on GitHub main base. Runtime
+refresh applied: Node 24 LTS, pnpm 11 via Corepack, Next.js 16.2.6,
+React 19.2.6, uv frozen Python install, MAVSDK/protobuf removed from the
+Phase 0-4 install surface, and PostCSS audit override applied through
+pnpmfile. Next: Phase 1 — SwarmOS Sim Kernel.

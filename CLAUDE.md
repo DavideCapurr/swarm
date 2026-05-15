@@ -70,8 +70,8 @@ Cybersecurity is non-negotiable. No vulnerabilities may be opened. The
 threat model and controls are in
 [`docs/security/threat-model.md`](docs/security/threat-model.md). Key
 invariants:
-- Dependencies pinned + lockfiles committed (`uv.lock`, `package-lock.json`).
-- npm `ignore-scripts=true` (no postinstall arbitrary execution).
+- Dependencies pinned + lockfiles committed (`uv.lock`, `pnpm-lock.yaml`).
+- pnpm `ignore-scripts=true` (no postinstall arbitrary execution).
 - GitHub Actions SHA-pinned (full 40 char).
 - Docker images digest-pinned (`@sha256:…`).
 - CORS allowlist (env-driven), never `*`.
@@ -120,7 +120,7 @@ make setup          # python venv + pnpm install
 make demo           # boot sim + backend + frontend
 make lint           # ruff + mypy + tsc
 make test           # pytest + frontend tests
-make audit          # pip-audit + npm audit + bandit + semgrep
+make audit          # pip-audit + pnpm audit + bandit + semgrep
 make clean          # remove caches and node_modules
 ```
 

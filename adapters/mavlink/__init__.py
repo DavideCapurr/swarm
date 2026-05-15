@@ -1,12 +1,12 @@
-"""MAVLink DroneAdapter — speaks to any PX4 / ArduPilot drone via MAVSDK-Python.
+"""MAVLink DroneAdapter — placeholder for PX4 / ArduPilot hardware work.
 
 Covers a huge slice of the non-DJI market: Quantum Systems, Auterion, Parrot
 Anafi USA, custom PX4 builds, ArduPilot copters/planes, etc. No ROS2 needed.
 
-To use this adapter for real:
-  1. `pip install -e ".[mavlink]"` to pull MAVSDK.
-  2. Point `MAVLINK_CONNECTION` env var at the autopilot
-     (e.g. `udp://:14540` for PX4 SITL, `serial:///dev/ttyACM0:115200` for hardware).
+Real flight SDK activation is intentionally deferred to Phase 5. MAVSDK-Python
+is not installed by the Phase 0-4 extras because its protobuf pin currently
+fails the security audit. Phase 5 must pick a secure MAVLink runtime before
+hardware execution.
 """
 
 from adapters.mavlink.adapter import MAVLinkAdapter

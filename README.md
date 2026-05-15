@@ -35,7 +35,7 @@ core/                domain layer — pure Python, no I/O (THE OS)
 adapters/            multi-vendor drone interoperability (THE MOAT)
   base.py            DroneAdapter Protocol
   simulated/         drives the 2D sim — used by `make demo`
-  mavlink/           PX4 / ArduPilot / any MAVLink drone (MAVSDK-Python)
+  mavlink/           PX4 / ArduPilot placeholder; live SDK decision deferred to Phase 5
   dji_cloud/         DJI Dock + DJI Cloud API (REST + MQTT)
   dji_psdk/          DJI Payload SDK (onboard SoC) — stub
   autel/ parrot/ skydio/    stubs — typed against vendor protocols
@@ -75,7 +75,7 @@ Run the wildfire scenario manually:
 ```bash
 make test      # pytest (core, adapters, orchestrator, backend) + frontend vitest
 make lint      # ruff + mypy + eslint + tsc
-make audit     # pip-audit + npm audit + bandit
+make audit     # pip-audit + pnpm audit + bandit
 ```
 
 ## Security
@@ -89,8 +89,8 @@ threat scenarios + controls). The incident response runbook lives at
 
 Active controls — these are part of the product, not aspirational:
 
-- Lockfiles committed (`frontend/package-lock.json`, `uv.lock`).
-- `frontend/.npmrc` with `ignore-scripts=true` (no postinstall execution
+- Lockfiles committed (`frontend/pnpm-lock.yaml`, `uv.lock`).
+- `frontend/.pnpmrc` with `ignore-scripts=true` (no postinstall execution
   during install).
 - GitHub Actions pinned by full 40-character SHA.
 - Docker images pinned by `@sha256:` digest.
@@ -103,7 +103,7 @@ Active controls — these are part of the product, not aspirational:
 - Request body size limit (1 MB) and request timeout (30 s).
 - Per-IP token-bucket rate limiter for action endpoints (Phase 1).
 - CI: Dependabot, Dependency Review, CodeQL, Bandit, Semgrep, Trivy,
-  gitleaks, ESLint security plugin, npm audit.
+  gitleaks, ESLint security plugin, pnpm audit.
 - Local: pre-commit hooks (gitleaks, detect-secrets, ruff, end-of-file,
   trailing whitespace, large file guard).
 

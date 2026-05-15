@@ -1,4 +1,4 @@
-"""MAVLink adapter — PX4 / ArduPilot via MAVSDK-Python.
+"""MAVLink adapter — PX4 / ArduPilot placeholder via MAVSDK-Python.
 
 Mission DSL mapping:
   PATROL → sequence of `MissionItem` uploaded as a mission, started with `start_mission()`
@@ -66,8 +66,10 @@ class MAVLinkAdapter:
     ) -> None:
         if not _MAVSDK_AVAILABLE:
             raise MAVSDKNotInstalled(
-                "MAVSDK-Python is required for the MAVLink adapter. "
-                'Install with: pip install -e ".[mavlink]"'
+                "MAVSDK-Python is required for live MAVLink hardware execution, "
+                "but it is intentionally not installed in Phase 0-4 because its "
+                "protobuf pin currently fails security audit. Re-evaluate this "
+                "dependency in Phase 5."
             )
         self.agent_id = agent_id
         self.model = model

@@ -87,7 +87,7 @@ Phase 0 baseline (2026-05).
 
 | Threat | Mitigation |
 |--------|------------|
-| Malicious npm package (TanStack-class) | `ignore-scripts=true` + lockfile + audit + Dependabot + dependency review. |
+| Malicious JavaScript package (TanStack-class) | `ignore-scripts=true` + lockfile + audit + Dependabot + dependency review. |
 | Compromised GitHub Action | SHA-pin actions (40 char) + `permissions: contents: read`. |
 | Compromised Docker base image | Digest-pin + Trivy scan + Dependabot for docker. |
 | Compromised CI runner | GitHub-hosted runners only (no self-hosted in Phase 0-6). |
@@ -95,14 +95,14 @@ Phase 0 baseline (2026-05).
 
 ## Attack scenarios considered
 
-### Scenario A — npm postinstall exfiltration (TanStack-style)
+### Scenario A — JavaScript postinstall exfiltration (TanStack-style)
 
-Path: a transitive npm dep is compromised; its postinstall script reads
+Path: a transitive frontend dependency is compromised; its postinstall script reads
 `GITHUB_TOKEN` from env and exfiltrates.
 
 Mitigation:
-- `frontend/.npmrc` has `ignore-scripts=true`.
-- `npm install --ignore-scripts` in CI.
+- `frontend/.pnpmrc` has `ignore-scripts=true`.
+- `corepack pnpm install --ignore-scripts` in CI.
 - CI workflow `permissions: contents: read` (no write to anywhere).
 - Dependabot weekly catches known-bad versions.
 - Dependency Review action blocks PRs that add a package with a known

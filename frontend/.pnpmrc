@@ -1,0 +1,5 @@
+ignore-scripts=true
+engine-strict=true
+audit-level=high
+fund=false
+strict-peer-dependencies=true
