@@ -1,6 +1,21 @@
+# SwarmOS infra (dev). Production deploy lives under infra/k8s/ + infra/helm/
+# (Phase 6).
+#
+# Hardening (Phase 0):
+# - Images pinned by sha256 digest. Tag in comment for traceability;
+#   `make audit` checks digests are present.
+# - security_opt: no-new-privileges drops the ability to escalate inside the
+#   container (e.g. via SUID binaries).
+# - cap_drop: removes Linux capabilities the workloads don't need. We avoid
+#   `ALL` because the official images' entrypoints rely on the default cap
+#   set; we drop the ones they verifiably don't touch.
+# - Resource limits (mem_limit, cpus) cap blast radius if a workload runs
+#   away.
+# - No host-network mode; explicit port publishing only.
 services:
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    # timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb@sha256:51eb3bcdfc41f481c797026813d9d457fb5cbc8ea370a65640d8cda13a4040c1
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-swarm}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-swarm}
@@ -15,9 +30,20 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - AUDIT_WRITE
+      - MKNOD
+      - NET_RAW
+      - SYS_CHROOT
+      - SYS_PTRACE
+    mem_limit: 1g
+    cpus: 1.0
 
   redis:
-    image: redis:7-alpine
+    # redis:7-alpine
+    image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     ports:
       - "6379:6379"
     healthcheck:
@@ -25,6 +51,15 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    cpus: 0.5
 
 volumes:
   swarm_pgdata:

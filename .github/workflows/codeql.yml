@@ -1,0 +1,46 @@
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly deep scan in addition to PR runs. Catches issues in transitive
+    # deps that landed without our involvement.
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+  # CodeQL needs to write SARIF results.
+  actions: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+          - language: javascript-typescript
+
+    steps:
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      # github/codeql-action/init@v3.30.7
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@fbed2d2d53d0343436c1d6332dae0b38394d3917
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+
+      # github/codeql-action/analyze@v3.30.7
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@fbed2d2d53d0343436c1d6332dae0b38394d3917
+        with:
+          category: "/language:${{ matrix.language }}"
