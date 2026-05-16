@@ -211,7 +211,9 @@ class Repository:
             return
         try:
             async with self._session() as db:
-                await self._upsert(db, EventRow, rows, pk_cols=("id",))
+                # PK is composite `(id, ts)` to satisfy Timescale's
+                # partition-column-in-unique-index rule.
+                await self._upsert(db, EventRow, rows, pk_cols=("id", "ts"))
                 await db.commit()
         except Exception:  # pragma: no cover
             logger.exception("write_events failed")

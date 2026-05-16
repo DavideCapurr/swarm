@@ -52,13 +52,18 @@ class SessionRow(Base):
 
 
 class EventRow(Base):
-    """Timeline event — Console reads `/events` from here on cold start."""
+    """Timeline event — Console reads `/events` from here on cold start.
+
+    PK is composite `(id, ts)`: Timescale requires the partitioning column to
+    be part of every UNIQUE index, including the primary key, so a hypertable
+    declared on `ts` cannot live with an `id`-only PK.
+    """
 
     __tablename__ = "events"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     sector_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     agent_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     mission_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)

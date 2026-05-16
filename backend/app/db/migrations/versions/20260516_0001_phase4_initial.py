@@ -37,7 +37,7 @@ def upgrade() -> None:
 
     op.create_table(
         "events",
-        sa.Column("id", sa.String(length=64), primary_key=True),
+        sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("kind", sa.String(length=32), nullable=False),
         sa.Column("ts", sa.DateTime(timezone=True), nullable=False),
         sa.Column("sector_id", sa.String(length=64), nullable=True),
@@ -48,6 +48,9 @@ def upgrade() -> None:
         sa.Column("confidence", sa.Float(), nullable=True),
         sa.Column("body", sa.Text(), nullable=False, server_default=""),
         sa.Column("action_label", sa.String(length=64), nullable=True),
+        # Composite PK: Timescale requires the partition column (`ts`) to be
+        # part of every unique index, including the primary key.
+        sa.PrimaryKeyConstraint("id", "ts"),
     )
     op.create_index("events_kind_idx", "events", ["kind"])
     op.create_index("events_ts_idx", "events", ["ts"])

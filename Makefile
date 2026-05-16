@@ -13,7 +13,10 @@ setup-python:
 	$(UV) sync --frozen --extra dev --extra mavlink --extra dji --python $(PY)
 
 setup-frontend:
-	cd frontend && corepack pnpm install --frozen-lockfile
+	# `--ignore-scripts` is belt-and-suspenders alongside `frontend/.npmrc`:
+	# blocks postinstall lifecycle scripts from npm packages so a malicious
+	# transitive dep can't execute code at install time (threat model §S3).
+	cd frontend && corepack pnpm install --frozen-lockfile --ignore-scripts
 
 # ── lint & test ─────────────────────────────────────────────────────────────
 lint:
