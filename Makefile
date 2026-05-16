@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit clean
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit clean db-migrate db-revision
 
 PY := python3
 VENV := .venv
@@ -33,8 +33,17 @@ test-frontend:
 infra:
 	docker compose up -d postgres redis
 
-backend: infra
+backend: infra db-migrate
 	$(VENV)/bin/uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8765
+
+# ── database migrations (Phase 4) ───────────────────────────────────────────
+# db-migrate runs `alembic upgrade head` against the URL in $DATABASE_URL.
+# db-revision <message="…"> generates a new migration file from model diffs.
+db-migrate:
+	$(VENV)/bin/alembic upgrade head
+
+db-revision:
+	$(VENV)/bin/alembic revision --autogenerate -m "$(message)"
 
 frontend:
 	cd frontend && corepack pnpm dev

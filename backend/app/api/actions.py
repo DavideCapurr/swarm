@@ -20,6 +20,7 @@ from swarm_core.messages import (
     RejectedReason,
 )
 
+from backend.app.db import get_repository
 from backend.app.hub import HUB
 from backend.app.security import RateLimiter, is_valid_operator_id
 from swarm_os import COORDINATOR
@@ -57,6 +58,9 @@ async def _dispatch(
             rejected_reason=RejectedReason.RATE_LIMITED,
             status=CommandStatus.REJECTED,
         )
+        # Rate-limited commands are still audited — operators need to see
+        # the rejection in the timeline + auditors need to spot abuse.
+        await get_repository().write_operator_command(command)
         return {
             "command_id": command.id,
             "status": "rejected",
@@ -67,6 +71,9 @@ async def _dispatch(
     result, frames = await COORDINATOR.apply_command(command)
     for frame in frames:
         await HUB.broadcast(frame)
+    stored = COORDINATOR.state.commands.get(command.id)
+    if stored is not None:
+        await get_repository().write_operator_command(stored)
     code = (
         status.HTTP_202_ACCEPTED
         if result.rejected_reason is None

@@ -2,6 +2,11 @@
 
 Boots one consumer task per topic of interest. Lets the backend serve the
 frontend without polling — the dashboard reflects bus events immediately.
+
+Phase 4: every projected frame is also persisted via `get_repository()` so the
+Console can recover history after a restart and operators can audit any
+command. Persistence is best-effort: a DB hiccup logs and continues, never
+takes down the live feed.
 """
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ from typing import TYPE_CHECKING
 
 from swarm_core.messages import Anomaly, FleetState, MissionProgress, Telemetry
 
+from backend.app.db import get_repository
 from backend.app.state import STATE
 from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus, RedisBus
 from swarm_os import COORDINATOR
@@ -41,6 +47,13 @@ class BusConsumer:
             logger.warning("backend redis unavailable (%s) — falling back to InMemoryBus", e)
             self._bus = InMemoryBus()
             await self._bus.connect()
+
+        # Phase 4: persist session bootstrap row so /events?from=...&to=...
+        # joins against a known session for audit.
+        try:
+            await get_repository().write_session(self._coordinator.state.session)
+        except Exception:  # pragma: no cover — defensive
+            logger.exception("session persistence failed")
 
         self._tasks = [
             asyncio.create_task(self._consume_telemetry()),
@@ -82,8 +95,10 @@ class BusConsumer:
             except Exception:
                 continue
             STATE.last_telemetry[t.agent_id] = t
+            await get_repository().write_telemetry(t)
             for frame in await self._coordinator.apply_telemetry(t):
                 await self._hub.broadcast(frame)
+            await self._persist_frames(frame_events=True)
 
     async def _consume_fleet(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:fleet:state"):
@@ -94,6 +109,7 @@ class BusConsumer:
             STATE.fleet[fs.agent_id] = fs
             for frame in await self._coordinator.apply_fleet_state(fs):
                 await self._hub.broadcast(frame)
+            await self._persist_frames(frame_events=True)
 
     async def _consume_anomalies(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:anomalies"):
@@ -105,6 +121,12 @@ class BusConsumer:
             STATE.add_event("anomaly", json.loads(payload))
             for frame in await self._coordinator.apply_anomaly(a):
                 await self._hub.broadcast(frame)
+            # Persist the projected anomaly view, plus any events the
+            # coordinator generated as a side effect.
+            view = self._coordinator.state.anomalies.get(a.id)
+            if view is not None:
+                await get_repository().write_anomaly(view)
+            await self._persist_frames(frame_events=True)
 
     async def _consume_progress(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:missions:progress:*"):
@@ -115,3 +137,25 @@ class BusConsumer:
             STATE.add_event("progress", json.loads(payload))
             for frame in await self._coordinator.apply_mission_progress(progress):
                 await self._hub.broadcast(frame)
+            mission = self._coordinator.state.missions.get(progress.mission_id)
+            if mission is not None:
+                await get_repository().write_mission(mission)
+            await self._persist_frames(frame_events=True)
+
+    # ── Persistence helpers ──────────────────────────────────────────────────
+
+    async def _persist_frames(self, *, frame_events: bool) -> None:
+        """Persist any new events the coordinator just appended.
+
+        Reading directly from `state.events` (a bounded deque) means we may
+        re-write events the DB already has — the upsert on primary key makes
+        this safe and the constant-factor cost is small relative to bus rate.
+        """
+        if not get_repository().enabled:
+            return
+        if not frame_events:
+            return
+        events = list(self._coordinator.state.events)
+        # Only persist the tail to bound write rate — older events are already
+        # in the DB from earlier ticks.
+        await get_repository().write_events(events[-32:])

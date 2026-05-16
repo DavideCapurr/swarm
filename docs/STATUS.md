@@ -12,7 +12,7 @@ of every phase.
 | 1     | SwarmOS Sim Kernel + endpoints + actions              | **done** |
 | 2     | Console Operating Shell + routing + components        | **done** |
 | 3     | Truth Layer (no DERIVED)                              | **done** |
-| 4     | Persistence (Timescale + Alembic + audit)             | pending |
+| 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink or DJI — TBD)                   | pending |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | pending |
 
@@ -215,6 +215,78 @@ explicit phase request.
       medium/high (5 low) across 6 040 LOC.
 - [x] Voice + brand audit greps return zero hits in product code.
 
+## Phase 4 — completed checklist
+
+- [x] Added SQLAlchemy ORM models in `backend/app/db/models.py` for the
+      seven Phase 4 tables: `sessions`, `events`, `telemetry`, `missions`,
+      `anomalies`, `operator_commands`, `sector_visits`. Portable types
+      only — Timescale specifics live in the migration.
+- [x] Added Alembic config (`alembic.ini`) + env (`backend/app/db/migrations/env.py`)
+      + script template + initial migration
+      `20260516_0001_phase4_initial.py` that creates every table and, on
+      Postgres, declares `telemetry` + `events` as Timescale hypertables
+      plus a 30-day retention policy on `telemetry`.
+- [x] Added async session helpers in `backend/app/db/session.py`:
+      `init_persistence` / `shutdown_persistence` / `get_sessionmaker`
+      with SSL enforced via `connect_args={"ssl": "require"}` whenever
+      `SWARM_ENV != "dev"` and the URL is Postgres.
+- [x] Added async `Repository` in `backend/app/db/repository.py` with
+      dialect-aware upsert (`ON CONFLICT DO UPDATE` for both Postgres and
+      SQLite), best-effort writes (logged + swallowed on failure), and a
+      `MAX_QUERY_LIMIT=1000` ceiling on reads.
+- [x] Module-level `_REPOSITORY` swappable via `set_repository` /
+      `get_repository` so tests can inject an in-memory aiosqlite engine
+      and the FastAPI lifespan can install the live one.
+- [x] Wired persistence into `backend/app/bus_consumer.py`: each
+      Telemetry / FleetState / Anomaly / MissionProgress flowing through
+      the coordinator is also persisted, plus the tail of the events
+      deque (idempotent via PK upsert).
+- [x] Wired persistence into `backend/app/api/actions.py`: every
+      OperatorCommand (accepted + rate-limited) lands in the audit log.
+- [x] Added historical endpoints in `backend/app/api/routes.py`:
+      `/events?from=&to=&kind=&sector=&agent=` reads from DB when range
+      is supplied, `/missions/{id}/history` returns the per-mission event
+      timeline, `/operator-commands?operator_id=` returns the audit log
+      (with the same `op-[a-z0-9]{4,32}` regex guard as the action
+      endpoints).
+- [x] FastAPI lifespan in `backend/app/main.py` calls
+      `init_persistence()`, backfills the in-memory event deque with the
+      last 200 rows from the DB so Console history survives a restart,
+      and disposes the engine on shutdown.
+- [x] `/health` now reports `persistence: bool` so the Console can render
+      whether history is live.
+- [x] `infra/postgres/init.sql` reduced to extension setup (`timescaledb`
+      + `uuid-ossp`); Alembic owns every CREATE TABLE.
+- [x] `Makefile`: added `db-migrate` (`alembic upgrade head`) +
+      `db-revision`; `backend` target depends on `db-migrate` so the
+      schema is current before uvicorn boots.
+- [x] `scripts/dev_up.sh`: waits for Postgres, then runs Alembic before
+      starting sim/backend/frontend.
+- [x] Security additions: DB credentials remain env-driven
+      (`${POSTGRES_USER:-swarm}` etc., no secrets in compose);
+      `secrets-scanning` workflow already in place from Phase 0; SSL
+      enforced via `connect_args` for prod Postgres URLs.
+- [x] Added `aiosqlite>=0.20,<1` to dev deps so tests cover the full
+      persistence path without a Postgres daemon (lock refreshed).
+- [x] Tests: `backend/tests/test_persistence.py` (14 unit tests covering
+      every `write_*` / `list_*` path, upsert dedup, time-range + filter
+      semantics, limit clamp, no-op when disabled),
+      `backend/tests/test_persistence_api.py` (8 endpoint tests including
+      `/missions/{id}/history` SQL-injection guard with payload
+      `'; DROP TABLE events;--`),
+      `backend/tests/test_persistence_integration.py` (4 integration
+      tests: BusConsumer → DB round-trip for telemetry + anomaly +
+      events, action endpoint audit log, lifespan-style event backfill),
+      `backend/tests/test_db_session.py` (6 SSL/env tests),
+      `backend/tests/test_alembic_migration.py` (Alembic upgrade →
+      downgrade → upgrade on sqlite to catch schema breakage in CI).
+- [x] `make lint` green: ruff + mypy 95 source files + tsc.
+- [x] `make test` green: 225 passed, 16 skipped (33 net new Phase 4
+      tests on top of Phase 3's 192).
+- [x] `make audit` green: pip-audit clean, pnpm audit clean, Bandit no
+      medium/high (5 low) across 7 609 LOC.
+- [x] Voice + brand audit greps return zero hits in Phase 4 product code.
+
 ## Open decisions
 
 - **Phase 5 vendor choice**: MAVLink (PX4/ArduPilot) vs DJI — to be decided
@@ -229,6 +301,7 @@ explicit phase request.
 
 ## Last updated
 
-2026-05-15: Phase 2 completed on branch `claude/phase-2-start-CMUg1`.
-Phase 1 was completed at GitHub main commit
+2026-05-16: Phase 4 completed on branch `claude/phase-4-persistence-OGUJm`.
+Phase 2 was completed on branch `claude/phase-2-start-CMUg1`. Phase 1 was
+completed at GitHub main commit
 `2390f872908a4a52588287a3865b3da96c785750`.

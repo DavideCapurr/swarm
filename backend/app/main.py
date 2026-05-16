@@ -8,6 +8,7 @@ This module wires together:
   - Bus consumer (backend.app.bus_consumer)
   - Security middleware (backend.app.security): CORS allowlist, security
     headers, body-size limit, request timeout, structured error responses.
+  - Persistence (backend.app.db): Phase 4 SQLAlchemy + Timescale (optional).
 """
 
 from __future__ import annotations
@@ -26,6 +27,14 @@ from starlette.websockets import WebSocketDisconnect
 from backend.app.api.actions import router as actions_router
 from backend.app.api.routes import router as api_router
 from backend.app.bus_consumer import BusConsumer
+from backend.app.db import (
+    Repository,
+    get_repository,
+    init_persistence,
+    is_persistence_enabled,
+    set_repository,
+    shutdown_persistence,
+)
 from backend.app.hub import HUB
 from backend.app.security import (
     BodySizeLimitMiddleware,
@@ -35,6 +44,7 @@ from backend.app.security import (
     cors_kwargs,
     error_response,
 )
+from swarm_os import COORDINATOR
 
 logger = logging.getLogger("backend")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -44,12 +54,34 @@ bus_consumer = BusConsumer(HUB)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Phase 4: bring up persistence first so the bus consumer can write.
+    if is_persistence_enabled():
+        try:
+            sm = await init_persistence()
+            set_repository(Repository(sm))
+            logger.info("persistence enabled")
+            # Best-effort backfill: re-hydrate the in-memory event deque from
+            # the DB so the Console shows history after a backend restart.
+            try:
+                events = await get_repository().list_events(limit=200)
+                for event in events:
+                    COORDINATOR.state.append_event(event)
+                logger.info("event backfill: %d row(s)", len(events))
+            except Exception:  # pragma: no cover — defensive
+                logger.exception("event backfill failed")
+        except Exception:  # pragma: no cover
+            logger.exception("persistence init failed — continuing without it")
+            set_repository(Repository(None))
+    else:
+        logger.info("persistence disabled (DATABASE_URL not set)")
+
     await bus_consumer.start()
     logger.info("backend ready")
     try:
         yield
     finally:
         await bus_consumer.stop()
+        await shutdown_persistence()
 
 
 app = FastAPI(title="SwarmOS Backend", version="0.1.0", lifespan=lifespan)
