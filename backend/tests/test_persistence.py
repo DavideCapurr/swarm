@@ -31,7 +31,7 @@ from swarm_core.messages import (
     Telemetry,
 )
 
-from backend.app.db.repository import Repository
+from backend.app.db.repository import Repository, _dedupe_rows_for_upsert
 
 pytestmark = pytest.mark.asyncio
 
@@ -70,6 +70,23 @@ async def test_event_upsert_deduplicates_by_id(memory_repository: Repository) ->
     await memory_repository.write_events([e])
     rows = await memory_repository.list_events()
     assert len(rows) == 1
+
+
+async def test_upsert_batch_dedupes_duplicate_composite_pk() -> None:
+    """Postgres rejects duplicate conflict keys within one ON CONFLICT batch."""
+    ts = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
+    rows = [
+        {"id": "evt-1", "ts": ts, "body": "old"},
+        {"id": "evt-2", "ts": ts, "body": "keep"},
+        {"id": "evt-1", "ts": ts, "body": "new"},
+    ]
+
+    deduped = _dedupe_rows_for_upsert(rows, ("id", "ts"))
+
+    assert deduped == [
+        {"id": "evt-1", "ts": ts, "body": "new"},
+        {"id": "evt-2", "ts": ts, "body": "keep"},
+    ]
 
 
 async def test_events_filter_by_kind_sector_agent(memory_repository: Repository) -> None:
