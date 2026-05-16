@@ -124,7 +124,11 @@ async def test_command_bus_accepts_verify_and_rejects_missing_target() -> None:
     )
     assert accepted.status.value == "accepted"
     assert state.missions
-    assert state.events[-1].kind.value == "operator"
+    # Phase 3: submit() is pure mutation. The command is in `state.commands`;
+    # the audit `Event` is appended by the detector during a coordinator
+    # refresh — see test_phase3.py.
+    assert accepted.command_id in state.commands
+    assert state.commands[accepted.command_id].status.value == "accepted"
 
     rejected = await submit(
         state,

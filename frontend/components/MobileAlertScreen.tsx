@@ -49,13 +49,13 @@ export function MobileAlertScreen() {
           {String(Math.round(awareness.score)).padStart(3, "0")}
         </span>
         <span className="eyebrow-mono">% · {awareness.risk_state}</span>
-        <span className="eyebrow-mono text-ash">{describeMode(mode.value)}</span>
+        <span className="eyebrow-mono text-ash">{describeMode(mode)}</span>
       </div>
 
       <div className="card p-4 flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <Eyebrow mono>Mode</Eyebrow>
-          <StatusPill state={MODE_STATE[mode.value]}>{mode.value}</StatusPill>
+          <StatusPill state={MODE_STATE[mode]}>{mode}</StatusPill>
         </div>
         <div className="grid grid-cols-2 gap-y-1 text-ui">
           <span className="eyebrow-mono">units</span>

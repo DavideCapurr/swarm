@@ -88,7 +88,7 @@ export function ActionRail({ selectedAgentId }: { selectedAgentId?: string | nul
     <div className="card p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <Eyebrow mono>Action rail</Eyebrow>
-        <span className="eyebrow-mono">mode · {mode.value}</span>
+        <span className="eyebrow-mono">mode · {mode}</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <IntentButton

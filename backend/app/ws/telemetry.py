@@ -9,8 +9,7 @@ from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from swarm_os import SWARM_STATE
-from swarm_os.coordinator import SwarmCoordinator
+from swarm_os import COORDINATOR
 
 logger = logging.getLogger("backend.ws")
 
@@ -24,8 +23,7 @@ class WSHub:
         await ws.accept()
         async with self._lock:
             self._clients.add(ws)
-        coordinator = SwarmCoordinator(SWARM_STATE)
-        for frame in await coordinator.snapshot_frames():
+        for frame in await COORDINATOR.snapshot_frames():
             await ws.send_text(json.dumps(frame))
         logger.info("ws connect — %d clients", len(self._clients))
 

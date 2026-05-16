@@ -1,4 +1,11 @@
-"""Operator intent endpoints for Phase 1."""
+"""Operator intent endpoints.
+
+Phase 3: every accepted command now flows through `COORDINATOR.apply_command`
+so the lifecycle states (submitted → accepted → in_flight → completed) and
+the audit log live in `state.commands`. The endpoint also broadcasts the
+resulting WS frames so connected Consoles see the operator timeline update
+without waiting for the next telemetry tick.
+"""
 
 from __future__ import annotations
 
@@ -6,11 +13,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict
-from swarm_core.messages import OperatorAction, OperatorCommand, RejectedReason
+from swarm_core.messages import (
+    CommandStatus,
+    OperatorAction,
+    OperatorCommand,
+    RejectedReason,
+)
 
+from backend.app.hub import HUB
 from backend.app.security import RateLimiter, is_valid_operator_id
-from swarm_os import SWARM_STATE
-from swarm_os.command_bus import submit
+from swarm_os import COORDINATOR
 
 router = APIRouter(prefix="/actions")
 _limiter = RateLimiter()
@@ -43,6 +55,7 @@ async def _dispatch(
             target=body.target,
             operator_id=operator_id,
             rejected_reason=RejectedReason.RATE_LIMITED,
+            status=CommandStatus.REJECTED,
         )
         return {
             "command_id": command.id,
@@ -51,7 +64,9 @@ async def _dispatch(
         }, status.HTTP_429_TOO_MANY_REQUESTS
 
     command = OperatorCommand(action=action, target=body.target, operator_id=operator_id)
-    result = await submit(SWARM_STATE, command)
+    result, frames = await COORDINATOR.apply_command(command)
+    for frame in frames:
+        await HUB.broadcast(frame)
     code = (
         status.HTTP_202_ACCEPTED
         if result.rejected_reason is None

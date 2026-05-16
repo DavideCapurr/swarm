@@ -81,11 +81,13 @@
     background: #1A2026; /* gunmetal */
   }
 
-  /* Card — borders, not shadows. */
+  /* Card — borders, not shadows. The 1 px inset highlight is the only
+     allowed glow per design system spread 18 (Surfaces). */
   .card {
     background: #0B0E11; /* obsidian */
     border: 1px solid #1A2026; /* gunmetal hairline */
     border-radius: 6px;
+    box-shadow: inset 0 1px 0 rgba(238, 240, 243, 0.06);
   }
 
   /* Status dot. */

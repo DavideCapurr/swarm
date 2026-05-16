@@ -14,7 +14,7 @@ import { Eyebrow } from "./Eyebrow";
 
 export function WeatherLock() {
   const { primaryDock } = useSwarm();
-  const dock = primaryDock.value;
+  const dock = primaryDock;
   const locked = !!dock?.weather_lock;
   const state = locked ? "text-launch-amber" : "text-signal-green";
   const label = locked ? "weather hold" : "clear";

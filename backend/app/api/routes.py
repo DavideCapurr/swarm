@@ -59,6 +59,15 @@ async def missions() -> dict[str, Any]:
     return {"missions": [m.model_dump(mode="json") for m in SWARM_STATE.missions.values()]}
 
 
+@router.get("/commands")
+async def commands(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+    ordered = sorted(
+        SWARM_STATE.commands.values(),
+        key=lambda c: c.submitted_at,
+    )
+    return {"commands": [c.model_dump(mode="json") for c in ordered[-limit:]]}
+
+
 @router.get("/fleet")
 async def fleet() -> dict[str, Any]:
     return {"fleet": [fs.model_dump(mode="json") for fs in STATE.fleet.values()]}

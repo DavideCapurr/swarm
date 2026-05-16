@@ -161,6 +161,7 @@ export type DockState = {
   visibility_km: number | null;
   temp_c: number | null;
   next_patrol_at: string | null;
+  primary: boolean;
   ts: string;
 };
 
@@ -184,6 +185,8 @@ export type AwarenessBreakdown = {
   blind_spot_sectors: string[];
   stale_sectors: string[];
   risk_state: RiskState;
+  mode: OperatingMode;
+  verifying_agent: string | null;
   ts: string;
 };
 
@@ -234,15 +237,20 @@ export type OperatorCommand = {
   target: string;
   operator_id: string;
   submitted_at: string;
+  accepted_at: string | null;
+  in_flight_at: string | null;
   status: CommandStatus;
   rejected_reason: RejectedReason | null;
   completed_at: string | null;
+  mission_id: string | null;
+  ts: string;
 };
 
 export type CommandResponse = {
   command_id: string;
   status: CommandStatus | "rejected";
   rejected_reason?: RejectedReason | null;
+  mission_id?: string | null;
 };
 
 async function get<T>(path: string): Promise<T> {
@@ -284,6 +292,8 @@ export const api = {
   sectors: () => get<{ sectors: Sector[] }>("/sectors"),
   units: () => get<{ units: UnitState[] }>("/units"),
   missions: () => get<{ missions: MissionView[] }>("/missions"),
+  commands: (limit = 100) =>
+    get<{ commands: OperatorCommand[] }>(`/commands?limit=${limit}`),
   anomalies: () => get<{ anomalies: AnomalyView[] }>("/anomalies"),
   events: (limit = 100, filter: { kind?: EventKind; sector?: string; agent?: string } = {}) => {
     const q = new URLSearchParams({ limit: String(limit) });

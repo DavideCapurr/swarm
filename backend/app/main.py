@@ -26,6 +26,7 @@ from starlette.websockets import WebSocketDisconnect
 from backend.app.api.actions import router as actions_router
 from backend.app.api.routes import router as api_router
 from backend.app.bus_consumer import BusConsumer
+from backend.app.hub import HUB
 from backend.app.security import (
     BodySizeLimitMiddleware,
     RequestTimeoutMiddleware,
@@ -34,13 +35,11 @@ from backend.app.security import (
     cors_kwargs,
     error_response,
 )
-from backend.app.ws.telemetry import WSHub
 
 logger = logging.getLogger("backend")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
-hub = WSHub()
-bus_consumer = BusConsumer(hub)
+bus_consumer = BusConsumer(HUB)
 
 
 @asynccontextmanager
@@ -101,7 +100,7 @@ async def ws_telemetry(websocket: WebSocket) -> None:
     if not check_websocket_origin(websocket):
         await websocket.close(code=1008)
         return
-    await hub.connect(websocket)
+    await HUB.connect(websocket)
     try:
         while True:
             # No inbound payloads expected yet. Keep the socket alive; ignore
@@ -113,7 +112,7 @@ async def ws_telemetry(websocket: WebSocket) -> None:
     except Exception:
         logger.exception("ws_telemetry error")
     finally:
-        await hub.disconnect(websocket)
+        await HUB.disconnect(websocket)
 
 
 @app.get("/")
