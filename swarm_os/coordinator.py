@@ -40,9 +40,13 @@ from swarm_os.command_bus import submit as command_submit
 from swarm_os.command_bus import tick as command_tick
 from swarm_os.event_detector import EventDetector
 from swarm_os.fsm import compute_mode
+from swarm_os.safety import SafetyActionKind
 from swarm_os.scheduler import tick as scheduler_tick
 from swarm_os.sectors import refresh_visits, score_sectors, sector_for_geo
 from swarm_os.state import DEFAULT_DOCK_ID, SwarmState
+
+AUTO_RTL_PREFIX = "auto-rtl-"  # Phase 6.A — de-dupe auto-RTL per agent
+AUTO_RTL_PRIORITY = 100  # safety always preempts
 
 
 class SwarmCoordinator:
@@ -74,7 +78,7 @@ class SwarmCoordinator:
                 ts=telemetry.ts,
             )
             self.state.units[unit.agent_id] = unit
-            new_events = self._refresh(now)
+            new_events = await self._refresh_async(now)
             frames = self._frames("unit", unit)
             frames.extend(self._frame("event", event) for event in new_events)
             return frames
@@ -113,7 +117,7 @@ class SwarmCoordinator:
                         "ts": now,
                     }
                 )
-            new_events = self._refresh(now)
+            new_events = await self._refresh_async(now)
             frames = self._frames("unit", unit)
             frames.extend(self._frame("dock", d) for d in self.state.docks.values())
             frames.extend(self._frame("event", event) for event in new_events)
@@ -143,7 +147,7 @@ class SwarmCoordinator:
                 self.state.sectors[sector_id] = sector.model_copy(
                     update={"pending_anomaly_ids": pending, "ts": now}
                 )
-            new_events = self._refresh(now)
+            new_events = await self._refresh_async(now)
             frames = self._frames("anomaly_view", view)
             frames.extend(self._frame("event", event) for event in new_events)
             return frames
@@ -167,7 +171,7 @@ class SwarmCoordinator:
                 ts=progress.ts,
             )
             self.state.missions[mission.id] = mission
-            new_events = self._refresh(now)
+            new_events = await self._refresh_async(now)
             frames = self._frames("mission", mission)
             frames.extend(self._frame("event", event) for event in new_events)
             return frames
@@ -178,7 +182,7 @@ class SwarmCoordinator:
         result = await command_submit(self.state, command)
         async with self.state.lock:
             now = datetime.now(UTC)
-            new_events = self._refresh(now)
+            new_events = await self._refresh_async(now)
             stored = self.state.commands.get(command.id)
             frames: list[dict[str, Any]] = []
             if stored is not None:
@@ -224,6 +228,9 @@ class SwarmCoordinator:
         self.state.sectors = refresh_visits(self.state.sectors, self.state.units, now)
         self.state.sectors = score_sectors(self.state.sectors, now)
         new_missions = scheduler_tick(self.state, now)
+        # Phase 6.A: auto-RTL precedes the command tick so the auto-RTL
+        # mission is observable before any operator command lifecycle moves.
+        self._apply_safety_actions(now)
         command_tick(self.state, now)
         self.state.mode = compute_mode(self.state)
         self._refresh_verifier()
@@ -243,6 +250,52 @@ class SwarmCoordinator:
         # emitted by the caller — we keep the list for testability though.
         _ = new_missions
         return events
+
+    def _apply_safety_actions(self, now: datetime) -> None:
+        """Phase 6.A — translate PolicyEngine safety actions into RTL missions.
+
+        The engine emits SafetyAction(AUTO_RTL, ...) for any airborne unit
+        below the battery floor or below the link floor. Each unit gets at
+        most one outstanding auto-RTL mission (deduped by `auto-rtl-<id>`).
+        The action itself is appended to the audit deque so the Console can
+        surface "auto-RTL forced by SwarmOS" alongside operator commands.
+        """
+
+        actions = self.state.policy.evaluate_safety_actions(self.state.units)
+        for action in actions:
+            if action.kind is not SafetyActionKind.AUTO_RTL:
+                continue
+            mission_id = f"{AUTO_RTL_PREFIX}{action.agent_id}"
+            existing = self.state.missions.get(mission_id)
+            if existing is not None and existing.phase not in {
+                MissionPhase.DONE,
+                MissionPhase.FAILED,
+            }:
+                continue
+            self.state.missions[mission_id] = MissionView(
+                id=mission_id,
+                kind="RTL_DOCK",
+                assigned_agent=action.agent_id,
+                phase=MissionPhase.PENDING,
+                progress_pct=0.0,
+                priority=AUTO_RTL_PRIORITY,
+                ts=now,
+            )
+            self.state.safety_actions.append(action)
+
+    async def _refresh_async(self, now: datetime) -> list[Any]:
+        """Async wrapper that refreshes dock weather before `_refresh`.
+
+        Every async `apply_*` path goes through this so the sync `_refresh`
+        always sees a consistent dock weather state. The provider call is
+        cached for `SiteConfig.weather_provider.refresh_interval_s`, so the
+        per-frame cost is a dict comparison.
+        """
+
+        updated = await self.state.policy.refresh_dock_weather_locks(self.state.docks)
+        if updated:
+            self.state.docks.update(updated)
+        return self._refresh(now)
 
     def _refresh_verifier(self) -> None:
         """Maintain a canonical verifier id when in verification/escalation."""

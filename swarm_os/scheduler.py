@@ -30,9 +30,12 @@ from swarm_core.messages import (
     UnitState,
 )
 
+from swarm_os.policy import PolicyEngine
+
 PATROL_INTERVAL_S = 300
 SECTOR_REPATROL_CONFIDENCE = 0.35  # at/under this we schedule a fresh patrol
 AUTO_PATROL_PREFIX = "auto-"  # mission id prefix so we can de-dupe per sector
+AUTO_PATROL_PRIORITY = 10  # Phase 6.A.5 — scheduler-auto patrol lowest priority
 
 
 class _StateLike(Protocol):
@@ -42,6 +45,7 @@ class _StateLike(Protocol):
     units: dict[str, UnitState]
     mode: OperatingMode
     hold_patrol: bool
+    policy: PolicyEngine
 
 
 def next_patrol_at(dock: DockState, now: datetime) -> datetime:
@@ -126,8 +130,17 @@ def _schedule_repatrols(state: _StateLike, now: datetime) -> list[MissionView]:
             phase=MissionPhase.PENDING,
             progress_pct=0.0,
             waypoints=[sector.centroid],
+            priority=AUTO_PATROL_PRIORITY,
             ts=now,
         )
+        # Phase 6.A: gate auto-PATROL through the policy engine. A geofence
+        # mismatch, weather lock, or assignee under-threshold drops the
+        # mission so the operator timeline never shows phantom dispatches.
+        decision = state.policy.validate_mission(
+            mission, units=state.units, docks=state.docks
+        )
+        if not decision.allowed:
+            continue
         state.missions[mission_id] = mission
         created.append(mission)
     return created

@@ -34,6 +34,8 @@ from swarm_os.state import SwarmState
 
 ACCEPTED_TIMEOUT_S = 30.0  # accepted but not yet in flight → timed_out
 IN_FLIGHT_TIMEOUT_S = 180.0  # in flight without a terminal mission phase → timed_out
+OPERATOR_VERIFY_PRIORITY = 50  # Phase 6.A.5 — operator commands above auto-PATROL
+OPERATOR_RETURN_PRIORITY = 80  # but below auto-RTL (100)
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,18 @@ async def submit(state: SwarmState, command: OperatorCommand) -> CommandResult:
     async with state.lock:
         now = datetime.now(UTC)
         reason = _validate_target(state, command)
+        if reason is None:
+            # Phase 6.A: policy gate. Build the would-be mission and let the
+            # engine reject for geofence / battery / link / weather reasons
+            # before we mutate state. HOLD_PATROL / DISMISS return None here
+            # — they create no mission and have no policy surface.
+            tentative = _tentative_mission(state, command, now)
+            if tentative is not None:
+                decision = state.policy.validate_mission(
+                    tentative, units=state.units, docks=state.docks
+                )
+                if not decision.allowed and decision.reason is not None:
+                    reason = decision.reason
         if reason is not None:
             rejected = command.model_copy(
                 update={
@@ -266,3 +280,44 @@ def overdue_at(now: datetime) -> datetime:
     """Return a timestamp far enough in the past to trip the IN_FLIGHT timeout."""
 
     return now - timedelta(seconds=IN_FLIGHT_TIMEOUT_S + 1)
+
+
+# ── Phase 6.A — tentative mission builder for the policy gate ────────────────
+
+
+def _tentative_mission(
+    state: SwarmState, command: OperatorCommand, now: datetime
+) -> MissionView | None:
+    """Build the MissionView that `_apply` *would* create, without mutating.
+
+    Returned to the policy engine for geofence/battery/link/weather checks.
+    Actions that don't create a mission (HOLD_PATROL, DISMISS, etc.) return
+    None — they're not subject to policy validation at submit time.
+    """
+
+    target_kind, target_id = command.target.split(":", 1)
+    if command.action == OperatorAction.VERIFY:
+        sector = state.sectors.get(target_id) if target_kind == "sector" else None
+        waypoints = [sector.centroid] if sector is not None else []
+        return MissionView(
+            id=f"cmd-{command.id}",
+            kind="VERIFY",
+            sector_id=target_id if target_kind == "sector" else None,
+            assigned_agent=state.verifier_id,
+            phase=MissionPhase.ACCEPTED,
+            progress_pct=0.0,
+            waypoints=waypoints,
+            priority=OPERATOR_VERIFY_PRIORITY,
+            ts=now,
+        )
+    if command.action == OperatorAction.RETURN:
+        return MissionView(
+            id=f"cmd-{command.id}",
+            kind="RTL_DOCK",
+            assigned_agent=target_id,
+            phase=MissionPhase.ACCEPTED,
+            progress_pct=0.0,
+            priority=OPERATOR_RETURN_PRIORITY,
+            ts=now,
+        )
+    return None

@@ -89,34 +89,34 @@ def _mission(
 # ── validate_mission ────────────────────────────────────────────────────────
 
 
-async def test_validate_mission_allows_waypoints_inside_geofence(engine: PolicyEngine) -> None:
-    decision = await engine.validate_mission(_mission(), units={}, docks=_docks())
+def test_validate_mission_allows_waypoints_inside_geofence(engine: PolicyEngine) -> None:
+    decision = engine.validate_mission(_mission(), units={}, docks=_docks())
     assert decision.allowed is True
     assert decision.reason is None
 
 
-async def test_validate_mission_rejects_waypoint_outside_geofence(engine: PolicyEngine) -> None:
+def test_validate_mission_rejects_waypoint_outside_geofence(engine: PolicyEngine) -> None:
     far_away = [Geo(lat=44.9999, lon=8.9999, alt_m=30.0)]
-    decision = await engine.validate_mission(
+    decision = engine.validate_mission(
         _mission(waypoints=far_away), units={}, docks=_docks()
     )
     assert decision.allowed is False
     assert decision.reason is RejectedReason.OUTSIDE_GEOFENCE
 
 
-async def test_validate_mission_rejects_altitude_above_ceiling(engine: PolicyEngine) -> None:
+def test_validate_mission_rejects_altitude_above_ceiling(engine: PolicyEngine) -> None:
     above = [Geo(lat=44.7000, lon=8.0300, alt_m=200.0)]
-    decision = await engine.validate_mission(
+    decision = engine.validate_mission(
         _mission(waypoints=above), units={}, docks=_docks()
     )
     assert decision.allowed is False
     assert decision.reason is RejectedReason.OUTSIDE_GEOFENCE
 
 
-async def test_validate_mission_rejects_low_battery_for_kind(engine: PolicyEngine) -> None:
+def test_validate_mission_rejects_low_battery_for_kind(engine: PolicyEngine) -> None:
     unit = _airborne_unit(battery_pct=25.0)
     mission = _mission(kind="VERIFY", assigned_agent=unit.agent_id)
-    decision = await engine.validate_mission(
+    decision = engine.validate_mission(
         mission, units={unit.agent_id: unit}, docks=_docks()
     )
     assert decision.allowed is False
@@ -124,39 +124,39 @@ async def test_validate_mission_rejects_low_battery_for_kind(engine: PolicyEngin
     assert "VERIFY" in decision.detail
 
 
-async def test_validate_mission_allows_low_battery_above_kind_threshold(engine: PolicyEngine) -> None:
+def test_validate_mission_allows_low_battery_above_kind_threshold(engine: PolicyEngine) -> None:
     """VERIFY needs 40%; PATROL only 30%. A 35%-battery unit can still PATROL."""
 
     unit = _airborne_unit(battery_pct=35.0)
     mission = _mission(kind="PATROL", assigned_agent=unit.agent_id)
-    decision = await engine.validate_mission(
+    decision = engine.validate_mission(
         mission, units={unit.agent_id: unit}, docks=_docks()
     )
     assert decision.allowed is True
 
 
-async def test_validate_mission_rejects_low_link(engine: PolicyEngine) -> None:
+def test_validate_mission_rejects_low_link(engine: PolicyEngine) -> None:
     unit = _airborne_unit(link_quality=0.2)
     mission = _mission(assigned_agent=unit.agent_id)
-    decision = await engine.validate_mission(
+    decision = engine.validate_mission(
         mission, units={unit.agent_id: unit}, docks=_docks()
     )
     assert decision.allowed is False
     assert decision.reason is RejectedReason.LINK_TOO_WEAK
 
 
-async def test_validate_mission_blocks_movement_when_dock_weather_locked(engine: PolicyEngine) -> None:
-    decision = await engine.validate_mission(
+def test_validate_mission_blocks_movement_when_dock_weather_locked(engine: PolicyEngine) -> None:
+    decision = engine.validate_mission(
         _mission(kind="PATROL"), units={}, docks=_docks(weather_lock=True)
     )
     assert decision.allowed is False
     assert decision.reason is RejectedReason.WEATHER_LOCK
 
 
-async def test_validate_mission_allows_rtl_when_dock_weather_locked(engine: PolicyEngine) -> None:
+def test_validate_mission_allows_rtl_when_dock_weather_locked(engine: PolicyEngine) -> None:
     """RTL_DOCK is the safety action itself — never blocked by weather."""
 
-    decision = await engine.validate_mission(
+    decision = engine.validate_mission(
         _mission(kind="RTL_DOCK"), units={}, docks=_docks(weather_lock=True)
     )
     assert decision.allowed is True
@@ -283,6 +283,43 @@ async def test_current_weather_caches_within_refresh_interval(site_config: SiteC
     await engine.current_weather()
     await engine.current_weather()
     assert len(calls) == 1  # second call hit the cache
+
+
+# ── refresh_dock_weather_locks ─────────────────────────────────────────────
+
+
+async def test_refresh_dock_weather_locks_emits_lock_when_provider_fails(
+    site_config: SiteConfig,
+) -> None:
+    engine = PolicyEngine(site_config, _FailingWeatherProvider())
+    docks = _docks(weather_lock=False)
+    updated = await engine.refresh_dock_weather_locks(docks)
+    assert "dock-langhe-01" in updated
+    assert updated["dock-langhe-01"].weather_lock is True
+
+
+async def test_refresh_dock_weather_locks_no_op_when_already_correct(
+    engine: PolicyEngine,
+) -> None:
+    """Stub provider returns benign; an already-unlocked dock should not
+    be re-emitted (sticky frame, less WS noise)."""
+
+    docks = {
+        "dock-langhe-01": DockState(
+            dock_id="dock-langhe-01",
+            status=DockStatus.ONLINE,
+            power_status=PowerStatus.ONLINE,
+            primary=True,
+            weather_lock=False,
+            wind_mps=3.0,
+            visibility_km=10.0,
+            temp_c=18.0,
+        )
+    }
+    # Prime the engine cache so the comparison matches snapshot fields.
+    await engine.current_weather()
+    updated = await engine.refresh_dock_weather_locks(docks)
+    assert updated == {}
 
 
 # ── priority resolution ────────────────────────────────────────────────────

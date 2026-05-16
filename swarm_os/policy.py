@@ -112,21 +112,58 @@ class PolicyEngine:
             or snapshot.temp_c > thr.temp_c_max
         )
 
+    async def refresh_dock_weather_locks(
+        self, docks: Mapping[str, DockState]
+    ) -> dict[str, DockState]:
+        """Fetch (cached) weather and produce updated `DockState` records.
+
+        Returns only the entries whose `weather_lock` field would actually
+        flip; the coordinator merges these into `state.docks`. Treating
+        this as async keeps the periodic weather pull out of the synchronous
+        validate path, which the scheduler and command bus call.
+        """
+
+        snap = await self.current_weather()
+        locked = self.is_weather_locked(snap)
+        updated: dict[str, DockState] = {}
+        now = self._clock()
+        for dock_id, dock in docks.items():
+            wind = snap.wind_mps if snap is not None else None
+            vis = snap.visibility_km if snap is not None else None
+            temp = snap.temp_c if snap is not None else None
+            if (
+                dock.weather_lock == locked
+                and dock.wind_mps == wind
+                and dock.visibility_km == vis
+                and dock.temp_c == temp
+            ):
+                continue
+            updated[dock_id] = dock.model_copy(
+                update={
+                    "weather_lock": locked,
+                    "wind_mps": wind,
+                    "visibility_km": vis,
+                    "temp_c": temp,
+                    "ts": now,
+                }
+            )
+        return updated
+
     # ── mission validation ───────────────────────────────────────────────────
 
-    async def validate_mission(
+    def validate_mission(
         self,
         mission: MissionView,
         *,
         units: Mapping[str, UnitState],
         docks: Mapping[str, DockState],
     ) -> PolicyDecision:
-        """Check geofence, altitude ceiling, battery, link, and weather.
+        """Synchronous: reads the *cached* `dock.weather_lock` only.
 
-        `RTL_DOCK` is intentionally exempt from the weather-lock branch:
-        if conditions are bad, the *return-to-launch* path is the safety
-        action, not the thing to block. The auto-RTL emitter relies on
-        this exemption.
+        `refresh_dock_weather_locks` is the async path that refreshes
+        the cache. `RTL_DOCK` is intentionally exempt from the weather
+        branch: if conditions are bad, the return-to-launch path is the
+        safety action, not the thing to block.
         """
 
         polygon = list(self.site.geofence.polygon)
