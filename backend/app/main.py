@@ -35,6 +35,7 @@ from backend.app.db import (
     set_repository,
     shutdown_persistence,
 )
+from backend.app.fleet import FleetManager, UnknownVendor, fleet_from_env
 from backend.app.hub import HUB
 from backend.app.security import (
     BodySizeLimitMiddleware,
@@ -50,10 +51,12 @@ logger = logging.getLogger("backend")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
 bus_consumer = BusConsumer(HUB)
+fleet_manager: FleetManager | None = None
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    global fleet_manager
     # Phase 4: bring up persistence first so the bus consumer can write.
     if is_persistence_enabled():
         try:
@@ -76,10 +79,24 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.info("persistence disabled (DATABASE_URL not set)")
 
     await bus_consumer.start()
+    # Phase 5: boot any in-process vendor runners declared in SWARM_VENDORS.
+    # `parse_vendors` raises `UnknownVendor` on a typo — fail-fast so the
+    # operator sees the misconfiguration immediately.
+    try:
+        fleet_manager = fleet_from_env(bus_consumer.bus)
+        await fleet_manager.start()
+        logger.info("fleet: vendors=%s", fleet_manager.vendors)
+    except UnknownVendor as e:
+        logger.error("fleet: refusing to boot (%s)", e)
+        raise
+
     logger.info("backend ready")
     try:
         yield
     finally:
+        if fleet_manager is not None:
+            await fleet_manager.stop()
+            fleet_manager = None
         await bus_consumer.stop()
         await shutdown_persistence()
 
