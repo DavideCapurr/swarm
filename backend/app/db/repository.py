@@ -321,6 +321,7 @@ class Repository:
         keep CI hermetic; production runs Postgres. SQLAlchemy core's generic
         `insert` does not emit ON CONFLICT semantics on its own.
         """
+        rows = _dedupe_rows_for_upsert(rows, pk_cols)
         if not rows:
             return
         bind = db.get_bind()
@@ -359,6 +360,25 @@ class Repository:
                 else:
                     for k, v in row.items():
                         setattr(existing, k, v)
+
+
+def _dedupe_rows_for_upsert(
+    rows: Sequence[dict[str, Any]], pk_cols: tuple[str, ...]
+) -> list[dict[str, Any]]:
+    """Collapse duplicate PKs inside one batch before `ON CONFLICT`.
+
+    PostgreSQL rejects `INSERT ... ON CONFLICT DO UPDATE` when two rows in the
+    same VALUES block target the same constrained key. SQLite accepts that
+    shape, so doing this normalization here keeps both dialects aligned.
+    """
+    deduped: dict[tuple[Any, ...], dict[str, Any]] = {}
+    order: list[tuple[Any, ...]] = []
+    for row in rows:
+        key = tuple(row[col] for col in pk_cols)
+        if key not in deduped:
+            order.append(key)
+        deduped[key] = row
+    return [deduped[key] for key in order]
 
 
 def _row_to_event(r: EventRow) -> Event:
