@@ -13,7 +13,7 @@ of every phase.
 | 2     | Console Operating Shell + routing + components        | **done** |
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
-| 5     | Real Adapter (MAVLink or DJI — TBD)                   | pending |
+| 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **in_progress** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | pending |
 
 ## Phase 0 — completed checklist
@@ -289,12 +289,18 @@ explicit phase request.
 
 ## Open decisions
 
-- **Phase 5 vendor choice**: MAVLink (PX4/ArduPilot) vs DJI — to be decided
-  with the user when we approach Phase 5. Either is supported by the
-  adapter base.
-- **Phase 5 MAVLink runtime**: MAVSDK-Python is deferred until Phase 5
-  because its current protobuf pin failed Phase 0 audit on 2026-05-15.
-  Re-evaluate a secure MAVLink runtime before live hardware execution.
+- **Phase 5 vendor choice**: **resolved** — MAVLink (PX4/ArduPilot) via
+  `pymavlink`. DJI consumer SDK was rejected for the demo bench because
+  (a) the Mobile/MSDK runtime requires Android distribution + DJI dev
+  account approval, (b) the Cloud API requires a Dock/Enterprise unit
+  the bench does not have, and (c) `pymavlink` is a self-contained pure-
+  Python decoder that has no protobuf transitive dep — the blocker that
+  ruled out MAVSDK on 2026-05-15 does not apply. The DJI stubs remain in
+  the tree (`adapters/dji_psdk/`, `adapters/dji_cloud/`) for a future
+  enterprise integration.
+- **Phase 5 MAVLink runtime**: **resolved** — `pymavlink>=2.4.40,<3` is
+  the wire-protocol library; the adapter is implemented directly on top
+  of `mavutil.mavlink_connection` (no MAVSDK, no gRPC, no protobuf).
 - **Phase 6 deploy target**: Kubernetes vs compose-prod — to be decided
   based on customer requirements.
 - **Phase 6 auth provider**: pure JWT vs OIDC bridge — TBD; default JWT.
@@ -338,10 +344,47 @@ Verification after fixes:
   `alembic upgrade head` against the pinned Timescale image as the final
   gate before Phase 5.
 
+## Phase 5 — in progress (started 2026-05-16)
+
+Branch `claude/add-mavlink-adapter-kyTd1`. Vendor: MAVLink / PX4 via
+`pymavlink`.
+
+Planned scope (see `docs/plan/swarmos-roadmap.md` §Phase 5):
+- Rewrite `adapters/mavlink/adapter.py` on top of `pymavlink` (replace
+  the MAVSDK stub that was a Phase 0 blocker because of vulnerable
+  protobuf pins).
+- `adapters/mavlink/fake_endpoint.py`: in-process UDP MAVLink server so
+  the conformance suite runs in CI with no SITL container.
+- `adapters/mavlink/runner.py`: out-of-process producer symmetric to
+  `sim.swarm_sim.runner`, booted from `SWARM_VENDORS=...,mavlink`.
+- `core/swarm_core/streams.py`: strict `StreamDescriptor` model + URL
+  allowlist (`rtsps://`, `https://` only).
+- `core/swarm_core/rate_limit.py`: `TelemetryRateLimiter` (sanity Hz
+  cap = 50, per Phase 5 security additions in the roadmap).
+- Backend WS `stream` frame + `LiveFeedFrame` consumption.
+- Mission DSL → MAVLink mapping (PATROL/VERIFY → MISSION_ITEM_INT
+  upload, RTL_DOCK → `MAV_CMD_NAV_RETURN_TO_LAUNCH`, RELAY → loiter,
+  COVER → reject — decomposed upstream).
+- Safety enforcement: geofence pre-upload validation + heartbeat
+  watchdog (link loss > 3 s → cancel + RTL).
+- `docs/adapters/mavlink-setup.md`: SITL + real-radio bring-up.
+
+Out of scope (deferred to Phase 6 or later):
+- Real PX4 SITL container in CI (fake endpoint covers the contract;
+  SITL is the hardware-bench acceptance gate).
+- DJI Mobile / DJI Cloud adapters (stubs stay).
+- Sigstore provenance check for `pymavlink` (Phase 6 supply chain).
+- mTLS adapter ↔ bus (Phase 6 hardening).
+- Video frame streaming via MAVLink (out of scope — video is RTSP from
+  the gimbal; the adapter advertises an external URL via
+  `StreamDescriptor` and `stream_video()` remains a no-op).
+
 ## Last updated
 
-2026-05-16: Phase 4 post-readiness fixes on branch
-`claude/verify-phase4-completion-qiLsH`. Phase 4 originally completed on
-branch `claude/phase-4-persistence-OGUJm`. Phase 2 was completed on branch
-`claude/phase-2-start-CMUg1`. Phase 1 was completed at GitHub main commit
+2026-05-16: Phase 5 started on branch `claude/add-mavlink-adapter-kyTd1`
+(vendor decision: MAVLink/PX4 via `pymavlink`). Phase 4 post-readiness
+fixes on branch `claude/verify-phase4-completion-qiLsH`. Phase 4
+originally completed on branch `claude/phase-4-persistence-OGUJm`.
+Phase 2 was completed on branch `claude/phase-2-start-CMUg1`. Phase 1
+was completed at GitHub main commit
 `2390f872908a4a52588287a3865b3da96c785750`.
