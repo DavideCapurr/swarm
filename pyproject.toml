@@ -41,6 +41,8 @@ dev = [
     "ruff>=0.4,<1",
     "mypy>=1.9,<2",
     "types-redis",
+    # Phase 4: in-process async SQLite for persistence tests (no Postgres needed).
+    "aiosqlite>=0.20,<1",
     # Security / supply chain
     "bandit[toml]>=1.7,<2",
     "pip-audit>=2.7,<3",

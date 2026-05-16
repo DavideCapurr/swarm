@@ -2,15 +2,27 @@
 
 These endpoints feed the frontend's initial render. Live updates ride the
 WebSocket (`/ws/telemetry`).
+
+Phase 4 additions:
+  - `/events` accepts `from=&to=` for historical queries against the DB
+    (falls back to the in-memory deque when persistence is disabled).
+  - `/missions/{id}/history` returns the per-mission event timeline from DB.
+  - `/operator-commands` returns the audit log for an operator id.
+
+The `from`/`to` parameters are typed as `datetime` so FastAPI parses + rejects
+malformed input before it reaches the DB — a free SQL injection guard on top
+of SQLAlchemy's parameterized queries.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from swarm_core.messages import EventKind
 
+from backend.app.db import get_repository
 from backend.app.state import STATE
 from swarm_os import SWARM_STATE
 
@@ -26,6 +38,7 @@ async def health() -> dict[str, Any]:
         "telemetry_agents": list(STATE.last_telemetry.keys()),
         "swarmos_units": len(SWARM_STATE.units),
         "swarmos_mode": SWARM_STATE.mode.value,
+        "persistence": get_repository().enabled,
     }
 
 
@@ -59,6 +72,27 @@ async def missions() -> dict[str, Any]:
     return {"missions": [m.model_dump(mode="json") for m in SWARM_STATE.missions.values()]}
 
 
+@router.get("/missions/{mission_id}/history")
+async def mission_history(
+    mission_id: str,
+    limit: int = Query(200, ge=1, le=500),
+) -> dict[str, Any]:
+    """Per-mission event timeline. Phase 4: DB-backed."""
+    if not get_repository().enabled:
+        # In-memory fallback — filter the deque by mission_id.
+        in_mem = [
+            e.model_dump(mode="json")
+            for e in list(SWARM_STATE.events)
+            if e.mission_id == mission_id
+        ][-limit:]
+        return {"mission_id": mission_id, "events": in_mem}
+    events = await get_repository().mission_history(mission_id, limit=limit)
+    return {
+        "mission_id": mission_id,
+        "events": [e.model_dump(mode="json") for e in events],
+    }
+
+
 @router.get("/commands")
 async def commands(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
     ordered = sorted(
@@ -66,6 +100,33 @@ async def commands(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
         key=lambda c: c.submitted_at,
     )
     return {"commands": [c.model_dump(mode="json") for c in ordered[-limit:]]}
+
+
+@router.get("/operator-commands")
+async def operator_commands(
+    operator_id: str | None = Query(default=None, max_length=64),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    """Audit log query — Phase 4. Backed by DB when persistence is enabled."""
+    # Reject malformed operator_id (same regex as the action endpoints) so the
+    # audit query surface matches the write surface.
+    if operator_id is not None:
+        from backend.app.security import is_valid_operator_id
+
+        if not is_valid_operator_id(operator_id):
+            raise HTTPException(status_code=400, detail="invalid_operator_id")
+
+    if not get_repository().enabled:
+        cmds = list(SWARM_STATE.commands.values())
+        if operator_id is not None:
+            cmds = [c for c in cmds if c.operator_id == operator_id]
+        cmds.sort(key=lambda c: c.submitted_at)
+        return {"commands": [c.model_dump(mode="json") for c in cmds[-limit:]]}
+
+    rows = await get_repository().list_operator_commands(
+        operator_id=operator_id, limit=limit
+    )
+    return {"commands": [c.model_dump(mode="json") for c in rows]}
 
 
 @router.get("/fleet")
@@ -102,9 +163,31 @@ async def telemetry_latest() -> dict[str, Any]:
 async def events(
     limit: int = Query(100, ge=1, le=500),
     kind: EventKind | None = None,
-    sector: str | None = None,
-    agent: str | None = None,
+    sector: str | None = Query(default=None, max_length=64),
+    agent: str | None = Query(default=None, max_length=64),
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
 ) -> dict[str, Any]:
+    """Event timeline. Phase 4 adds `from=&to=` for DB-backed history queries.
+
+    When `from`/`to` is supplied, or persistence is enabled and the in-memory
+    deque is empty, we read from the DB. Otherwise we serve the live deque.
+    """
+    # Hard ceiling on time range to keep query bounded.
+    if from_ is not None and to is not None and to < from_:
+        raise HTTPException(status_code=400, detail="invalid_time_range")
+
+    if get_repository().enabled and (from_ is not None or to is not None):
+        rows = await get_repository().list_events(
+            from_ts=from_,
+            to_ts=to,
+            kind=kind,
+            sector_id=sector,
+            agent_id=agent,
+            limit=limit,
+        )
+        return {"events": [e.model_dump(mode="json") for e in rows]}
+
     swarmos_events = list(SWARM_STATE.events)
     if swarmos_events:
         filtered = swarmos_events
@@ -115,6 +198,12 @@ async def events(
         if agent is not None:
             filtered = [e for e in filtered if e.agent_id == agent]
         return {"events": [e.model_dump(mode="json") for e in filtered[-limit:]]}
+
+    if get_repository().enabled:
+        rows = await get_repository().list_events(
+            kind=kind, sector_id=sector, agent_id=agent, limit=limit
+        )
+        return {"events": [e.model_dump(mode="json") for e in rows]}
 
     legacy = list(STATE.events)[-limit:]
     return {"events": legacy}

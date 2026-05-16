@@ -46,6 +46,18 @@ for i in $(seq 1 20); do
   sleep 0.5
 done
 
+# Wait for postgres + run Alembic migrations (Phase 4).
+for i in $(seq 1 30); do
+  if docker compose exec -T postgres pg_isready -U "${POSTGRES_USER:-swarm}" > /dev/null 2>&1; then
+    break
+  fi
+  sleep 0.5
+done
+if [ -d .venv ]; then
+  echo "[dev_up] running Alembic migrations…"
+  .venv/bin/alembic upgrade head || echo "[dev_up] alembic upgrade failed — continuing"
+fi
+
 cleanup() {
   echo "[dev_up] stopping background processes…"
   kill $(jobs -p) 2>/dev/null || true
