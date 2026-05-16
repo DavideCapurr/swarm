@@ -33,6 +33,7 @@ import {
   type OperatorCommand,
   type Sector,
   type Session,
+  type StreamDescriptor,
   type TimelineEvent,
   type UnitState,
 } from "./api";
@@ -66,6 +67,9 @@ export type SwarmState = {
   anomalies: AnomalyView[];
   events: TimelineEvent[];
   commands: OperatorCommand[];
+  // Phase 5: stream descriptors per agent_id. `null` ≡ no descriptor yet
+  // received; in that case the Console falls back to the placard.
+  streams: Record<string, StreamDescriptor>;
   awareness: AwarenessBreakdown;
   link: LinkState;
   clock: { time: string; date: string };
@@ -113,6 +117,7 @@ export function SwarmStateProvider({
   const [anomalies, setAnomalies] = useState<AnomalyView[]>([]);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [commands, setCommands] = useState<OperatorCommand[]>([]);
+  const [streams, setStreams] = useState<Record<string, StreamDescriptor>>({});
   const [awareness, setAwareness] = useState<AwarenessBreakdown>(() => fallbackAwareness(new Date()));
   // Link + clock.
   const [link, setLink] = useState<LinkState>("connecting");
@@ -200,6 +205,9 @@ export function SwarmStateProvider({
         case "operator":
           setCommands((prev) => upsertById(prev, msg.data, "id"));
           return;
+        case "stream":
+          setStreams((prev) => ({ ...prev, [msg.data.agent_id]: msg.data }));
+          return;
       }
     });
     return () => {
@@ -258,6 +266,7 @@ export function SwarmStateProvider({
       anomalies,
       events,
       commands,
+      streams,
       awareness,
       link,
       clock,
@@ -276,6 +285,7 @@ export function SwarmStateProvider({
       anomalies,
       events,
       commands,
+      streams,
       awareness,
       link,
       clock,

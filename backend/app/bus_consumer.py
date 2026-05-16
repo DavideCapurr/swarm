@@ -18,6 +18,7 @@ import os
 from typing import TYPE_CHECKING
 
 from swarm_core.messages import Anomaly, FleetState, MissionProgress, Telemetry
+from swarm_core.streams import InvalidStreamURL, StreamDescriptor
 
 from backend.app.db import get_repository
 from backend.app.state import STATE
@@ -60,6 +61,7 @@ class BusConsumer:
             asyncio.create_task(self._consume_fleet()),
             asyncio.create_task(self._consume_anomalies()),
             asyncio.create_task(self._consume_progress()),
+            asyncio.create_task(self._consume_streams()),
         ]
 
     async def stop(self) -> None:
@@ -141,6 +143,31 @@ class BusConsumer:
             if mission is not None:
                 await get_repository().write_mission(mission)
             await self._persist_frames(frame_events=True)
+
+    async def _consume_streams(self) -> None:
+        """Re-broadcast `StreamDescriptor` frames published by adapter runners.
+
+        Phase 5 separation of concerns: the adapter publishes the URL it
+        knows; the backend re-validates against the allowlist (defense in
+        depth) and forwards to every WS client. The Console renders a real
+        `<video>` element when `available=True`, otherwise keeps the
+        "VIEWPORT PENDING / STREAM OFFLINE" placard.
+        """
+        async for _topic, payload in self.bus.subscribe("swarm:streams:*"):
+            try:
+                descriptor = StreamDescriptor.model_validate_json(payload)
+            except (ValueError, InvalidStreamURL):
+                # An adapter that misbehaves (or a malicious one) gets its
+                # frame dropped at the backend, not re-broadcast. We log
+                # the event so it surfaces in audit.
+                logger.warning(
+                    "dropped malformed stream descriptor from bus: %s", payload[:200]
+                )
+                continue
+            self._coordinator.state.streams[descriptor.agent_id] = descriptor
+            await self._hub.broadcast(
+                {"kind": "stream", "data": descriptor.model_dump(mode="json")}
+            )
 
     # ── Persistence helpers ──────────────────────────────────────────────────
 

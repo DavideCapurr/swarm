@@ -23,6 +23,7 @@ from swarm_core.messages import (
     Session,
     UnitState,
 )
+from swarm_core.streams import StreamDescriptor
 
 from swarm_os.sectors import default_sector_grid
 
@@ -47,6 +48,7 @@ class SwarmState:
     tracks: dict[str, deque[Geo]] = field(default_factory=dict)
     events: deque[Event] = field(default_factory=lambda: deque(maxlen=500))
     commands: dict[str, OperatorCommand] = field(default_factory=dict)
+    streams: dict[str, StreamDescriptor] = field(default_factory=dict)
     awareness: AwarenessBreakdown = field(
         default_factory=lambda: AwarenessBreakdown(score=0.0, risk_state=RiskState.REST)
     )

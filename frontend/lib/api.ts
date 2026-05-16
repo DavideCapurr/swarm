@@ -253,6 +253,44 @@ export type CommandResponse = {
   mission_id?: string | null;
 };
 
+// ── Phase 5 stream descriptors (mirror core/swarm_core/streams.py) ───────────
+
+export type StreamProtocol = "rtsps" | "https";
+
+export type StreamDescriptor = {
+  agent_id: string;
+  available: boolean;
+  url: string | null;
+  protocol: StreamProtocol | null;
+  codec: string | null;
+  ts: string;
+};
+
+/** Client-side allowlist — same set as the backend's `ALLOWED_STREAM_SCHEMES`.
+ *
+ * Defense in depth: even though the backend re-validates every descriptor,
+ * the Console must refuse to render `<video src=…>` for a URL whose scheme
+ * is not in this set. This guards against a configuration drift that
+ * relaxes the server-side check without the same change here.
+ */
+export const ALLOWED_STREAM_SCHEMES: ReadonlySet<string> = new Set([
+  "rtsps",
+  "https",
+]);
+
+export function isAllowedStreamUrl(url: string): boolean {
+  // URL parsing is cheap and avoids regex pitfalls. `new URL` throws on
+  // malformed input — we treat that as "not allowed".
+  try {
+    const parsed = new URL(url);
+    // `URL.protocol` carries the trailing colon, e.g. "https:".
+    const scheme = parsed.protocol.replace(/:$/, "").toLowerCase();
+    return ALLOWED_STREAM_SCHEMES.has(scheme);
+  } catch {
+    return false;
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
