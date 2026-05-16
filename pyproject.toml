@@ -90,6 +90,7 @@ asyncio_mode = "auto"
 testpaths = [
     "core/swarm_core/tests",
     "adapters/tests",
+    "adapters/mavlink/tests",
     "orchestrator/swarm_orchestrator/tests",
     "backend/tests",
     "swarm_os/tests",
