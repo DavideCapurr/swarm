@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit clean db-migrate db-revision
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate clean db-migrate db-revision
 
 PY := python3
 VENV := .venv
@@ -64,7 +64,7 @@ demo:
 # `make audit` is the one-stop check before pushing. It mirrors what CI runs
 # under .github/workflows/sast.yml + secret-scanning.yml + image-scan.yml +
 # dependency-review.yml. Locally we skip image-scan (needs Docker daemon).
-audit: audit-python audit-frontend audit-bandit
+audit: audit-python audit-frontend audit-bandit audit-pymavlink-integrity
 
 audit-python:
 	$(VENV)/bin/pip-audit --skip-editable --cache-dir .cache/pip-audit
@@ -76,6 +76,14 @@ audit-bandit:
 	$(VENV)/bin/bandit -r core adapters orchestrator sim backend swarm_os \
 		--severity-level medium \
 		--skip B101,B311
+
+audit-pymavlink-integrity:
+	$(PYTHON) scripts/verify_pymavlink_integrity.py
+
+phase5-sitl-gate:
+	$(PYTHON) scripts/phase5_sitl_probe.py \
+		--connection "$${MAVLINK_CONNECTION:-udp:localhost:14540}" \
+		--agent-id "$${MAVLINK_AGENT_ID:-mav-px4-sitl}"
 
 # ── cleanup ─────────────────────────────────────────────────────────────────
 clean:

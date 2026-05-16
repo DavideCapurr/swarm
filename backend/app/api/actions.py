@@ -77,7 +77,7 @@ async def _dispatch(
     code = (
         status.HTTP_202_ACCEPTED
         if result.rejected_reason is None
-        else status.HTTP_422_UNPROCESSABLE_ENTITY
+        else status.HTTP_422_UNPROCESSABLE_CONTENT
     )
     return result.as_response(), code
 

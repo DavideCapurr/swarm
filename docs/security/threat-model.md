@@ -20,8 +20,9 @@ Phase 0 baseline (2026-05).
 1. **Internet ↔ Console (browser)** — public, hostile.
 2. **Console ↔ SwarmOS backend** — over TLS in prod, authenticated
    (Phase 6).
-3. **SwarmOS backend ↔ bus (Redis)** — internal, mTLS in prod
-   (Phase 5/6).
+3. **SwarmOS backend ↔ bus (Redis)** — internal; Phase 5 enforces a
+   fail-closed Redis mTLS entry criterion for prod / required-secure runs
+   (`rediss://` + client cert/key + CA), while local dev may use plaintext.
 4. **SwarmOS backend ↔ database (Postgres)** — internal, TLS + auth
    (Phase 4).
 5. **SwarmOS backend ↔ adapter** — internal, but the adapter talks to a
@@ -57,8 +58,8 @@ Phase 0 baseline (2026-05).
 
 | Threat | Mitigation |
 |--------|------------|
-| Spoofing | mTLS (Phase 5/6). Network segmentation. |
-| Tampering | TLS (Phase 5/6). Pub/sub topics scoped per service. |
+| Spoofing | Redis client mTLS is enforced when `SWARM_ENV=prod` or `SWARM_REQUIRE_SECURE_BUS=1`; no in-memory fallback in secure mode. Network segmentation. |
+| Tampering | `rediss://` required in secure mode. Pub/sub topics scoped per service. |
 | Information disclosure | No PII on bus (telemetry is geo + state only). |
 | Denial of service | Redis maxmemory + eviction policy. |
 
@@ -77,7 +78,7 @@ Phase 0 baseline (2026-05).
 
 | Threat | Mitigation |
 |--------|------------|
-| Spoofing (vendor impersonation) | Pin vendor SDK version + verify signature when available. |
+| Spoofing (vendor impersonation) | Pin vendor SDK version + offline package-integrity gate for `pymavlink`; publisher identity/Sigstore attestations remain outside the current PyPI evidence gate. |
 | Tampering (telemetry injection) | Rate-limit inbound Hz cap + sanity bounds. |
 | Information disclosure (creds) | Vault for adapter credentials. |
 | Denial of service | Vendor rate limits + circuit breaker per adapter. |

@@ -13,7 +13,7 @@ of every phase.
 | 2     | Console Operating Shell + routing + components        | **done** |
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
-| 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **code-complete, CI-verified; bench validation pending** |
+| 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | pending — do not start until Phase 5 readiness level is accepted |
 
 ## Phase 0 — completed checklist
@@ -344,10 +344,10 @@ Verification after fixes:
   `alembic upgrade head` against the pinned Timescale image as the final
   gate before Phase 5.
 
-## Phase 5 — code-complete, CI-verified; bench validation pending
+## Phase 5 — CI-ready; bench validation still pending
 
 Vendor: MAVLink / PX4 via `pymavlink`. Branch
-`codex/phase5-readiness-hardening`.
+`codex/phase5-bench-security-gates`.
 
 - [x] Rewrote `adapters/mavlink/adapter.py` on top of `pymavlink` (no
       protobuf, no gRPC, no MAVSDK). Adapter speaks
@@ -438,9 +438,10 @@ Vendor: MAVLink / PX4 via `pymavlink`. Branch
 Gate run from this branch on 2026-05-16:
 
 ```
-$ make lint   # green: ruff + mypy over 109 source files + frontend tsc
-$ make test   # green: 332 passed, 16 skipped; frontend tsc
-$ make audit  # green: pip-audit clean, pnpm audit clean, Bandit 0 medium/high
+$ make lint   # green: ruff + mypy over 110 source files + frontend tsc
+$ make test   # green: 341 passed, 16 skipped; frontend tsc
+$ make audit  # green: pip-audit clean, pnpm audit clean, Bandit 0 medium/high,
+              # pymavlink integrity gate passed offline
 ```
 
 The conformance suite (`AdapterConformanceTests`) runs against the
@@ -460,21 +461,33 @@ coverage now includes:
 No MAVSDK, gRPC, or Python protobuf dependency is present in the Python
 lockfile; `pymavlink` remains the only MAVLink runtime dependency.
 
-### Deferred Phase 5 security gates and Phase 6 entry criteria
+### Phase 5 readiness gates and Phase 6 entry criteria
 
-- Real PX4 SITL in CI remains deferred because the runtime requires PX4
-  + jMAVSim/Gazebo and is not suitable for `make test`. The manual SITL
-  gate is documented in `docs/adapters/mavlink-setup.md`; do not claim
-  bench validation until that checklist has evidence for the commit.
-- Sigstore/package provenance for `pymavlink` is deferred to Phase 6
-  supply-chain hardening. Phase 5 mitigation is lockfile hash pinning and
-  `pip-audit`; Phase 6 entry criterion is a documented provenance policy
-  for vendor dependencies before production deployment.
-- mTLS/secure adapter-bus transport is deferred to Phase 6 because Phase 5
-  runs the MAVLink runner in-process with the backend in the supported
-  dev/demo path. Phase 6 entry criterion: if adapters become separate
-  services, bus credentials and mTLS (or an equivalent authenticated
-  transport) must land before production flight.
+- Real PX4 SITL is **not validated** on this branch. The local environment
+  had no PX4 install and no HEARTBEAT on `udp:localhost:14540`; the probe
+  artifact is `docs/bench/artifacts/2026-05-16-sitl-probe.json`, and the
+  evidence note is `docs/bench/phase5-validation.md`. Do not claim SITL
+  validation until the checklist in `docs/adapters/mavlink-setup.md`
+  passes for the exact commit.
+- Real hardware is **not validated**. No USB/radio PX4 device was available
+  in this environment. Hardware remains pending until the bench checklist
+  has command output or clear artifacts for the exact commit.
+- `pymavlink` package integrity is now an enforced local/CI gate:
+  `make audit` runs `scripts/verify_pymavlink_integrity.py`, which verifies
+  the `uv.lock` PyPI artifact hashes, the `pyproject.toml` optional extra,
+  the installed version, and 195 installed wheel `RECORD` sha256 entries
+  without network access. Outside scope: publisher identity and Sigstore
+  signing certificates, which require an upstream attestation policy before
+  production.
+- Secure adapter-bus transport now fails closed for Phase 6/prod entry:
+  `SWARM_ENV=prod` or `SWARM_REQUIRE_SECURE_BUS=1` requires `REDIS_URL` to
+  use `rediss://` plus existing `REDIS_TLS_CA_CERTS`,
+  `REDIS_TLS_CERTFILE`, and `REDIS_TLS_KEYFILE` files. In secure mode the
+  backend, simulator runner, and standalone MAVLink runner refuse the
+  `InMemoryBus` fallback if Redis is missing or insecure. Phase 6 owner:
+  Platform/SRE must provision the Redis mTLS service, client cert rotation,
+  and deployment secret mounts before production/out-of-process adapters are
+  allowed.
 - Telemetry rate limiting is no longer deferred at the Phase 5 boundary:
   both adapter-side and backend-side caps are implemented and tested.
 - DJI Mobile / DJI Cloud adapters remain stubs in `adapters/dji_*` for a
@@ -484,10 +497,15 @@ lockfile; `pymavlink` remains the only MAVLink runtime dependency.
   `StreamDescriptor`, `request_capture()` returns only a real configured
   stream URI, and `stream_video()` remains a no-op.
 
-### Bench validation (pending — not claimed)
+### Bench validation (attempted; pending — not claimed)
 
-No PX4 SITL or hardware validation was run in this hardening session.
-Before calling Phase 5 "done", run the acceptance checklist in
+PX4 SITL was attempted with the repo probe, but it did not validate because
+no PX4 endpoint emitted HEARTBEAT on `udp:localhost:14540` in this
+environment. Hardware validation was not run. Current evidence lives in
+`docs/bench/phase5-validation.md` and
+`docs/bench/artifacts/2026-05-16-sitl-probe.json`.
+
+Before calling Phase 5 bench-validated, run the acceptance checklist in
 `docs/adapters/mavlink-setup.md`:
 
 1. PX4 SITL emits HEARTBEAT on UDP 14540 and SwarmOS boots with
@@ -502,11 +520,13 @@ Before calling Phase 5 "done", run the acceptance checklist in
 
 ## Last updated
 
-2026-05-16: Phase 5 readiness hardened on branch
-`codex/phase5-readiness-hardening`. Status is code-complete and
-CI-verified by `make lint`, `make test`, and `make audit`; PX4 SITL /
-hardware bench validation remains pending and must not be implied as
-done. Phase 4 post-readiness fixes on branch
+2026-05-16: Phase 5 readiness gates updated on branch
+`codex/phase5-bench-security-gates`. Status is CI-ready by `make lint`,
+`make test`, and `make audit`; `pymavlink` package integrity is enforced
+offline; secure Redis mTLS entry criteria fail closed for prod/required
+secure bus mode. PX4 SITL was attempted but not validated, and hardware
+bench validation remains pending and must not be implied as done. Phase 4
+post-readiness fixes on branch
 `claude/verify-phase4-completion-qiLsH`.
 Phase 4 originally completed on branch
 `claude/phase-4-persistence-OGUJm`. Phase 2 was completed on branch
