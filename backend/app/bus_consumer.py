@@ -23,7 +23,13 @@ from swarm_core.streams import InvalidStreamURL, StreamDescriptor
 
 from backend.app.db import get_repository
 from backend.app.state import STATE
-from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus, RedisBus
+from orchestrator.swarm_orchestrator.bus import (
+    Bus,
+    InMemoryBus,
+    InsecureBusConfiguration,
+    RedisBus,
+    secure_bus_required,
+)
 from swarm_os import COORDINATOR
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -42,14 +48,29 @@ class BusConsumer:
 
     async def start(self) -> None:
         redis_url = os.getenv("REDIS_URL")
-        try:
-            self._bus = RedisBus(redis_url) if redis_url else InMemoryBus()
-            await self._bus.connect()
-            logger.info("backend bus: %s", type(self._bus).__name__)
-        except Exception as e:
-            logger.warning("backend redis unavailable (%s) — falling back to InMemoryBus", e)
+        if redis_url:
+            try:
+                self._bus = RedisBus(redis_url)
+                await self._bus.connect()
+                logger.info("backend bus: %s", type(self._bus).__name__)
+            except InsecureBusConfiguration:
+                logger.exception("backend bus refused insecure Redis configuration")
+                raise
+            except Exception as e:
+                if secure_bus_required():
+                    logger.exception("backend Redis unavailable and secure bus is required")
+                    raise
+                logger.warning("backend redis unavailable (%s) — falling back to InMemoryBus", e)
+                self._bus = InMemoryBus()
+                await self._bus.connect()
+        else:
+            if secure_bus_required():
+                raise InsecureBusConfiguration(
+                    "secure bus required: REDIS_URL must be set and use rediss://"
+                )
             self._bus = InMemoryBus()
             await self._bus.connect()
+            logger.info("backend bus: %s", type(self._bus).__name__)
 
         # Phase 4: persist session bootstrap row so /events?from=...&to=...
         # joins against a known session for audit.

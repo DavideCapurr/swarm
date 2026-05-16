@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from swarm_core.messages import AgentState, Geo, UnitState
@@ -63,6 +65,21 @@ def test_action_requires_valid_operator_id() -> None:
         json={"target": "sector:north-a"},
     )
     assert response.status_code == 400
+
+
+def test_rejected_action_uses_current_starlette_422_constant() -> None:
+    client = _client()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        response = client.post(
+            "/actions/verify",
+            headers={"X-Operator-Id": "op-davide"},
+            json={"target": "sector:does-not-exist"},
+        )
+    assert response.status_code == 422
+    assert "rejected_reason" in response.json()
+    warning_messages = [str(item.message) for item in caught]
+    assert not any("HTTP_422_UNPROCESSABLE_ENTITY" in msg for msg in warning_messages)
 
 
 def test_action_rate_limit_31st_request() -> None:

@@ -91,7 +91,8 @@ the runner publishes.
 
 CI intentionally does not download or run PX4/Gazebo. Before Phase 6 starts,
 run this checklist manually and attach the command output/screenshots to the
-release/PR notes:
+release/PR notes. If you cannot run the gate, record the failed prerequisite
+checks in `docs/bench/phase5-validation.md` instead of marking SITL complete.
 
 1. `make px4_sitl_default jmavsim` (inside `PX4-Autopilot`) reaches a
    ready SITL prompt and emits HEARTBEAT on UDP 14540.
@@ -108,6 +109,28 @@ release/PR notes:
 6. With `MAVLINK_STREAM_URL` unset, the Console keeps the honest offline
    viewport. With an `https://` or `rtsps://` URL set, it renders the
    configured stream descriptor. Plaintext URLs must fail at boot.
+
+### Runnable SITL probe
+
+Once PX4 SITL is already running, use the repo probe to capture repeatable
+adapter evidence:
+
+```bash
+# Heartbeat + health + telemetry only.
+make phase5-sitl-gate
+
+# Full SITL-only mission upload/start exercise. Do not run this against
+# real hardware unless the airframe is intentionally configured for the test.
+.venv/bin/python scripts/phase5_sitl_probe.py \
+  --connection "${MAVLINK_CONNECTION:-udp:localhost:14540}" \
+  --agent-id "${MAVLINK_AGENT_ID:-mav-px4-sitl}" \
+  --exercise-verify \
+  --json-out docs/bench/artifacts/phase5-sitl-probe.json
+```
+
+The probe exits non-zero and writes a JSON failure artifact when no
+HEARTBEAT/telemetry is observed. Passing the probe is **SITL evidence only**;
+it is not hardware validation.
 
 ### Verifying the MAVLink path is live
 
@@ -229,6 +252,19 @@ COMMAND_ACK, SET_MODE heartbeat confirmation, PARAM_SET / PARAM_VALUE,
 FENCE_POINT), so contract drift surfaces in CI. The fake rejects shortcut
 uploads, missing final ACKs, rejected ACKs, and connection without
 HEARTBEAT.
+
+`make audit` also runs `scripts/verify_pymavlink_integrity.py`. That gate is
+offline and checks:
+
+- `uv.lock` pins `pymavlink` to PyPI registry artifacts with sha256 hashes for
+  the sdist and every wheel.
+- `pyproject.toml` keeps `pymavlink>=2.4.40,<3` in the `mavlink` extra.
+- the installed `pymavlink` distribution matches the lockfile version and its
+  wheel `RECORD` sha256 entries still match files on disk.
+
+The gate does **not** prove publisher identity or Sigstore signing
+certificates; those stay outside scope until PyPI/project attestations are
+available and adopted as a production provenance policy.
 
 ## Troubleshooting
 

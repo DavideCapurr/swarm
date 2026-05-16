@@ -1,0 +1,25 @@
+{
+  "agent_id": "mav-px4-sitl",
+  "command": [
+    "phase5_sitl_probe.py",
+    "--json-out",
+    "docs/bench/artifacts/2026-05-16-sitl-probe.json"
+  ],
+  "connection": "udp:localhost:14540",
+  "duration_s": 5.006,
+  "exercise_verify": false,
+  "finished_at": "2026-05-16T17:51:21.617713+00:00",
+  "started_at": "2026-05-16T17:51:16.612168+00:00",
+  "status": "fail",
+  "steps": [
+    {
+      "detail": {
+        "message": "MAVLink connect timed out waiting for HEARTBEAT from 'udp:localhost:14540'",
+        "type": "MAVLinkConnectionError"
+      },
+      "name": "probe_error",
+      "status": "fail",
+      "ts": "2026-05-16T17:51:21.617668+00:00"
+    }
+  ]
+}
