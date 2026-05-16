@@ -60,6 +60,15 @@ if [ -d .venv ]; then
   .venv/bin/alembic upgrade head
 fi
 
+# Phase 5: pick which vendor producers to launch. The simulator runs as a
+# subprocess here; the mavlink runner runs in-process inside the backend
+# (see backend/app/fleet.py). We never double-boot — the simulator is
+# excluded from `IN_PROCESS_VENDORS` server-side, and the backend skips
+# any vendor not in that set.
+SWARM_VENDORS="${SWARM_VENDORS:-simulator}"
+export SWARM_VENDORS
+echo "[dev_up] SWARM_VENDORS=$SWARM_VENDORS"
+
 cleanup() {
   echo "[dev_up] stopping background processes…"
   kill $(jobs -p) 2>/dev/null || true
@@ -67,9 +76,14 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "[dev_up] starting sim runner…"
-python3 -m sim.swarm_sim.runner &
-SIM_PID=$!
+# Launch the simulator subprocess only if it appears in SWARM_VENDORS.
+# Case-insensitive match against a comma-separated list.
+SIM_PID=""
+if [[ ",$(echo "$SWARM_VENDORS" | tr '[:upper:]' '[:lower:]')," == *,simulator,* ]]; then
+  echo "[dev_up] starting sim runner…"
+  python3 -m sim.swarm_sim.runner &
+  SIM_PID=$!
+fi
 
 echo "[dev_up] starting backend (FastAPI)…"
 uvicorn backend.app.main:app --host 0.0.0.0 --port "${BACKEND_PORT:-8765}" &
@@ -83,4 +97,5 @@ echo "[dev_up] all services running."
 echo "          dashboard:  http://localhost:3000"
 echo "          backend:    http://localhost:${BACKEND_PORT:-8765}/health"
 echo "          ws:         ws://localhost:${BACKEND_PORT:-8765}/ws/telemetry"
+echo "          vendors:    $SWARM_VENDORS"
 wait $SIM_PID $BACKEND_PID $FRONT_PID

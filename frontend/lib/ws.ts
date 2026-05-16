@@ -13,6 +13,7 @@ import type {
   OperatorCommand,
   Sector,
   Session,
+  StreamDescriptor,
   TimelineEvent,
   UnitState,
 } from "./api";
@@ -58,7 +59,8 @@ export type WSMessage =
   | { kind: "mission"; data: MissionView }
   | { kind: "anomaly_view"; data: AnomalyView }
   | { kind: "event"; data: TimelineEvent }
-  | { kind: "operator"; data: OperatorCommand };
+  | { kind: "operator"; data: OperatorCommand }
+  | { kind: "stream"; data: StreamDescriptor };
 
 export type WSHandler = (msg: WSMessage) => void;
 

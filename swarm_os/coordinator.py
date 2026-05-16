@@ -212,6 +212,7 @@ class SwarmCoordinator:
                     self._frame("operator", command)
                     for command in self.state.commands.values()
                 ],
+                *[self._frame("stream", stream) for stream in self.state.streams.values()],
                 *[self._frame("event", event) for event in self.state.events],
             ]
 

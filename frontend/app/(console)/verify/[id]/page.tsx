@@ -18,8 +18,10 @@ import { StatusPill } from "@/components/StatusPill";
 
 export default function VerifyDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { anomalies, verifier, link } = useSwarm();
+  const { anomalies, verifier, link, streams } = useSwarm();
   const anomaly = anomalies.find((a) => a.id === id);
+  const stream = verifier ? streams[verifier.agent_id] ?? null : null;
+  const streamAvailable = !!(stream && stream.available && stream.url);
 
   return (
     <main className="flex-1 px-6 py-6 flex flex-col gap-6 overflow-y-auto">
@@ -44,9 +46,15 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
         <div className="grid grid-cols-[1fr_380px] gap-6 min-h-0">
           <div className="flex flex-col gap-3">
             <Eyebrow mono>Live feed</Eyebrow>
-            <LiveFeedFrame unit={verifier} linkOk={link === "connected"} />
+            <LiveFeedFrame
+              unit={verifier}
+              linkOk={link === "connected"}
+              stream={stream}
+            />
             <span className="eyebrow-mono text-ash">
-              feed pending — viewport replaced by an honest placeholder until phase 5
+              {streamAvailable
+                ? "live · stream advertised by the adapter"
+                : "feed pending — adapter has not advertised a stream url"}
             </span>
           </div>
 
