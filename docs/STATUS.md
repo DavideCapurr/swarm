@@ -299,9 +299,49 @@ explicit phase request.
   based on customer requirements.
 - **Phase 6 auth provider**: pure JWT vs OIDC bridge — TBD; default JWT.
 
+## Phase 4 — post-readiness fixes (2026-05-16)
+
+A readiness audit before Phase 5 surfaced four blockers that were not caught
+by the initial Phase 4 review. All fixed on
+`claude/verify-phase4-completion-qiLsH`:
+
+- [x] **Timescale-compatible `events` PK**: `EventRow` PK changed from `id`
+      to composite `(id, ts)`. Timescale requires every UNIQUE / PRIMARY KEY
+      index to include the partitioning column; without `ts`,
+      `create_hypertable('events', 'ts', ...)` rejects with
+      `cannot create a unique index without the column "ts"`. The SQLite
+      test path was blind to this because hypertables are skipped on
+      non-Postgres dialects. `repository.write_events` upsert key updated
+      to match.
+- [x] **`greenlet` declared explicitly**: `pyproject.toml` now pins
+      `sqlalchemy[asyncio]>=2.0,<3`; the `asyncio` extra makes the
+      `greenlet` dependency explicit instead of relying on SQLAlchemy's
+      transitive resolution. `uv.lock` regenerated.
+- [x] **`scripts/dev_up.sh` fail-fast on Alembic**: removed the
+      `|| echo "...continuing"` mask; a broken schema now stops the boot
+      instead of silently leaving the audit log dropping rows.
+- [x] **Frontend lifecycle-script guard fixed**: renamed
+      `frontend/.pnpmrc` → `frontend/.npmrc` (pnpm reads `.npmrc`, not
+      `.pnpmrc`, so `ignore-scripts=true` was being silently ignored).
+      `make setup-frontend` also explicitly passes `--ignore-scripts` as
+      belt-and-suspenders.
+
+Verification after fixes:
+- `make lint` green (ruff + mypy 95 source files + tsc).
+- `make test` green: 225 passed, 16 skipped.
+- `make audit` green: pip-audit clean, Bandit 5 low / 0 medium / 0 high.
+- Alembic upgrade on aiosqlite produces `PRIMARY KEY (id, ts)` on `events`.
+- **Caveat**: real Timescale container validation could not run in this
+  session (Docker Hub rate limit on `timescale/timescaledb` pull). The PK
+  fix is provably correct per Timescale's documented constraint and the
+  schema-level check above. CI on a clean network should run
+  `alembic upgrade head` against the pinned Timescale image as the final
+  gate before Phase 5.
+
 ## Last updated
 
-2026-05-16: Phase 4 completed on branch `claude/phase-4-persistence-OGUJm`.
-Phase 2 was completed on branch `claude/phase-2-start-CMUg1`. Phase 1 was
-completed at GitHub main commit
+2026-05-16: Phase 4 post-readiness fixes on branch
+`claude/verify-phase4-completion-qiLsH`. Phase 4 originally completed on
+branch `claude/phase-4-persistence-OGUJm`. Phase 2 was completed on branch
+`claude/phase-2-start-CMUg1`. Phase 1 was completed at GitHub main commit
 `2390f872908a4a52588287a3865b3da96c785750`.

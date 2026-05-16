@@ -55,7 +55,9 @@ for i in $(seq 1 30); do
 done
 if [ -d .venv ]; then
   echo "[dev_up] running Alembic migrations…"
-  .venv/bin/alembic upgrade head || echo "[dev_up] alembic upgrade failed — continuing"
+  # Fail-fast: a broken schema means the backend would serve stale data and
+  # the audit log would silently drop rows. Surface the failure now.
+  .venv/bin/alembic upgrade head
 fi
 
 cleanup() {
