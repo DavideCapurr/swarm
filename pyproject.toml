@@ -32,9 +32,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Phase 0-4 keep real flight SDKs out of the default install surface. MAVSDK
-# currently pins vulnerable protobuf releases; Phase 5 re-evaluates the real
-# MAVLink stack before enabling hardware execution.
+# Real flight dependencies stay optional. Phase 5 uses pymavlink directly;
+# MAVSDK remains excluded because its protobuf/gRPC stack is outside the
+# verified dependency surface.
 mavlink = ["pymavlink>=2.4.40,<3"]
 dji = ["paho-mqtt>=2.0,<3"]
 dev = [

@@ -1,10 +1,12 @@
-"""Out-of-process MAVLink producer.
+"""MAVLink producer.
 
-Symmetric to `sim.swarm_sim.runner`: this is what `make demo` boots when
-`SWARM_VENDORS` includes `mavlink`. The runner owns one or more
-`MAVLinkAdapter` instances, projects their telemetry / fleet-state / mission
-progress onto the bus topics, and publishes a `StreamDescriptor` per agent so
-the Console knows whether a live video stream is available.
+The backend boots this runner in-process when `SWARM_VENDORS` includes
+`mavlink`. The module also keeps a standalone `python -m adapters.mavlink.runner`
+entrypoint for bench debugging, but the supported Phase 5 dev/demo path is the
+in-process backend lifecycle in `backend.app.fleet`. The runner owns one
+`MAVLinkAdapter`, projects its telemetry / fleet-state / mission progress onto
+the bus topics, and publishes a `StreamDescriptor` per agent so the Console
+knows whether a live video stream is available.
 
 Topics (identical to the simulator runner, so the bus consumer code path is
 shared):

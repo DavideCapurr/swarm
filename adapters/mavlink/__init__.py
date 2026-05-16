@@ -10,6 +10,13 @@ apply. SITL boot + radio hardware acceptance is documented in
 from adapters.mavlink.adapter import (
     HEARTBEAT_TIMEOUT_S,
     MAVLinkAdapter,
+    MAVLinkAdapterError,
+    MAVLinkCaptureUnavailable,
+    MAVLinkCommandError,
+    MAVLinkConnectionError,
+    MAVLinkMissionError,
+    MAVLinkProtocolError,
+    MAVLinkTimeoutError,
     RejectedMission,
     point_in_polygon,
 )
@@ -17,6 +24,13 @@ from adapters.mavlink.adapter import (
 __all__ = (
     "HEARTBEAT_TIMEOUT_S",
     "MAVLinkAdapter",
+    "MAVLinkAdapterError",
+    "MAVLinkCaptureUnavailable",
+    "MAVLinkCommandError",
+    "MAVLinkConnectionError",
+    "MAVLinkMissionError",
+    "MAVLinkProtocolError",
+    "MAVLinkTimeoutError",
     "RejectedMission",
     "point_in_polygon",
 )

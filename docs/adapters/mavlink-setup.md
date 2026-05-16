@@ -26,10 +26,13 @@ connection, and publishes:
 - `swarm:fleet:state`            — `FleetState` (2 Hz)
 - `swarm:streams:<agent_id>`     — `StreamDescriptor`
 
-`backend/app/fleet.py` reads `SWARM_VENDORS` and boots the in-process
-runners. The simulator runs out-of-process via
+`backend/app/fleet.py` reads `SWARM_VENDORS` and boots requested MAVLink
+runners in-process with the backend. The simulator runs out-of-process via
 `python -m sim.swarm_sim.runner` (already launched by
-`scripts/dev_up.sh`).
+`scripts/dev_up.sh`). If `mavlink` is requested and the adapter does not
+receive a HEARTBEAT during boot, backend startup fails; mixed
+`SWARM_VENDORS=simulator,mavlink` is also fail-fast unless Phase 6 adds an
+explicit best-effort policy.
 
 ## Env vars
 
@@ -41,6 +44,20 @@ runners. The simulator runs out-of-process via
 | `MAVLINK_MODEL` | `px4-x500` | Display string the Console renders. |
 | `MAVLINK_STREAM_URL` | _unset_ | Optional gimbal stream URL. Must be `rtsps://` or `https://`; `http://`, `rtsp://`, `rtmp://`, `file://`, etc. are rejected at boot. |
 | `MAVLINK_RATE_LIMIT_HZ` | `50` | Sanity cap on telemetry frames per agent. The roadmap pins 50 Hz. |
+
+## Adapter readiness boundaries
+
+Phase 5 has two readiness levels:
+
+- **CI-ready:** `make test` exercises the adapter against
+  `FakeMAVLinkEndpoint`, which enforces HEARTBEAT-before-connect,
+  request/response mission upload, duplicate `MISSION_REQUEST_INT`
+  handling, final `MISSION_ACK`, `COMMAND_ACK`, `PARAM_VALUE`, stream URL
+  allowlisting, backend-side telemetry rate limiting, and fail-fast vendor
+  boot.
+- **Bench-ready:** PX4 SITL or real hardware has been run with the manual
+  checklist below. Do not mark bench validation complete until the runbook
+  evidence exists for the exact commit under review.
 
 ## Local PX4 SITL bring-up
 
@@ -69,6 +86,28 @@ SWARM_VENDORS=simulator,mavlink \
 The Console at `http://localhost:3000` should now show an extra unit
 ("mav-px4-sitl") in the FleetGrid, projected from `FleetState` frames
 the runner publishes.
+
+### Manual SITL acceptance gate
+
+CI intentionally does not download or run PX4/Gazebo. Before Phase 6 starts,
+run this checklist manually and attach the command output/screenshots to the
+release/PR notes:
+
+1. `make px4_sitl_default jmavsim` (inside `PX4-Autopilot`) reaches a
+   ready SITL prompt and emits HEARTBEAT on UDP 14540.
+2. `SWARM_VENDORS=mavlink MAVLINK_CONNECTION="udp:localhost:14540"
+   MAVLINK_AGENT_ID="mav-px4-sitl" ./scripts/dev_up.sh` starts the
+   backend successfully. A missing HEARTBEAT must fail backend boot.
+3. `redis-cli SUBSCRIBE swarm:fleet:state swarm:telemetry:mav-px4-sitl`
+   shows the MAVLink unit online with `link_quality > 0`.
+4. Submit a VERIFY mission and confirm in PX4/QGroundControl logs that the
+   upload uses `MISSION_COUNT`, requested `MISSION_ITEM_INT` frames only,
+   and final `MISSION_ACK(MAV_MISSION_ACCEPTED)`.
+5. Confirm `COMMAND_ACK` for arm, mission start, and RTL. Rejecting or
+   dropping an ACK must surface as an adapter error in backend logs.
+6. With `MAVLINK_STREAM_URL` unset, the Console keeps the honest offline
+   viewport. With an `https://` or `rtsps://` URL set, it renders the
+   configured stream descriptor. Plaintext URLs must fail at boot.
 
 ### Verifying the MAVLink path is live
 
@@ -172,6 +211,12 @@ bus; the Console renders the `<video>` element only when the URL passes
 the allowlist (`rtsps://` or `https://`) — plaintext `rtsp://` and
 `http://` are rejected at both the server and the client.
 
+`request_capture(sensor)` does not fabricate a MAVLink capture artifact.
+When `MAVLINK_STREAM_URL` is configured it returns that real stream URI as
+the capture reference; when no stream is configured it raises
+`MAVLinkCaptureUnavailable` so the caller can render "unavailable" instead
+of treating a synthetic URI as evidence.
+
 ## CI
 
 The conformance suite under `adapters/mavlink/tests/` runs against an
@@ -179,8 +224,11 @@ The conformance suite under `adapters/mavlink/tests/` runs against an
 the repo. PX4 SITL is the bench acceptance gate; CI does not boot it
 (it would require Gazebo). The fake covers the wire protocol the
 adapter actually speaks (HEARTBEAT, MISSION_COUNT / MISSION_ITEM_INT /
-MISSION_ACK, COMMAND_LONG / COMMAND_ACK, SET_MODE, PARAM_SET,
-FENCE_POINT), so contract drift surfaces in CI.
+MISSION_REQUEST_INT / MISSION_ACK, duplicate requests, COMMAND_LONG /
+COMMAND_ACK, SET_MODE heartbeat confirmation, PARAM_SET / PARAM_VALUE,
+FENCE_POINT), so contract drift surfaces in CI. The fake rejects shortcut
+uploads, missing final ACKs, rejected ACKs, and connection without
+HEARTBEAT.
 
 ## Troubleshooting
 

@@ -35,7 +35,7 @@ from backend.app.db import (
     set_repository,
     shutdown_persistence,
 )
-from backend.app.fleet import FleetManager, UnknownVendor, fleet_from_env
+from backend.app.fleet import FleetManager, UnknownVendor, VendorBootError, fleet_from_env
 from backend.app.hub import HUB
 from backend.app.security import (
     BodySizeLimitMiddleware,
@@ -87,6 +87,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         await fleet_manager.start()
         logger.info("fleet: vendors=%s", fleet_manager.vendors)
     except UnknownVendor as e:
+        logger.error("fleet: refusing to boot (%s)", e)
+        raise
+    except VendorBootError as e:
         logger.error("fleet: refusing to boot (%s)", e)
         raise
 

@@ -12,10 +12,10 @@ Defaults:
   - `SWARM_VENDORS=mavlink`          → MAVLink only
 
 Unknown vendors are surfaced via `UnknownVendor` so a typo doesn't silently
-boot a no-op fleet. The simulator runner is **not** owned by this module —
-it lives in `sim.swarm_sim.runner` and is launched as a subprocess by
-`scripts/dev_up.sh`. This module only manages the in-process MAVLink
-runner that needs to share the FastAPI event loop with the bus consumer.
+boot a no-op fleet. Requested vendor boot failures are surfaced via
+`VendorBootError`; Phase 5 is fail-fast for both `mavlink` and
+`simulator,mavlink` because silently dropping a requested real adapter would
+make the backend report a fake-complete fleet.
 
 Why in-process for MAVLink and out-of-process for simulator? The simulator
 needs a `World` tick at a steady rate; the MAVLink runner is just a thin
@@ -52,6 +52,10 @@ class UnknownVendor(ValueError):
     """Raised when `SWARM_VENDORS` contains an unrecognized token."""
 
 
+class VendorBootError(RuntimeError):
+    """Raised when a requested in-process vendor runner fails to start."""
+
+
 def parse_vendors(raw: str | None) -> tuple[str, ...]:
     """Split, strip, lowercase, dedupe, and validate the `SWARM_VENDORS` env."""
     if not raw or not raw.strip():
@@ -63,8 +67,7 @@ def parse_vendors(raw: str | None) -> tuple[str, ...]:
             continue
         if vendor not in SUPPORTED_VENDORS:
             raise UnknownVendor(
-                f"unknown vendor {vendor!r} in SWARM_VENDORS — "
-                f"allowed: {sorted(SUPPORTED_VENDORS)}"
+                f"unknown vendor {vendor!r} in SWARM_VENDORS — allowed: {sorted(SUPPORTED_VENDORS)}"
             )
         if vendor not in seen:
             seen.append(vendor)
@@ -101,9 +104,10 @@ class FleetManager:
                 continue
             try:
                 runner = await booter(self.bus, self.registry)
-            except Exception:
+            except Exception as exc:
                 logger.exception("fleet: %r runner boot failed", vendor)
-                continue
+                await self.stop()
+                raise VendorBootError(f"{vendor!r} runner boot failed") from exc
             self._runners.append(runner)
             logger.info("fleet: %r runner online", vendor)
 
@@ -140,6 +144,7 @@ __all__ = (
     "SUPPORTED_VENDORS",
     "FleetManager",
     "UnknownVendor",
+    "VendorBootError",
     "fleet_from_env",
     "parse_vendors",
 )

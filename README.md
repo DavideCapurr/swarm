@@ -35,12 +35,12 @@ core/                domain layer — pure Python, no I/O (THE OS)
 adapters/            multi-vendor drone interoperability (THE MOAT)
   base.py            DroneAdapter Protocol
   simulated/         drives the 2D sim — used by `make demo`
-  mavlink/           PX4 / ArduPilot placeholder; live SDK decision deferred to Phase 5
+  mavlink/           PX4 / ArduPilot adapter via pymavlink (Phase 5 CI-verified)
   dji_cloud/         DJI Dock + DJI Cloud API (REST + MQTT)
   dji_psdk/          DJI Payload SDK (onboard SoC) — stub
   autel/ parrot/ skydio/    stubs — typed against vendor protocols
 
-sim/                 light Python 2D simulator (placeholder for Gazebo)
+sim/                 light Python 2D simulator (Gazebo/PX4 SITL remains a bench gate)
 orchestrator/        coordination service (auction loop, fleet mgmt)
 backend/             FastAPI app — REST + WebSocket telemetry
 frontend/            Next.js operator dashboard

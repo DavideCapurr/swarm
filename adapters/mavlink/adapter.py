@@ -8,10 +8,10 @@ Zero); the conformance suite in `adapters/mavlink/tests/` runs against an
 in-process `FakeMAVLinkEndpoint` so CI catches contract drift without SITL.
 
 Mission DSL mapping (see roadmap §Phase 5):
-  PATROL / VERIFY → `MISSION_COUNT` + a stream of `MISSION_ITEM_INT`
-                     uploads followed by `MISSION_ACK`; mission is started
-                     with `MAV_CMD_MISSION_START`; progress observed via
-                     `MISSION_CURRENT`.
+  PATROL / VERIFY → `MISSION_COUNT`, then requested-only
+                     `MISSION_ITEM_INT` / `MISSION_ITEM` responses, final
+                     `MISSION_ACK`, `MAV_CMD_MISSION_START`; progress
+                     observed via `MISSION_CURRENT`.
   RTL_DOCK        → `MAV_CMD_NAV_RETURN_TO_LAUNCH`.
   RELAY           → uses `MAV_CMD_NAV_LOITER_UNLIM` (hold position).
   COVER           → rejected — orchestrator must decompose into PATROL slices.
@@ -22,8 +22,8 @@ Safety enforcement:
   * Defense-in-depth: every waypoint is geofence-checked before upload; a
     rejected mission raises `RejectedMission` and never reaches the wire.
   * Heartbeat watchdog: if no HEARTBEAT has been received for > 3s the
-    adapter's `link_quality` collapses to 0 and `cancel_mission()` is
-    triggered (RTL).
+    adapter's `link_quality` collapses to 0 and any active mission is
+    marked cancelled so its loop fails closed into RTL.
 
 Video frame streaming via MAVLink is out of scope (roadmap §Phase 5 §Scope
 out): video comes from a separate RTSP / RTSPS gimbal; the adapter
@@ -39,7 +39,8 @@ import functools
 import logging
 import math
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from pymavlink import mavutil
@@ -68,13 +69,47 @@ from adapters.base import (
 logger = logging.getLogger("mavlink.adapter")
 
 
-class RejectedMission(Exception):
+class MAVLinkAdapterError(RuntimeError):
+    """Base class for MAVLink adapter failures."""
+
+
+class MAVLinkConnectionError(MAVLinkAdapterError):
+    """Raised when a MAVLink endpoint cannot prove it is alive."""
+
+
+class MAVLinkTimeoutError(MAVLinkAdapterError):
+    """Raised when a required MAVLink response does not arrive in time."""
+
+
+class MAVLinkProtocolError(MAVLinkAdapterError):
+    """Raised when the peer violates the expected MAVLink flow."""
+
+
+class MAVLinkCommandError(MAVLinkAdapterError):
+    """Raised when a COMMAND_LONG is rejected or never acknowledged."""
+
+
+class MAVLinkMissionError(MAVLinkAdapterError):
+    """Raised when mission upload is rejected or times out."""
+
+
+class MAVLinkCaptureUnavailable(MAVLinkAdapterError):
+    """Raised when the adapter has no honest capture/stream URI configured."""
+
+
+class RejectedMission(MAVLinkAdapterError):
     """Raised by `MAVLinkAdapter` when a mission fails client-side safety checks."""
 
 
 #: Heartbeat watchdog threshold. PX4/ArduPilot both publish HEARTBEAT at 1 Hz,
 #: so 3 s with nothing means the radio is gone (or the autopilot has crashed).
 HEARTBEAT_TIMEOUT_S: float = 3.0
+
+
+@dataclass
+class _MessageWaiter:
+    predicate: Callable[[Any], bool]
+    future: asyncio.Future[Any]
 
 
 def _point_in_polygon(lat: float, lon: float, polygon: tuple[Geo, ...]) -> bool:
@@ -112,6 +147,13 @@ def _custom_mode_auto_mission() -> int:
     return (sub << 24) | (main << 16)
 
 
+def _param_id(msg: Any) -> str:
+    raw = getattr(msg, "param_id", "")
+    if isinstance(raw, bytes):
+        return raw.rstrip(b"\x00").decode("ascii", errors="replace")
+    return str(raw).rstrip("\x00")
+
+
 class MAVLinkAdapter:
     """`DroneAdapter` driven by `pymavlink`."""
 
@@ -128,6 +170,8 @@ class MAVLinkAdapter:
         stream_url: str | None = None,
         rate_limit_hz: float = 50.0,
         heartbeat_timeout_s: float = HEARTBEAT_TIMEOUT_S,
+        connect_timeout_s: float = 5.0,
+        response_timeout_s: float = 5.0,
     ) -> None:
         self.agent_id = agent_id
         self.model = model
@@ -151,11 +195,13 @@ class MAVLinkAdapter:
         self._max_alt_m: float = self.capabilities.max_altitude_m
         # Watchdog
         self._heartbeat_timeout_s = heartbeat_timeout_s
+        self._connect_timeout_s = connect_timeout_s
+        self._response_timeout_s = response_timeout_s
         self._last_heartbeat_at: float = 0.0
         # Telemetry state
         self._last_position: Geo | None = None
         self._last_battery_pct: float = 100.0
-        self._link_quality: float = 1.0
+        self._link_quality: float = 0.0
         self._heading_deg: float = 0.0
         self._rate_limiter = TelemetryRateLimiter(max_hz=rate_limit_hz)
         # Mission state
@@ -168,6 +214,7 @@ class MAVLinkAdapter:
             validate_stream_url(stream_url)
         self._stream_url = stream_url
         self._rx_task: asyncio.Task[None] | None = None
+        self._waiters: list[_MessageWaiter] = []
 
     # ── identity ──────────────────────────────────────────────────────────────
 
@@ -199,19 +246,32 @@ class MAVLinkAdapter:
 
     async def connect(self) -> None:
         loop = asyncio.get_running_loop()
+        self._last_heartbeat_at = 0.0
+        self._link_quality = 0.0
         # `mavlink_connection` is blocking — run in executor so we don't stall
         # the event loop on a slow `udp:` resolve.
-        mav = await loop.run_in_executor(
-            None,
-            lambda: mavutil.mavlink_connection(
-                self._connection_str,
-                source_system=self._source_system,
-                source_component=self._source_component,
-                dialect="ardupilotmega",
-                input=False,
-            ),
-        )
+        try:
+            mav = await loop.run_in_executor(
+                None,
+                lambda: mavutil.mavlink_connection(
+                    self._connection_str,
+                    source_system=self._source_system,
+                    source_component=self._source_component,
+                    dialect="ardupilotmega",
+                    input=False,
+                ),
+            )
+        except Exception as exc:
+            raise MAVLinkConnectionError(
+                f"failed to open MAVLink connection {self._connection_str!r}"
+            ) from exc
         self._mav = mav
+        heartbeat = self._create_waiter(
+            lambda msg: (
+                msg.get_type() == "HEARTBEAT"
+                and int(getattr(msg, "type", -1)) != mavutil.mavlink.MAV_TYPE_GCS
+            )
+        )
         # Some MAVLink endpoints (PX4 SITL, our fake) only learn the GCS UDP
         # address when the GCS sends a frame first.
         with contextlib.suppress(Exception):
@@ -225,16 +285,23 @@ class MAVLinkAdapter:
         self._connected = True
         self._cancelled = False
         self._rx_task = asyncio.create_task(self._rx_loop())
-        # Wait for first HEARTBEAT (with timeout) so callers know the link
-        # is up before they start sending commands.
-        deadline = loop.time() + 5.0
-        while loop.time() < deadline:
-            if self._last_heartbeat_at > 0.0:
-                break
-            await asyncio.sleep(0.05)
+        # Fail closed: a UDP socket can be "open" while no autopilot is
+        # present. Do not report success until a real autopilot HEARTBEAT
+        # proves the peer exists.
+        try:
+            await asyncio.wait_for(heartbeat, timeout=self._connect_timeout_s)
+        except TimeoutError as exc:
+            await self.disconnect()
+            raise MAVLinkConnectionError(
+                f"MAVLink connect timed out waiting for HEARTBEAT from {self._connection_str!r}"
+            ) from exc
 
     async def disconnect(self) -> None:
         self._connected = False
+        for waiter in self._waiters:
+            if not waiter.future.done():
+                waiter.future.cancel()
+        self._waiters.clear()
         if self._rx_task is not None:
             self._rx_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
@@ -253,7 +320,11 @@ class MAVLinkAdapter:
                 link_quality=0.0,
                 last_telemetry_age_s=None,
             )
-        age = max(0.0, time.monotonic() - self._last_heartbeat_at) if self._last_heartbeat_at else None
+        age = (
+            max(0.0, time.monotonic() - self._last_heartbeat_at)
+            if self._last_heartbeat_at
+            else None
+        )
         return HealthReport(
             online=age is not None and age < self._heartbeat_timeout_s,
             battery_pct=self._last_battery_pct,
@@ -263,9 +334,7 @@ class MAVLinkAdapter:
 
     # ── safety envelope ──────────────────────────────────────────────────────
 
-    async def set_safety(
-        self, geofence: Polygon, max_alt_m: float, rtl_battery_pct: int
-    ) -> None:
+    async def set_safety(self, geofence: Polygon, max_alt_m: float, rtl_battery_pct: int) -> None:
         mav = self._require_mav()
         self._geofence = tuple(geofence.points)
         self._max_alt_m = float(max_alt_m)
@@ -313,13 +382,13 @@ class MAVLinkAdapter:
             await self._send_command_long(mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH)
             yield MissionProgress(mission_id=mission.id, phase="DONE", progress_pct=100.0)
         elif kind == MissionKind.COVER.value:
-            raise UnsupportedMission(
-                "COVER must be decomposed in the orchestrator before dispatch"
-            )
+            raise UnsupportedMission("COVER must be decomposed in the orchestrator before dispatch")
         else:
             raise UnsupportedMission(f"unknown mission kind: {kind}")
 
-    def _validate_waypoints_against_safety(self, waypoints: list[Waypoint], default_alt: float) -> None:
+    def _validate_waypoints_against_safety(
+        self, waypoints: list[Waypoint], default_alt: float
+    ) -> None:
         for wp in waypoints:
             alt = wp.geo.alt_m if wp.geo.alt_m else default_alt
             if alt > self._max_alt_m:
@@ -349,9 +418,7 @@ class MAVLinkAdapter:
         # MISSION_REQUEST_INT.
         await self._upload_mission(waypoints, default_alt)
         # Arm.
-        await self._send_command_long(
-            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, param1=1.0
-        )
+        await self._send_command_long(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, param1=1.0)
         # Switch to AUTO.MISSION via SET_MODE.
         await self._set_mode_auto_mission()
         # Start mission.
@@ -372,14 +439,8 @@ class MAVLinkAdapter:
             if self._mission_current != last_emitted:
                 last_emitted = self._mission_current
                 pct = (self._mission_current + 1) / max(self._mission_total, 1) * 90.0
-                phase = (
-                    "ON_STATION"
-                    if mission.kind == MissionKind.VERIFY.value
-                    else "EN_ROUTE"
-                )
-                yield MissionProgress(
-                    mission_id=mission.id, phase=phase, progress_pct=pct
-                )
+                phase = "ON_STATION" if mission.kind == MissionKind.VERIFY.value else "EN_ROUTE"
+                yield MissionProgress(mission_id=mission.id, phase=phase, progress_pct=pct)
             if self._mission_current >= self._mission_total - 1:
                 break
             await asyncio.sleep(0.05)
@@ -387,11 +448,18 @@ class MAVLinkAdapter:
         await self._send_command_long(mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH)
         yield MissionProgress(mission_id=mission.id, phase="DONE", progress_pct=100.0)
 
-    async def _upload_mission(
-        self, waypoints: list[Waypoint], default_alt: float
-    ) -> None:
+    async def _upload_mission(self, waypoints: list[Waypoint], default_alt: float) -> None:
         mav = self._require_mav()
         loop = asyncio.get_running_loop()
+
+        def mission_predicate(candidate: Any) -> bool:
+            return candidate.get_type() in {
+                "MISSION_REQUEST_INT",
+                "MISSION_REQUEST",
+                "MISSION_ACK",
+            }
+
+        next_response = self._create_waiter(mission_predicate)
         await loop.run_in_executor(
             None,
             lambda: mav.mav.mission_count_send(
@@ -400,8 +468,68 @@ class MAVLinkAdapter:
                 len(waypoints),
             ),
         )
-        for seq, wp in enumerate(waypoints):
-            alt = wp.geo.alt_m if wp.geo.alt_m else default_alt
+        sent: set[int] = set()
+        deadline = loop.time() + max(
+            self._response_timeout_s, len(waypoints) * self._response_timeout_s
+        )
+        accepted = mavutil.mavlink.MAV_MISSION_ACCEPTED
+
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise MAVLinkMissionError(
+                    "mission upload timed out waiting for MISSION_REQUEST or MISSION_ACK"
+                )
+            try:
+                msg = await asyncio.wait_for(next_response, timeout=remaining)
+            except TimeoutError as exc:
+                raise MAVLinkTimeoutError(
+                    "timed out waiting for MISSION_REQUEST(_INT) or MISSION_ACK"
+                ) from exc
+            finally:
+                self._waiters = [w for w in self._waiters if w.future is not next_response]
+            kind = msg.get_type()
+            if kind in {"MISSION_REQUEST_INT", "MISSION_REQUEST"}:
+                seq = int(getattr(msg, "seq", -1))
+                if seq < 0 or seq >= len(waypoints):
+                    raise MAVLinkProtocolError(
+                        f"autopilot requested invalid mission item seq={seq}"
+                    )
+                next_response = self._create_waiter(mission_predicate)
+                try:
+                    await self._send_mission_item(
+                        waypoints[seq],
+                        seq=seq,
+                        default_alt=default_alt,
+                        use_int=kind == "MISSION_REQUEST_INT",
+                    )
+                except Exception:
+                    self._waiters = [w for w in self._waiters if w.future is not next_response]
+                    raise
+                sent.add(seq)
+                continue
+
+            result = int(getattr(msg, "type", -1))
+            if result != accepted:
+                raise MAVLinkMissionError(f"mission upload rejected with MISSION_ACK type={result}")
+            if len(sent) != len(waypoints):
+                raise MAVLinkProtocolError(
+                    "mission upload accepted before every item was requested"
+                )
+            return
+
+    async def _send_mission_item(
+        self,
+        waypoint: Waypoint,
+        *,
+        seq: int,
+        default_alt: float,
+        use_int: bool,
+    ) -> None:
+        mav = self._require_mav()
+        loop = asyncio.get_running_loop()
+        alt = waypoint.geo.alt_m if waypoint.geo.alt_m else default_alt
+        if use_int:
             await loop.run_in_executor(
                 None,
                 functools.partial(
@@ -417,11 +545,32 @@ class MAVLinkAdapter:
                     2.0,  # param2 — accept radius
                     0.0,  # param3 — pass radius
                     float("nan"),  # param4 — yaw
-                    int(wp.geo.lat * 1e7),
-                    int(wp.geo.lon * 1e7),
+                    int(waypoint.geo.lat * 1e7),
+                    int(waypoint.geo.lon * 1e7),
                     float(alt),
                 ),
             )
+            return
+        await loop.run_in_executor(
+            None,
+            functools.partial(
+                mav.mav.mission_item_send,
+                mav.target_system,
+                mav.target_component,
+                seq,
+                mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+                mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                0,
+                1,
+                0.0,
+                2.0,
+                0.0,
+                float("nan"),
+                float(waypoint.geo.lat),
+                float(waypoint.geo.lon),
+                float(alt),
+            ),
+        )
 
     async def _hover_relay(self, mission: MissionTask) -> AsyncIterator[MissionProgress]:
         self._require_mav()
@@ -429,9 +578,7 @@ class MAVLinkAdapter:
         duration_s = float(mission.params.get("duration_s", 600.0))
         altitude_m = float(mission.params.get("altitude_m", 80.0))
         # Validate against safety envelope before issuing the LOITER.
-        self._validate_waypoints_against_safety(
-            [Waypoint(geo=geo)], default_alt=altitude_m
-        )
+        self._validate_waypoints_against_safety([Waypoint(geo=geo)], default_alt=altitude_m)
         await self._send_command_long(
             mavutil.mavlink.MAV_CMD_NAV_LOITER_UNLIM,
             param5=geo.lat,
@@ -475,10 +622,15 @@ class MAVLinkAdapter:
         )
 
     async def request_capture(self, sensor: SensorKind) -> CaptureResult:
+        if not self._stream_url:
+            raise MAVLinkCaptureUnavailable(
+                "MAVLink capture is not configured; set MAVLINK_STREAM_URL "
+                "to an allowlisted RTSPS/HLS endpoint before requesting capture"
+            )
         geo = self._last_position or Geo(lat=0.0, lon=0.0)
         return CaptureResult(
             sensor=sensor,
-            uri=f"mavlink://{self.agent_id}/{sensor.value}/{int(time.time() * 1000)}",
+            uri=self._stream_url,
             geo=geo,
         )
 
@@ -512,6 +664,30 @@ class MAVLinkAdapter:
             yield VideoFrame(self.agent_id, 0, 0, 0, "h264", b"")
 
     # ── internals ────────────────────────────────────────────────────────────
+
+    def _create_waiter(self, predicate: Callable[[Any], bool]) -> asyncio.Future[Any]:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[Any] = loop.create_future()
+        self._waiters.append(_MessageWaiter(predicate=predicate, future=future))
+        return future
+
+    async def _wait_for_message(
+        self,
+        predicate: Callable[[Any], bool],
+        *,
+        timeout_s: float | None = None,
+        description: str,
+    ) -> Any:
+        future = self._create_waiter(predicate)
+        try:
+            return await asyncio.wait_for(
+                future,
+                timeout=self._response_timeout_s if timeout_s is None else timeout_s,
+            )
+        except TimeoutError as exc:
+            raise MAVLinkTimeoutError(f"timed out waiting for {description}") from exc
+        finally:
+            self._waiters = [w for w in self._waiters if w.future is not future]
 
     async def _rx_loop(self) -> None:
         mav = self._require_mav()
@@ -552,8 +728,7 @@ class MAVLinkAdapter:
         if kind == "HEARTBEAT":
             self._last_heartbeat_at = time.monotonic()
             self._link_quality = 1.0
-            return
-        if kind == "GLOBAL_POSITION_INT":
+        elif kind == "GLOBAL_POSITION_INT":
             self._last_position = Geo(
                 lat=float(msg.lat) / 1e7,
                 lon=float(msg.lon) / 1e7,
@@ -563,15 +738,25 @@ class MAVLinkAdapter:
             # `hdg` is 0-35999 (centi-degrees) or 65535 if unknown.
             if hdg != 65535:
                 self._heading_deg = hdg / 100.0
-            return
-        if kind == "SYS_STATUS":
+        elif kind == "SYS_STATUS":
             remaining = int(getattr(msg, "battery_remaining", -1))
             if 0 <= remaining <= 100:
                 self._last_battery_pct = float(remaining)
-            return
-        if kind == "MISSION_CURRENT":
+        elif kind == "MISSION_CURRENT":
             self._mission_current = int(getattr(msg, "seq", 0))
-            return
+        for waiter in list(self._waiters):
+            if waiter.future.done():
+                self._waiters.remove(waiter)
+                continue
+            try:
+                matched = waiter.predicate(msg)
+            except Exception:  # pragma: no cover — defensive
+                logger.exception("mavlink waiter predicate crashed")
+                matched = False
+            if matched and not waiter.future.done():
+                waiter.future.set_result(msg)
+                with contextlib.suppress(ValueError):
+                    self._waiters.remove(waiter)
 
     async def _send_command_long(
         self,
@@ -587,6 +772,11 @@ class MAVLinkAdapter:
     ) -> None:
         mav = self._require_mav()
         loop = asyncio.get_running_loop()
+        ack = self._create_waiter(
+            lambda msg: (
+                msg.get_type() == "COMMAND_ACK" and int(getattr(msg, "command", -1)) == int(command)
+            )
+        )
         await loop.run_in_executor(
             None,
             lambda: mav.mav.command_long_send(
@@ -603,27 +793,61 @@ class MAVLinkAdapter:
                 param7,
             ),
         )
+        try:
+            msg = await asyncio.wait_for(ack, timeout=self._response_timeout_s)
+        except TimeoutError as exc:
+            raise MAVLinkCommandError(
+                f"COMMAND_LONG {command} timed out waiting for COMMAND_ACK"
+            ) from exc
+        finally:
+            self._waiters = [w for w in self._waiters if w.future is not ack]
+        result = int(getattr(msg, "result", -1))
+        if result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+            raise MAVLinkCommandError(f"COMMAND_LONG {command} rejected with MAV_RESULT {result}")
 
     async def _set_param(self, name: str, value: float) -> None:
         mav = self._require_mav()
         loop = asyncio.get_running_loop()
+        padded_name = name.encode("ascii").ljust(16, b"\x00")[:16]
+        expected = name.rstrip("\x00")
+        param_echo = self._create_waiter(
+            lambda msg: msg.get_type() == "PARAM_VALUE" and _param_id(msg) == expected
+        )
         # PX4 accepts PARAM_SET; ArduPilot accepts both PARAM_SET and PARAM_VALUE.
         await loop.run_in_executor(
             None,
             lambda: mav.mav.param_set_send(
                 mav.target_system,
                 mav.target_component,
-                name.encode("ascii").ljust(16, b"\x00")[:16],
+                padded_name,
                 float(value),
                 mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
             ),
         )
+        try:
+            msg = await asyncio.wait_for(param_echo, timeout=self._response_timeout_s)
+        except TimeoutError as exc:
+            raise MAVLinkTimeoutError(
+                f"PARAM_SET {name!r} timed out waiting for PARAM_VALUE"
+            ) from exc
+        finally:
+            self._waiters = [w for w in self._waiters if w.future is not param_echo]
+        echoed = float(getattr(msg, "param_value", math.nan))
+        if not math.isfinite(echoed) or abs(echoed - float(value)) > 1e-3:
+            raise MAVLinkProtocolError(
+                f"PARAM_SET {name!r} echo mismatch: expected {value}, got {echoed}"
+            )
 
     async def _set_mode_auto_mission(self) -> None:
         mav = self._require_mav()
         loop = asyncio.get_running_loop()
         base = mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
         custom = _custom_mode_auto_mission()
+        mode_echo = self._create_waiter(
+            lambda msg: (
+                msg.get_type() == "HEARTBEAT" and int(getattr(msg, "custom_mode", -1)) == custom
+            )
+        )
         await loop.run_in_executor(
             None,
             lambda: mav.mav.set_mode_send(
@@ -632,6 +856,14 @@ class MAVLinkAdapter:
                 custom,
             ),
         )
+        try:
+            await asyncio.wait_for(mode_echo, timeout=self._response_timeout_s)
+        except TimeoutError as exc:
+            raise MAVLinkTimeoutError(
+                "SET_MODE AUTO.MISSION timed out waiting for matching HEARTBEAT"
+            ) from exc
+        finally:
+            self._waiters = [w for w in self._waiters if w.future is not mode_echo]
 
 
 # ── small helpers exposed for tests ────────────────────────────────────────────
@@ -648,6 +880,13 @@ _ = math
 __all__ = (
     "HEARTBEAT_TIMEOUT_S",
     "MAVLinkAdapter",
+    "MAVLinkAdapterError",
+    "MAVLinkCaptureUnavailable",
+    "MAVLinkCommandError",
+    "MAVLinkConnectionError",
+    "MAVLinkMissionError",
+    "MAVLinkProtocolError",
+    "MAVLinkTimeoutError",
     "RejectedMission",
     "point_in_polygon",
 )

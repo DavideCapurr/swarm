@@ -18,6 +18,7 @@ import os
 from typing import TYPE_CHECKING
 
 from swarm_core.messages import Anomaly, FleetState, MissionProgress, Telemetry
+from swarm_core.rate_limit import DEFAULT_MAX_HZ, TelemetryRateLimiter
 from swarm_core.streams import InvalidStreamURL, StreamDescriptor
 
 from backend.app.db import get_repository
@@ -32,11 +33,12 @@ logger = logging.getLogger("backend.bus")
 
 
 class BusConsumer:
-    def __init__(self, hub: WSHub) -> None:
+    def __init__(self, hub: WSHub, *, telemetry_rate_limit_hz: float = DEFAULT_MAX_HZ) -> None:
         self._hub = hub
         self._bus: Bus | None = None
         self._tasks: list[asyncio.Task[None]] = []
         self._coordinator = COORDINATOR
+        self._telemetry_limiter = TelemetryRateLimiter(max_hz=telemetry_rate_limit_hz)
 
     async def start(self) -> None:
         redis_url = os.getenv("REDIS_URL")
@@ -66,6 +68,7 @@ class BusConsumer:
 
     async def stop(self) -> None:
         import contextlib
+
         for t in self._tasks:
             t.cancel()
         for t in self._tasks:
@@ -95,6 +98,9 @@ class BusConsumer:
             try:
                 t = Telemetry.model_validate_json(payload)
             except Exception:
+                continue
+            if not self._telemetry_limiter.should_accept(t.agent_id):
+                logger.warning("dropped telemetry over backend cap for agent %s", t.agent_id)
                 continue
             STATE.last_telemetry[t.agent_id] = t
             await get_repository().write_telemetry(t)
@@ -160,9 +166,7 @@ class BusConsumer:
                 # An adapter that misbehaves (or a malicious one) gets its
                 # frame dropped at the backend, not re-broadcast. We log
                 # the event so it surfaces in audit.
-                logger.warning(
-                    "dropped malformed stream descriptor from bus: %s", payload[:200]
-                )
+                logger.warning("dropped malformed stream descriptor from bus: %s", payload[:200])
                 continue
             self._coordinator.state.streams[descriptor.agent_id] = descriptor
             await self._hub.broadcast(
