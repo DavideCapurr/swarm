@@ -13,6 +13,7 @@ from backend.app.fleet import (
     SUPPORTED_VENDORS,
     FleetManager,
     UnknownVendor,
+    VendorBootError,
     fleet_from_env,
     parse_vendors,
 )
@@ -130,7 +131,7 @@ async def test_fleet_manager_skips_out_of_process_vendors(bus: Bus) -> None:
 
 
 @pytest.mark.asyncio
-async def test_fleet_manager_continues_when_a_vendor_fails(bus: Bus) -> None:
+async def test_fleet_manager_fails_fast_when_mavlink_only_boot_fails(bus: Bus) -> None:
     async def _failing(_bus: Bus, _registry: AdapterRegistry) -> _StubRunner:
         raise RuntimeError("autopilot offline")
 
@@ -139,9 +140,26 @@ async def test_fleet_manager_continues_when_a_vendor_fails(bus: Bus) -> None:
         vendors=("mavlink",),
         booters={"mavlink": _failing},
     )
-    # Boot must not raise — a transient adapter failure must not take down
-    # the backend; the simulator runs of course continue independently.
-    await fleet.start()
+    with pytest.raises(VendorBootError):
+        await fleet.start()
+    assert fleet._runners == []
+    await fleet.stop()
+
+
+@pytest.mark.asyncio
+async def test_fleet_manager_fails_fast_for_mixed_requested_vendor_failure(
+    bus: Bus,
+) -> None:
+    async def _failing(_bus: Bus, _registry: AdapterRegistry) -> _StubRunner:
+        raise RuntimeError("autopilot offline")
+
+    fleet = FleetManager(
+        bus=bus,
+        vendors=("simulator", "mavlink"),
+        booters={"mavlink": _failing},
+    )
+    with pytest.raises(VendorBootError):
+        await fleet.start()
     assert fleet._runners == []
     await fleet.stop()
 
@@ -149,25 +167,19 @@ async def test_fleet_manager_continues_when_a_vendor_fails(bus: Bus) -> None:
 # ── fleet_from_env ────────────────────────────────────────────────────────────
 
 
-def test_fleet_from_env_defaults(
-    bus: Bus, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fleet_from_env_defaults(bus: Bus, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SWARM_VENDORS", raising=False)
     fleet = fleet_from_env(bus)
     assert fleet.vendors == ("simulator",)
 
 
-def test_fleet_from_env_reads_env(
-    bus: Bus, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fleet_from_env_reads_env(bus: Bus, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SWARM_VENDORS", "simulator,mavlink")
     fleet = fleet_from_env(bus)
     assert fleet.vendors == ("simulator", "mavlink")
 
 
-def test_fleet_from_env_raises_on_unknown(
-    bus: Bus, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fleet_from_env_raises_on_unknown(bus: Bus, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SWARM_VENDORS", "simulator,not-a-vendor")
     with pytest.raises(UnknownVendor):
         fleet_from_env(bus)

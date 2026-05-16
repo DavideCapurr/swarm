@@ -31,6 +31,11 @@ from adapters.base import Polygon
 from adapters.mavlink.adapter import (
     HEARTBEAT_TIMEOUT_S,
     MAVLinkAdapter,
+    MAVLinkCaptureUnavailable,
+    MAVLinkCommandError,
+    MAVLinkConnectionError,
+    MAVLinkMissionError,
+    MAVLinkTimeoutError,
     RejectedMission,
     point_in_polygon,
 )
@@ -58,6 +63,44 @@ async def adapter_pair() -> Any:
     await adapter.connect()
     try:
         yield adapter, endpoint
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
+
+
+# ── Connect fail-closed ──────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_connect_fails_without_endpoint() -> None:
+    adapter = MAVLinkAdapter(
+        agent_id="mav-closed",
+        connection="udpout:127.0.0.1:9",
+        connect_timeout_s=0.2,
+    )
+    with pytest.raises(MAVLinkConnectionError):
+        await adapter.connect()
+    health = await adapter.health()
+    assert health.online is False
+    assert health.link_quality == 0.0
+    assert adapter._mav is None
+
+
+@pytest.mark.asyncio
+async def test_connect_fails_without_heartbeat() -> None:
+    endpoint = FakeMAVLinkEndpoint(emit_heartbeat=False)
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-no-heartbeat",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        connect_timeout_s=0.3,
+    )
+    try:
+        with pytest.raises(MAVLinkConnectionError):
+            await adapter.connect()
+        health = await adapter.health()
+        assert health.online is False
+        assert health.link_quality == 0.0
     finally:
         await adapter.disconnect()
         await endpoint.stop()
@@ -107,6 +150,8 @@ async def test_patrol_uploads_multi_waypoint_mission(adapter_pair: Any) -> None:
 
     await asyncio.wait_for(run(), timeout=10.0)
     assert endpoint.state.mission_total == 3
+    assert endpoint.state.mission_requests[:2] == [0, 0]
+    assert endpoint.state.mission_item_receipts[:2] == [0, 0]
     assert phases[-1] == "DONE"
 
 
@@ -155,6 +200,49 @@ async def test_unknown_kind_rejected(adapter_pair: Any) -> None:
             pass
 
 
+@pytest.mark.asyncio
+async def test_mission_upload_times_out_without_final_ack() -> None:
+    endpoint = FakeMAVLinkEndpoint(send_mission_ack=False)
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-timeout",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+        response_timeout_s=0.3,
+    )
+    await adapter.connect()
+    try:
+        with pytest.raises(MAVLinkTimeoutError):
+            async for _p in adapter.execute_mission(
+                VERIFY(geo=Geo(lat=44.7, lon=8.03), hover_s=0.1)
+            ):
+                pass
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
+
+
+@pytest.mark.asyncio
+async def test_mission_upload_raises_on_rejected_ack() -> None:
+    endpoint = FakeMAVLinkEndpoint(mission_ack_result=mavutil.mavlink.MAV_MISSION_ERROR)
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-rejected",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+    )
+    await adapter.connect()
+    try:
+        with pytest.raises(MAVLinkMissionError):
+            async for _p in adapter.execute_mission(
+                VERIFY(geo=Geo(lat=44.7, lon=8.03), hover_s=0.1)
+            ):
+                pass
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
+
+
 # ── Safety enforcement ────────────────────────────────────────────────────────
 
 
@@ -172,6 +260,116 @@ async def test_set_safety_uploads_fence_points_and_params(adapter_pair: Any) -> 
     assert "BAT_LOW_THR" in endpoint.state.params
     assert abs(endpoint.state.params["BAT_LOW_THR"] - 0.25) < 1e-5
     assert "MIS_TAKEOFF_ALT" in endpoint.state.params
+
+
+@pytest.mark.asyncio
+async def test_set_safety_raises_when_fence_enable_rejected() -> None:
+    endpoint = FakeMAVLinkEndpoint(
+        command_ack_results={
+            mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE: mavutil.mavlink.MAV_RESULT_DENIED
+        }
+    )
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-fence-denied",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+    )
+    await adapter.connect()
+    try:
+        with pytest.raises(MAVLinkCommandError):
+            await adapter.set_safety(VINEYARD_FENCE, max_alt_m=120.0, rtl_battery_pct=25)
+        assert endpoint.state.fence_enabled is False
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
+
+
+@pytest.mark.asyncio
+async def test_set_safety_raises_when_param_echo_missing() -> None:
+    endpoint = FakeMAVLinkEndpoint(send_param_value=False)
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-param-timeout",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+        response_timeout_s=0.3,
+    )
+    await adapter.connect()
+    try:
+        with pytest.raises(MAVLinkTimeoutError):
+            await adapter.set_safety(VINEYARD_FENCE, max_alt_m=120.0, rtl_battery_pct=25)
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
+
+
+@pytest.mark.asyncio
+async def test_command_long_raises_when_ack_missing() -> None:
+    endpoint = FakeMAVLinkEndpoint(drop_command_acks={mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH})
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-command-timeout",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+        response_timeout_s=0.3,
+    )
+    await adapter.connect()
+    try:
+        with pytest.raises(MAVLinkCommandError):
+            async for _p in adapter.execute_mission(RTL_DOCK()):
+                pass
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
+
+
+@pytest.mark.asyncio
+async def test_command_long_raises_when_ack_rejected() -> None:
+    endpoint = FakeMAVLinkEndpoint(
+        command_ack_results={
+            mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH: (mavutil.mavlink.MAV_RESULT_DENIED)
+        }
+    )
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-command-denied",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+    )
+    await adapter.connect()
+    try:
+        with pytest.raises(MAVLinkCommandError):
+            async for _p in adapter.execute_mission(RTL_DOCK()):
+                pass
+        assert endpoint.state.rtl_triggered is False
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
+
+
+@pytest.mark.asyncio
+async def test_mission_start_requires_command_ack() -> None:
+    endpoint = FakeMAVLinkEndpoint(drop_command_acks={mavutil.mavlink.MAV_CMD_MISSION_START})
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-start-timeout",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+        response_timeout_s=0.3,
+    )
+    await adapter.connect()
+    try:
+        with pytest.raises(MAVLinkCommandError):
+            async for _p in adapter.execute_mission(
+                VERIFY(geo=Geo(lat=44.7, lon=8.03), hover_s=0.1)
+            ):
+                pass
+        assert endpoint.state.mission_total == 1
+        assert mavutil.mavlink.MAV_CMD_MISSION_START in endpoint.state.command_calls
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
 
 
 @pytest.mark.asyncio
@@ -292,13 +490,32 @@ async def test_telemetry_rate_limit_caps_emission() -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_capture_returns_geo_from_last_position(adapter_pair: Any) -> None:
+async def test_request_capture_requires_configured_stream(adapter_pair: Any) -> None:
     adapter, _ = adapter_pair
+    with pytest.raises(MAVLinkCaptureUnavailable):
+        await adapter.request_capture(SensorKind.RGB)
+
+
+@pytest.mark.asyncio
+async def test_request_capture_returns_configured_stream_uri() -> None:
+    endpoint = FakeMAVLinkEndpoint()
+    await endpoint.start()
+    adapter = MAVLinkAdapter(
+        agent_id="mav-1",
+        connection=f"udpout:127.0.0.1:{endpoint.port}",
+        heartbeat_timeout_s=10.0,
+        stream_url="https://stream.example.com/hls/mav-1.m3u8",
+    )
+    await adapter.connect()
     # Wait for at least one position frame.
-    await asyncio.sleep(0.5)
-    result = await adapter.request_capture(SensorKind.RGB)
-    assert result.uri.startswith("mavlink://mav-1/RGB/")
-    assert result.geo.lat != 0.0 or result.geo.lon != 0.0
+    try:
+        await asyncio.sleep(0.5)
+        result = await adapter.request_capture(SensorKind.RGB)
+        assert result.uri == "https://stream.example.com/hls/mav-1.m3u8"
+        assert result.geo.lat != 0.0 or result.geo.lon != 0.0
+    finally:
+        await adapter.disconnect()
+        await endpoint.stop()
 
 
 @pytest.mark.asyncio

@@ -90,7 +90,8 @@ invariants:
   in Phase 1).
 - No PDF report generation.
 - No external weather/NOTAM integrations before Phase 6.
-- No real adapter (MAVLink/DJI/...) before Phase 5.
+- No additional real adapter beyond the Phase 5 MAVLink/PX4 path unless the
+  current phase explicitly asks for it.
 - No autonomy that isn't verifiable.
 - Don't add features or refactors beyond the current phase. Three
   similar lines is better than a premature abstraction.

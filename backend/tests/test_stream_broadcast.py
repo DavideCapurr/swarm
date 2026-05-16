@@ -14,6 +14,7 @@ import json
 from typing import Any
 
 import pytest
+from swarm_core.messages import Geo, Telemetry
 from swarm_core.streams import StreamDescriptor
 
 from backend.app.bus_consumer import BusConsumer
@@ -56,6 +57,38 @@ async def test_stream_descriptor_offline_is_rebroadcast(consumer: Any) -> None:
     frame = await asyncio.wait_for(wait_for_frame(), timeout=2.0)
     assert frame["data"]["available"] is False
     assert frame["data"]["url"] is None
+
+
+@pytest.mark.asyncio
+async def test_backend_telemetry_rate_cap_drops_excess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    hub = _CapturingHub()
+    bc = BusConsumer(hub, telemetry_rate_limit_hz=1.0)  # type: ignore[arg-type]
+    await bc.start()
+    try:
+        await asyncio.sleep(0.1)
+        for i in range(5):
+            t = Telemetry(
+                agent_id="rate-capped",
+                geo=Geo(lat=44.7 + i * 0.0001, lon=8.03),
+            )
+            await bc.bus.publish("swarm:telemetry:rate-capped", t.model_dump_json())
+
+        async def wait_for_drop() -> None:
+            while bc._telemetry_limiter.stats["dropped_total"] < 1:
+                await asyncio.sleep(0.05)
+
+        await asyncio.wait_for(wait_for_drop(), timeout=2.0)
+        unit_frames = [
+            f
+            for f in hub.frames
+            if f.get("kind") == "unit" and f["data"]["agent_id"] == "rate-capped"
+        ]
+        assert len(unit_frames) == 1
+    finally:
+        await bc.stop()
 
 
 @pytest.mark.asyncio

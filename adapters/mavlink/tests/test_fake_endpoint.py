@@ -28,6 +28,17 @@ async def _read_one(sock: socket.socket, *, deadline_s: float = 2.0) -> Any | No
     return None
 
 
+async def _recv_match(mav_conn: Any, types: set[str], *, deadline_s: float = 2.0) -> Any | None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + deadline_s
+    while loop.time() < deadline:
+        msg = mav_conn.recv_match(blocking=False)
+        if msg is not None and msg.get_type() in types:
+            return msg
+        await asyncio.sleep(0.02)
+    return None
+
+
 @pytest.mark.asyncio
 async def test_fake_emits_heartbeat_to_peer() -> None:
     endpoint = FakeMAVLinkEndpoint(heartbeat_hz=10.0, position_hz=20.0)
@@ -87,11 +98,21 @@ async def test_fake_accepts_mission_upload() -> None:
         )
         # Wait for HB back.
         await asyncio.sleep(0.5)
-        # Upload 3 mission items.
+        # Upload 3 mission items. The fake duplicates the first request to
+        # prove the client waits for requests instead of firehosing items.
         mav_conn.mav.mission_count_send(1, 1, 3)
-        # Respond to MISSION_REQUEST_INT messages by sending items.
         items = [(45.001, 10.001), (45.002, 10.002), (45.003, 10.003)]
-        for seq in range(3):
+        while True:
+            request = await _recv_match(
+                mav_conn,
+                {"MISSION_REQUEST_INT", "MISSION_ACK"},
+                deadline_s=2.0,
+            )
+            assert request is not None, "fake did not request/ack mission"
+            if request.get_type() == "MISSION_ACK":
+                assert int(request.type) == mavutil.mavlink.MAV_MISSION_ACCEPTED
+                break
+            seq = int(request.seq)
             mav_conn.mav.mission_item_int_send(
                 1,
                 1,
@@ -111,10 +132,61 @@ async def test_fake_accepts_mission_upload() -> None:
         # Give the fake time to record items.
         await asyncio.sleep(0.5)
         assert len(endpoint.state.mission_items) == 3
+        assert endpoint.state.mission_requests[:2] == [0, 0]
+        assert endpoint.state.mission_item_receipts[:2] == [0, 0]
         # Compare with tolerance — fixed-point round-trip introduces 1e-7 noise.
         for actual, expected in zip(endpoint.state.mission_items, items, strict=True):
             assert abs(actual[0] - expected[0]) < 1e-5
             assert abs(actual[1] - expected[1]) < 1e-5
+        mav_conn.close()
+    finally:
+        await endpoint.stop()
+
+
+@pytest.mark.asyncio
+async def test_fake_rejects_mission_items_sent_before_requested_sequence() -> None:
+    endpoint = FakeMAVLinkEndpoint()
+    await endpoint.start()
+    try:
+        mav_conn = mavutil.mavlink_connection(
+            f"udpout:127.0.0.1:{endpoint.port}",
+            source_system=254,
+            input=False,
+        )
+        mav_conn.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_GCS,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0,
+            0,
+            mavutil.mavlink.MAV_STATE_ACTIVE,
+        )
+        await asyncio.sleep(0.3)
+        mav_conn.mav.mission_count_send(1, 1, 2)
+        first_request = await _recv_match(mav_conn, {"MISSION_REQUEST_INT"}, deadline_s=2.0)
+        assert first_request is not None
+        assert int(first_request.seq) == 0
+        # Wrong item while the fake is still expecting seq 0.
+        mav_conn.mav.mission_item_int_send(
+            1,
+            1,
+            1,
+            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            0,
+            1,
+            0.0,
+            2.0,
+            0.0,
+            float("nan"),
+            int(45.002 * 1e7),
+            int(10.002 * 1e7),
+            60.0,
+        )
+        ack = await _recv_match(mav_conn, {"MISSION_ACK"}, deadline_s=2.0)
+        assert ack is not None
+        assert int(ack.type) == mavutil.mavlink.MAV_MISSION_INVALID_SEQUENCE
+        assert endpoint.state.protocol_errors
+        assert endpoint.state.mission_total == 0
         mav_conn.close()
     finally:
         await endpoint.stop()
@@ -139,8 +211,17 @@ async def test_fake_acks_command_long() -> None:
         )
         await asyncio.sleep(0.3)
         mav_conn.mav.command_long_send(
-            1, 1, mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
-            0, 0, 0, 0, 0, 0, 0, 0,
+            1,
+            1,
+            mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
         )
         # Spin until COMMAND_ACK arrives or 2 s elapses.
         loop = asyncio.get_running_loop()
@@ -174,12 +255,14 @@ async def test_fake_records_param_set() -> None:
         mav_conn.mav.heartbeat_send(
             mavutil.mavlink.MAV_TYPE_GCS,
             mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-            0, 0,
+            0,
+            0,
             mavutil.mavlink.MAV_STATE_ACTIVE,
         )
         await asyncio.sleep(0.3)
         mav_conn.mav.param_set_send(
-            1, 1,
+            1,
+            1,
             b"BAT_LOW_THR".ljust(16, b"\x00")[:16],
             0.25,
             mavutil.mavlink.MAV_PARAM_TYPE_REAL32,

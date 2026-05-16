@@ -7,13 +7,14 @@ messages the SwarmOS adapter sends:
   - HEARTBEAT          → mirrors back HEARTBEAT @ 2 Hz, learns the peer
                          (sysid/compid + UDP address) from the first inbound
                          packet.
-  - MISSION_COUNT      → requests each item via MISSION_REQUEST_INT, then
-                         emits MISSION_ACK(MAV_MISSION_ACCEPTED).
-  - MISSION_ITEM_INT   → records the item; emits MISSION_REQUEST_INT for the
-                         next index until count is satisfied.
-  - COMMAND_LONG/INT   → emits COMMAND_ACK(MAV_RESULT_ACCEPTED).
+  - MISSION_COUNT      → requests items via MISSION_REQUEST_INT, duplicates
+                         the first request, then emits final MISSION_ACK.
+  - MISSION_ITEM_INT   → accepted only when it matches the outstanding
+                         request; out-of-order shortcuts are rejected.
+  - COMMAND_LONG/INT   → emits COMMAND_ACK(MAV_RESULT_ACCEPTED), unless a
+                         test config asks it to drop/reject the ACK.
   - SET_MODE           → emits a HEARTBEAT carrying the new custom_mode.
-  - PARAM_SET          → records the parameter.
+  - PARAM_SET          → records the parameter and echoes PARAM_VALUE.
 
 It also emits, on a steady cadence:
 
@@ -51,6 +52,8 @@ class FakeAutopilotState:
     custom_mode: int = 0
     base_mode: int = 0
     mission_items: list[tuple[float, float, float]] = field(default_factory=list)
+    mission_item_receipts: list[int] = field(default_factory=list)
+    mission_requests: list[int] = field(default_factory=list)
     mission_current: int = 0
     mission_total: int = 0
     params: dict[str, float] = field(default_factory=dict)
@@ -59,6 +62,7 @@ class FakeAutopilotState:
     rtl_triggered: bool = False
     set_mode_calls: int = 0
     command_calls: list[int] = field(default_factory=list)
+    protocol_errors: list[str] = field(default_factory=list)
     battery_pct: float = 87.0
     geo: tuple[float, float, float] = (44.7000, 8.0300, 0.0)  # lat, lon, alt_m AGL
 
@@ -73,6 +77,13 @@ class FakeMAVLinkEndpoint:
         component_id: int = 1,
         heartbeat_hz: float = 1.0,
         position_hz: float = 10.0,
+        emit_heartbeat: bool = True,
+        send_mission_ack: bool = True,
+        mission_ack_result: int | None = None,
+        command_ack_results: dict[int, int] | None = None,
+        drop_command_acks: set[int] | None = None,
+        send_param_value: bool = True,
+        duplicate_first_mission_request: bool = True,
     ) -> None:
         self._sysid = system_id
         self._compid = component_id
@@ -86,11 +97,21 @@ class FakeMAVLinkEndpoint:
         self._peer: tuple[str, int] | None = None
         self._heartbeat_period = 1.0 / heartbeat_hz
         self._position_period = 1.0 / position_hz
+        self._emit_heartbeat = emit_heartbeat
+        self._emit_mission_ack = send_mission_ack
+        self._mission_ack_result = mission_ack_result
+        self._command_ack_results = command_ack_results or {}
+        self._drop_command_acks = drop_command_acks or set()
+        self._send_param_value = send_param_value
+        self._duplicate_first_mission_request = duplicate_first_mission_request
         self._tasks: list[asyncio.Task[None]] = []
         self._mav = mavutil.mavlink.MAVLink(None, srcSystem=system_id, srcComponent=component_id)
         self.state = FakeAutopilotState()
         self._running = False
-        self._mission_expected = 0  # how many items we still expect
+        self._mission_expected = 0
+        self._mission_requested_seq: int | None = None
+        self._mission_duplicate_pending = False
+        self._mission_items_by_seq: dict[int, tuple[float, float, float]] = {}
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -141,7 +162,8 @@ class FakeMAVLinkEndpoint:
     async def _heartbeat_loop(self) -> None:
         try:
             while self._running:
-                self._send(self._make_heartbeat())
+                if self._emit_heartbeat:
+                    self._send(self._make_heartbeat())
                 await asyncio.sleep(self._heartbeat_period)
         except asyncio.CancelledError:
             raise
@@ -223,54 +245,73 @@ class FakeMAVLinkEndpoint:
         if kind == "MISSION_COUNT":
             count = int(getattr(msg, "count", 0))
             self.state.mission_items = []
+            self.state.mission_item_receipts = []
+            self.state.mission_requests = []
             self._mission_expected = count
+            self._mission_items_by_seq = {}
+            self._mission_requested_seq = None
+            self._mission_duplicate_pending = self._duplicate_first_mission_request and count > 0
             if count > 0:
-                self._send(self._mav.mission_request_int_encode(self._sysid, self._compid, 0))
+                self._request_mission_seq(0)
             else:
-                self._send(
-                    self._mav.mission_ack_encode(
-                        self._sysid, self._compid, m.MAV_MISSION_ACCEPTED
-                    )
-                )
+                self._send_mission_ack(m.MAV_MISSION_ACCEPTED)
             return
-        if kind == "MISSION_ITEM_INT":
+        if kind in {"MISSION_ITEM_INT", "MISSION_ITEM"}:
             seq = int(getattr(msg, "seq", 0))
-            lat = float(getattr(msg, "x", 0)) / 1e7
-            lon = float(getattr(msg, "y", 0)) / 1e7
-            alt = float(getattr(msg, "z", 0.0))
-            self.state.mission_items.append((lat, lon, alt))
-            if seq + 1 < self._mission_expected:
-                self._send(
-                    self._mav.mission_request_int_encode(self._sysid, self._compid, seq + 1)
+            if self._mission_requested_seq is None:
+                self._reject_mission(f"mission item {seq} arrived before any request")
+                return
+            if seq != self._mission_requested_seq:
+                self._reject_mission(
+                    f"mission item {seq} arrived while expecting {self._mission_requested_seq}"
                 )
+                return
+            if kind == "MISSION_ITEM_INT":
+                lat = float(getattr(msg, "x", 0)) / 1e7
+                lon = float(getattr(msg, "y", 0)) / 1e7
             else:
-                self._send(
-                    self._mav.mission_ack_encode(
-                        self._sysid, self._compid, m.MAV_MISSION_ACCEPTED
-                    )
-                )
-                self.state.mission_total = len(self.state.mission_items)
-                self.state.mission_current = 0
+                lat = float(getattr(msg, "x", 0.0))
+                lon = float(getattr(msg, "y", 0.0))
+            alt = float(getattr(msg, "z", 0.0))
+            self.state.mission_item_receipts.append(seq)
+            self._mission_items_by_seq[seq] = (lat, lon, alt)
+            if self._mission_duplicate_pending:
+                self._mission_duplicate_pending = False
+                self._request_mission_seq(seq)
+                return
+            next_seq = self._next_missing_mission_seq()
+            if next_seq is not None:
+                self._request_mission_seq(next_seq)
+                return
+            self.state.mission_items = [
+                self._mission_items_by_seq[i] for i in range(self._mission_expected)
+            ]
+            self.state.mission_total = len(self.state.mission_items)
+            self.state.mission_current = 0
+            self._mission_requested_seq = None
+            self._send_mission_ack(m.MAV_MISSION_ACCEPTED)
             return
         if kind == "COMMAND_LONG":
             command_id = int(getattr(msg, "command", 0))
             self.state.command_calls.append(command_id)
-            if command_id == m.MAV_CMD_NAV_RETURN_TO_LAUNCH:
+            result = self._command_ack_results.get(command_id, m.MAV_RESULT_ACCEPTED)
+            if result == m.MAV_RESULT_ACCEPTED and command_id == m.MAV_CMD_NAV_RETURN_TO_LAUNCH:
                 self.state.rtl_triggered = True
-            if command_id == m.MAV_CMD_DO_FENCE_ENABLE:
+            if result == m.MAV_RESULT_ACCEPTED and command_id == m.MAV_CMD_DO_FENCE_ENABLE:
                 self.state.fence_enabled = bool(int(getattr(msg, "param1", 0)))
-            if command_id == m.MAV_CMD_COMPONENT_ARM_DISARM:
+            if result == m.MAV_RESULT_ACCEPTED and command_id == m.MAV_CMD_COMPONENT_ARM_DISARM:
                 self.state.armed = bool(int(getattr(msg, "param1", 0)))
-            if command_id == m.MAV_CMD_MISSION_START and self.state.mission_total > 0:
+            if (
+                result == m.MAV_RESULT_ACCEPTED
+                and command_id == m.MAV_CMD_MISSION_START
+                and self.state.mission_total > 0
+            ):
                 # Pretend the autopilot has begun executing the mission.
                 self.state.mission_current = 0
                 # Auto-advance so tests don't need to drive the cursor.
-                self._tasks.append(
-                    asyncio.create_task(self._advance_mission_loop())
-                )
-            self._send(
-                self._mav.command_ack_encode(command_id, m.MAV_RESULT_ACCEPTED)
-            )
+                self._tasks.append(asyncio.create_task(self._advance_mission_loop()))
+            if command_id not in self._drop_command_acks:
+                self._send(self._mav.command_ack_encode(command_id, result))
             return
         if kind == "SET_MODE":
             self.state.set_mode_calls += 1
@@ -283,12 +324,46 @@ class FakeMAVLinkEndpoint:
             if isinstance(pid, bytes):
                 pid = pid.rstrip(b"\x00").decode("ascii", errors="replace")
             self.state.params[str(pid)] = float(getattr(msg, "param_value", 0.0))
+            if self._send_param_value:
+                self._send(
+                    self._mav.param_value_encode(
+                        str(pid).encode("ascii").ljust(16, b"\x00")[:16],
+                        float(getattr(msg, "param_value", 0.0)),
+                        int(getattr(msg, "param_type", m.MAV_PARAM_TYPE_REAL32)),
+                        len(self.state.params),
+                        max(0, len(self.state.params) - 1),
+                    )
+                )
             return
         if kind == "FENCE_POINT":
             lat = float(getattr(msg, "lat", 0.0))
             lon = float(getattr(msg, "lng", 0.0))
             self.state.fence_points.append((lat, lon))
             return
+
+    def _request_mission_seq(self, seq: int) -> None:
+        self._mission_requested_seq = seq
+        self.state.mission_requests.append(seq)
+        self._send(self._mav.mission_request_int_encode(self._sysid, self._compid, seq))
+
+    def _next_missing_mission_seq(self) -> int | None:
+        for seq in range(self._mission_expected):
+            if seq not in self._mission_items_by_seq:
+                return seq
+        return None
+
+    def _reject_mission(self, reason: str) -> None:
+        self.state.protocol_errors.append(reason)
+        self._send_mission_ack(mavutil.mavlink.MAV_MISSION_INVALID_SEQUENCE)
+        self._mission_requested_seq = None
+
+    def _send_mission_ack(self, default_result: int) -> None:
+        if not self._emit_mission_ack:
+            return
+        result = self._mission_ack_result
+        if result is None:
+            result = default_result
+        self._send(self._mav.mission_ack_encode(self._sysid, self._compid, result))
 
     async def _advance_mission_loop(self) -> None:
         """Tick the MISSION_CURRENT cursor so missions finish on their own."""

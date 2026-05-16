@@ -13,8 +13,8 @@ of every phase.
 | 2     | Console Operating Shell + routing + components        | **done** |
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
-| 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **done** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | pending |
+| 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **code-complete, CI-verified; bench validation pending** |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | pending — do not start until Phase 5 readiness level is accepted |
 
 ## Phase 0 — completed checklist
 
@@ -344,23 +344,43 @@ Verification after fixes:
   `alembic upgrade head` against the pinned Timescale image as the final
   gate before Phase 5.
 
-## Phase 5 — completed checklist
+## Phase 5 — code-complete, CI-verified; bench validation pending
 
 Vendor: MAVLink / PX4 via `pymavlink`. Branch
-`claude/add-mavlink-adapter-kyTd1`.
+`codex/phase5-readiness-hardening`.
 
 - [x] Rewrote `adapters/mavlink/adapter.py` on top of `pymavlink` (no
       protobuf, no gRPC, no MAVSDK). Adapter speaks
       MAVLink wire protocol directly via `mavutil.mavlink_connection`.
+- [x] Hardened lifecycle and protocol readiness: `connect()` now fails
+      closed unless a non-GCS HEARTBEAT arrives before timeout; failed
+      connects disconnect/cleanup and raise `MAVLinkConnectionError`.
+      `health()` reports `link_quality=0.0` until a real heartbeat exists.
+- [x] Implemented real mission upload handshake:
+      `MISSION_COUNT` → wait for `MISSION_REQUEST_INT` / `MISSION_REQUEST`
+      → send only the requested item → tolerate duplicate requests
+      idempotently → require final `MISSION_ACK(MAV_MISSION_ACCEPTED)`.
+      Missing or rejected ACKs raise adapter-specific errors.
+- [x] `COMMAND_LONG` now requires the matching `COMMAND_ACK` and raises
+      on timeout or non-accepted result. `set_safety()` verifies fence
+      enable through ACK and parameter writes through `PARAM_VALUE`.
+      `SET_MODE(AUTO.MISSION)` waits for a matching HEARTBEAT before
+      mission start, and mission start itself requires `COMMAND_ACK`.
+- [x] `request_capture()` no longer fabricates synthetic `mavlink://...`
+      URIs. It returns the configured allowlisted `MAVLINK_STREAM_URL` as
+      the capture/stream reference, or raises `MAVLinkCaptureUnavailable`
+      when no real stream is configured.
 - [x] `adapters/mavlink/fake_endpoint.py`: in-process UDP MAVLink
       server that pretends to be a PX4 autopilot. Emits HEARTBEAT (1
-      Hz), GLOBAL_POSITION_INT (10 Hz), SYS_STATUS (1 Hz); drives the
-      mission request loop (MISSION_COUNT → MISSION_REQUEST_INT →
-      MISSION_ACK), ACKs every COMMAND_LONG, records PARAM_SET and
-      FENCE_POINT, and auto-advances MISSION_CURRENT after
-      MISSION_START. No PX4 SITL / Gazebo required for CI.
-- [x] `adapters/mavlink/runner.py`: out-of-process producer symmetric
-      to `sim.swarm_sim.runner`. Publishes `swarm:telemetry:<aid>`,
+      Hz), GLOBAL_POSITION_INT (10 Hz), SYS_STATUS (1 Hz); enforces the
+      real mission request loop, duplicates the first request to catch
+      blind item streaming, rejects out-of-order items, can withhold or
+      reject final ACKs for negative tests, verifies COMMAND_ACK and
+      PARAM_VALUE behavior, and auto-advances MISSION_CURRENT after
+      accepted MISSION_START. No PX4 SITL / Gazebo required for CI.
+- [x] `adapters/mavlink/runner.py`: in-process backend runner for Phase 5
+      dev/demo boot, with a standalone `python -m adapters.mavlink.runner`
+      entrypoint kept for bench debugging. Publishes `swarm:telemetry:<aid>`,
       `swarm:fleet:state`, `swarm:streams:<aid>`. Env-driven config
       (`MAVLINK_CONNECTION`, `MAVLINK_AGENT_ID`, `MAVLINK_MODEL`,
       `MAVLINK_STREAM_URL`, `MAVLINK_RATE_LIMIT_HZ`).
@@ -371,10 +391,15 @@ Vendor: MAVLink / PX4 via `pymavlink`. Branch
       (no ambiguous descriptors).
 - [x] `core/swarm_core/rate_limit.py`: `TelemetryRateLimiter` per-agent
       sliding-window cap (default 50 Hz, the roadmap pin).
+- [x] `backend/app/bus_consumer.py`: backend-side telemetry sanity cap
+      using the same per-agent limiter, so a malicious or buggy adapter
+      cannot bypass rate limiting by publishing directly to `swarm:*`.
 - [x] `backend/app/fleet.py`: `SWARM_VENDORS` env parsing
       (case-insensitive, dedup, unknown vendors fail-fast via
-      `UnknownVendor`). `FleetManager` boots only in-process vendors
-      (currently `mavlink`); the simulator runs as its own subprocess.
+      `UnknownVendor`). Requested in-process vendor boot failures now
+      raise `VendorBootError`; `SWARM_VENDORS=mavlink` and
+      `SWARM_VENDORS=simulator,mavlink` fail fast if MAVLink cannot boot.
+      The simulator runs as its own subprocess.
 - [x] Backend WS `stream` frame: `BusConsumer._consume_streams`
       subscribes to `swarm:streams:*`, re-validates the URL allowlist
       (defense in depth), stores the descriptor on `SwarmState.streams`
@@ -388,15 +413,18 @@ Vendor: MAVLink / PX4 via `pymavlink`. Branch
       passes the allowlist, otherwise the honest viewport placard. The
       `/verify/[id]` page threads the verifier's descriptor through.
 - [x] Mission DSL → MAVLink mapping: PATROL/VERIFY upload via
-      MISSION_COUNT + MISSION_ITEM_INT then `SET_MODE(AUTO.MISSION)` +
-      `MAV_CMD_MISSION_START`; RTL_DOCK → `MAV_CMD_NAV_RETURN_TO_LAUNCH`;
-      RELAY → `MAV_CMD_NAV_LOITER_UNLIM`; COVER → `UnsupportedMission`.
+      `MISSION_COUNT`, requested-only `MISSION_ITEM_INT` /
+      `MISSION_ITEM`, final accepted `MISSION_ACK`, then
+      `SET_MODE(AUTO.MISSION)` + `MAV_CMD_MISSION_START`; RTL_DOCK →
+      `MAV_CMD_NAV_RETURN_TO_LAUNCH`; RELAY →
+      `MAV_CMD_NAV_LOITER_UNLIM`; COVER → `UnsupportedMission`.
 - [x] Safety enforcement: `set_safety` uploads FENCE_POINTs +
       `DO_FENCE_ENABLE`, writes `BAT_LOW_THR` / `MIS_TAKEOFF_ALT`.
       Defense-in-depth: every waypoint is geofence + max-alt checked
       before upload; rejected missions raise `RejectedMission` and
       never reach the wire. Heartbeat watchdog: HEARTBEAT absence > 3 s
-      collapses `link_quality` to 0 and triggers cancel + RTL.
+      collapses `link_quality` to 0 and marks any active mission
+      cancelled so the mission loop fails closed into RTL.
 - [x] `docs/adapters/mavlink-setup.md`: PX4 SITL bring-up,
       real-hardware checklist (Holybro X500 / 3DR Quad Zero, SiK
       radio), firmware params (SYS_AUTOSTART, BAT_*, MIS_*, GF_*),
@@ -405,55 +433,81 @@ Vendor: MAVLink / PX4 via `pymavlink`. Branch
       subprocess is launched only when `simulator` is in the list, so
       `SWARM_VENDORS=mavlink` boots a MAVLink-only fleet.
 
-### Verification on this branch
+### CI verification on this branch
 
-Full gate run from a fresh `.venv`:
+Gate run from this branch on 2026-05-16:
 
 ```
-$ rm -rf .venv && make setup    # uv sync, frozen lock
-$ make lint                      # ruff + mypy + tsc → green
-$ make test                      # pytest → 319 passed, 16 skipped
-$ make audit                     # pip-audit clean, bandit no medium+,
-                                 # pnpm audit clean (audit-level=high)
+$ make lint   # green: ruff + mypy over 109 source files + frontend tsc
+$ make test   # green: 332 passed, 16 skipped; frontend tsc
+$ make audit  # green: pip-audit clean, pnpm audit clean, Bandit 0 medium/high
 ```
 
-Voice + brand audit greps over every Phase 5 file return zero hits.
+The conformance suite (`AdapterConformanceTests`) runs against the
+MAVLink adapter wired to the strict `FakeMAVLinkEndpoint`. Phase 5 CI
+coverage now includes:
 
-The conformance suite (`AdapterConformanceTests`) passes against the
-MAVLink adapter wired to `FakeMAVLinkEndpoint` — same 6 scenarios that
-the simulator adapter satisfies. 33 additional Phase-5-specific tests
-cover the wire protocol, mission mapping, safety enforcement, the rate
-limiter, `SWARM_VENDORS` parsing, and the WS `stream` frame fan-out.
+- no-endpoint and no-heartbeat connect failure;
+- request/response mission upload, duplicate requests, timeout, and
+  rejected final `MISSION_ACK`;
+- missing/rejected `COMMAND_ACK`;
+- fence enable ACK and `PARAM_VALUE` confirmation;
+- honest capture behavior with and without `MAVLINK_STREAM_URL`;
+- MAVLink-only and mixed-vendor boot failure;
+- backend-side telemetry rate limiting;
+- strict stream URL allowlist and frontend offline viewport behavior.
 
-### Out of scope (deferred to Phase 6 or later)
+No MAVSDK, gRPC, or Python protobuf dependency is present in the Python
+lockfile; `pymavlink` remains the only MAVLink runtime dependency.
 
-- Real PX4 SITL container in CI (fake endpoint covers the contract;
-  SITL is the hardware-bench acceptance gate, documented in
-  `docs/adapters/mavlink-setup.md`).
-- DJI Mobile / DJI Cloud adapters — stubs in `adapters/dji_*` stay for
-  a future enterprise integration.
-- Sigstore provenance check for `pymavlink` (Phase 6 supply chain).
-- mTLS adapter ↔ bus (Phase 6 hardening).
-- Video frame streaming **via MAVLink** — video is on its own
-  RTSPS / HLS pipe; the adapter advertises the URL via
-  `StreamDescriptor` and `stream_video()` remains a no-op.
+### Deferred Phase 5 security gates and Phase 6 entry criteria
 
-### Bench validation (TODO outside this session, on real hardware)
+- Real PX4 SITL in CI remains deferred because the runtime requires PX4
+  + jMAVSim/Gazebo and is not suitable for `make test`. The manual SITL
+  gate is documented in `docs/adapters/mavlink-setup.md`; do not claim
+  bench validation until that checklist has evidence for the commit.
+- Sigstore/package provenance for `pymavlink` is deferred to Phase 6
+  supply-chain hardening. Phase 5 mitigation is lockfile hash pinning and
+  `pip-audit`; Phase 6 entry criterion is a documented provenance policy
+  for vendor dependencies before production deployment.
+- mTLS/secure adapter-bus transport is deferred to Phase 6 because Phase 5
+  runs the MAVLink runner in-process with the backend in the supported
+  dev/demo path. Phase 6 entry criterion: if adapters become separate
+  services, bus credentials and mTLS (or an equivalent authenticated
+  transport) must land before production flight.
+- Telemetry rate limiting is no longer deferred at the Phase 5 boundary:
+  both adapter-side and backend-side caps are implemented and tested.
+- DJI Mobile / DJI Cloud adapters remain stubs in `adapters/dji_*` for a
+  future enterprise integration.
+- Video frame streaming **via MAVLink** remains out of scope. Video is on
+  its own RTSPS / HLS pipe; the adapter advertises the URL via
+  `StreamDescriptor`, `request_capture()` returns only a real configured
+  stream URI, and `stream_video()` remains a no-op.
 
-1. Boot PX4 SITL locally:
-   `make px4_sitl_default jmavsim` + `SWARM_VENDORS=simulator,mavlink
-   MAVLINK_CONNECTION=udp:localhost:14540 ./scripts/dev_up.sh`. Console
-   should render the `mavlink` unit flying in the PX4 world alongside
-   the simulator fleet.
-2. Real PX4 hardware (3DR Quad Zero or Holybro X500), SiK
-   telemetry radio (433/915 MHz). Props-safe → unarmed mission upload
-   check → outdoor flight with VERIFY, RTL, capture.
+### Bench validation (pending — not claimed)
+
+No PX4 SITL or hardware validation was run in this hardening session.
+Before calling Phase 5 "done", run the acceptance checklist in
+`docs/adapters/mavlink-setup.md`:
+
+1. PX4 SITL emits HEARTBEAT on UDP 14540 and SwarmOS boots with
+   `SWARM_VENDORS=mavlink MAVLINK_CONNECTION=udp:localhost:14540`.
+2. Fleet and telemetry frames appear on Redis with `link_quality > 0`.
+3. VERIFY mission upload shows requested-only `MISSION_ITEM_INT` frames
+   and final accepted `MISSION_ACK`.
+4. Arm, mission start, RTL, fence enable, and param writes have ACK/value
+   evidence in PX4/QGroundControl logs.
+5. Console remains honest: offline viewport with no stream URL, real
+   `<video>` only for allowlisted `https://` / `rtsps://` stream URL.
 
 ## Last updated
 
-2026-05-16: Phase 5 completed on branch
-`claude/add-mavlink-adapter-kyTd1` (MAVLink/PX4 via `pymavlink`). Phase 4
-post-readiness fixes on branch `claude/verify-phase4-completion-qiLsH`.
+2026-05-16: Phase 5 readiness hardened on branch
+`codex/phase5-readiness-hardening`. Status is code-complete and
+CI-verified by `make lint`, `make test`, and `make audit`; PX4 SITL /
+hardware bench validation remains pending and must not be implied as
+done. Phase 4 post-readiness fixes on branch
+`claude/verify-phase4-completion-qiLsH`.
 Phase 4 originally completed on branch
 `claude/phase-4-persistence-OGUJm`. Phase 2 was completed on branch
 `claude/phase-2-start-CMUg1`. Phase 1 was completed at GitHub main

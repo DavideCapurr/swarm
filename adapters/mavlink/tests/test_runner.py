@@ -1,4 +1,8 @@
-"""Tests for the out-of-process MAVLink runner."""
+"""Tests for the MAVLink runner.
+
+The backend boots this runner in-process through `backend.app.fleet`; the
+standalone module entrypoint remains only for bench/debug runs.
+"""
 
 from __future__ import annotations
 
@@ -158,8 +162,13 @@ async def test_runner_publishes_stream_descriptor_https(
 
 
 def test_adapter_from_env_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("MAVLINK_AGENT_ID", "MAVLINK_CONNECTION", "MAVLINK_MODEL",
-                "MAVLINK_STREAM_URL", "MAVLINK_RATE_LIMIT_HZ"):
+    for var in (
+        "MAVLINK_AGENT_ID",
+        "MAVLINK_CONNECTION",
+        "MAVLINK_MODEL",
+        "MAVLINK_STREAM_URL",
+        "MAVLINK_RATE_LIMIT_HZ",
+    ):
         monkeypatch.delenv(var, raising=False)
     adapter = adapter_from_env()
     assert adapter.agent_id == "mav-001"
