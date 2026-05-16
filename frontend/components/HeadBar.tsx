@@ -69,8 +69,7 @@ export function HeadBar() {
         <span className="mono-num text-platinum text-ui">{clock.date}</span>
         <span className="mono-num text-platinum text-ui">{clock.time} UTC</span>
         <span className="flex items-center gap-2">
-          <StatusPill state={MODE_STATE[mode.value]}>{`mode · ${mode.value}`}</StatusPill>
-          {mode.derived && <span className="eyebrow-mono text-ash">derived</span>}
+          <StatusPill state={MODE_STATE[mode]}>{`mode · ${mode}`}</StatusPill>
         </span>
         <StatusPill state={fleetState}>
           {`${String(online).padStart(3, "0")} / ${String(total).padStart(3, "0")} online`}

@@ -1,4 +1,15 @@
-"""Projection coordinator from raw bus messages to SwarmOS view state."""
+"""Projection coordinator from raw bus messages to SwarmOS view state.
+
+Phase 3 makes this module the single owner of the event detector + scheduler
++ command tick. Every state mutation flows through one of the `apply_*`
+methods, which take the state lock, mutate, run `_refresh`, and return the
+WS frames the caller should broadcast.
+
+`_refresh` is the truth-layer heartbeat: it recomputes sector confidence,
+fires the scheduler, recomputes mode + verifier, embeds them in the
+awareness frame, and asks the event detector to diff against the previous
+state. Nothing in the Console ever computes any of this client-side.
+"""
 
 from __future__ import annotations
 
@@ -17,12 +28,16 @@ from swarm_core.messages import (
     MissionProgress,
     MissionView,
     OperatingMode,
+    OperatorCommand,
     Telemetry,
     UnitState,
 )
 from swarm_core.voice import band
 
 from swarm_os.awareness import calculate_awareness
+from swarm_os.command_bus import CommandResult
+from swarm_os.command_bus import submit as command_submit
+from swarm_os.command_bus import tick as command_tick
 from swarm_os.event_detector import EventDetector
 from swarm_os.fsm import compute_mode
 from swarm_os.scheduler import tick as scheduler_tick
@@ -59,8 +74,10 @@ class SwarmCoordinator:
                 ts=telemetry.ts,
             )
             self.state.units[unit.agent_id] = unit
-            self._refresh(now)
-            return self._frames("unit", unit)
+            new_events = self._refresh(now)
+            frames = self._frames("unit", unit)
+            frames.extend(self._frame("event", event) for event in new_events)
+            return frames
 
     async def apply_fleet_state(self, fleet: FleetState) -> list[dict[str, Any]]:
         async with self.state.lock:
@@ -83,7 +100,9 @@ class SwarmCoordinator:
             )
             self.state.units[fleet.agent_id] = unit
             for dock_id, dock in list(self.state.docks.items()):
-                docked = sum(1 for u in self.state.units.values() if u.fsm_state == AgentState.DOCKED)
+                docked = sum(
+                    1 for u in self.state.units.values() if u.fsm_state == AgentState.DOCKED
+                )
                 self.state.docks[dock_id] = dock.model_copy(
                     update={
                         "units_total": len(self.state.units),
@@ -94,8 +113,11 @@ class SwarmCoordinator:
                         "ts": now,
                     }
                 )
-            self._refresh(now)
-            return self._frames("unit", unit) + [self._frame("dock", d) for d in self.state.docks.values()]
+            new_events = self._refresh(now)
+            frames = self._frames("unit", unit)
+            frames.extend(self._frame("dock", d) for d in self.state.docks.values())
+            frames.extend(self._frame("event", event) for event in new_events)
+            return frames
 
     async def apply_anomaly(self, anomaly: Anomaly) -> list[dict[str, Any]]:
         async with self.state.lock:
@@ -121,13 +143,9 @@ class SwarmCoordinator:
                 self.state.sectors[sector_id] = sector.model_copy(
                     update={"pending_anomaly_ids": pending, "ts": now}
                 )
-            event = self.events.anomaly_event(view)
-            if event is not None:
-                self.state.append_event(event)
-            self._refresh(now)
+            new_events = self._refresh(now)
             frames = self._frames("anomaly_view", view)
-            if event is not None:
-                frames.append(self._frame("event", event))
+            frames.extend(self._frame("event", event) for event in new_events)
             return frames
 
     async def apply_mission_progress(self, progress: MissionProgress) -> list[dict[str, Any]]:
@@ -149,14 +167,33 @@ class SwarmCoordinator:
                 ts=progress.ts,
             )
             self.state.missions[mission.id] = mission
-            event = self.events.mission_event(progress, assigned)
-            if event is not None:
-                self.state.append_event(event)
-            self._refresh(now)
+            new_events = self._refresh(now)
             frames = self._frames("mission", mission)
-            if event is not None:
-                frames.append(self._frame("event", event))
+            frames.extend(self._frame("event", event) for event in new_events)
             return frames
+
+    async def apply_command(self, command: OperatorCommand) -> tuple[CommandResult, list[dict[str, Any]]]:
+        """Submit an operator intent and return (result, frames-to-broadcast)."""
+
+        result = await command_submit(self.state, command)
+        async with self.state.lock:
+            now = datetime.now(UTC)
+            new_events = self._refresh(now)
+            stored = self.state.commands.get(command.id)
+            frames: list[dict[str, Any]] = []
+            if stored is not None:
+                frames.append(self._frame("operator", stored))
+            # Awareness + sector frames in case the command shifted mode.
+            frames.append(self._frame("awareness", self.state.awareness))
+            frames.extend(
+                self._frame("sector", sector) for sector in self.state.sectors.values()
+            )
+            for anomaly in self.state.anomalies.values():
+                frames.append(self._frame("anomaly_view", anomaly))
+            for mission in self.state.missions.values():
+                frames.append(self._frame("mission", mission))
+            frames.extend(self._frame("event", event) for event in new_events)
+        return result, frames
 
     async def snapshot_frames(self) -> list[dict[str, Any]]:
         async with self.state.lock:
@@ -167,25 +204,83 @@ class SwarmCoordinator:
                 *[self._frame("sector", sector) for sector in self.state.sectors.values()],
                 *[self._frame("unit", unit) for unit in self.state.units.values()],
                 *[self._frame("mission", mission) for mission in self.state.missions.values()],
-                *[self._frame("anomaly_view", anomaly) for anomaly in self.state.anomalies.values()],
+                *[
+                    self._frame("anomaly_view", anomaly)
+                    for anomaly in self.state.anomalies.values()
+                ],
+                *[
+                    self._frame("operator", command)
+                    for command in self.state.commands.values()
+                ],
                 *[self._frame("event", event) for event in self.state.events],
             ]
 
-    def _refresh(self, now: datetime) -> None:
+    # ── Internals ────────────────────────────────────────────────────────────
+
+    def _refresh(self, now: datetime) -> list[Any]:
+        """Recompute every derived field server-side and return new events."""
+
         self.state.sectors = refresh_visits(self.state.sectors, self.state.units, now)
         self.state.sectors = score_sectors(self.state.sectors, now)
-        scheduler_tick(self.state, now)
+        new_missions = scheduler_tick(self.state, now)
+        command_tick(self.state, now)
+        self.state.mode = compute_mode(self.state)
+        self._refresh_verifier()
+        self._propagate_verifier_to_anomalies(now)
         self.state.awareness = calculate_awareness(
             sectors=self.state.sectors,
             units=self.state.units,
             anomalies=self.state.anomalies,
             now=now,
+            mode=self.state.mode,
+            verifying_agent=self.state.verifier_id,
         )
-        self.state.mode = compute_mode(self.state)
-        if self.state.mode == OperatingMode.VERIFICATION and self.state.verifier_id is None:
-            airborne = [u for u in self.state.units.values() if u.fsm_state != AgentState.DOCKED]
-            candidates = airborne or list(self.state.units.values())
-            self.state.verifier_id = max(candidates, key=lambda u: u.battery_pct).agent_id if candidates else None
+        events = self.events.update(self.state)
+        for event in events:
+            self.state.append_event(event)
+        # New auto-scheduled missions surface implicitly via the mission frames
+        # emitted by the caller — we keep the list for testability though.
+        _ = new_missions
+        return events
+
+    def _refresh_verifier(self) -> None:
+        """Maintain a canonical verifier id when in verification/escalation."""
+
+        if self.state.mode in {OperatingMode.VERIFICATION, OperatingMode.ESCALATION}:
+            current = self.state.verifier_id
+            if current is None or current not in self.state.units:
+                airborne = [
+                    u
+                    for u in self.state.units.values()
+                    if u.fsm_state
+                    not in {AgentState.DOCKED, AgentState.OFFLINE, AgentState.ERROR}
+                ]
+                candidates = airborne or list(self.state.units.values())
+                if candidates:
+                    self.state.verifier_id = max(
+                        candidates, key=lambda u: u.battery_pct
+                    ).agent_id
+        else:
+            # Outside verification flow we don't pin a verifier — the awareness
+            # frame correctly reports None.
+            self.state.verifier_id = None
+
+    def _propagate_verifier_to_anomalies(self, now: datetime) -> None:
+        """Stamp every active anomaly with the current canonical verifier."""
+
+        verifier = self.state.verifier_id
+        for aid, anomaly in list(self.state.anomalies.items()):
+            if anomaly.state not in {
+                AnomalyState.PENDING,
+                AnomalyState.VERIFYING,
+                AnomalyState.VERIFIED,
+            }:
+                continue
+            if anomaly.verifying_agent == verifier:
+                continue
+            self.state.anomalies[aid] = anomaly.model_copy(
+                update={"verifying_agent": verifier, "ts": now}
+            )
 
     def _frames(self, kind: str, model: object) -> list[dict[str, Any]]:
         frames = [self._frame(kind, model), self._frame("awareness", self.state.awareness)]

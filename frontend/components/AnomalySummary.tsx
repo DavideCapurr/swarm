@@ -70,12 +70,11 @@ export function AnomalySummary() {
         <span className="eyebrow-mono">state</span>
         <span className="text-right eyebrow-mono text-launch-amber">{anomaly.state}</span>
 
-        {verifier.value && (
+        {verifier && (
           <>
             <span className="eyebrow-mono">verifier</span>
             <span className="text-right eyebrow-mono text-orbital-blue">
-              unit {unitLabel(verifier.value.agent_id)}
-              {verifier.derived ? " · derived" : ""}
+              unit {unitLabel(verifier.agent_id)}
             </span>
           </>
         )}

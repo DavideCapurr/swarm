@@ -16,6 +16,7 @@ from swarm_core.messages import (
     Geo,
     MissionView,
     OperatingMode,
+    OperatorCommand,
     PowerStatus,
     RiskState,
     Sector,
@@ -45,11 +46,13 @@ class SwarmState:
     anomalies: dict[str, AnomalyView] = field(default_factory=dict)
     tracks: dict[str, deque[Geo]] = field(default_factory=dict)
     events: deque[Event] = field(default_factory=lambda: deque(maxlen=500))
+    commands: dict[str, OperatorCommand] = field(default_factory=dict)
     awareness: AwarenessBreakdown = field(
         default_factory=lambda: AwarenessBreakdown(score=0.0, risk_state=RiskState.REST)
     )
     mode: OperatingMode = OperatingMode.REST
     verifier_id: str | None = None
+    hold_patrol: bool = False
     session: Session = field(default_factory=lambda: Session(label=DEFAULT_SESSION_LABEL))
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -65,6 +68,7 @@ class SwarmState:
             units_docked=3,
             slots_available=0,
             slots_charging=3,
+            primary=True,
         )
         return state
 

@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useSwarm } from "@/lib/state";
 import { describeMode } from "@/lib/derive";
 import { ActionRail } from "./ActionRail";
+import { CommandTimeline } from "./CommandTimeline";
 import { EventFeed } from "./EventFeed";
 import { FleetGrid } from "./FleetGrid";
 import { MapView } from "./Map";
@@ -66,10 +67,7 @@ export function TerritoryControl() {
             </span>
           </div>
           <div className="absolute left-4 bottom-12 eyebrow-mono">
-            <span className="text-platinum">{describeMode(mode.value)}</span>
-            {mode.derived && (
-              <span className="ml-2 text-ash">· derived</span>
-            )}
+            <span className="text-platinum">{describeMode(mode)}</span>
           </div>
         </div>
 
@@ -85,6 +83,9 @@ export function TerritoryControl() {
               </div>
               <div className="px-4">
                 <ActionRail selectedAgentId={selectedAgentId} />
+              </div>
+              <div className="px-4">
+                <CommandTimeline />
               </div>
               <div className="px-4 pb-4">
                 <FleetGrid

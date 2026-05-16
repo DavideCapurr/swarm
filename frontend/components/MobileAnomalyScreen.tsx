@@ -73,7 +73,7 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
 
             <span className="eyebrow-mono">verifier</span>
             <span className="text-right eyebrow-mono text-orbital-blue">
-              {verifier.value ? `unit ${unitLabel(verifier.value.agent_id)}` : "—"}
+              {verifier ? `unit ${unitLabel(verifier.agent_id)}` : "—"}
             </span>
 
             <span className="eyebrow-mono">position</span>

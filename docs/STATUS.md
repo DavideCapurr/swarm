@@ -11,7 +11,7 @@ of every phase.
 | 0     | Repo discipline + security baseline + shared types    | **done** |
 | 1     | SwarmOS Sim Kernel + endpoints + actions              | **done** |
 | 2     | Console Operating Shell + routing + components        | **done** |
-| 3     | Truth Layer (no DERIVED)                              | pending |
+| 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | pending |
 | 5     | Real Adapter (MAVLink or DJI — TBD)                   | pending |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | pending |
@@ -146,6 +146,74 @@ explicit phase request.
 - [x] `make test` green: 177 passed, 16 skipped.
 - [x] `make audit` green: pip-audit clean, pnpm audit clean, Bandit no
       medium/high findings.
+
+## Phase 3 — completed checklist
+
+- [x] Extended `AwarenessBreakdown` to carry server-canonical `mode` +
+      `verifying_agent` so the Console reads operating mode and the active
+      verifier from a single truth frame. The `link_aggregate` factor is now
+      part of the `factors` dict.
+- [x] Added `DockState.primary` flag (server marks the canonical dock); the
+      vineyard bootstrap stamps `dock-langhe-01` as primary.
+- [x] Extended `OperatorCommand` with `accepted_at`, `in_flight_at`,
+      `mission_id`, `ts` so the Console can render lifecycle progression.
+- [x] Rewrote `swarm_os/awareness.py` to accept `mode` + `verifying_agent`
+      and include them in the breakdown.
+- [x] Rewrote `swarm_os/scheduler.py` with `_schedule_repatrols`: blind /
+      stale sectors with confidence ≤ 0.35 get an auto-PATROL mission unless
+      `state.hold_patrol` is set or another mission already covers the
+      sector. Mission ids prefixed `auto-` for de-dup.
+- [x] Rewrote `swarm_os/event_detector.py` as a stateful diff over
+      `SwarmState`. Covers all 15 Phase 3 kinds:
+      patrol_started, patrol_completed, sector_visited,
+      anomaly_detected, anomaly_verifying, anomaly_verified,
+      anomaly_dismissed, anomaly_escalated,
+      operator_command_submitted, operator_command_completed,
+      operator_command_rejected,
+      dock_weather_lock, link_degraded, unit_battery_low, mission_failed.
+- [x] Rewrote `swarm_os/command_bus.py` for the full lifecycle:
+      `submitted → accepted → in_flight → completed | rejected | timed_out`.
+      `submit()` is pure mutation; `tick()` advances commands based on the
+      linked mission's phase + wall-clock deadlines. Audit log lives in
+      `state.commands`. `HOLD_PATROL` flips `state.hold_patrol`.
+- [x] Extended `swarm_os/coordinator.py`: `_refresh` runs scheduler +
+      command tick + verifier propagation to anomalies, then the event
+      detector diffs the new state. Added `apply_command()` for the action
+      endpoints to use.
+- [x] Promoted `COORDINATOR` to a module-level singleton in
+      `swarm_os/__init__.py`; promoted `HUB` to `backend/app/hub.py`.
+- [x] `backend/app/api/actions.py` now goes through `COORDINATOR.apply_command`
+      and broadcasts the resulting WS frames via `HUB` — operator timeline
+      updates land in the Console with no telemetry-tick delay.
+- [x] Added `/commands` REST endpoint.
+- [x] Frontend `derive.ts` reduced to formatting-only:
+      `formatClock`, `fallbackAwareness`, `describeMode`,
+      `describeAnomalyKind`, `describeBand`. The `Derived<T>`,
+      `MaybeDerived<T>`, `truth`, `derived`, `deriveOperatingMode`,
+      `deriveVerifier`, `pickPrimaryDock` exports are gone.
+- [x] Frontend `state.tsx` exposes `mode`, `verifier`, `primaryDock` as
+      plain values — read from `awareness.mode`, `awareness.verifying_agent`,
+      `dock.primary`.
+- [x] Removed all `· derived` eyebrow renders from `HeadBar`,
+      `TerritoryControl`, `AnomalySummary`, `NextPatrol`,
+      `MobileAlertScreen`, `MobileAnomalyScreen`, `WeatherLock`, and
+      `verify/[id]/page.tsx`.
+- [x] Added `frontend/components/CommandTimeline.tsx` to render the operator
+      timeline; mounted under `ActionRail` in `TerritoryControl`.
+- [x] Added `frontend/lib/api.ts` type extensions:
+      `AwarenessBreakdown.mode`, `AwarenessBreakdown.verifying_agent`,
+      `DockState.primary`, `OperatorCommand.{accepted_at,in_flight_at,
+      mission_id,ts}`, `api.commands()`.
+- [x] Added 15 Phase 3 tests in `swarm_os/tests/test_phase3.py` covering
+      truth-layer assertions, scheduler, full command lifecycle,
+      event detector coverage, and the no-FORBIDDEN-WORDS guarantee on
+      Phase 3 event bodies.
+- [x] `make lint` green: ruff + mypy 83 source files + tsc.
+- [x] `make test` green: 192 passed, 16 skipped; `swarm_os/` per-module
+      coverage 88-100%.
+- [x] `make audit` green: pip-audit clean, pnpm audit clean, Bandit no
+      medium/high (5 low) across 6 040 LOC.
+- [x] Voice + brand audit greps return zero hits in product code.
 
 ## Open decisions
 

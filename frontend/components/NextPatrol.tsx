@@ -3,8 +3,9 @@
 /**
  * NextPatrol — next dispatch window from the primary dock.
  *
- * `DockState.next_patrol_at` is server-issued. When the field is null the rail
- * shows a quiet placeholder with `derived` eyebrow — never invented numerals.
+ * Phase 3: `DockState.primary` and `DockState.next_patrol_at` are server-issued
+ * truth fields. When `next_patrol_at` is null the rail shows a quiet
+ * placeholder — never invented numerals.
  */
 
 import { useSwarm } from "@/lib/state";
@@ -13,16 +14,13 @@ import { Eyebrow } from "./Eyebrow";
 
 export function NextPatrol() {
   const { primaryDock } = useSwarm();
-  const dock = primaryDock.value;
+  const dock = primaryDock;
   const next = dock?.next_patrol_at ? new Date(dock.next_patrol_at) : null;
 
   return (
     <div className="card p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <Eyebrow mono>Next patrol</Eyebrow>
-        {primaryDock.derived && (
-          <span className="eyebrow-mono text-ash">derived</span>
-        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-platinum">

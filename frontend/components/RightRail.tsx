@@ -43,7 +43,7 @@ const CARD: Record<CardId, () => ReactNode> = {
 
 export function RightRail() {
   const { mode } = useSwarm();
-  const order = ORDER[mode.value];
+  const order = ORDER[mode];
   return (
     <div className="flex flex-col gap-3">
       {order.map((id) => (

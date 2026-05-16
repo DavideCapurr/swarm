@@ -3,11 +3,12 @@
 /**
  * SwarmStateProvider — the Console's single source of state.
  *
- * Boots from REST snapshots, then merges live WS frames keyed by `kind`. Every
- * value the surfaces read goes through this provider; nothing fetches on its
- * own. `dispatch` exposes the four Phase 1 operator intents (verify /
- * hold-patrol / dismiss / return). `derived` exposes Phase 2 fallbacks for
- * fields not yet projected server-side, each carrying a `derived: true` flag.
+ * Phase 3 truth-layer: every value here is server-issued. The `derived` flags
+ * from Phase 2 are gone — `mode`, `verifier`, and `primaryDock` are read
+ * directly off the WS/REST frames. SwarmOS decides; Console renders.
+ *
+ * Boots from REST snapshots, then merges live WS frames keyed by `kind`.
+ * Surfaces never fetch on their own — they read from `useSwarm()`.
  */
 
 import {
@@ -35,13 +36,7 @@ import {
   type TimelineEvent,
   type UnitState,
 } from "./api";
-import {
-  deriveOperatingMode,
-  deriveVerifier,
-  fallbackAwareness,
-  formatClock,
-  type MaybeDerived,
-} from "./derive";
+import { fallbackAwareness, formatClock } from "./derive";
 import { SwarmSocket, type WSMessage } from "./ws";
 
 // ── Link health ────────────────────────────────────────────────────────────────
@@ -75,11 +70,10 @@ export type SwarmState = {
   link: LinkState;
   clock: { time: string; date: string };
   operatorId: string;
-  // ── Phase 2 derived (flag carried) ──────────────────────────────────────────
-  mode: { value: OperatingMode; derived: boolean; reason?: string };
-  verifier: { value: UnitState | null; derived: boolean; reason?: string };
-  primaryDock: { value: DockState | null; derived: boolean; reason?: string };
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // Truth values projected by SwarmOS — no derive layer.
+  mode: OperatingMode;
+  verifier: UnitState | null;
+  primaryDock: DockState | null;
   dispatch: Dispatch;
 };
 
@@ -99,10 +93,6 @@ function upsertById<T extends { [k: string]: unknown }>(
   const copy = list.slice();
   copy[idx] = next;
   return copy;
-}
-
-function unwrap<T>(m: MaybeDerived<T>): { value: T; derived: boolean; reason?: string } {
-  return m.derived ? { value: m.value, derived: true, reason: m.reason } : { value: m.value, derived: false };
 }
 
 // ── Provider ───────────────────────────────────────────────────────────────────
@@ -133,7 +123,7 @@ export function SwarmStateProvider({
     let cancelled = false;
     (async () => {
       try {
-        const [s, aw, dk, sc, un, ms, an, ev] = await Promise.all([
+        const [s, aw, dk, sc, un, ms, an, ev, cm] = await Promise.all([
           api.session(),
           api.awareness(),
           api.docks(),
@@ -142,6 +132,7 @@ export function SwarmStateProvider({
           api.missions(),
           api.anomalies(),
           api.events(50),
+          api.commands(50),
         ]);
         if (cancelled) return;
         setSession(s.session);
@@ -152,6 +143,7 @@ export function SwarmStateProvider({
         setMissions(ms.missions);
         setAnomalies(an.anomalies);
         setEvents(ev.events);
+        setCommands(cm.commands);
       } catch {
         /* backend not up yet — WS will fill in once it connects */
       }
@@ -244,18 +236,16 @@ export function SwarmStateProvider({
   );
   dispatchRef.current = dispatch;
 
-  // Derived values.
-  const focusAnomaly =
-    anomalies.find((a) => a.state === "pending" || a.state === "verifying") ??
-    anomalies.find((a) => a.state === "verified" || a.state === "escalated") ??
-    null;
-  const modeD = useMemo(() => deriveOperatingMode(units, anomalies), [units, anomalies]);
-  const verifierD = useMemo(() => deriveVerifier(units, focusAnomaly), [units, focusAnomaly]);
-  const primaryD = useMemo(() => {
-    if (docks.length === 0) return { value: null, derived: false } as MaybeDerived<DockState | null>;
-    if (docks.length === 1) return { value: docks[0], derived: false } as MaybeDerived<DockState | null>;
-    const primary = docks.find((d) => d.status === "online") ?? docks[0];
-    return { value: primary, derived: true, reason: "primary dock heuristic" } as MaybeDerived<DockState | null>;
+  // Truth selectors — every one of these reads a field the server has
+  // already populated. No client-side heuristics.
+  const verifier = useMemo<UnitState | null>(() => {
+    const id = awareness.verifying_agent;
+    if (!id) return null;
+    return units.find((u) => u.agent_id === id) ?? null;
+  }, [units, awareness.verifying_agent]);
+  const primaryDock = useMemo<DockState | null>(() => {
+    if (docks.length === 0) return null;
+    return docks.find((d) => d.primary) ?? docks[0];
   }, [docks]);
 
   const value = useMemo<SwarmState>(
@@ -272,9 +262,9 @@ export function SwarmStateProvider({
       link,
       clock,
       operatorId,
-      mode: unwrap(modeD),
-      verifier: unwrap(verifierD),
-      primaryDock: unwrap(primaryD),
+      mode: awareness.mode,
+      verifier,
+      primaryDock,
       dispatch,
     }),
     [
@@ -290,9 +280,8 @@ export function SwarmStateProvider({
       link,
       clock,
       operatorId,
-      modeD,
-      verifierD,
-      primaryD,
+      verifier,
+      primaryDock,
       dispatch,
     ]
   );

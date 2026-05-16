@@ -16,8 +16,7 @@ from swarm_core.messages import Anomaly, FleetState, MissionProgress, Telemetry
 
 from backend.app.state import STATE
 from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus, RedisBus
-from swarm_os import SWARM_STATE
-from swarm_os.coordinator import SwarmCoordinator
+from swarm_os import COORDINATOR
 
 if TYPE_CHECKING:  # pragma: no cover
     from backend.app.ws.telemetry import WSHub
@@ -30,7 +29,7 @@ class BusConsumer:
         self._hub = hub
         self._bus: Bus | None = None
         self._tasks: list[asyncio.Task[None]] = []
-        self._coordinator = SwarmCoordinator(SWARM_STATE)
+        self._coordinator = COORDINATOR
 
     async def start(self) -> None:
         redis_url = os.getenv("REDIS_URL")

@@ -1,4 +1,9 @@
-"""Awareness score calculator."""
+"""Awareness score calculator.
+
+Phase 3: the breakdown now carries the operating mode and the active verifier
+agent so the Console has a single truth frame for top-level state. Mode is
+passed in by the coordinator (it sequences mode → awareness → frame).
+"""
 
 from __future__ import annotations
 
@@ -9,6 +14,7 @@ from swarm_core.messages import (
     AnomalyState,
     AnomalyView,
     AwarenessBreakdown,
+    OperatingMode,
     RiskState,
     Sector,
     SectorState,
@@ -22,6 +28,8 @@ def calculate_awareness(
     units: dict[str, UnitState],
     anomalies: dict[str, AnomalyView],
     now: datetime,
+    mode: OperatingMode = OperatingMode.REST,
+    verifying_agent: str | None = None,
 ) -> AwarenessBreakdown:
     """Compute a bounded score from sector coverage, fleet health, and anomalies."""
 
@@ -38,8 +46,15 @@ def calculate_awareness(
             if unit.fsm_state != AgentState.OFFLINE
         ]
         fleet_score = sum(health_values) / len(health_values) if health_values else 0.0
+        link_values = [
+            unit.link_quality * 100.0
+            for unit in units.values()
+            if unit.fsm_state != AgentState.OFFLINE
+        ]
+        link_score = sum(link_values) / len(link_values) if link_values else 0.0
     else:
         fleet_score = 0.0
+        link_score = 0.0
 
     active_anomalies = [
         a
@@ -63,10 +78,13 @@ def calculate_awareness(
         factors={
             "sector_confidence": round(sector_score, 2),
             "fleet_health": round(fleet_score, 2),
+            "link_aggregate": round(link_score, 2),
             "anomaly_penalty": round(anomaly_penalty, 2),
         },
         blind_spot_sectors=blind,
         stale_sectors=stale,
         risk_state=risk_state,
+        mode=mode,
+        verifying_agent=verifying_agent,
         ts=now,
     )

@@ -44,7 +44,7 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
         <div className="grid grid-cols-[1fr_380px] gap-6 min-h-0">
           <div className="flex flex-col gap-3">
             <Eyebrow mono>Live feed</Eyebrow>
-            <LiveFeedFrame unit={verifier.value} linkOk={link === "connected"} />
+            <LiveFeedFrame unit={verifier} linkOk={link === "connected"} />
             <span className="eyebrow-mono text-ash">
               feed pending — viewport replaced by an honest placeholder until phase 5
             </span>
@@ -89,14 +89,13 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
 
                 <span className="eyebrow-mono">verifier</span>
                 <span className="text-right eyebrow-mono text-orbital-blue">
-                  {verifier.value ? `unit ${unitLabel(verifier.value.agent_id)}` : "—"}
-                  {verifier.derived && verifier.value ? " · derived" : ""}
+                  {verifier ? `unit ${unitLabel(verifier.agent_id)}` : "—"}
                 </span>
               </div>
             </div>
 
             <ActionRail
-              selectedAgentId={verifier.value?.agent_id ?? null}
+              selectedAgentId={verifier?.agent_id ?? null}
             />
           </div>
         </div>

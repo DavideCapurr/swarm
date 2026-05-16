@@ -1,123 +1,18 @@
 /**
- * Phase 2 derivation helpers.
+ * UI formatting helpers.
  *
- * SwarmOS is the source of truth. Anything still computed on the client lives
- * here, flagged `derived: true`, and renders with the `DERIVED` eyebrow so the
- * operator never confuses a UI fallback with verified state. Each helper has
- * a paired roadmap entry: Phase 3 strips this file down to UI-only formatting.
+ * Phase 3 truth-layer rule: nothing in this file invents operational state.
+ * Every value the operator sees comes from SwarmOS via WS/REST; this file
+ * only formats already-truthful data (clock, mode copy, anomaly copy) for
+ * the Console's typographic conventions.
+ *
+ * The `Derived<T>` / `MaybeDerived<T>` machinery from Phase 2 is gone —
+ * `state.tsx` exposes plain values now.
  */
 
-import type {
-  AnomalyView,
-  AwarenessBreakdown,
-  DockState,
-  OperatingMode,
-  UnitState,
-} from "./api";
+import type { AnomalyView, AwarenessBreakdown, OperatingMode, RiskState } from "./api";
 
-export type Derived<T> = { value: T; derived: true; reason: string };
-export type Truth<T> = { value: T; derived: false };
-export type MaybeDerived<T> = Derived<T> | Truth<T>;
-
-export const truth = <T>(value: T): Truth<T> => ({ value, derived: false });
-export const derived = <T>(value: T, reason: string): Derived<T> => ({
-  value,
-  derived: true,
-  reason,
-});
-
-// ── Operating mode ─────────────────────────────────────────────────────────────
-// `SWARM_STATE.mode` is computed server-side but not yet projected on the WS
-// bus as its own frame; the snapshot only carries it indirectly via Session
-// payloads. Until Phase 3 emits an `operating_mode` frame, we mirror the
-// server's `compute_mode` rule client-side from units + anomalies.
-
-export function deriveOperatingMode(
-  units: UnitState[],
-  anomalies: AnomalyView[]
-): Derived<OperatingMode> {
-  const attention = units.some((u) => u.fsm_state === "ERROR" || u.fsm_state === "OFFLINE");
-  const verified = anomalies.find((a) => a.state === "verified" || a.state === "escalated");
-  const pending = anomalies.find((a) => a.state === "pending" || a.state === "verifying");
-  const airborne = units.some(
-    (u) =>
-      u.fsm_state === "TAKEOFF" ||
-      u.fsm_state === "EN_ROUTE" ||
-      u.fsm_state === "ON_STATION" ||
-      u.fsm_state === "RTL" ||
-      u.fsm_state === "LANDING" ||
-      u.fsm_state === "DOCKING"
-  );
-  const mode: OperatingMode = attention
-    ? "maintenance"
-    : verified
-      ? "escalation"
-      : pending
-        ? "verification"
-        : airborne
-          ? "patrol"
-          : "rest";
-  return derived(mode, "mode mirrors server compute_mode until Phase 3 frame");
-}
-
-// ── Verifier ───────────────────────────────────────────────────────────────────
-// The server picks the verifier inside the lock but only persists it through
-// `AnomalyView.verifying_agent`. When that is missing we fall back to nearest
-// airborne unit by haversine-lite. Phase 3 will surface a stable verifier id
-// on every awareness frame.
-
-export function deriveVerifier(
-  units: UnitState[],
-  focusAnomaly: AnomalyView | null
-): MaybeDerived<UnitState | null> {
-  if (!focusAnomaly) return truth<UnitState | null>(null);
-  if (focusAnomaly.verifying_agent) {
-    const u = units.find((x) => x.agent_id === focusAnomaly.verifying_agent);
-    if (u) return truth<UnitState | null>(u);
-  }
-  const airborne = units.filter(
-    (u) => u.fsm_state !== "DOCKED" && u.fsm_state !== "OFFLINE" && u.fsm_state !== "ERROR"
-  );
-  const candidates = airborne.length ? airborne : units;
-  if (!candidates.length) return truth<UnitState | null>(null);
-  const sorted = [...candidates].sort((a, b) => {
-    const da = Math.hypot(a.geo.lat - focusAnomaly.geo.lat, a.geo.lon - focusAnomaly.geo.lon);
-    const db = Math.hypot(b.geo.lat - focusAnomaly.geo.lat, b.geo.lon - focusAnomaly.geo.lon);
-    return da - db;
-  });
-  return derived(sorted[0], "verifier inferred by proximity — Phase 3 emits it server-side");
-}
-
-// ── Awareness fallback ─────────────────────────────────────────────────────────
-// `AwarenessBreakdown` is server-issued, but until the first WS frame lands we
-// keep a quiet zero-value placeholder so the rail does not appear empty. The
-// fallback never overwrites a real reading.
-
-export function fallbackAwareness(now: Date): AwarenessBreakdown {
-  return {
-    score: 0,
-    factors: {},
-    blind_spot_sectors: [],
-    stale_sectors: [],
-    risk_state: "rest",
-    ts: now.toISOString(),
-  };
-}
-
-// ── Dock summary ───────────────────────────────────────────────────────────────
-// Phase 1 emits one `DockState` per dock. The Console shows a primary dock in
-// the right rail; this helper picks it and exposes a derived flag when the
-// pick is heuristic (first non-offline).
-
-export function pickPrimaryDock(docks: DockState[]): MaybeDerived<DockState | null> {
-  if (docks.length === 0) return truth<DockState | null>(null);
-  if (docks.length === 1) return truth<DockState | null>(docks[0]);
-  const primary = docks.find((d) => d.status === "online") ?? docks[0];
-  return derived(primary, "primary dock picked client-side — Phase 3 marks it server-side");
-}
-
-// ── Time / clock ───────────────────────────────────────────────────────────────
-// The clock is purely presentational. We expose hh:mm UTC + dd · mm · yy.
+// ── Clock ──────────────────────────────────────────────────────────────────────
 
 export function formatClock(d: Date): { time: string; date: string } {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -126,6 +21,24 @@ export function formatClock(d: Date): { time: string; date: string } {
   const mm = pad(d.getUTCMonth() + 1);
   const yy = String(d.getUTCFullYear()).slice(2);
   return { time, date: `${dd} · ${mm} · ${yy}` };
+}
+
+// ── Awareness placeholder ──────────────────────────────────────────────────────
+// Used only before the first REST/WS frame lands so the rail does not appear
+// empty. Renders with score 0 and `rest` posture — never overwritten by a real
+// frame.
+
+export function fallbackAwareness(now: Date): AwarenessBreakdown {
+  return {
+    score: 0,
+    factors: {},
+    blind_spot_sectors: [],
+    stale_sectors: [],
+    risk_state: "rest" as RiskState,
+    mode: "rest" as OperatingMode,
+    verifying_agent: null,
+    ts: now.toISOString(),
+  };
 }
 
 // ── Mode copy ──────────────────────────────────────────────────────────────────
