@@ -13,7 +13,7 @@ of every phase.
 | 2     | Console Operating Shell + routing + components        | **done** |
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
-| 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **in_progress** |
+| 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **done** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | pending |
 
 ## Phase 0 — completed checklist
@@ -344,47 +344,117 @@ Verification after fixes:
   `alembic upgrade head` against the pinned Timescale image as the final
   gate before Phase 5.
 
-## Phase 5 — in progress (started 2026-05-16)
+## Phase 5 — completed checklist
 
-Branch `claude/add-mavlink-adapter-kyTd1`. Vendor: MAVLink / PX4 via
-`pymavlink`.
+Vendor: MAVLink / PX4 via `pymavlink`. Branch
+`claude/add-mavlink-adapter-kyTd1`.
 
-Planned scope (see `docs/plan/swarmos-roadmap.md` §Phase 5):
-- Rewrite `adapters/mavlink/adapter.py` on top of `pymavlink` (replace
-  the MAVSDK stub that was a Phase 0 blocker because of vulnerable
-  protobuf pins).
-- `adapters/mavlink/fake_endpoint.py`: in-process UDP MAVLink server so
-  the conformance suite runs in CI with no SITL container.
-- `adapters/mavlink/runner.py`: out-of-process producer symmetric to
-  `sim.swarm_sim.runner`, booted from `SWARM_VENDORS=...,mavlink`.
-- `core/swarm_core/streams.py`: strict `StreamDescriptor` model + URL
-  allowlist (`rtsps://`, `https://` only).
-- `core/swarm_core/rate_limit.py`: `TelemetryRateLimiter` (sanity Hz
-  cap = 50, per Phase 5 security additions in the roadmap).
-- Backend WS `stream` frame + `LiveFeedFrame` consumption.
-- Mission DSL → MAVLink mapping (PATROL/VERIFY → MISSION_ITEM_INT
-  upload, RTL_DOCK → `MAV_CMD_NAV_RETURN_TO_LAUNCH`, RELAY → loiter,
-  COVER → reject — decomposed upstream).
-- Safety enforcement: geofence pre-upload validation + heartbeat
-  watchdog (link loss > 3 s → cancel + RTL).
-- `docs/adapters/mavlink-setup.md`: SITL + real-radio bring-up.
+- [x] Rewrote `adapters/mavlink/adapter.py` on top of `pymavlink` (no
+      protobuf, no gRPC, no MAVSDK). Adapter speaks
+      MAVLink wire protocol directly via `mavutil.mavlink_connection`.
+- [x] `adapters/mavlink/fake_endpoint.py`: in-process UDP MAVLink
+      server that pretends to be a PX4 autopilot. Emits HEARTBEAT (1
+      Hz), GLOBAL_POSITION_INT (10 Hz), SYS_STATUS (1 Hz); drives the
+      mission request loop (MISSION_COUNT → MISSION_REQUEST_INT →
+      MISSION_ACK), ACKs every COMMAND_LONG, records PARAM_SET and
+      FENCE_POINT, and auto-advances MISSION_CURRENT after
+      MISSION_START. No PX4 SITL / Gazebo required for CI.
+- [x] `adapters/mavlink/runner.py`: out-of-process producer symmetric
+      to `sim.swarm_sim.runner`. Publishes `swarm:telemetry:<aid>`,
+      `swarm:fleet:state`, `swarm:streams:<aid>`. Env-driven config
+      (`MAVLINK_CONNECTION`, `MAVLINK_AGENT_ID`, `MAVLINK_MODEL`,
+      `MAVLINK_STREAM_URL`, `MAVLINK_RATE_LIMIT_HZ`).
+- [x] `core/swarm_core/streams.py`: strict `StreamDescriptor` model +
+      URL allowlist enforcement (`rtsps://`, `https://` only). Rejects
+      `http`, `rtsp`, `rtmp`, `file`, `javascript`, `data`, CRLF/NUL
+      injection. `available=False` forbids carrying a URL or protocol
+      (no ambiguous descriptors).
+- [x] `core/swarm_core/rate_limit.py`: `TelemetryRateLimiter` per-agent
+      sliding-window cap (default 50 Hz, the roadmap pin).
+- [x] `backend/app/fleet.py`: `SWARM_VENDORS` env parsing
+      (case-insensitive, dedup, unknown vendors fail-fast via
+      `UnknownVendor`). `FleetManager` boots only in-process vendors
+      (currently `mavlink`); the simulator runs as its own subprocess.
+- [x] Backend WS `stream` frame: `BusConsumer._consume_streams`
+      subscribes to `swarm:streams:*`, re-validates the URL allowlist
+      (defense in depth), stores the descriptor on `SwarmState.streams`
+      and broadcasts `{"kind":"stream"}` to every WS client. Snapshot
+      frames include streams for reconnects.
+- [x] Frontend: `lib/api.ts` adds `StreamDescriptor` + client allowlist
+      `isAllowedStreamUrl`; `lib/ws.ts` adds the `stream` kind;
+      `lib/state.tsx` maintains `streams: Record<agent_id,
+      StreamDescriptor>`; `components/LiveFeedFrame.tsx` renders a real
+      `<video>` element when the descriptor is `available` and the URL
+      passes the allowlist, otherwise the honest viewport placard. The
+      `/verify/[id]` page threads the verifier's descriptor through.
+- [x] Mission DSL → MAVLink mapping: PATROL/VERIFY upload via
+      MISSION_COUNT + MISSION_ITEM_INT then `SET_MODE(AUTO.MISSION)` +
+      `MAV_CMD_MISSION_START`; RTL_DOCK → `MAV_CMD_NAV_RETURN_TO_LAUNCH`;
+      RELAY → `MAV_CMD_NAV_LOITER_UNLIM`; COVER → `UnsupportedMission`.
+- [x] Safety enforcement: `set_safety` uploads FENCE_POINTs +
+      `DO_FENCE_ENABLE`, writes `BAT_LOW_THR` / `MIS_TAKEOFF_ALT`.
+      Defense-in-depth: every waypoint is geofence + max-alt checked
+      before upload; rejected missions raise `RejectedMission` and
+      never reach the wire. Heartbeat watchdog: HEARTBEAT absence > 3 s
+      collapses `link_quality` to 0 and triggers cancel + RTL.
+- [x] `docs/adapters/mavlink-setup.md`: PX4 SITL bring-up,
+      real-hardware checklist (Holybro X500 / 3DR Quad Zero, SiK
+      radio), firmware params (SYS_AUTOSTART, BAT_*, MIS_*, GF_*),
+      `MAVLINK_STREAM_URL` allowlist note, troubleshooting.
+- [x] `scripts/dev_up.sh`: honors `SWARM_VENDORS`; the simulator
+      subprocess is launched only when `simulator` is in the list, so
+      `SWARM_VENDORS=mavlink` boots a MAVLink-only fleet.
 
-Out of scope (deferred to Phase 6 or later):
+### Verification on this branch
+
+Full gate run from a fresh `.venv`:
+
+```
+$ rm -rf .venv && make setup    # uv sync, frozen lock
+$ make lint                      # ruff + mypy + tsc → green
+$ make test                      # pytest → 319 passed, 16 skipped
+$ make audit                     # pip-audit clean, bandit no medium+,
+                                 # pnpm audit clean (audit-level=high)
+```
+
+Voice + brand audit greps over every Phase 5 file return zero hits.
+
+The conformance suite (`AdapterConformanceTests`) passes against the
+MAVLink adapter wired to `FakeMAVLinkEndpoint` — same 6 scenarios that
+the simulator adapter satisfies. 33 additional Phase-5-specific tests
+cover the wire protocol, mission mapping, safety enforcement, the rate
+limiter, `SWARM_VENDORS` parsing, and the WS `stream` frame fan-out.
+
+### Out of scope (deferred to Phase 6 or later)
+
 - Real PX4 SITL container in CI (fake endpoint covers the contract;
-  SITL is the hardware-bench acceptance gate).
-- DJI Mobile / DJI Cloud adapters (stubs stay).
+  SITL is the hardware-bench acceptance gate, documented in
+  `docs/adapters/mavlink-setup.md`).
+- DJI Mobile / DJI Cloud adapters — stubs in `adapters/dji_*` stay for
+  a future enterprise integration.
 - Sigstore provenance check for `pymavlink` (Phase 6 supply chain).
 - mTLS adapter ↔ bus (Phase 6 hardening).
-- Video frame streaming via MAVLink (out of scope — video is RTSP from
-  the gimbal; the adapter advertises an external URL via
-  `StreamDescriptor` and `stream_video()` remains a no-op).
+- Video frame streaming **via MAVLink** — video is on its own
+  RTSPS / HLS pipe; the adapter advertises the URL via
+  `StreamDescriptor` and `stream_video()` remains a no-op.
+
+### Bench validation (TODO outside this session, on real hardware)
+
+1. Boot PX4 SITL locally:
+   `make px4_sitl_default jmavsim` + `SWARM_VENDORS=simulator,mavlink
+   MAVLINK_CONNECTION=udp:localhost:14540 ./scripts/dev_up.sh`. Console
+   should render the `mavlink` unit flying in the PX4 world alongside
+   the simulator fleet.
+2. Real PX4 hardware (3DR Quad Zero or Holybro X500), SiK
+   telemetry radio (433/915 MHz). Props-safe → unarmed mission upload
+   check → outdoor flight with VERIFY, RTL, capture.
 
 ## Last updated
 
-2026-05-16: Phase 5 started on branch `claude/add-mavlink-adapter-kyTd1`
-(vendor decision: MAVLink/PX4 via `pymavlink`). Phase 4 post-readiness
-fixes on branch `claude/verify-phase4-completion-qiLsH`. Phase 4
-originally completed on branch `claude/phase-4-persistence-OGUJm`.
-Phase 2 was completed on branch `claude/phase-2-start-CMUg1`. Phase 1
-was completed at GitHub main commit
-`2390f872908a4a52588287a3865b3da96c785750`.
+2026-05-16: Phase 5 completed on branch
+`claude/add-mavlink-adapter-kyTd1` (MAVLink/PX4 via `pymavlink`). Phase 4
+post-readiness fixes on branch `claude/verify-phase4-completion-qiLsH`.
+Phase 4 originally completed on branch
+`claude/phase-4-persistence-OGUJm`. Phase 2 was completed on branch
+`claude/phase-2-start-CMUg1`. Phase 1 was completed at GitHub main
+commit `2390f872908a4a52588287a3865b3da96c785750`.
