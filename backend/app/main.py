@@ -14,6 +14,7 @@ This module wires together:
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -26,7 +27,20 @@ from starlette.websockets import WebSocketDisconnect
 
 from backend.app.api.actions import router as actions_router
 from backend.app.api.admin import router as admin_router
+from backend.app.api.auth_routes import router as auth_router
+from backend.app.api.routes import public_router as public_api_router
 from backend.app.api.routes import router as api_router
+from backend.app.auth import (
+    JWTConfigError,
+    JWTService,
+    OperatorStoreError,
+    RevocationStore,
+    load_operator_store,
+    set_jwt_service,
+    set_operator_store,
+    set_revocation_store,
+)
+from backend.app.auth.ws_auth import authenticate_websocket
 from backend.app.bus_consumer import BusConsumer
 from backend.app.db import (
     Repository,
@@ -55,9 +69,55 @@ bus_consumer = BusConsumer(HUB)
 fleet_manager: FleetManager | None = None
 
 
+def _init_auth() -> None:
+    """Phase 6.C — wire the JWT service, operator store, and revocation list.
+
+    Failure modes:
+      - SWARM_AUTH_DISABLED=1: skip entirely (dev-only escape hatch). The
+        rest of the app then refuses any request that needs auth with
+        503 ``auth_not_configured`` — operationally equivalent to "I'm
+        not ready to serve" so a misconfigured prod deploy still fails
+        closed without crashing the process.
+      - prod (SWARM_ENV=prod) with no secret / missing operator config:
+        hard crash via ``RuntimeError`` so the orchestrator restarts.
+      - dev with no secret: log a warning and skip; the rest of the app
+        will respond 503 on protected endpoints. This keeps test
+        bootstraps that don't exercise auth from breaking.
+    """
+
+    if os.getenv("SWARM_AUTH_DISABLED") == "1":
+        logger.warning(
+            "SWARM_AUTH_DISABLED=1 — auth surface OFF (development only)"
+        )
+        return
+    is_prod = os.getenv("SWARM_ENV", "dev").lower() == "prod"
+    try:
+        service = JWTService.from_env()
+        set_jwt_service(service)
+    except JWTConfigError as exc:
+        if is_prod:
+            raise RuntimeError(f"refusing to boot: {exc}") from exc
+        logger.warning("JWT service not initialised: %s", exc)
+        return
+    try:
+        store = load_operator_store()
+        set_operator_store(store)
+    except OperatorStoreError as exc:
+        if is_prod:
+            raise RuntimeError(f"refusing to boot: {exc}") from exc
+        logger.warning("operator store not loaded: %s", exc)
+        return
+    set_revocation_store(RevocationStore())
+    logger.info("auth ready: %d operator(s) loaded", len(store))
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     global fleet_manager
+    # Phase 6.C: bring auth up first so the action / admin routes have an
+    # issuer + a store + a revocation list before any request lands.
+    _init_auth()
+
     # Phase 4: bring up persistence first so the bus consumer can write.
     if is_persistence_enabled():
         try:
@@ -118,9 +178,11 @@ app.add_middleware(CORSMiddleware, **cors_kwargs())  # type: ignore[arg-type]
 app.add_middleware(RequestTimeoutMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)  # outermost: every response
 
+app.include_router(public_api_router)
 app.include_router(api_router)
 app.include_router(actions_router)
 app.include_router(admin_router)
+app.include_router(auth_router)
 
 
 # ── Error handlers ────────────────────────────────────────────────────────────
@@ -154,7 +216,18 @@ async def ws_telemetry(websocket: WebSocket) -> None:
     if not check_websocket_origin(websocket):
         await websocket.close(code=1008)
         return
-    await HUB.connect(websocket)
+    # Phase 6.C: every WS upgrade carries a valid access token (viewer or
+    # above) or it's refused. We do not echo failure reasons — the client
+    # already knows whether it sent a token.
+    auth_disabled = os.getenv("SWARM_AUTH_DISABLED") == "1"
+    accepted_subprotocol: str | None = None
+    if not auth_disabled:
+        auth = await authenticate_websocket(websocket)
+        if auth is None:
+            await websocket.close(code=1008)
+            return
+        accepted_subprotocol = auth.accepted_subprotocol
+    await HUB.connect(websocket, subprotocol=accepted_subprotocol)
     try:
         while True:
             # No inbound payloads expected yet. Keep the socket alive; ignore

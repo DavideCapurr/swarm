@@ -19,8 +19,14 @@ class WSHub:
         self._clients: set[WebSocket] = set()
         self._lock = asyncio.Lock()
 
-    async def connect(self, ws: WebSocket) -> None:
-        await ws.accept()
+    async def connect(self, ws: WebSocket, *, subprotocol: str | None = None) -> None:
+        # `subprotocol` is set when the client used the `bearer, <jwt>`
+        # negotiation path so Starlette echoes the chosen protocol back
+        # in the handshake response.
+        if subprotocol:
+            await ws.accept(subprotocol=subprotocol)
+        else:
+            await ws.accept()
         async with self._lock:
             self._clients.add(ws)
         for frame in await COORDINATOR.snapshot_frames():

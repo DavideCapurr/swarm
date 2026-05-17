@@ -1,25 +1,21 @@
-"""Phase 6.B admin endpoints — hot reload of site config + audit.
+"""Admin endpoints — hot reload of site config + audit.
 
-This module owns operator-out-of-band actions: today, just the policy
-hot reload. The endpoints are gated by `SWARM_ADMIN_TOKEN` env var via
-the `X-Admin-Token` header; if the env var is unset the entire admin
-surface returns 503, so a misconfigured deploy fails closed.
-
-The 6.C RBAC pass replaces this header gate with a JWT `commander`
-scope; until then this is the transitional shim. The drone-day
-checklist (§2.C) tracks the JWT migration.
+Phase 6.B shipped this surface with a transitional ``X-Admin-Token``
+header gate; Phase 6.C replaced it with the JWT ``commander`` role,
+which already enforces MFA at login time. See ``backend/app/auth/``
+for the issuer and the ``Principal`` model.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from swarm_core.messages import Event, EventKind
 
+from backend.app.auth.deps import Principal, require_commander
 from backend.app.hub import HUB
 from swarm_os import COORDINATOR
 from swarm_os.policy import PolicyEngine
@@ -31,9 +27,6 @@ from swarm_os.sites import (
 )
 
 logger = logging.getLogger("backend.admin")
-
-ADMIN_TOKEN_ENV = "SWARM_ADMIN_TOKEN"  # transitional Phase 6.B gate
-ADMIN_TOKEN_HEADER = "X-Admin-Token"
 
 router = APIRouter(prefix="/admin")
 
@@ -49,36 +42,18 @@ class ReloadBody(BaseModel):
     )
 
 
-def _require_admin_token(token: str | None) -> None:
-    """Enforce the env-driven token gate. Unset env → 503 (admin disabled)."""
-
-    configured = os.environ.get(ADMIN_TOKEN_ENV)
-    if configured is None or configured == "":
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="admin_disabled",
-        )
-    if not token or token != configured:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid_admin_token",
-        )
-
-
 @router.post("/reload-site-config", status_code=status.HTTP_200_OK)
 async def reload_site_config(
     body: ReloadBody,
-    x_admin_token: Annotated[str | None, Header(alias=ADMIN_TOKEN_HEADER)] = None,
+    principal: Annotated[Principal, Depends(require_commander)],
 ) -> dict[str, Any]:
     """Reload the policy + topology for a site without restarting the backend.
 
-    Side effects on success:
-      - swap `state.policy` to a `PolicyEngine` bound to the new SiteConfig
-        (preserving the existing WeatherProvider binding so an upgraded
-        provider doesn't regress to the stub);
-      - rebuild `state.sectors` if the site centre moved;
-      - update `session.site_id`;
-      - append a `system` Event to the audit log and broadcast it on WS.
+    Requires the JWT ``commander`` role *with* a satisfied MFA bit; the
+    ``require_commander`` dependency enforces both. Side effects on
+    success mirror Phase 6.B: swap the policy engine, rebuild the sector
+    grid if the centre moved, update the session site_id, append a
+    ``system`` Event to the audit log, broadcast it on WS.
 
     Operator-facing rejections (404 unknown site, 422 validation) leave
     state untouched. The whole sequence runs under `state.lock` so
@@ -86,7 +61,6 @@ async def reload_site_config(
     never a mix.
     """
 
-    _require_admin_token(x_admin_token)
     state = COORDINATOR.state
     try:
         new_config = load_site_config(body.site_id)
@@ -111,14 +85,21 @@ async def reload_site_config(
             }
         event = Event(
             kind=EventKind.SYSTEM,
-            body=f"site config reloaded: {previous_site_id} -> {new_config.site_id}",
+            body=(
+                f"site config reloaded: {previous_site_id} -> "
+                f"{new_config.site_id} (by {principal.operator_id})"
+            ),
         )
         state.append_event(event)
 
     await HUB.broadcast({"kind": "event", "data": event.model_dump(mode="json")})
     logger.info(
         "site config reloaded",
-        extra={"previous": previous_site_id, "current": new_config.site_id},
+        extra={
+            "previous": previous_site_id,
+            "current": new_config.site_id,
+            "operator": principal.operator_id,
+        },
     )
     return {
         "status": "ok",
