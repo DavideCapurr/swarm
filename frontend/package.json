@@ -15,7 +15,7 @@
     "audit": "pnpm audit --audit-level=high"
   },
   "dependencies": {
-    "maplibre-gl": "^4.7.0",
+    "maplibre-gl": "^5.24.0",
     "next": "^16.2.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
