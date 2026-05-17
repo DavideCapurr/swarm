@@ -32,6 +32,10 @@ dependencies = [
     # Phase 6.A: site policy config is YAML on disk. Pinned explicitly so
     # the dependency surface is not silently provided by a dev-only tool.
     "pyyaml>=6,<7",
+    # Phase 6.C: JWT auth. Pinned explicitly so the auth surface does not
+    # silently inherit `pyjwt` as a transitive of `redis` — a redis bump
+    # could otherwise drop the lib from under us.
+    "pyjwt>=2.8,<3",
 ]
 
 [project.optional-dependencies]
