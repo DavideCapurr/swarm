@@ -548,7 +548,26 @@ Sub-block progress:
       [`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md)
       §2.A/§2.B and remain pending until the drones and external
       assets arrive.
-- [ ] 6.B Multi-site + runtime config — pending.
+- [x] **6.B** Multi-site + runtime config — **done**.
+      `SwarmState.from_site_config(site_config)` factory builds a
+      site-aware state (session.site_id, policy, sector grid centre,
+      docks all derive from the config); `SwarmState.vineyard()` is now
+      a backward-compatible wrapper that reads `SWARM_SITE_ID` from the
+      env. Hot reload via `POST /admin/reload-site-config` swaps the
+      SiteConfig + PolicyEngine on the live state under
+      `state.lock`, preserves the existing WeatherProvider binding
+      (so production providers survive reloads), appends a `system`
+      Event to the audit log, and broadcasts it on the WS hub.
+      Transitional `X-Admin-Token` header gate (env var
+      `SWARM_ADMIN_TOKEN`) — replaced by JWT commander scope in 6.C.
+      Out of scope this block: simultaneous multi-site multiplexing
+      in one instance (one site at a time is what the demo + bench
+      need; multi-site multiplexing is a Phase 7 concern, recorded in
+      [`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md));
+      `patrol_cadence_s` / `allowed_mission_kinds` / `operator_allowlist`
+      schema fields (deferred to 6.C where the RBAC model lives).
+      19 new tests across site-aware factory (10) and admin endpoint
+      (9). Full suite still green: 414 passed, 16 skipped.
 - [ ] 6.C Operator auth + RBAC — pending.
 - [ ] 6.D Observability stack — pending.
 - [ ] 6.E Deployment + infra-as-code — pending.
@@ -565,9 +584,10 @@ checklist and gated on hardware acquisition.
 
 ## Last updated
 
-2026-05-17: Phase 6.A safety policy engine landed on branch
-`claude/phase-6-production-os` with full kernel wiring (scheduler /
-command bus / coordinator) and 53 new tests. The hardware-day actions
+2026-05-17: Phase 6.B multi-site bootstrap + admin hot-reload landed on
+the same branch (29 more tests, 414 total). Phase 6.A safety policy
+engine landed on branch `claude/phase-6-production-os` with full kernel
+wiring (scheduler / command bus / coordinator) and 53 new tests. The hardware-day actions
 (real weather provider, Sigstore signing, MFA TOTP, customer
 acceptance, etc.) are listed in
 [`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md).

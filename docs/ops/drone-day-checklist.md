@@ -76,6 +76,35 @@ Out of scope for first bench but the policy engine has a plug-in slot.
       fall inside an active NFZ. Hook lives next to the geofence check
       in `swarm_os/policy.py`.
 
+### 2.B-bis Multi-site (Phase 6.B)
+
+The 6.B work delivered: site-aware bootstrap via `SWARM_SITE_ID`,
+hot-reload `POST /admin/reload-site-config`, audit event on every
+reload, transitional `X-Admin-Token` gate.
+
+What still needs you on hardware day:
+
+- [ ] **Admin token**: generate a strong `SWARM_ADMIN_TOKEN` value
+      and mount it as a Docker / k8s secret. Do not check it into
+      git, env files, or compose YAML.
+- [ ] **Per-site YAML**: drop one `infra/config/sites/<site_id>.yaml`
+      per real site you operate. The committed `vineyard-01.yaml`
+      is a template. For a new site, copy + edit the geofence
+      polygon to match the legal authorization perimeter on a
+      survey map (drone-day §3).
+- [ ] **Boot env**: set `SWARM_SITE_ID=<your-site>` in the deploy
+      environment so the backend boots against the right config.
+- [ ] **Hot-reload workflow**: document for the operator how to
+      submit a YAML edit (PR + merge + restart, or YAML edit +
+      `curl -H X-Admin-Token POST /admin/reload-site-config`). The
+      operator manual at `docs/operator/manual.md` will land in
+      Phase 6.H with the full procedure.
+- [ ] **Simultaneous multi-site multiplexing in one backend**: NOT
+      delivered — Phase 7 concern. Today one backend instance
+      serves one site at a time. If you need to run two sites from
+      a single deploy, run two backend containers behind different
+      hostnames, each with its own `SWARM_SITE_ID`.
+
 ### 2.C Operator auth (Phase 6.C — pending until that session)
 
 - [ ] JWT signing key: generate RS256 keypair, store private key in

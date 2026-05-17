@@ -25,6 +25,7 @@ from starlette.responses import JSONResponse
 from starlette.websockets import WebSocketDisconnect
 
 from backend.app.api.actions import router as actions_router
+from backend.app.api.admin import router as admin_router
 from backend.app.api.routes import router as api_router
 from backend.app.bus_consumer import BusConsumer
 from backend.app.db import (
@@ -119,6 +120,7 @@ app.add_middleware(SecurityHeadersMiddleware)  # outermost: every response
 
 app.include_router(api_router)
 app.include_router(actions_router)
+app.include_router(admin_router)
 
 
 # ── Error handlers ────────────────────────────────────────────────────────────
