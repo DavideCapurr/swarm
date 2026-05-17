@@ -21,7 +21,6 @@ from disk.
 
 from __future__ import annotations
 
-import logging
 import os
 import threading
 from dataclasses import dataclass, field
@@ -31,7 +30,9 @@ from typing import Any
 
 import yaml
 
-logger = logging.getLogger("backend.auth.store")
+from backend.app.observability.logging import get_logger
+
+logger = get_logger("backend.auth.store")
 
 DEFAULT_OPERATORS_PATH = Path("infra/config/operators.yaml")
 OPERATORS_CONFIG_ENV = "SWARM_OPERATORS_CONFIG"

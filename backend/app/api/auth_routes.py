@@ -17,7 +17,6 @@ the same 30-req/min ceiling.
 
 from __future__ import annotations
 
-import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -45,10 +44,12 @@ from backend.app.auth.store import (
     OperatorStoreNotConfigured,
     get_operator_store,
 )
+from backend.app.observability.logging import get_logger
+from backend.app.observability.metrics import get_metrics
 from backend.app.security import RateLimiter, is_valid_operator_id
 from swarm_os import COORDINATOR
 
-logger = logging.getLogger("backend.auth.routes")
+logger = get_logger("backend.auth.routes")
 
 router = APIRouter(prefix="/auth")
 _login_limiter = RateLimiter()
@@ -112,6 +113,7 @@ async def _auth_failure(
         role=role,
         reason=reason,
     )
+    get_metrics().auth_failures_total.labels(reason=reason).inc()
     return AuthError(status.HTTP_401_UNAUTHORIZED, "invalid_credentials")
 
 

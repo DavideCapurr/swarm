@@ -49,8 +49,8 @@ Phase 0 baseline (2026-05).
 |--------|------------|
 | Spoofing | CORS allowlist (Phase 0). WS Origin check (Phase 0). JWT HS256 with allowlisted algorithm + iss/aud/exp validation (Phase 6.C); WS upgrade requires a valid access token via `?token=` query or `Sec-WebSocket-Protocol: bearer, <jwt>`. OIDC bridge optional (Phase 6.E). |
 | Tampering | Pydantic strict + parameterized SQL (Phase 0/4). |
-| Repudiation | structlog + audit log with hash chain (Phase 4). |
-| Information disclosure | No stack traces (Phase 0). IDOR check per `site_id` (Phase 6). PII redaction in logs (Phase 4). |
+| Repudiation | structlog JSON logs with per-request correlation id (Phase 6.D) + audit log (Phase 4). Hash chain on `events` table queued for 6.I. |
+| Information disclosure | No stack traces (Phase 0). IDOR check per `site_id` (Phase 6). PII / secret redaction in logs is wired as a structlog processor (Phase 6.D): sensitive keys (`password`, `totp`, `mfa_secret`, `refresh_token`, `access_token`, `authorization`, `cookie`, …) and JWT-shaped substrings are scrubbed before the JSON renderer ever sees them. `/ready` returns a structured `{checks: …}` payload with no stack trace; `/metrics` is commander-gated (or IP-allowlisted for in-cluster scrapers). |
 | Denial of service | Rate-limit + body size + request timeout (Phase 0/1). |
 | Elevation of privilege | Three-role hierarchy (viewer/operator/commander) enforced by `require_role`; commander demands `mfa=true` claim on every request (Phase 6.C). |
 

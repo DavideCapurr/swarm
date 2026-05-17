@@ -26,7 +26,6 @@ via env so deployments with stricter audit policies can shorten them.
 
 from __future__ import annotations
 
-import logging
 import os
 import secrets
 import threading
@@ -38,8 +37,9 @@ from typing import Any
 import jwt
 
 from backend.app.auth.store import OperatorRole
+from backend.app.observability.logging import get_logger
 
-logger = logging.getLogger("backend.auth.jwt")
+logger = get_logger("backend.auth.jwt")
 
 JWT_SECRET_ENV = "SWARM_JWT_SECRET"
 JWT_ISSUER_DEFAULT = "swarm-os"

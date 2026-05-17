@@ -13,7 +13,6 @@ This module wires together:
 
 from __future__ import annotations
 
-import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -52,6 +51,14 @@ from backend.app.db import (
 )
 from backend.app.fleet import FleetManager, UnknownVendor, VendorBootError, fleet_from_env
 from backend.app.hub import HUB
+from backend.app.observability import configure_logging, get_logger
+from backend.app.observability.middleware import (
+    RequestIDMiddleware,
+    RequestLatencyMiddleware,
+)
+from backend.app.observability.routes import public_router as obs_public_router
+from backend.app.observability.routes import router as obs_router
+from backend.app.observability.tracing import init as init_tracing
 from backend.app.security import (
     BodySizeLimitMiddleware,
     RequestTimeoutMiddleware,
@@ -62,8 +69,10 @@ from backend.app.security import (
 )
 from swarm_os import COORDINATOR
 
-logger = logging.getLogger("backend")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+# Phase 6.D: configure structlog JSON + stdlib routing before the first
+# log line is emitted. Idempotent — safe under uvicorn --reload.
+configure_logging()
+logger = get_logger("backend")
 
 bus_consumer = BusConsumer(HUB)
 fleet_manager: FleetManager | None = None
@@ -172,17 +181,27 @@ app = FastAPI(title="SwarmOS Backend", version="0.1.0", lifespan=lifespan)
 # SecurityHeadersMiddleware OUTERMOST so it tags every response, including
 # CORS preflight (which CORSMiddleware short-circuits without delegating
 # inward), 413s from BodySizeLimitMiddleware, and 504s from
-# RequestTimeoutMiddleware. So we add it last.
+# RequestTimeoutMiddleware. The request-id middleware sits even further out
+# so the correlation id is bound before any other middleware runs.
 app.add_middleware(BodySizeLimitMiddleware)  # innermost: cap request bytes
+app.add_middleware(RequestLatencyMiddleware)  # observe latency below CORS
 app.add_middleware(CORSMiddleware, **cors_kwargs())  # type: ignore[arg-type]
 app.add_middleware(RequestTimeoutMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)  # outermost: every response
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIDMiddleware)  # outermost: id bound for everything
+
+# Phase 6.D: optional OpenTelemetry tracing. No-op unless
+# SWARM_OTLP_ENDPOINT is set; if set but the [otel] extra isn't
+# installed, we log a warning and continue.
+init_tracing(app)
 
 app.include_router(public_api_router)
 app.include_router(api_router)
 app.include_router(actions_router)
 app.include_router(admin_router)
 app.include_router(auth_router)
+app.include_router(obs_public_router)  # /ready
+app.include_router(obs_router)         # /metrics
 
 
 # ── Error handlers ────────────────────────────────────────────────────────────
