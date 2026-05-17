@@ -529,8 +529,25 @@ and flipped on the day the drones are acquired.
 
 Sub-block progress:
 
-- [ ] **6.A** Safety policy engine (geofence runtime, battery + link
-      thresholds, weather lock stub, mission priority) — **in_progress**.
+- [x] **6.A** Safety policy engine (geofence runtime, battery + link
+      thresholds, weather lock stub, mission priority) — **done**.
+      `swarm_os/policy.py` is the side-effect-free decision point;
+      `swarm_os/safety.py` carries thresholds, `PolicyDecision`,
+      `SafetyAction`, the `WeatherProvider` Protocol, and the
+      `LocalStubWeatherProvider`. `swarm_os/sites.py` loads
+      `infra/config/sites/<site_id>.yaml` (with an in-code fallback
+      for the legacy vineyard-01 site). Wired through scheduler
+      (auto-PATROL gated), command bus (operator VERIFY/RETURN
+      validated against geofence + thresholds + weather), and
+      coordinator (auto-RTL queued on low battery / low link; dock
+      `weather_lock` refreshed from the provider). 53 new tests across
+      geometry (8), safety + sites (14), policy unit (21), and
+      Phase 6.A integration (11). Real-provider integration
+      (OpenWeather, Aviationweather), NOTAM/NFZ feed, and TLS-bound
+      live tests are catalogued in
+      [`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md)
+      §2.A/§2.B and remain pending until the drones and external
+      assets arrive.
 - [ ] 6.B Multi-site + runtime config — pending.
 - [ ] 6.C Operator auth + RBAC — pending.
 - [ ] 6.D Observability stack — pending.
@@ -548,8 +565,14 @@ checklist and gated on hardware acquisition.
 
 ## Last updated
 
-2026-05-16: Phase 6 started on branch `claude/phase-6-production-os` with
-block 6.A safety policy engine. Phase 5 readiness gates updated on branch
+2026-05-17: Phase 6.A safety policy engine landed on branch
+`claude/phase-6-production-os` with full kernel wiring (scheduler /
+command bus / coordinator) and 53 new tests. The hardware-day actions
+(real weather provider, Sigstore signing, MFA TOTP, customer
+acceptance, etc.) are listed in
+[`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md).
+2026-05-16: Phase 6 started on branch `claude/phase-6-production-os`.
+Phase 5 readiness gates updated on branch
 `codex/phase5-bench-security-gates`. Status is CI-ready by `make lint`,
 `make test`, and `make audit`; `pymavlink` package integrity is enforced
 offline; secure Redis mTLS entry criteria fail closed for prod/required
