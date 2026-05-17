@@ -1,13 +1,12 @@
-import { FlatCompat } from "@eslint/eslintrc";
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
 import securityPlugin from "eslint-plugin-security";
 
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-});
-
-export default [
-  { ignores: [".next/**", "node_modules/**"] },
-  ...compat.extends("next/core-web-vitals"),
+export default defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  globalIgnores([".next/**", "node_modules/**", "out/**", "build/**", "next-env.d.ts"]),
   {
     plugins: { security: securityPlugin },
     rules: {
@@ -24,4 +23,4 @@ export default [
       "security/detect-disable-mustache-escape": "error",
     },
   },
-];
+]);
