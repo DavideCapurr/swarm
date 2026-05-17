@@ -20,6 +20,7 @@ from swarm_core.messages import (
     OperatorCommand,
 )
 
+from backend.app.api.routes import public_router as public_api_router
 from backend.app.api.routes import router
 from backend.app.db import repository as repo_mod
 from backend.app.db.models import Base
@@ -42,6 +43,7 @@ async def app_with_persistence() -> AsyncIterator[tuple[TestClient, Repository]]
         SWARM_STATE.events.clear()
         SWARM_STATE.commands.clear()
         app = FastAPI()
+        app.include_router(public_api_router)
         app.include_router(router)
         yield TestClient(app), repo
     finally:
@@ -59,6 +61,7 @@ def test_health_reports_persistence_enabled(
 
 def test_events_history_window(
     app_with_persistence: tuple[TestClient, Repository],
+    viewer_headers: dict[str, str],
 ) -> None:
     client, repo = app_with_persistence
     base = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
@@ -73,6 +76,7 @@ def test_events_history_window(
 
     r = client.get(
         "/events",
+        headers=viewer_headers,
         params={
             "from": (base - timedelta(minutes=30)).isoformat(),
             "to": (base + timedelta(minutes=30)).isoformat(),
@@ -85,10 +89,12 @@ def test_events_history_window(
 
 def test_events_history_rejects_inverted_range(
     app_with_persistence: tuple[TestClient, Repository],
+    viewer_headers: dict[str, str],
 ) -> None:
     client, _ = app_with_persistence
     r = client.get(
         "/events",
+        headers=viewer_headers,
         params={
             "from": "2026-05-16T12:00:00+00:00",
             "to": "2026-05-16T11:00:00+00:00",
@@ -99,6 +105,7 @@ def test_events_history_rejects_inverted_range(
 
 def test_mission_history_endpoint(
     app_with_persistence: tuple[TestClient, Repository],
+    viewer_headers: dict[str, str],
 ) -> None:
     client, repo = app_with_persistence
     e1 = Event(kind=EventKind.MISSION, mission_id="m-42", body="patrol started")
@@ -108,7 +115,7 @@ def test_mission_history_endpoint(
     import asyncio
     asyncio.get_event_loop().run_until_complete(repo.write_events([e1, e2, other]))
 
-    r = client.get("/missions/m-42/history")
+    r = client.get("/missions/m-42/history", headers=viewer_headers)
     assert r.status_code == 200
     body = r.json()
     assert body["mission_id"] == "m-42"
@@ -118,6 +125,7 @@ def test_mission_history_endpoint(
 
 def test_operator_commands_endpoint(
     app_with_persistence: tuple[TestClient, Repository],
+    viewer_headers: dict[str, str],
 ) -> None:
     client, repo = app_with_persistence
     alice = OperatorCommand(
@@ -134,7 +142,11 @@ def test_operator_commands_endpoint(
         repo.write_operator_command(bob)
     )
 
-    r = client.get("/operator-commands", params={"operator_id": "op-alice01"})
+    r = client.get(
+        "/operator-commands",
+        headers=viewer_headers,
+        params={"operator_id": "op-alice01"},
+    )
     assert r.status_code == 200
     ids = {c["id"] for c in r.json()["commands"]}
     assert ids == {alice.id}
@@ -142,15 +154,21 @@ def test_operator_commands_endpoint(
 
 def test_operator_commands_rejects_malformed_id(
     app_with_persistence: tuple[TestClient, Repository],
+    viewer_headers: dict[str, str],
 ) -> None:
     """The audit endpoint applies the same regex as the action endpoints."""
     client, _ = app_with_persistence
-    r = client.get("/operator-commands", params={"operator_id": "DROP TABLE users"})
+    r = client.get(
+        "/operator-commands",
+        headers=viewer_headers,
+        params={"operator_id": "DROP TABLE users"},
+    )
     assert r.status_code == 400
 
 
 def test_mission_history_sql_injection_path_param_is_safe(
     app_with_persistence: tuple[TestClient, Repository],
+    viewer_headers: dict[str, str],
 ) -> None:
     """A SQL-shaped mission id can't drop the events table.
 
@@ -165,16 +183,21 @@ def test_mission_history_sql_injection_path_param_is_safe(
     )
 
     payload = "'; DROP TABLE events;--"
-    r = client.get(f"/missions/{payload}/history")
+    r = client.get(f"/missions/{payload}/history", headers=viewer_headers)
     assert r.status_code == 200
     assert r.json()["events"] == []
     # Table must still hold the seed row.
-    r2 = client.get("/events", params={"from": "2026-01-01T00:00:00+00:00"})
+    r2 = client.get(
+        "/events",
+        headers=viewer_headers,
+        params={"from": "2026-01-01T00:00:00+00:00"},
+    )
     assert len(r2.json()["events"]) == 1
 
 
 def test_events_sql_injection_payload_returns_empty(
     app_with_persistence: tuple[TestClient, Repository],
+    viewer_headers: dict[str, str],
 ) -> None:
     """A classic injection payload as a filter must return empty + leave the DB intact."""
     client, repo = app_with_persistence
@@ -186,6 +209,7 @@ def test_events_sql_injection_payload_returns_empty(
     payload = "'; DROP TABLE events;--"
     r = client.get(
         "/events",
+        headers=viewer_headers,
         params={
             "sector": payload,
             "from": "2026-01-01T00:00:00+00:00",
@@ -195,6 +219,10 @@ def test_events_sql_injection_payload_returns_empty(
     assert r.json()["events"] == []
 
     # The events table must still hold our row.
-    r2 = client.get("/events", params={"from": "2026-01-01T00:00:00+00:00"})
+    r2 = client.get(
+        "/events",
+        headers=viewer_headers,
+        params={"from": "2026-01-01T00:00:00+00:00"},
+    )
     assert r2.status_code == 200
     assert len(r2.json()["events"]) == 1

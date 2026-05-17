@@ -30,6 +30,7 @@ from swarm_core.messages import (
 )
 
 from backend.app.api.actions import router as actions_router
+from backend.app.api.routes import public_router as public_api_router
 from backend.app.api.routes import router as routes_router
 from backend.app.bus_consumer import BusConsumer
 from backend.app.db import repository as repo_mod
@@ -62,6 +63,7 @@ async def persisted_app() -> AsyncIterator[tuple[TestClient, Repository]]:
     SWARM_STATE.commands.clear()
 
     app = FastAPI()
+    app.include_router(public_api_router)
     app.include_router(routes_router)
     app.include_router(actions_router)
     try:
@@ -128,7 +130,14 @@ async def test_bus_consumer_persists_anomaly_and_events(
 @pytest.mark.asyncio
 async def test_action_endpoint_persists_operator_command(
     persisted_app: tuple[TestClient, Repository],
+    operator_headers: dict[str, str],
 ) -> None:
+    """The action endpoint records each accepted command in the audit log.
+
+    Under Phase 6.C the operator identity is read off the JWT principal,
+    not the legacy ``X-Operator-Id`` header. We use the ``operator_id``
+    that ``operator_headers`` mints (`op-operator01`)."""
+
     client, repo = persisted_app
 
     # The endpoint validates that the target exists in state for VERIFY.
@@ -136,12 +145,12 @@ async def test_action_endpoint_persists_operator_command(
     r = client.post(
         "/actions/hold-patrol",
         json={"target": "global"},
-        headers={"X-Operator-Id": "op-alice01"},
+        headers=operator_headers,
     )
     assert r.status_code in (202, 422)  # accepted or schema-level reject
-    rows = await repo.list_operator_commands(operator_id="op-alice01")
+    rows = await repo.list_operator_commands(operator_id="op-operator01")
     assert len(rows) >= 1
-    assert rows[-1].operator_id == "op-alice01"
+    assert rows[-1].operator_id == "op-operator01"
 
 
 @pytest.mark.asyncio
