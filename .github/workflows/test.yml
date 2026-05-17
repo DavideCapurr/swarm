@@ -44,11 +44,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version-file: frontend/.nvmrc
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Enable pnpm through Corepack
-        run: corepack enable
-      - name: Install deps (ignore-scripts honored from .pnpmrc)
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.1.2 --activate
+      - name: Install deps (ignore-scripts honored from .npmrc)
         run: corepack pnpm install --frozen-lockfile --ignore-scripts
       - name: pnpm audit (fail on high)
         run: corepack pnpm audit --audit-level=high
