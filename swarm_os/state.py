@@ -25,11 +25,25 @@ from swarm_core.messages import (
 )
 from swarm_core.streams import StreamDescriptor
 
+from swarm_os.policy import PolicyEngine
+from swarm_os.safety import LocalStubWeatherProvider, SafetyAction
 from swarm_os.sectors import default_sector_grid
+from swarm_os.sites import load_site_config
 
 DEFAULT_DOCK_ID = "dock-langhe-01"
 DEFAULT_SESSION_LABEL = "session 014"
 VINEYARD_CENTER = Geo(lat=44.7000, lon=8.0300, alt_m=0.0)
+
+
+def _default_policy() -> PolicyEngine:
+    """Wire the built-in vineyard-01 site config + stub weather provider.
+
+    Production deploys override `SwarmState.policy` after construction to
+    bind a real `SiteConfig` + real `WeatherProvider`; see
+    `docs/ops/drone-day-checklist.md` §2.A.
+    """
+
+    return PolicyEngine(load_site_config(), LocalStubWeatherProvider())
 
 
 def now_utc() -> datetime:
@@ -56,6 +70,13 @@ class SwarmState:
     verifier_id: str | None = None
     hold_patrol: bool = False
     session: Session = field(default_factory=lambda: Session(label=DEFAULT_SESSION_LABEL))
+    # Phase 6.A: server-owned safety policy. The coordinator queries it on
+    # every refresh; rejected commands and auto-RTL actions both flow back
+    # through state.safety_actions (audit) and state.missions (execution).
+    policy: PolicyEngine = field(default_factory=_default_policy)
+    safety_actions: deque[SafetyAction] = field(
+        default_factory=lambda: deque(maxlen=200)
+    )
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @classmethod

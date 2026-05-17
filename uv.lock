@@ -2030,6 +2030,7 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pyproj" },
+    { name = "pyyaml" },
     { name = "redis" },
     { name = "shapely" },
     { name = "sqlalchemy", extra = ["asyncio"] },
@@ -2049,6 +2050,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
     { name = "types-redis" },
 ]
 dji = [
@@ -2077,11 +2079,13 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3,<10" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23,<2" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1,<7" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "redis", specifier = ">=5.0,<6" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4,<1" },
     { name = "shapely", specifier = ">=2.0,<3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0,<3" },
     { name = "structlog", specifier = ">=24.1,<26" },
+    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6,<7" },
     { name = "types-redis", marker = "extra == 'dev'" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.27,<1" },
     { name = "websockets", specifier = ">=12,<14" },
@@ -2174,6 +2178,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/93/29/47a346550fd2020dac9a7a6d033ea03fccb92fa47c726056618cc889745e/types-pyOpenSSL-24.1.0.20240722.tar.gz", hash = "sha256:47913b4678a01d879f503a12044468221ed8576263c1540dcb0484ca21b08c39", size = 8458, upload-time = "2024-07-22T02:32:22.558Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/98/05/c868a850b6fbb79c26f5f299b768ee0adc1f9816d3461dcf4287916f655b/types_pyOpenSSL-24.1.0.20240722-py3-none-any.whl", hash = "sha256:6a7a5d2ec042537934cfb4c9d4deb0e16c4c6250b09358df1f083682fe6fda54", size = 7499, upload-time = "2024-07-22T02:32:21.232Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20260510"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/85/0d9fafce21be112e977a89677f1ce9d1aef921d745b17c758c93e861c11f/types_pyyaml-6.0.12.20260510.tar.gz", hash = "sha256:09c1f1cb65a6eebea1e2e51ccf4918b8288e152909609a35cdb0d805efd125ad", size = 17831, upload-time = "2026-05-10T05:26:28.136Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/ad/fd618a218925daada7b8a5e7326e662599fa5fdff4a4c44ab2795bd2d9ca/types_pyyaml-6.0.12.20260510-py3-none-any.whl", hash = "sha256:3492eb9ba4d9d833473214c4d5736cccf5f37d93f5854059721e1c84f785309d", size = 20304, upload-time = "2026-05-10T05:26:26.981Z" },
 ]
 
 [[package]]

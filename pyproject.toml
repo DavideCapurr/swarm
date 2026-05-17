@@ -29,6 +29,9 @@ dependencies = [
     "structlog>=24.1,<26",
     "shapely>=2.0,<3",
     "pyproj>=3.6,<4",
+    # Phase 6.A: site policy config is YAML on disk. Pinned explicitly so
+    # the dependency surface is not silently provided by a dev-only tool.
+    "pyyaml>=6,<7",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +47,7 @@ dev = [
     "ruff>=0.4,<1",
     "mypy>=1.9,<2",
     "types-redis",
+    "types-PyYAML>=6,<7",
     # Phase 4: in-process async SQLite for persistence tests (no Postgres needed).
     "aiosqlite>=0.20,<1",
     # Security / supply chain

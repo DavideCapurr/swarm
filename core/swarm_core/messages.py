@@ -417,6 +417,10 @@ class MissionView(BaseModel):
     eta_s: float | None = None
     waypoints: list[Geo] = Field(default_factory=list)
     track: list[Geo] = Field(default_factory=list)  # recent observed positions
+    # Phase 6.A.5: higher wins ties. Auto-RTL emits priority 100; operator
+    # commands use 50; scheduler-auto patrol uses 10. Default 0 keeps legacy
+    # callers compatible.
+    priority: int = 0
     ts: datetime = Field(default_factory=_now)
 
 
