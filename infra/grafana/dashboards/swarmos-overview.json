@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "SwarmOS — Phase 6.D overview. Units online, anomalies pending, link health, REST p95 latency, operator action throughput, WS subscribers, auth failures. Data source label uses the Grafana variable ${DS_PROMETHEUS}; provision via infra/grafana/datasource.yaml.",
+  "description": "SwarmOS — Phase 6.D overview. Units online, anomalies pending, link health, REST p95 latency, operator action throughput, WS subscribers, auth failures, mission duration. Data source label uses the Grafana variable ${DS_PROMETHEUS}; provision via infra/grafana/datasource.yaml.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -400,6 +400,71 @@
         }
       ],
       "title": "Auth failures / sec",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
+      "description": "Wall-clock duration from first non-terminal sighting of a mission to its DONE or FAILED transition, sampled via the swarm_mission_duration_seconds histogram. p95 climbing without p50 movement usually points to a stuck waypoint or weather drag on a subset of missions.",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.50, sum(rate(swarm_mission_duration_seconds_bucket[15m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum(rate(swarm_mission_duration_seconds_bucket[15m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        }
+      ],
+      "title": "Mission duration",
       "type": "timeseries"
     }
   ],

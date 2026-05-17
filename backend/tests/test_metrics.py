@@ -134,3 +134,59 @@ def test_metrics_actions_counter_increments(
     resp = client.get("/metrics", headers=commander_headers)
     assert resp.status_code == 200
     assert 'swarm_actions_total{action="verify",outcome="accepted"} 1.0' in resp.text
+
+
+def test_mission_duration_histogram_observes_on_terminal_phase() -> None:
+    """A mission seen first as non-terminal then DONE feeds the histogram.
+
+    Guards against the regression where ``swarm_mission_duration_seconds``
+    was declared in the registry but never observed anywhere in the
+    codebase — leaving an always-empty histogram and a misleading panel.
+    """
+
+    from swarm_core.messages import MissionPhase, MissionView
+
+    from backend.app.bus_consumer import BusConsumer
+    from backend.app.observability.metrics import get_metrics
+
+    class _Hub:
+        async def broadcast(self, _frame: object) -> None:
+            return None
+
+    consumer = BusConsumer(_Hub())  # type: ignore[arg-type]
+    metric = get_metrics().mission_duration_seconds
+    base_count = metric._sum.get()  # type: ignore[attr-defined]
+
+    in_flight = MissionView(id="m-1", kind="PATROL", phase=MissionPhase.EN_ROUTE)
+    consumer._observe_mission_duration(in_flight)
+    assert "m-1" in consumer._mission_started_at
+
+    done = MissionView(id="m-1", kind="PATROL", phase=MissionPhase.DONE)
+    consumer._observe_mission_duration(done)
+    assert "m-1" not in consumer._mission_started_at
+    assert metric._sum.get() > base_count  # type: ignore[attr-defined]
+
+
+def test_mission_duration_histogram_skips_when_first_seen_terminal() -> None:
+    """A mission only ever observed as DONE contributes no sample.
+
+    We have no start to subtract from — better an empty bucket than a
+    fabricated zero.
+    """
+
+    from swarm_core.messages import MissionPhase, MissionView
+
+    from backend.app.bus_consumer import BusConsumer
+    from backend.app.observability.metrics import get_metrics
+
+    class _Hub:
+        async def broadcast(self, _frame: object) -> None:
+            return None
+
+    consumer = BusConsumer(_Hub())  # type: ignore[arg-type]
+    metric = get_metrics().mission_duration_seconds
+    base_count = metric._sum.get()  # type: ignore[attr-defined]
+
+    done_only = MissionView(id="m-late", kind="PATROL", phase=MissionPhase.DONE)
+    consumer._observe_mission_duration(done_only)
+    assert metric._sum.get() == base_count  # type: ignore[attr-defined]
