@@ -14,7 +14,7 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — block 6.A safety policy underway on `claude/phase-6-production-os` |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C done on `claude/jwt-rbac-mfa-gRsfE`; 6.D–6.J pending |
 
 ## Phase 0 — completed checklist
 
@@ -303,7 +303,9 @@ explicit phase request.
   of `mavutil.mavlink_connection` (no MAVSDK, no gRPC, no protobuf).
 - **Phase 6 deploy target**: Kubernetes vs compose-prod — to be decided
   based on customer requirements.
-- **Phase 6 auth provider**: pure JWT vs OIDC bridge — TBD; default JWT.
+- **Phase 6 auth provider**: **resolved** — pure JWT HS256 (Phase 6.C);
+  OIDC bridge deferred to Phase 6.E as an optional addition when a
+  customer needs SSO. See [`docs/security/auth.md`](security/auth.md).
 
 ## Phase 4 — post-readiness fixes (2026-05-16)
 
@@ -568,7 +570,55 @@ Sub-block progress:
       schema fields (deferred to 6.C where the RBAC model lives).
       19 new tests across site-aware factory (10) and admin endpoint
       (9). Full suite still green: 414 passed, 16 skipped.
-- [ ] 6.C Operator auth + RBAC — pending.
+- [x] **6.C** Operator auth + RBAC + MFA — **done**.
+      Pure JWT HS256 (no OIDC bridge): 15 min access, 8 h refresh,
+      rotation on every refresh, all via `pyjwt>=2.8` (now pinned
+      explicitly in `pyproject.toml`). Three-role hierarchy
+      `viewer < operator < commander` enforced server-side by
+      `require_role` FastAPI dependencies — viewer gates every GET,
+      operator gates `/actions/*`, commander+MFA gates `/admin/*`.
+      The transitional `X-Operator-Id` header gate and the 6.B
+      `X-Admin-Token` shim were both retired; the operator identity
+      rides on the JWT `sub`. MFA via TOTP (RFC 6238, stdlib hmac +
+      hashlib; no third-party MFA library) is mandatory for the
+      commander role at login and the `mfa=true` claim is
+      re-checked on every commander endpoint so a stolen non-MFA
+      token can't be elevated. Password hashes use PBKDF2-HMAC-SHA256
+      with 600 000 iterations (OWASP 2023). The operator identity
+      store is a strictly-validated YAML on disk
+      (`infra/config/operators.yaml`, gitignored, env override
+      `SWARM_OPERATORS_CONFIG`). Revocation list is in-process today
+      (Redis-backed swap deferred to 6.E with the secure-bus
+      rollout); refresh rotation revokes the spent JTI immediately,
+      so a leaked refresh can't be replayed. WebSocket upgrade
+      requires a valid access token via `?token=` query (default for
+      the Console) or `Sec-WebSocket-Protocol: bearer, <jwt>`.
+      Auth audit lands as `system` events on every login (success +
+      failure), refresh, logout, and revocation — broadcast on WS,
+      persisted via the bus consumer.
+      Backend surface: `backend/app/auth/` package (passwords, mfa,
+      store, jwt, revocation, deps, audit, ws_auth, cli) +
+      `backend/app/api/auth_routes.py` (`/auth/login`,
+      `/auth/refresh`, `/auth/logout`, `/auth/me`). Frontend:
+      `lib/auth.tsx` (AuthProvider + token storage + silent
+      refresh), `components/AuthGate.tsx` (redirect when
+      anonymous), `app/login/page.tsx` (minimal design-system login
+      page with optional TOTP field), Authorization header on every
+      REST call and `?token=` on the WS upgrade. CLI helpers:
+      `python -m backend.app.auth.cli hash-password|new-mfa|verify`.
+      Hardware-day actions (JWT secret provisioning, MFA enrolment,
+      optional OIDC bridge, HttpOnly cookie pipe for refresh,
+      Redis-backed revocation, pen-test) are catalogued in
+      [`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md)
+      §2.C; design + runbook in
+      [`docs/security/auth.md`](security/auth.md).
+      97 new tests across `test_auth_passwords.py` (10),
+      `test_auth_mfa.py` (10), `test_auth_jwt.py` (14),
+      `test_auth_store.py` (14), `test_auth_revocation.py` (7),
+      `test_auth_routes.py` (21), `test_rbac.py` (16),
+      `test_ws_auth.py` (5), plus migrations of the Phase 1 / 4 /
+      6.B test files onto the JWT auth fixtures. Full suite: 514
+      passed, 16 skipped.
 - [ ] 6.D Observability stack — pending.
 - [ ] 6.E Deployment + infra-as-code — pending.
 - [ ] 6.F Performance + scale — pending.
@@ -584,6 +634,15 @@ checklist and gated on hardware acquisition.
 
 ## Last updated
 
+2026-05-17: Phase 6.C operator auth + RBAC + MFA-for-commander landed
+on `claude/jwt-rbac-mfa-gRsfE`. Pure JWT HS256; 97 new auth tests on
+top of the 6.B baseline; `pyjwt` pinned explicitly; full suite green
+(514 passed, 16 skipped). The transitional `X-Operator-Id` and
+`X-Admin-Token` gates were retired in the same pass. Hardware-day
+items (secret provisioning, MFA enrolment, optional OIDC bridge,
+HttpOnly cookie for refresh, Redis-backed revocation, pen-test) are
+catalogued in `docs/ops/drone-day-checklist.md` §2.C and the design
+note lives in `docs/security/auth.md`.
 2026-05-17: Phase 6.B multi-site bootstrap + admin hot-reload landed on
 the same branch (29 more tests, 414 total). Phase 6.A safety policy
 engine landed on branch `claude/phase-6-production-os` with full kernel
