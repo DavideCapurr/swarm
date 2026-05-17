@@ -1,0 +1,21 @@
+# Let's Encrypt STAGING ClusterIssuer (Phase 6.E).
+#
+# Use this for the first deploy / dry-run. Staging certs are issued
+# against the LE staging endpoint, which has no rate limit but produces
+# certs that browsers will reject (untrusted root). Once the HTTP-01
+# flow works end-to-end against staging, switch to letsencrypt-prod.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    # The drone-day-checklist §2.E binds this email to the deploy.
+    email: REPLACE-ME-WITH-OPS-EMAIL@example.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

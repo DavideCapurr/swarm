@@ -1,0 +1,36 @@
+# SwarmOS Prometheus ServiceMonitor (Phase 6.E).
+#
+# Requires the Prometheus Operator (kube-prometheus-stack) installed in
+# the cluster. The Helm chart in infra/helm/ gates this behind
+# `observability.serviceMonitor.enabled` so plain Prometheus deploys
+# (no Operator) can keep scraping via static_configs instead.
+#
+# The /metrics endpoint is Phase 6.D — commander-gated by default, with
+# an optional SWARM_METRICS_IP_ALLOWLIST that the cluster operator sets
+# to the pod CIDR of this Prometheus instance.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: swarmos-backend
+  namespace: swarmos
+  labels:
+    app.kubernetes.io/name: swarmos
+    app.kubernetes.io/component: backend
+    # Match whichever release the Prometheus instance selects on.
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [swarmos]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swarmos
+      app.kubernetes.io/component: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      honorLabels: true
+      # When using IP-allowlist auth, no bearer token is needed.
+      # If you'd rather use a commander JWT, drop a Secret in the
+      # monitoring namespace and reference it via `bearerTokenSecret`.
