@@ -1,11 +1,52 @@
-"""Database layer — SQLAlchemy + asyncpg, TimescaleDB-aware.
+"""Database layer — SQLAlchemy async + TimescaleDB for Phase 4.
 
-Commit 1 only wires the engine and exposes a session dependency; tables are
-created via `infra/postgres/init.sql` (with the TimescaleDB hypertable for
-telemetry). Real ORM models land in a follow-up — adding them now would be
-unused weight on the demo.
+Public surface:
+  - `init_persistence()` / `shutdown_persistence()` — engine lifecycle.
+  - `is_persistence_enabled()` — True iff `DATABASE_URL` is set.
+  - `Repository` — async write + read API (no-op when disabled).
+  - `REPOSITORY` — module-level singleton used by the bus consumer + actions.
+  - `Base` + ORM rows — exposed for Alembic + tests.
+
+When `DATABASE_URL` is unset the module is in "disabled" mode: writes are
+no-ops, reads return `[]`, and the demo/tests run without a Postgres daemon.
 """
 
-from backend.app.db.session import engine, get_session
+from backend.app.db.models import (
+    AnomalyRow,
+    Base,
+    EventRow,
+    MissionRow,
+    OperatorCommandRow,
+    SectorVisitRow,
+    SessionRow,
+    TelemetryRow,
+)
+from backend.app.db.repository import Repository, get_repository, set_repository
+from backend.app.db.session import (
+    get_session,
+    get_sessionmaker,
+    init_persistence,
+    is_persistence_enabled,
+    make_engine,
+    shutdown_persistence,
+)
 
-__all__ = ["engine", "get_session"]
+__all__ = (
+    "AnomalyRow",
+    "Base",
+    "EventRow",
+    "MissionRow",
+    "OperatorCommandRow",
+    "Repository",
+    "SectorVisitRow",
+    "SessionRow",
+    "TelemetryRow",
+    "get_repository",
+    "get_session",
+    "get_sessionmaker",
+    "init_persistence",
+    "is_persistence_enabled",
+    "make_engine",
+    "set_repository",
+    "shutdown_persistence",
+)

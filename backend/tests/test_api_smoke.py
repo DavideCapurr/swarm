@@ -18,13 +18,20 @@ from swarm_core.messages import (
     Telemetry,
 )
 
+from backend.app.api.routes import public_router as public_api_router
 from backend.app.api.routes import router
 from backend.app.state import STATE
+from swarm_os import SWARM_STATE
 
 
 @pytest.fixture
 def client() -> TestClient:
+    SWARM_STATE.anomalies.clear()
+    SWARM_STATE.missions.clear()
+    SWARM_STATE.units.clear()
+    SWARM_STATE.events.clear()
     app = FastAPI()
+    app.include_router(public_api_router)
     app.include_router(router)
     return TestClient(app)
 
@@ -41,7 +48,9 @@ def test_health_reports_state_sizes(client: TestClient) -> None:
     assert body["fleet_size"] == 0
 
 
-def test_fleet_reflects_state(client: TestClient) -> None:
+def test_fleet_reflects_state(
+    client: TestClient, viewer_headers: dict[str, str]
+) -> None:
     STATE.fleet.clear()
     STATE.fleet["sim-1"] = FleetState(
         agent_id="sim-1",
@@ -51,37 +60,50 @@ def test_fleet_reflects_state(client: TestClient) -> None:
         battery_pct=99.0,
         geo=Geo(lat=44.7, lon=8.03),
     )
-    r = client.get("/fleet")
+    r = client.get("/fleet", headers=viewer_headers)
     assert r.status_code == 200
     fleet = r.json()["fleet"]
     assert len(fleet) == 1
     assert fleet[0]["agent_id"] == "sim-1"
 
 
-def test_anomalies_endpoint(client: TestClient) -> None:
+def test_anomalies_endpoint(
+    client: TestClient, viewer_headers: dict[str, str]
+) -> None:
     STATE.anomalies.clear()
     a = Anomaly(kind=AnomalyKind.SMOKE, geo=Geo(lat=44.7, lon=8.03), confidence=0.9)
     STATE.anomalies[a.id] = a
-    r = client.get("/anomalies")
+    r = client.get("/anomalies", headers=viewer_headers)
     assert r.status_code == 200
     body = r.json()
     assert body["anomalies"][0]["confidence"] == 0.9
 
 
-def test_telemetry_latest_endpoint(client: TestClient) -> None:
+def test_telemetry_latest_endpoint(
+    client: TestClient, viewer_headers: dict[str, str]
+) -> None:
     STATE.last_telemetry.clear()
     t = Telemetry(agent_id="sim-1", geo=Geo(lat=44.7, lon=8.03), battery_pct=88.0)
     STATE.last_telemetry["sim-1"] = t
-    r = client.get("/telemetry/latest")
+    r = client.get("/telemetry/latest", headers=viewer_headers)
     assert r.status_code == 200
     body = r.json()
     assert body["telemetry"]["sim-1"]["battery_pct"] == 88.0
 
 
-def test_events_endpoint_limit(client: TestClient) -> None:
+def test_events_endpoint_limit(
+    client: TestClient, viewer_headers: dict[str, str]
+) -> None:
     STATE.events.clear()
     for i in range(10):
         STATE.add_event("anomaly", {"i": i})
-    r = client.get("/events?limit=3")
+    r = client.get("/events?limit=3", headers=viewer_headers)
     body = r.json()
     assert len(body["events"]) == 3
+
+
+def test_protected_endpoint_returns_401_without_auth(client: TestClient) -> None:
+    """Smoke check: a no-auth request to a viewer-gated route is 401."""
+
+    r = client.get("/fleet")
+    assert r.status_code == 401

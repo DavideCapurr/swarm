@@ -22,6 +22,8 @@ updates:
           - "minor"
           - "patch"
 
+  # GitHub's Dependabot API still names the JavaScript ecosystem "npm",
+  # even when the project uses pnpm and pnpm-lock.yaml.
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:

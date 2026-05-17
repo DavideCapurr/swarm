@@ -15,15 +15,19 @@ not just the recommended capability catalog.
 - **Monorepo**, single git repository, separate top-level packages per concern:
   `core/`, `adapters/`, `sim/`, `orchestrator/`, `backend/`, `frontend/`.
 - **Python 3.11+** for everything backend-shaped. Single `pyproject.toml` at the
-  root, all packages installed editable.
-- **Next.js 15 + TypeScript + Tailwind** for the operator dashboard.
+  root, all packages installed editable. As of 2026-05-15, CI should keep
+  compatibility with supported Python lines while preferring current stable
+  runtimes for new local work.
+- **Next.js 16 + React 19 + TypeScript + Tailwind** for the operator dashboard,
+  installed with pnpm via Corepack.
 - **PostgreSQL + TimescaleDB** for telemetry persistence (hypertable on `ts`).
 - **Redis pub/sub** as the day-1 transport bus, abstracted behind
   `orchestrator/swarm_orchestrator/bus.py` for future swap.
 - **Pydantic v2** for all domain messages — gives us validation, schema export,
   and clean `.model_dump()` for serialization across the bus.
-- **MAVSDK-Python** and **paho-mqtt** as optional extras (only needed for
-  MAVLink and DJI Cloud adapters respectively).
+- **pymavlink** and **paho-mqtt** as optional extras for MAVLink/DJI-adjacent
+  development. MAVSDK-Python is deferred until Phase 5 because its current
+  protobuf pin fails the Phase 0 security audit.
 
 ## Consequences
 

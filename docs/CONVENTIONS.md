@@ -26,7 +26,7 @@ CLAUDE.md wins (it's the front door).
 - **TypeScript strict**. `tsconfig.json` has `strict: true`.
 - **No `any`** without a `// reason:` comment.
 - **Functional components** + hooks only. No class components.
-- **React 19 + Next.js 15** App Router. No Pages Router.
+- **React 19 + Next.js 16** App Router. No Pages Router.
 - **No `dangerouslySetInnerHTML`** ever.
 - **No `eval`, `Function(...)`, `setTimeout(string)`**.
 - **No inline styles** unless dynamic (use Tailwind classes).

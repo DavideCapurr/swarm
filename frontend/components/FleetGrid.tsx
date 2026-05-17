@@ -1,17 +1,17 @@
 /**
  * FleetGrid — the units panel from spread 24.
  *
- * Top: three mono stat rows (units online · link health · t-minus).
+ * Top: three mono stat rows (units online · link health · attention).
  * Then: per-unit list with state dot + label.
- * SWARM voice rules: sentence case in copy, mono in numbers, no exclamation.
+ * Reads from Phase 1 `UnitState[]` + `AnomalyView[]`.
  */
-import type { Anomaly, FleetMember } from "@/lib/api";
+import type { AnomalyView, UnitState } from "@/lib/api";
 import { agentStateToSwarm } from "@/lib/tokens";
 import { Eyebrow } from "./Eyebrow";
 
 type Props = {
-  fleet: FleetMember[];
-  anomalies: Anomaly[];
+  units: UnitState[];
+  anomalies: AnomalyView[];
   onSelect?: (agentId: string) => void;
 };
 
@@ -36,10 +36,10 @@ const STATE_TEXT_CLASS: Record<string, string> = {
   attention: "text-launch-amber",
 };
 
-function avgLink(fleet: FleetMember[]): number {
-  if (!fleet.length) return 0;
-  const sum = fleet.reduce((s, f) => s + (f.link_quality ?? 1), 0);
-  return Math.round((sum / fleet.length) * 1000) / 10; // one decimal
+function avgLink(units: UnitState[]): number {
+  if (!units.length) return 0;
+  const sum = units.reduce((s, u) => s + (u.link_quality ?? 1), 0);
+  return Math.round((sum / units.length) * 1000) / 10;
 }
 
 function unitLabel(agentId: string): string {
@@ -48,20 +48,19 @@ function unitLabel(agentId: string): string {
   return `${n} · ring-a`;
 }
 
-export function FleetGrid({ fleet, anomalies, onSelect }: Props) {
-  const onlineCount = fleet.filter((f) => f.fsm_state !== "OFFLINE").length;
-  const totalCount = fleet.length;
-  const link = avgLink(fleet);
-  const attentionUnit = fleet.find((f) => agentStateToSwarm(f.fsm_state) === "attention");
-  const unverifiedAnomaly = anomalies.find((a) => !a.verified);
+export function FleetGrid({ units, anomalies, onSelect }: Props) {
+  const onlineCount = units.filter((u) => u.fsm_state !== "OFFLINE").length;
+  const totalCount = units.length;
+  const link = avgLink(units);
+  const attentionUnit = units.find((u) => agentStateToSwarm(u.fsm_state) === "attention");
+  const unverifiedAnomaly = anomalies.find(
+    (a) => a.state === "pending" || a.state === "verifying"
+  );
 
   return (
     <div className="flex flex-col gap-3">
       <Eyebrow mono>Fleet</Eyebrow>
 
-      {/* ── Stat rows (mono, padded). Quiet panel — rows appear only when
-            there is something to say (spec spread 24 · "breathes when
-            something happens"). ─────────────────────────────────────────── */}
       <div className="flex flex-col">
         <StatRow
           value={`${String(onlineCount).padStart(3, "0")} / ${String(totalCount).padStart(3, "0")}`}
@@ -82,60 +81,32 @@ export function FleetGrid({ fleet, anomalies, onSelect }: Props) {
         )}
       </div>
 
-      {/* ── Anomalies ────────────────────────────────────────────────────── */}
-      {anomalies.length > 0 && (
-        <>
-          <Eyebrow mono className="mt-2">Anomalies</Eyebrow>
-          <div className="flex flex-col">
-            {anomalies.slice(0, 4).map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between py-2 border-b border-gunmetal"
-              >
-                <span className="font-mono text-ui text-muted-silver tracking-eyebrow-mono uppercase">
-                  {(a.kind ?? "smoke").toString().toLowerCase()} · c {a.confidence.toFixed(2)}
-                </span>
-                <span
-                  className={`flex items-center gap-2 font-mono text-eyebrow tracking-eyebrow uppercase ${
-                    a.verified ? "text-signal-green" : "text-launch-amber"
-                  }`}
-                >
-                  <span
-                    className={a.verified ? "dot dot-operational" : "dot dot-attention"}
-                  />
-                  {a.verified ? "verified" : "pending"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ── Units list ───────────────────────────────────────────────────── */}
-      <Eyebrow mono className="mt-2">Units</Eyebrow>
+      <Eyebrow mono className="mt-2">
+        Units
+      </Eyebrow>
       <div className="flex flex-col">
-        {fleet.length === 0 && (
+        {units.length === 0 && (
           <div className="text-muted-silver text-ui font-mono py-6 text-center">
             no units online.
           </div>
         )}
-        {fleet.map((m) => {
-          const state = agentStateToSwarm(m.fsm_state);
+        {units.map((u) => {
+          const state = agentStateToSwarm(u.fsm_state);
           return (
             <button
-              key={m.agent_id}
-              onClick={() => onSelect?.(m.agent_id)}
+              key={u.agent_id}
+              onClick={() => onSelect?.(u.agent_id)}
               className="flex items-center justify-between py-2 border-b border-gunmetal text-left transition-all duration-press ease-swarm hover:brightness-125 active:scale-[0.99] focus:outline-none focus-visible:bg-graphite/40"
             >
               <span className="font-mono text-ui text-muted-silver tracking-eyebrow-mono uppercase">
-                {unitLabel(m.agent_id)}
+                {unitLabel(u.agent_id)}
               </span>
               <span
                 className={`flex items-center gap-2 font-mono text-eyebrow tracking-eyebrow uppercase ${STATE_TEXT_CLASS[state]}`}
               >
                 <span className={STATE_DOT_CLASS[state]} />
                 {STATE_LABEL[state]}
-                <span className="text-ash mono-num ml-1">{m.battery_pct.toFixed(0)}%</span>
+                <span className="text-ash mono-num ml-1">{u.battery_pct.toFixed(0)}%</span>
               </span>
             </button>
           );

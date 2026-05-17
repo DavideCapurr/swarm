@@ -14,8 +14,8 @@ jobs:
     timeout-minutes: 5
     # dependency-review-action is free on public repos and requires GitHub
     # Advanced Security on private ones. Skip on private repos until GHAS
-    # lands in Phase 6 — Dependabot weekly + npm/pip audit in CI cover the
-    # same vulnerability surface in the meantime.
+    # lands in Phase 6 — Dependabot weekly + pnpm/pip audit in CI cover
+    # the same vulnerability surface in the meantime.
     if: github.event.repository.visibility != 'private'
     steps:
       # actions/checkout@v4
