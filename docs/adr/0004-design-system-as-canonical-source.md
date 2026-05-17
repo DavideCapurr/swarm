@@ -46,7 +46,7 @@ frontend shipped with placeholder tokens. Two questions:
 
 ## Alternatives considered
 
-- **External design system package** (npm) — rejected: introduces a
+- **External design system package** (JavaScript registry) — rejected: introduces a
   second repo to update for a single-product codebase.
 - **CSS-only token import** (importing the HTML's `<style>` block
   directly) — rejected: HTML is a brand reference, not a CSS module;

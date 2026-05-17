@@ -18,20 +18,18 @@ jobs:
       # S4: actions/setup-python@v5
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          python-version: "3.11"
-          cache: pip
+          python-version: "3.12"
+      # astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
       - name: Install Python deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
       - name: pip-audit
-        # Soft-fail on transitive issues we can't immediately fix, but log
-        # them — Dependabot still tracks them.
-        run: |
-          pip install pip-audit
-          pip-audit --strict --ignore-vuln PYSEC-2025-0000 || true
+        run: uv run pip-audit --skip-editable --cache-dir .cache/pip-audit
       - name: Run pytest
-        run: pytest -q
+        run: uv run pytest -q
 
   frontend:
     runs-on: ubuntu-latest
@@ -46,11 +44,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version-file: frontend/.nvmrc
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      - name: Enable pnpm through Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.1.2 --activate
       - name: Install deps (ignore-scripts honored from .npmrc)
-        run: npm ci --no-audit --no-fund
-      - name: npm audit (fail on high)
-        run: npm audit --audit-level=high
+        run: corepack pnpm install --frozen-lockfile --ignore-scripts
+      - name: pnpm audit (fail on high)
+        run: corepack pnpm audit --audit-level=high
       - name: Type check
-        run: npm run typecheck
+        run: corepack pnpm typecheck

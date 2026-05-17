@@ -1,6 +1,8 @@
 import "../styles/globals.css";
 import type { Metadata } from "next";
 
+import { AuthProvider } from "@/lib/auth";
+
 export const metadata: Metadata = {
   title: "SWARM · Control",
   description: "Many units. One intention.",
@@ -32,7 +34,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link rel="stylesheet" href={FONTS_HREF} />
       </head>
-      <body className="bg-absolute-black text-platinum min-h-screen">{children}</body>
+      <body className="bg-absolute-black text-platinum min-h-screen">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

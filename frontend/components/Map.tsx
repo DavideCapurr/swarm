@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import maplibregl, { type Map } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { Anomaly, FleetMember, Telemetry } from "@/lib/api";
+import type { AnomalyView, UnitState } from "@/lib/api";
 import { agentStateToSwarm } from "@/lib/tokens";
 
 type Props = {
-  fleet: FleetMember[];
-  anomalies: Anomaly[];
-  telemetry: Record<string, Telemetry>;
+  units: UnitState[];
+  anomalies: AnomalyView[];
+  onMapReady?: (map: Map) => void;
+  children?: (map: Map | null) => ReactNode;
 };
 
 const VINEYARD_CENTER: [number, number] = [8.03, 44.7]; // Langhe, IT
@@ -17,7 +18,6 @@ const VINEYARD_CENTER: [number, number] = [8.03, 44.7]; // Langhe, IT
 /**
  * Map style — dark, minimal, matched to the SWARM Control surface.
  * MapLibre's "blank" style we build inline so we have full control of color.
- * For real basemaps later, swap to a custom Mapbox/Stamen style.
  */
 const SWARM_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -47,11 +47,12 @@ const DOT_STATE_CLASS: Record<string, string> = {
   attention: "dot dot-attention",
 };
 
-export function MapView({ fleet, anomalies, telemetry }: Props) {
+export function MapView({ units, anomalies, onMapReady, children }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const droneMarkersRef = useRef<Record<string, maplibregl.Marker>>({});
   const anomalyMarkersRef = useRef<Record<string, maplibregl.Marker>>({});
+  const [mapReady, setMapReady] = useState<Map | null>(null);
 
   // Map lifecycle.
   useEffect(() => {
@@ -67,24 +68,31 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
     mapRef.current = map;
+    const ready = () => {
+      setMapReady(map);
+      onMapReady?.(map);
+    };
+    if (map.isStyleLoaded()) ready();
+    else map.once("load", ready);
     return () => {
       map.remove();
       mapRef.current = null;
+      setMapReady(null);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fleet dots + telemetry trail.
+  // Unit dots — geo comes from `UnitState`, which the coordinator refreshes
+  // on every telemetry tick. No separate telemetry overlay needed.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const seen = new Set<string>();
-    for (const m of fleet) {
-      seen.add(m.agent_id);
-      const tele = telemetry[m.agent_id];
-      const geo = tele?.geo ?? m.geo;
-      const ll: [number, number] = [geo.lon, geo.lat];
-      const swarmState = agentStateToSwarm(m.fsm_state);
-      const existing = droneMarkersRef.current[m.agent_id];
+    for (const u of units) {
+      seen.add(u.agent_id);
+      const ll: [number, number] = [u.geo.lon, u.geo.lat];
+      const swarmState = agentStateToSwarm(u.fsm_state);
+      const existing = droneMarkersRef.current[u.agent_id];
       if (existing) {
         existing.setLngLat(ll);
         const el = existing.getElement();
@@ -96,7 +104,7 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
         }
         const label = el.querySelector("[data-label]") as HTMLElement | null;
         if (label) {
-          label.textContent = unitLabel(m.agent_id);
+          label.textContent = unitLabel(u.agent_id);
         }
       } else {
         const el = document.createElement("div");
@@ -114,7 +122,7 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
 
         const label = document.createElement("span");
         label.setAttribute("data-label", "");
-        label.textContent = unitLabel(m.agent_id);
+        label.textContent = unitLabel(u.agent_id);
         label.style.fontFamily = '"IBM Plex Mono", monospace';
         label.style.fontSize = "10px";
         label.style.letterSpacing = "0.18em";
@@ -127,9 +135,9 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
 
         el.appendChild(dot);
         el.appendChild(label);
-        el.title = `${m.vendor}/${m.model} · ${m.fsm_state}`;
+        el.title = `${u.vendor}/${u.model} · ${u.fsm_state}`;
 
-        droneMarkersRef.current[m.agent_id] = new maplibregl.Marker({
+        droneMarkersRef.current[u.agent_id] = new maplibregl.Marker({
           element: el,
           anchor: "left",
         })
@@ -143,14 +151,18 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
         delete droneMarkersRef.current[id];
       }
     }
-  }, [fleet, telemetry]);
+  }, [units]);
 
-  // Anomaly markers — launch-amber concentric rings.
+  // Anomaly markers — launch-amber concentric rings. Filters out resolved
+  // anomalies (dismissed / marked_known) so the operator only sees live signals.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    const live = anomalies.filter(
+      (a) => a.state !== "dismissed" && a.state !== "marked_known"
+    );
     const seen = new Set<string>();
-    for (const a of anomalies) {
+    for (const a of live) {
       seen.add(a.id);
       const ll: [number, number] = [a.geo.lon, a.geo.lat];
       const existing = anomalyMarkersRef.current[a.id];
@@ -159,7 +171,6 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
         el.style.position = "relative";
         el.style.width = "0";
         el.style.height = "0";
-        el.style.transform = "translate(0,0)";
 
         const inner = document.createElement("span");
         inner.style.position = "absolute";
@@ -169,7 +180,6 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
         inner.style.height = "6px";
         inner.style.borderRadius = "50%";
         inner.style.background = "#FFB45C";
-        inner.style.boxShadow = "0 0 6px rgba(255,180,92,0.6)";
 
         const ring = document.createElement("span");
         ring.style.position = "absolute";
@@ -184,7 +194,7 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
 
         el.appendChild(ring);
         el.appendChild(inner);
-        el.title = `${a.kind} · c=${a.confidence.toFixed(2)}`;
+        el.title = `${a.kind} · ${a.band} · c=${a.confidence.toFixed(2)}`;
         anomalyMarkersRef.current[a.id] = new maplibregl.Marker({ element: el })
           .setLngLat(ll)
           .addTo(map);
@@ -204,6 +214,10 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
     <div className="relative w-full h-full">
       {/* Map container */}
       <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Map-overlay children (Sector + Route layers). Rendered as no-DOM
+          children that hook into the maplibre instance. */}
+      {children ? children(mapReady) : null}
 
       {/* Orbit graticule overlay — the brand signature, traced over the map.
           Mirrors spread 24: three concentric ellipses, a solid axial cross,
@@ -225,16 +239,12 @@ export function MapView({ fleet, anomalies, telemetry }: Props) {
         </g>
       </svg>
 
-      {/* Cartographic corner stamps — four quadrants, the spec's ambient
-          context strip (spread 24). */}
+      {/* Cartographic corner stamps */}
       <div className="pointer-events-none absolute right-4 top-4 eyebrow-mono mono-num text-right">
         alt 240m
       </div>
       <div className="pointer-events-none absolute right-4 bottom-4 eyebrow-mono mono-num text-right">
         44.700°N · 8.030°E
-      </div>
-      <div className="pointer-events-none absolute left-4 bottom-4 eyebrow-mono mono-num">
-        wind 4.2 m/s
       </div>
     </div>
   );

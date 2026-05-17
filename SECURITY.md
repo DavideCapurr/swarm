@@ -77,11 +77,11 @@ If a fix is non-trivial we will keep the reporter updated weekly.
 
 Live controls — these are part of the product, not aspirational:
 
-- Lockfiles committed (`package-lock.json`, `uv.lock`).
-- `npm ignore-scripts=true` to disable lifecycle scripts on install.
+- Lockfiles committed (`pnpm-lock.yaml`, `uv.lock`).
+- `pnpm ignore-scripts=true` to disable lifecycle scripts on install.
 - GitHub Actions pinned by 40-char SHA.
 - Docker images pinned by `@sha256:` digest.
-- Dependabot weekly for npm, pip, Docker, GitHub Actions.
+- Dependabot weekly for JavaScript dependencies, pip, Docker, GitHub Actions.
 - Dependency Review on every PR.
 - CodeQL, Bandit, Semgrep, ESLint security plugin in CI.
 - gitleaks + detect-secrets in pre-commit and CI.
