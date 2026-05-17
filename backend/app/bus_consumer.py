@@ -13,15 +13,23 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 from typing import TYPE_CHECKING
 
-from swarm_core.messages import Anomaly, FleetState, MissionProgress, Telemetry
+from swarm_core.messages import (
+    AgentState,
+    Anomaly,
+    AnomalyState,
+    FleetState,
+    MissionProgress,
+    Telemetry,
+)
 from swarm_core.rate_limit import DEFAULT_MAX_HZ, TelemetryRateLimiter
 from swarm_core.streams import InvalidStreamURL, StreamDescriptor
 
 from backend.app.db import get_repository
+from backend.app.observability.logging import get_logger
+from backend.app.observability.metrics import get_metrics
 from backend.app.state import STATE
 from orchestrator.swarm_orchestrator.bus import (
     Bus,
@@ -35,7 +43,7 @@ from swarm_os import COORDINATOR
 if TYPE_CHECKING:  # pragma: no cover
     from backend.app.ws.telemetry import WSHub
 
-logger = logging.getLogger("backend.bus")
+logger = get_logger("backend.bus")
 
 
 class BusConsumer:
@@ -121,12 +129,13 @@ class BusConsumer:
             except Exception:
                 continue
             if not self._telemetry_limiter.should_accept(t.agent_id):
-                logger.warning("dropped telemetry over backend cap for agent %s", t.agent_id)
+                logger.warning("telemetry over backend cap", agent_id=t.agent_id)
                 continue
             STATE.last_telemetry[t.agent_id] = t
             await get_repository().write_telemetry(t)
             for frame in await self._coordinator.apply_telemetry(t):
                 await self._hub.broadcast(frame)
+            self._refresh_state_gauges()
             await self._persist_frames(frame_events=True)
 
     async def _consume_fleet(self) -> None:
@@ -138,6 +147,7 @@ class BusConsumer:
             STATE.fleet[fs.agent_id] = fs
             for frame in await self._coordinator.apply_fleet_state(fs):
                 await self._hub.broadcast(frame)
+            self._refresh_state_gauges()
             await self._persist_frames(frame_events=True)
 
     async def _consume_anomalies(self) -> None:
@@ -155,6 +165,7 @@ class BusConsumer:
             view = self._coordinator.state.anomalies.get(a.id)
             if view is not None:
                 await get_repository().write_anomaly(view)
+            self._refresh_state_gauges()
             await self._persist_frames(frame_events=True)
 
     async def _consume_progress(self) -> None:
@@ -193,6 +204,30 @@ class BusConsumer:
             await self._hub.broadcast(
                 {"kind": "stream", "data": descriptor.model_dump(mode="json")}
             )
+
+    # ── Metrics helpers ──────────────────────────────────────────────────────
+
+    def _refresh_state_gauges(self) -> None:
+        """Re-sample the gauges that derive from coordinator state.
+
+        Cheap (two filtered counts) so we can do it on every relevant
+        bus event. Counters live elsewhere — this only refreshes gauges
+        that snapshot "current world".
+        """
+        state = self._coordinator.state
+        metrics = get_metrics()
+        # Units online: anything not currently OFFLINE. DOCKED units are
+        # still "online" (battery-charging but reachable on the link).
+        units = state.units.values()
+        online = sum(1 for u in units if u.fsm_state is not AgentState.OFFLINE)
+        metrics.units_online.set(online)
+        # Pending anomalies: anything not yet verified or dismissed.
+        pending = sum(
+            1
+            for a in state.anomalies.values()
+            if a.state not in (AnomalyState.VERIFIED, AnomalyState.DISMISSED)
+        )
+        metrics.anomalies_pending.set(pending)
 
     # ── Persistence helpers ──────────────────────────────────────────────────
 

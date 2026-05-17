@@ -36,6 +36,10 @@ dependencies = [
     # silently inherit `pyjwt` as a transitive of `redis` — a redis bump
     # could otherwise drop the lib from under us.
     "pyjwt>=2.8,<3",
+    # Phase 6.D: Prometheus metrics exposition. Pinned explicitly — the
+    # /metrics endpoint is part of the supported surface and we don't want
+    # a transitive dep flip to remove the client.
+    "prometheus-client>=0.20,<1",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +48,15 @@ dependencies = [
 # verified dependency surface.
 mavlink = ["pymavlink>=2.4.40,<3"]
 dji = ["paho-mqtt>=2.0,<3"]
+# Phase 6.D — OpenTelemetry tracing is opt-in. The roadmap calls traces
+# "opzionale" so we don't take the audit surface unless the deploy
+# requests it via `SWARM_OTLP_ENDPOINT`. When the extra is installed the
+# fastapi instrumentor wires itself only if the env var is set.
+otel = [
+    "opentelemetry-sdk>=1.25,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.25,<2",
+    "opentelemetry-instrumentation-fastapi>=0.46b0,<1",
+]
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=0.23,<2",
@@ -90,7 +103,7 @@ warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["mavsdk.*", "pymavlink.*", "paho.*"]
+module = ["mavsdk.*", "pymavlink.*", "paho.*", "opentelemetry.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

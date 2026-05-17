@@ -14,7 +14,7 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C done on `claude/jwt-rbac-mfa-gRsfE`; 6.D–6.J pending |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D done; 6.E–6.J pending |
 
 ## Phase 0 — completed checklist
 
@@ -619,7 +619,68 @@ Sub-block progress:
       `test_ws_auth.py` (5), plus migrations of the Phase 1 / 4 /
       6.B test files onto the JWT auth fixtures. Full suite: 514
       passed, 16 skipped.
-- [ ] 6.D Observability stack — pending.
+- [x] **6.D** Observability stack — **done**.
+      Prometheus exposition on a private `CollectorRegistry`
+      (`backend/app/observability/metrics.py`) covering the roadmap
+      minimum: `swarm_units_online` (Gauge), `swarm_anomalies_pending`
+      (Gauge), `swarm_actions_total{action,outcome}` (Counter),
+      `swarm_ws_clients` (Gauge), `swarm_mission_duration_seconds`
+      (Histogram), `swarm_http_request_duration_seconds{route,method,status}`
+      (Histogram), plus a `swarm_auth_failures_total{reason}` counter
+      wired from `backend/app/api/auth_routes.py`. `/metrics` is
+      gated by `require_commander` by default with an optional
+      `SWARM_METRICS_IP_ALLOWLIST` (comma-separated CIDR list) for
+      in-cluster Prometheus scrapers. `prometheus-client>=0.20,<1`
+      is pinned explicitly in `pyproject.toml` and locked.
+      Structured JSON logs via structlog: `configure_logging()` wires
+      a `ProcessorFormatter` so stdlib + native structlog both emit
+      JSON to stdout, with a redactor processor in the chain that
+      scrubs sensitive keys (`password`, `totp`, `mfa_secret`,
+      `refresh_token`, `access_token`, `authorization`, `cookie`,
+      `api_key`, `private_key`, …) and strips JWT-like substrings.
+      `RequestIDMiddleware` mints / validates `X-Request-ID`,
+      propagates it to the response header, and binds it to the
+      structlog context so every log line within the request carries
+      the id. `RequestLatencyMiddleware` populates the latency
+      histogram with `(route, method, status)` labels via the
+      FastAPI route template (bounded cardinality).
+      `/ready` is a new public endpoint with active probes for DB
+      (`SELECT 1` on the repository sessionmaker), Redis (`PING` on
+      the bus client; in-memory bus is treated as `ok`), and the
+      auth singletons. 200 with `{"status":"ready","checks":{db,redis,auth}=ok}`
+      or 503 `degraded` with the failing subsystem flagged `down`.
+      No stack traces in the payload.
+      OpenTelemetry tracing is shipped as an optional extra
+      (`pyproject.toml` `[project.optional-dependencies.otel]`,
+      not pulled by default). `backend/app/observability/tracing.py`
+      reads `SWARM_OTLP_ENDPOINT` and no-ops if absent or if the
+      extra wasn't installed — keeping the audit surface flat for
+      the default deploy.
+      Dashboards + alerts: `infra/grafana/dashboards/swarmos-overview.json`
+      (units online, anomalies pending, REST p95, actions/sec, WS
+      clients, auth failures, REST latency by route);
+      `infra/grafana/alerts.yml` with rules for units offline,
+      anomaly backlog, link health < 0.5, auth failure rate, dock
+      weather lock long, REST latency p95, and readiness probe
+      failing. No red severity band (design system §5.2 — amber for
+      escalation).
+      Migrated logger usage to structlog at the key wired points:
+      `main.py`, `bus_consumer.py`, `auth/jwt.py`, `auth/store.py`,
+      `api/auth_routes.py`, `api/admin.py`, `ws/telemetry.py`. The
+      rest of the codebase continues to use stdlib `logging` and
+      lands in the JSON formatter via the `ProcessorFormatter`
+      foreign chain — no migration needed.
+      27 new tests across `backend/tests/test_metrics.py` (9),
+      `backend/tests/test_ready.py` (7), `backend/tests/test_request_id.py`
+      (6), `backend/tests/test_structlog_redaction.py` (5).
+      Full suite: **541 passed, 16 skipped** (vs Phase 6.C
+      baseline 514 / 16). `make lint` green (ruff + mypy 149 files
+      + tsc), `make audit` green (pip-audit clean, pnpm audit clean,
+      Bandit 0 medium/high, pymavlink integrity PASS). Design note +
+      runbook in [`docs/observability/overview.md`](observability/overview.md);
+      drone-day deploy items in
+      [`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md)
+      §2.D.
 - [ ] 6.E Deployment + infra-as-code — pending.
 - [ ] 6.F Performance + scale — pending.
 - [ ] 6.G Resilience + DR — pending.
@@ -633,6 +694,18 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 checklist and gated on hardware acquisition.
 
 ## Last updated
+
+2026-05-17: Phase 6.D observability stack landed on
+`claude/observability-stack-setup-Gxzh7`. Prometheus `/metrics`
+(commander-gated or IP-allowlisted), structlog JSON logs with
+secret-redaction processor, `X-Request-ID` middleware, active
+`/ready` probe (DB + Redis + auth), optional OpenTelemetry via
+`[otel]` extra, Grafana dashboard + alert rule files committed.
+27 new tests; full suite 541 passed / 16 skipped (vs 514 / 16
+baseline). `prometheus-client` pinned explicitly. Design note +
+runbook in `docs/observability/overview.md`; drone-day items
+(scrape config, Grafana datasource, Loki endpoint, Alertmanager
+routes) catalogued in `docs/ops/drone-day-checklist.md` §2.D.
 
 2026-05-17: Phase 6.C operator auth + RBAC + MFA-for-commander landed
 on `claude/jwt-rbac-mfa-gRsfE`. Pure JWT HS256; 97 new auth tests on

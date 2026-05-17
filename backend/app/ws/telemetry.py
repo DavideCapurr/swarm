@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from backend.app.observability.logging import get_logger
+from backend.app.observability.metrics import get_metrics
 from swarm_os import COORDINATOR
 
-logger = logging.getLogger("backend.ws")
+logger = get_logger("backend.ws")
 
 
 class WSHub:
@@ -29,14 +30,18 @@ class WSHub:
             await ws.accept()
         async with self._lock:
             self._clients.add(ws)
+            count = len(self._clients)
+        get_metrics().ws_clients.set(count)
         for frame in await COORDINATOR.snapshot_frames():
             await ws.send_text(json.dumps(frame))
-        logger.info("ws connect — %d clients", len(self._clients))
+        logger.info("ws connect", clients=count)
 
     async def disconnect(self, ws: WebSocket) -> None:
         async with self._lock:
             self._clients.discard(ws)
-        logger.info("ws disconnect — %d clients", len(self._clients))
+            count = len(self._clients)
+        get_metrics().ws_clients.set(count)
+        logger.info("ws disconnect", clients=count)
 
     async def broadcast(self, msg: dict[str, Any]) -> None:
         payload = json.dumps(msg)

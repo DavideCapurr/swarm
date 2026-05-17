@@ -29,6 +29,7 @@ from swarm_core.messages import (
 from backend.app.auth.deps import Principal, require_operator
 from backend.app.db import get_repository
 from backend.app.hub import HUB
+from backend.app.observability.metrics import get_metrics
 from backend.app.security import RateLimiter
 from swarm_os import COORDINATOR
 
@@ -53,6 +54,7 @@ async def _dispatch(
     body: ActionBody,
     principal: Principal,
 ) -> tuple[dict[str, str | None], int]:
+    metrics = get_metrics()
     if not await _limiter.allow(_client_key(request, principal.operator_id)):
         command = OperatorCommand(
             action=action,
@@ -64,6 +66,7 @@ async def _dispatch(
         # Rate-limited commands are still audited — operators need to see
         # the rejection in the timeline + auditors need to spot abuse.
         await get_repository().write_operator_command(command)
+        metrics.actions_total.labels(action=action.value, outcome="rate_limited").inc()
         return {
             "command_id": command.id,
             "status": "rejected",
@@ -79,11 +82,14 @@ async def _dispatch(
     stored = COORDINATOR.state.commands.get(command.id)
     if stored is not None:
         await get_repository().write_operator_command(stored)
-    code = (
-        status.HTTP_202_ACCEPTED
-        if result.rejected_reason is None
-        else status.HTTP_422_UNPROCESSABLE_CONTENT
-    )
+    if result.rejected_reason is None:
+        metrics.actions_total.labels(action=action.value, outcome="accepted").inc()
+        code = status.HTTP_202_ACCEPTED
+    else:
+        metrics.actions_total.labels(
+            action=action.value, outcome=result.rejected_reason.value
+        ).inc()
+        code = status.HTTP_422_UNPROCESSABLE_CONTENT
     return result.as_response(), code
 
 

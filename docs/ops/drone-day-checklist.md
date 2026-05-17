@@ -151,14 +151,56 @@ What still needs you on hardware day:
       external pen-test (login brute force, JTI replay, MFA bypass,
       WS upgrade auth).
 
-### 2.D Observability (Phase 6.D — pending until that session)
+### 2.D Observability (Phase 6.D code-complete; deploy items remain)
 
-- [ ] Prometheus scrape target configured against backend `/metrics`.
-- [ ] Grafana instance with the JSON dashboards from
-      `infra/grafana/dashboards/`.
-- [ ] Alertmanager routes (PagerDuty / Slack / email) wired to the rules
-      in `infra/grafana/alerts.yml`.
-- [ ] Loki or ELK endpoint for structured logs.
+The code is in place — metrics registry, `/metrics` endpoint (commander
+or IP-allowlist), structlog JSON pipeline with secret redaction,
+`X-Request-ID` middleware, active `/ready` probe, dashboards + alert
+rules under `infra/grafana/`. The drone-day items below are deployment
+choices that need real infrastructure.
+
+- [ ] **Prometheus scrape config** committed in the deploy overlay. Example
+      stanza (drop into `prom-stack` values or any Prometheus instance):
+
+      ```yaml
+      scrape_configs:
+        - job_name: swarmos-backend
+          metrics_path: /metrics
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['swarmos-backend.swarmos.svc.cluster.local:8765']
+          # Either set bearer_token (commander-scoped JWT) or rely on
+          # SWARM_METRICS_IP_ALLOWLIST=<pod CIDR> in the backend env.
+      ```
+
+- [ ] **Grafana datasource provisioning** (`infra/grafana/datasource.yaml`)
+      pointing at the Prometheus instance above. Import
+      `infra/grafana/dashboards/swarmos-overview.json` (it parametrises
+      the datasource via `${DS_PROMETHEUS}`).
+
+- [ ] **Alertmanager routes** wired to the rule groups in
+      `infra/grafana/alerts.yml`. Severity convention: `warning` → quiet
+      Slack channel; `critical` → PagerDuty + on-call SMS. **No red
+      band in dashboard styling** (design system §5.2).
+
+- [ ] **Loki / Vector / Fluent Bit endpoint** for stdout JSON logs. Suggested
+      labels: `service=swarmos-backend`, `site=$SWARM_SITE_ID`,
+      `env=$SWARM_ENV`. Promtail's `json` parser is enough — lines are
+      already JSON with `timestamp`, `level`, `event`, `request_id`,
+      `path`, `method`.
+
+- [ ] **OpenTelemetry collector** (optional). To enable tracing:
+      install the `[otel]` extra (`uv sync --extra otel`) and set
+      `SWARM_OTLP_ENDPOINT=http://otelcol:4318/v1/traces`. Default
+      installs do not include the OTel stack.
+
+- [ ] **Readiness probe** wired in the Kubernetes Deployment manifest:
+      `readinessProbe: { httpGet: { path: /ready, port: 8765 }, periodSeconds: 10 }`.
+      `livenessProbe` continues to use `/health`.
+
+- [ ] **Blackbox-exporter** (optional, for the `SwarmReadinessProbeFailing`
+      alert): scrape `/ready` from a probe instance so the alert can fire
+      on actual probe failure rather than only on missing metrics.
 
 ### 2.E Deploy + signing (Phase 6.E — pending until that session)
 

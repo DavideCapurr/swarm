@@ -8,7 +8,6 @@ for the issuer and the ``Principal`` model.
 
 from __future__ import annotations
 
-import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +16,7 @@ from swarm_core.messages import Event, EventKind
 
 from backend.app.auth.deps import Principal, require_commander
 from backend.app.hub import HUB
+from backend.app.observability.logging import get_logger
 from swarm_os import COORDINATOR
 from swarm_os.policy import PolicyEngine
 from swarm_os.sectors import default_sector_grid
@@ -26,7 +26,7 @@ from swarm_os.sites import (
     load_site_config,
 )
 
-logger = logging.getLogger("backend.admin")
+logger = get_logger("backend.admin")
 
 router = APIRouter(prefix="/admin")
 
@@ -95,11 +95,9 @@ async def reload_site_config(
     await HUB.broadcast({"kind": "event", "data": event.model_dump(mode="json")})
     logger.info(
         "site config reloaded",
-        extra={
-            "previous": previous_site_id,
-            "current": new_config.site_id,
-            "operator": principal.operator_id,
-        },
+        previous=previous_site_id,
+        current=new_config.site_id,
+        operator=principal.operator_id,
     )
     return {
         "status": "ok",
