@@ -46,15 +46,15 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version-file: frontend/.nvmrc
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Enable pnpm through Corepack
-        run: corepack enable
-      # S3: install with lifecycle scripts disabled (driven by .pnpmrc), then
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.1.2 --activate
+      # S3: install with lifecycle scripts disabled (driven by .npmrc), then
       # gate explicitly on `high`-or-above CVEs. Running audit twice with
       # different thresholds produces confusing exit codes; this separates
       # "install succeeded" from "no known high CVEs".
-      - name: Install deps (pnpm, ignore-scripts honored from .pnpmrc)
+      - name: Install deps (pnpm, ignore-scripts honored from .npmrc)
         run: corepack pnpm install --frozen-lockfile --ignore-scripts
       - name: pnpm audit (fail on high)
         run: corepack pnpm audit --audit-level=high

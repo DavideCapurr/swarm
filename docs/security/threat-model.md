@@ -20,8 +20,9 @@ Phase 0 baseline (2026-05).
 1. **Internet ↔ Console (browser)** — public, hostile.
 2. **Console ↔ SwarmOS backend** — over TLS in prod, authenticated
    (Phase 6).
-3. **SwarmOS backend ↔ bus (Redis)** — internal, mTLS in prod
-   (Phase 5/6).
+3. **SwarmOS backend ↔ bus (Redis)** — internal; Phase 5 enforces a
+   fail-closed Redis mTLS entry criterion for prod / required-secure runs
+   (`rediss://` + client cert/key + CA), while local dev may use plaintext.
 4. **SwarmOS backend ↔ database (Postgres)** — internal, TLS + auth
    (Phase 4).
 5. **SwarmOS backend ↔ adapter** — internal, but the adapter talks to a
@@ -35,30 +36,30 @@ Phase 0 baseline (2026-05).
 
 | Threat | Mitigation |
 |--------|------------|
-| Spoofing (CSRF) | SameSite=Strict cookies + CSRF token on state-changing endpoints (Phase 6). For Phase 0-5 the operator handle header is rotated per session. |
+| Spoofing (CSRF) | Bearer-token auth (Phase 6.C); JWTs are not auto-sent by the browser, so classic CSRF is mooted for now. HttpOnly cookie path + CSRF tokens are queued for 6.E. |
 | Tampering (XSS) | React safe defaults + CSP (`script-src 'self'`, no `unsafe-inline` from Phase 6) + no `dangerouslySetInnerHTML`. |
-| Repudiation | Every operator command audit-logged server-side (Phase 4). |
-| Information disclosure | No localStorage tokens (Phase 6 cookie HttpOnly). No third-party scripts. |
-| Denial of service | Rate-limit on actions (Phase 1). |
-| Elevation of privilege | RBAC server-side (Phase 6). UI hides actions the role lacks but the source of truth is server-side. |
+| Repudiation | Every operator command audit-logged server-side (Phase 4); auth events (login / refresh / logout / revocation) audit-logged (Phase 6.C). |
+| Information disclosure | Access + refresh tokens kept in `localStorage` (Phase 6.C); CSP keeps third-party scripts out, access TTL is 15 min. HttpOnly cookie pipe for refresh queued for 6.E. |
+| Denial of service | Rate-limit on actions (Phase 1) + on login + refresh (Phase 6.C). |
+| Elevation of privilege | RBAC server-side enforced via `require_role` (Phase 6.C). UI hides actions the role lacks but the source of truth is server-side. MFA-bit re-checked on commander routes. |
 
 ### SwarmOS backend (FastAPI + WS)
 
 | Threat | Mitigation |
 |--------|------------|
-| Spoofing | CORS allowlist (Phase 0). WS Origin check (Phase 0). JWT + OIDC (Phase 6). |
+| Spoofing | CORS allowlist (Phase 0). WS Origin check (Phase 0). JWT HS256 with allowlisted algorithm + iss/aud/exp validation (Phase 6.C); WS upgrade requires a valid access token via `?token=` query or `Sec-WebSocket-Protocol: bearer, <jwt>`. OIDC bridge optional (Phase 6.E). |
 | Tampering | Pydantic strict + parameterized SQL (Phase 0/4). |
-| Repudiation | structlog + audit log with hash chain (Phase 4). |
-| Information disclosure | No stack traces (Phase 0). IDOR check per `site_id` (Phase 6). PII redaction in logs (Phase 4). |
+| Repudiation | structlog JSON logs with per-request correlation id (Phase 6.D) + audit log (Phase 4). Hash chain on `events` table queued for 6.I. |
+| Information disclosure | No stack traces (Phase 0). IDOR check per `site_id` (Phase 6). PII / secret redaction in logs is wired as a structlog processor (Phase 6.D): sensitive keys (`password`, `totp`, `mfa_secret`, `refresh_token`, `access_token`, `authorization`, `cookie`, …) and JWT-shaped substrings are scrubbed before the JSON renderer ever sees them. `/ready` returns a structured `{checks: …}` payload with no stack trace; `/metrics` is commander-gated (or IP-allowlisted for in-cluster scrapers). |
 | Denial of service | Rate-limit + body size + request timeout (Phase 0/1). |
-| Elevation of privilege | RBAC + MFA for `commander` (Phase 6). |
+| Elevation of privilege | Three-role hierarchy (viewer/operator/commander) enforced by `require_role`; commander demands `mfa=true` claim on every request (Phase 6.C). |
 
 ### Bus (Redis)
 
 | Threat | Mitigation |
 |--------|------------|
-| Spoofing | mTLS (Phase 5/6). Network segmentation. |
-| Tampering | TLS (Phase 5/6). Pub/sub topics scoped per service. |
+| Spoofing | Redis client mTLS is enforced when `SWARM_ENV=prod` or `SWARM_REQUIRE_SECURE_BUS=1`; no in-memory fallback in secure mode. Network segmentation. |
+| Tampering | `rediss://` required in secure mode. Pub/sub topics scoped per service. |
 | Information disclosure | No PII on bus (telemetry is geo + state only). |
 | Denial of service | Redis maxmemory + eviction policy. |
 
@@ -77,7 +78,7 @@ Phase 0 baseline (2026-05).
 
 | Threat | Mitigation |
 |--------|------------|
-| Spoofing (vendor impersonation) | Pin vendor SDK version + verify signature when available. |
+| Spoofing (vendor impersonation) | Pin vendor SDK version + offline package-integrity gate for `pymavlink`; publisher identity/Sigstore attestations remain outside the current PyPI evidence gate. |
 | Tampering (telemetry injection) | Rate-limit inbound Hz cap + sanity bounds. |
 | Information disclosure (creds) | Vault for adapter credentials. |
 | Denial of service | Vendor rate limits + circuit breaker per adapter. |
@@ -130,12 +131,21 @@ ranges, rate-limits inbound, geofence-enforces outbound missions.
 
 Path: phishing or session hijack of an operator account.
 
-Mitigation:
-- Short-lived JWT (15 min) + refresh token in HttpOnly cookie (Phase 6).
-- Revocation list (Phase 6).
-- MFA for `commander` (Phase 6).
+Mitigation (Phase 6.C):
+- Short-lived JWT (15 min access, 8 h refresh, rotation on every use)
+  — see [`docs/security/auth.md`](auth.md).
+- Process-local revocation list keyed by JTI; spent refresh tokens
+  revoked at rotation so leaked refresh can't be replayed. Redis-backed
+  store is queued for Phase 6.E.
+- MFA (TOTP, RFC 6238) is mandatory for the `commander` role at login
+  and the `mfa=true` claim is re-checked on every commander-only
+  endpoint.
 - Geofence enforcement is server-side — a stolen viewer/operator
   account can't fly outside policy.
+- Token storage: access + refresh in `localStorage`. CSP forbids
+  third-party scripts; the XSS exposure window is the 15-min access
+  TTL. HttpOnly-cookie pipe for the refresh token is the documented
+  Phase 6.E hardening pass.
 
 ### Scenario E — geofence bypass via crafted mission
 

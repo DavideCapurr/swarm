@@ -8,6 +8,7 @@ typical for the wedge: private property scale). For anything larger we delegate 
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 
 from swarm_core.messages import Geo
 
@@ -72,6 +73,80 @@ def point_in_polygon(p: Geo, polygon: list[Geo]) -> bool:
             inside = not inside
         j = i
     return inside
+
+
+def _segments_intersect(
+    a: Geo, b: Geo, c: Geo, d: Geo, *, eps: float = 1e-12
+) -> bool:
+    """2D segment-segment intersection in (lon, lat) space.
+
+    Returns True when the closed segments a-b and c-d share at least one
+    point. Collinear segments that overlap are treated as intersecting.
+    Touching at a single endpoint is treated as intersecting — this is the
+    conservative choice for geofence enforcement.
+    """
+
+    def _cross(o: Geo, p: Geo, q: Geo) -> float:
+        return (p.lon - o.lon) * (q.lat - o.lat) - (p.lat - o.lat) * (q.lon - o.lon)
+
+    def _on_segment(o: Geo, p: Geo, q: Geo) -> bool:
+        return (
+            min(o.lon, q.lon) - eps <= p.lon <= max(o.lon, q.lon) + eps
+            and min(o.lat, q.lat) - eps <= p.lat <= max(o.lat, q.lat) + eps
+        )
+
+    d1 = _cross(c, d, a)
+    d2 = _cross(c, d, b)
+    d3 = _cross(a, b, c)
+    d4 = _cross(a, b, d)
+    if ((d1 > eps and d2 < -eps) or (d1 < -eps and d2 > eps)) and (
+        (d3 > eps and d4 < -eps) or (d3 < -eps and d4 > eps)
+    ):
+        return True
+    if abs(d1) <= eps and _on_segment(c, a, d):
+        return True
+    if abs(d2) <= eps and _on_segment(c, b, d):
+        return True
+    if abs(d3) <= eps and _on_segment(a, c, b):
+        return True
+    return abs(d4) <= eps and _on_segment(a, d, b)
+
+
+def segment_crosses_polygon_boundary(a: Geo, b: Geo, polygon: list[Geo]) -> bool:
+    """True if the segment a-b crosses any edge of `polygon`.
+
+    Used together with `point_in_polygon` to decide whether a waypoint
+    trajectory stays inside a geofence. A segment that lies fully inside or
+    fully outside the polygon will return False; one that exits and
+    re-enters returns True. Polygons with fewer than 3 vertices return
+    False (degenerate).
+    """
+
+    n = len(polygon)
+    if n < 3:
+        return False
+    for i in range(n):
+        c = polygon[i]
+        d = polygon[(i + 1) % n]
+        if _segments_intersect(a, b, c, d):
+            return True
+    return False
+
+
+def path_within_polygon(waypoints: list[Geo], polygon: list[Geo]) -> bool:
+    """True when every waypoint is inside `polygon` AND no leg crosses its
+    boundary. A path of one waypoint reduces to a point-in-polygon test.
+    Empty path returns False (nothing to validate — fail closed).
+    """
+
+    if not waypoints or len(polygon) < 3:
+        return False
+    if not all(point_in_polygon(p, polygon) for p in waypoints):
+        return False
+    return all(
+        not segment_crosses_polygon_boundary(a, b, polygon)
+        for a, b in pairwise(waypoints)
+    )
 
 
 def centroid(polygon: list[Geo]) -> Geo:

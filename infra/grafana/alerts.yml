@@ -1,0 +1,133 @@
+# SwarmOS — Phase 6.D alerting rules.
+#
+# These are Prometheus-style rule groups (compatible with Grafana 9+ unified
+# alerting). They are committed as plain YAML — Phase 6.D delivers the rule
+# files; provisioning the actual Alertmanager / receivers is a 6.E concern.
+#
+# Thresholds map to the roadmap §6.D bullets verbatim. Tune `for:` and
+# numeric thresholds for your environment via the deployment-specific
+# overlay in `infra/k8s/<env>/alerts/`.
+#
+# Severity convention: warning + critical only. No `red` band (design
+# system §5.2 — escalation is amber, never red). Pages route on
+# severity=critical; warnings hit a quieter Slack channel.
+
+groups:
+  - name: swarmos.fleet
+    interval: 30s
+    rules:
+      - alert: SwarmUnitsOffline
+        expr: (sum(swarm_units_online) or vector(0)) < (sum(swarm_units_online offset 5m) or vector(0)) - 1
+        for: 5m
+        labels:
+          severity: warning
+          component: fleet
+        annotations:
+          summary: "More than one unit offline for 5m"
+          description: |
+            `swarm_units_online` has dropped by more than 1 vs 5 minutes ago and
+            remains below the prior level. Investigate per-agent telemetry,
+            link health, and dock weather_lock state.
+          runbook: docs/observability/overview.md#runbook-units-offline
+
+      - alert: SwarmAnomaliesPendingTooHigh
+        expr: swarm_anomalies_pending > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: anomalies
+        annotations:
+          summary: "Anomaly backlog exceeds threshold"
+          description: |
+            More than 5 anomalies have been pending verification for 10
+            minutes. Either operator capacity is saturated or the
+            scheduler is failing to dispatch verify missions.
+          runbook: docs/observability/overview.md#runbook-anomaly-backlog
+
+      - alert: SwarmLinkHealthDegraded
+        # Proxy: a sharp drop in units_online with no corresponding fleet event.
+        expr: (sum(swarm_units_online) or vector(0)) / (sum(swarm_units_online offset 10m) or vector(1)) < 0.5
+        for: 5m
+        labels:
+          severity: critical
+          component: fleet
+        annotations:
+          summary: "Fleet link health < 0.5 for 5m"
+          description: |
+            More than half of the previously-online fleet is now reporting
+            OFFLINE. Likely causes: radio backplane outage, switch flap,
+            or a vendor adapter crash. Trigger the radio fallback runbook.
+          runbook: docs/observability/overview.md#runbook-link-degraded
+
+  - name: swarmos.auth
+    interval: 30s
+    rules:
+      - alert: SwarmAuthFailureRateHigh
+        expr: sum(rate(swarm_auth_failures_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: auth
+        annotations:
+          summary: "Auth failure rate > 0.5/s for 5m"
+          description: |
+            Sustained authentication failures detected. Common causes: a
+            misconfigured client, a stuck rotation script, or a brute-force
+            attempt. Inspect `swarm_auth_failures_total` by `reason` label.
+          runbook: docs/observability/overview.md#runbook-auth-failures
+
+  - name: swarmos.docks
+    interval: 60s
+    rules:
+      - alert: SwarmDockWeatherLockLong
+        # Dock weather_lock is exposed through the WS broadcast; we proxy via
+        # units_online stagnation while patrol cadence remains scheduled.
+        # Replace with a dedicated `swarm_dock_weather_lock_seconds` gauge
+        # in 6.D.bis when wind/visibility provider is wired (see drone-day).
+        expr: max_over_time(swarm_units_online[1h]) - min_over_time(swarm_units_online[1h]) == 0 and swarm_units_online == 0
+        for: 1h
+        labels:
+          severity: warning
+          component: docks
+        annotations:
+          summary: "Dock has been weather-locked for > 1 hour"
+          description: |
+            No unit has reported online for over an hour and the fleet
+            count is zero — most likely a weather lock that hasn't
+            cleared. Review the weather provider state on the active
+            dock and decide whether to override.
+          runbook: docs/observability/overview.md#runbook-weather-lock
+
+  - name: swarmos.platform
+    interval: 30s
+    rules:
+      - alert: SwarmRequestLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(swarm_http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "REST p95 > 500 ms for 5m"
+          description: |
+            The backend's REST p95 latency exceeds 500 ms over 5 minutes.
+            Check DB connection pool, Redis latency, and HTTP middleware
+            timing.
+          runbook: docs/observability/overview.md#runbook-rest-latency
+
+      - alert: SwarmReadinessProbeFailing
+        # The /ready endpoint returns 503 when DB, Redis, or auth singletons
+        # are down. Prometheus blackbox-exporter can scrape it; this rule
+        # assumes a `probe_success` label on the scraped target.
+        expr: probe_success{instance=~".*:8765.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Backend /ready probe failing"
+          description: |
+            The backend's `/ready` endpoint has been reporting `degraded`
+            for 2 minutes. Inspect the `checks` payload — one of `db`,
+            `redis`, `auth` will be `down`.
+          runbook: docs/observability/overview.md#runbook-readiness

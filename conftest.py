@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 
-for sub in ("core", "adapters", "orchestrator", "sim", "backend"):
+for sub in ("core", "adapters", "orchestrator", "sim", "backend", "."):
     p = ROOT / sub
     if p.is_dir() and str(p) not in sys.path:
         sys.path.insert(0, str(p))
