@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from typing import TYPE_CHECKING
 
 from swarm_core.messages import (
@@ -21,7 +22,9 @@ from swarm_core.messages import (
     Anomaly,
     AnomalyState,
     FleetState,
+    MissionPhase,
     MissionProgress,
+    MissionView,
     Telemetry,
 )
 from swarm_core.rate_limit import DEFAULT_MAX_HZ, TelemetryRateLimiter
@@ -45,6 +48,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = get_logger("backend.bus")
 
+# Mission phases that close out a duration sample. Anything else is
+# treated as in-flight and only records the start time.
+_TERMINAL_MISSION_PHASES = frozenset({MissionPhase.DONE, MissionPhase.FAILED})
+
 
 class BusConsumer:
     def __init__(self, hub: WSHub, *, telemetry_rate_limit_hz: float = DEFAULT_MAX_HZ) -> None:
@@ -53,6 +60,9 @@ class BusConsumer:
         self._tasks: list[asyncio.Task[None]] = []
         self._coordinator = COORDINATOR
         self._telemetry_limiter = TelemetryRateLimiter(max_hz=telemetry_rate_limit_hz)
+        # Monotonic start time per mission_id. Populated on first non-terminal
+        # sighting, popped on terminal sighting to feed the histogram.
+        self._mission_started_at: dict[str, float] = {}
 
     async def start(self) -> None:
         redis_url = os.getenv("REDIS_URL")
@@ -180,7 +190,26 @@ class BusConsumer:
             mission = self._coordinator.state.missions.get(progress.mission_id)
             if mission is not None:
                 await get_repository().write_mission(mission)
+                self._observe_mission_duration(mission)
             await self._persist_frames(frame_events=True)
+
+    def _observe_mission_duration(self, mission: MissionView) -> None:
+        """Feed the ``swarm_mission_duration_seconds`` histogram.
+
+        Records a monotonic start time on the first non-terminal sighting
+        of a mission and observes the elapsed seconds when the same
+        mission next appears in a terminal phase. Missions first seen
+        already terminal contribute no sample (we have no start to
+        subtract from) — better an empty bucket than a fabricated one.
+        """
+
+        if mission.phase in _TERMINAL_MISSION_PHASES:
+            start = self._mission_started_at.pop(mission.id, None)
+            if start is not None:
+                elapsed = time.monotonic() - start
+                get_metrics().mission_duration_seconds.observe(elapsed)
+        else:
+            self._mission_started_at.setdefault(mission.id, time.monotonic())
 
     async def _consume_streams(self) -> None:
         """Re-broadcast `StreamDescriptor` frames published by adapter runners.
