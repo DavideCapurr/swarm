@@ -1,0 +1,7 @@
+allowBuilds:
+  # Keep install scripts blocked by default. `sharp` is optional for this app
+  # and must not run its fallback build path during local setup.
+  sharp: false
+  # Native resolver used by the Next/ESLint toolchain. This is the only
+  # approved frontend postinstall in Phase 2.
+  unrs-resolver: true

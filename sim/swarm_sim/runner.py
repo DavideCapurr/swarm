@@ -19,7 +19,13 @@ from swarm_core.messages import Anomaly, FleetState
 
 from adapters.base import AdapterRegistry
 from adapters.simulated import SimulatedAdapter
-from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus, RedisBus
+from orchestrator.swarm_orchestrator.bus import (
+    Bus,
+    InMemoryBus,
+    InsecureBusConfiguration,
+    RedisBus,
+    secure_bus_required,
+)
 from orchestrator.swarm_orchestrator.service import Orchestrator
 from sim.swarm_sim.world import World
 
@@ -95,12 +101,26 @@ async def main() -> None:
 
     bus: Bus
     redis_url = os.getenv("REDIS_URL")
-    try:
-        bus = RedisBus(redis_url) if redis_url else InMemoryBus()
-        await bus.connect()
-        logger.info("bus connected: %s", type(bus).__name__)
-    except Exception as e:
-        logger.warning("redis unavailable (%s) — using InMemoryBus", e)
+    if redis_url:
+        try:
+            bus = RedisBus(redis_url)
+            await bus.connect()
+            logger.info("bus connected: %s", type(bus).__name__)
+        except InsecureBusConfiguration:
+            logger.exception("sim runner refused insecure Redis configuration")
+            raise
+        except Exception as e:
+            if secure_bus_required():
+                logger.exception("redis unavailable and secure bus is required")
+                raise
+            logger.warning("redis unavailable (%s) — using InMemoryBus", e)
+            bus = InMemoryBus()
+            await bus.connect()
+    else:
+        if secure_bus_required():
+            raise InsecureBusConfiguration(
+                "secure bus required: REDIS_URL must be set and use rediss://"
+            )
         bus = InMemoryBus()
         await bus.connect()
 

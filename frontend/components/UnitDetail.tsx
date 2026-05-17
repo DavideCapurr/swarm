@@ -1,27 +1,21 @@
 /**
  * UnitDetail — operator-grade view of a single unit.
  *
- * Functional additions beyond the static design-system mockup:
- *   - Live mission phase + progress.
- *   - Live GPS, altitude, velocity, link health.
- *   - Two operator actions: "Force RTL" and "Cancel mission" (sentence case,
- *     platinum-on-black primary; tertiary ghost). Wiring lands in the next
- *     commit — buttons currently emit `onAction` for the parent to handle.
- *
- * Voice respects the canon: sentence case, mono numerals, no exclamation,
- * em-dash cadence for pivots.
+ * Functional reads from `UnitState` + the latest `MissionView` for the agent.
+ * No manual drone commands — actions are intents only ("Return unit" routes
+ * through `dispatch("return", ...)`).
  */
-import type { EventLog, FleetMember, Telemetry } from "@/lib/api";
+"use client";
+
+import type { MissionView, UnitState } from "@/lib/api";
+import { useSwarm } from "@/lib/state";
 import { agentStateToSwarm, type SwarmState } from "@/lib/tokens";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
 
 type Props = {
-  unit: FleetMember;
-  telemetry?: Telemetry;
-  events: EventLog[];
+  unit: UnitState;
   onClose: () => void;
-  onAction?: (action: "rtl" | "cancel") => void;
 };
 
 function unitLabel(agentId: string): string {
@@ -35,33 +29,18 @@ function fmtDeg(n: number, axis: "lat" | "lon"): string {
   return `${Math.abs(n).toFixed(3)}°${hemi}`;
 }
 
-function latestMissionProgress(
-  agentId: string,
-  events: EventLog[]
-): { phase: string; progress: number; missionId: string } | null {
-  // Scan from newest backwards for a progress event whose mission's award
-  // we can match to this agent. Best-effort: backend doesn't carry agent_id
-  // on `MissionProgress` yet — we infer by recency.
-  void agentId;
-  for (let i = events.length - 1; i >= 0; i--) {
-    const e = events[i];
-    if (e.kind === "progress") {
-      return {
-        phase: ((e.phase as string) ?? "—").toLowerCase(),
-        progress: (e.progress_pct as number) ?? 0,
-        missionId: (e.mission_id as string) ?? "—",
-      };
-    }
-  }
-  return null;
+function missionFor(missions: MissionView[], agent: string): MissionView | null {
+  return missions.find((m) => m.assigned_agent === agent) ?? null;
 }
 
-export function UnitDetail({ unit, telemetry, events, onClose, onAction }: Props) {
+export function UnitDetail({ unit, onClose }: Props) {
   const state: SwarmState = agentStateToSwarm(unit.fsm_state);
-  const tele = telemetry;
-  const geo = tele?.geo ?? unit.geo;
-  const link = ((tele?.link_quality ?? unit.link_quality ?? 1.0) * 100).toFixed(1);
-  const mission = latestMissionProgress(unit.agent_id, events);
+  const { missions, dispatch } = useSwarm();
+  const mission = missionFor(missions, unit.agent_id);
+
+  const onReturn = () => {
+    void dispatch("return", `unit:${unit.agent_id}`);
+  };
 
   return (
     <div className="flex flex-col gap-3 h-full">
@@ -75,7 +54,6 @@ export function UnitDetail({ unit, telemetry, events, onClose, onAction }: Props
         </button>
       </div>
 
-      {/* Identity row */}
       <div className="card p-3">
         <div className="flex items-baseline justify-between">
           <div className="flex flex-col">
@@ -90,23 +68,22 @@ export function UnitDetail({ unit, telemetry, events, onClose, onAction }: Props
         </div>
       </div>
 
-      {/* Telemetry stats */}
       <div className="card p-3">
         <Eyebrow mono>Telemetry</Eyebrow>
         <div className="mt-2 grid grid-cols-2 gap-y-2 font-mono text-ui">
           <span className="eyebrow-mono">Coordinates</span>
           <span className="text-platinum text-right mono-num">
-            {fmtDeg(geo.lat, "lat")} · {fmtDeg(geo.lon, "lon")}
+            {fmtDeg(unit.geo.lat, "lat")} · {fmtDeg(unit.geo.lon, "lon")}
           </span>
 
           <span className="eyebrow-mono">Altitude</span>
           <span className="text-platinum text-right mono-num">
-            {geo.alt_m.toFixed(0)} m
+            {unit.altitude_agl_m.toFixed(0)} m
           </span>
 
-          <span className="eyebrow-mono">Velocity</span>
+          <span className="eyebrow-mono">Heading</span>
           <span className="text-platinum text-right mono-num">
-            {(tele?.velocity_mps ?? 0).toFixed(1)} m/s
+            {unit.heading_deg.toFixed(0).padStart(3, "0")}°
           </span>
 
           <span className="eyebrow-mono">Battery</span>
@@ -115,11 +92,12 @@ export function UnitDetail({ unit, telemetry, events, onClose, onAction }: Props
           </span>
 
           <span className="eyebrow-mono">Link health</span>
-          <span className="text-platinum text-right mono-num">{link} %</span>
+          <span className="text-platinum text-right mono-num">
+            {(unit.link_quality * 100).toFixed(1)} %
+          </span>
         </div>
       </div>
 
-      {/* Current mission */}
       <div className="card p-3">
         <Eyebrow mono>Current mission</Eyebrow>
         {mission ? (
@@ -127,7 +105,7 @@ export function UnitDetail({ unit, telemetry, events, onClose, onAction }: Props
             <div className="flex items-baseline justify-between">
               <span className="eyebrow-mono">id</span>
               <span className="mono-num text-platinum text-ui">
-                {mission.missionId.slice(0, 8)}
+                {mission.id.slice(0, 8)}
               </span>
             </div>
             <div className="flex items-baseline justify-between">
@@ -139,38 +117,32 @@ export function UnitDetail({ unit, telemetry, events, onClose, onAction }: Props
             <div className="relative h-1 bg-gunmetal overflow-hidden rounded-chip mt-1">
               <div
                 className="absolute inset-y-0 left-0 bg-signal-green transition-all duration-connect ease-swarm"
-                style={{ width: `${mission.progress}%` }}
+                style={{ width: `${mission.progress_pct}%` }}
               />
             </div>
             <span className="mono-num text-ash text-eyebrow text-right">
-              {mission.progress.toFixed(0)} %
+              {mission.progress_pct.toFixed(0)} %
             </span>
           </div>
         ) : (
-          <div className="mt-2 font-mono text-ui text-muted-silver">no mission. unit at rest.</div>
+          <div className="mt-2 font-mono text-ui text-muted-silver">
+            no mission. unit at rest.
+          </div>
         )}
       </div>
 
-      {/* Actions */}
       <div className="card p-3">
-        <Eyebrow mono>Actions</Eyebrow>
+        <Eyebrow mono>Intents</Eyebrow>
         <div className="mt-2 flex flex-col gap-2">
           <button
-            onClick={() => onAction?.("rtl")}
+            onClick={onReturn}
             className="bg-platinum text-absolute-black font-display font-medium text-ui px-3 py-2 rounded-input transition-all duration-press ease-swarm hover:brightness-110 active:scale-[0.98]"
-            title="Force return to dock"
+            title="Return this unit to its dock"
           >
-            Force RTL
-          </button>
-          <button
-            onClick={() => onAction?.("cancel")}
-            className="bg-transparent text-platinum border border-graphite font-display font-medium text-ui px-3 py-2 rounded-input transition-all duration-press ease-swarm hover:brightness-110 active:scale-[0.98]"
-            title="Cancel the unit's current mission"
-          >
-            Cancel mission
+            Return unit
           </button>
           <span className="eyebrow-mono text-ash mt-1">
-            actions are advisory in this session.
+            intent only — swarmos confirms via the operator command bus.
           </span>
         </div>
       </div>

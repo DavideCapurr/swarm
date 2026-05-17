@@ -1,0 +1,53 @@
+# Phase 6.A site config — vineyard-01 (the legacy demo site).
+#
+# This is the source of operational truth for one site: the geofence
+# polygon SwarmOS enforces per mission, the altitude cap, the safety
+# thresholds, and the weather provider binding.
+#
+# Multi-site routing + hot reload + audit on change live in Phase 6.B.
+# For now, this file is loaded once at startup. To regenerate it from
+# the built-in default, see `swarm_os/sites.py::_builtin_vineyard_config`.
+#
+# Hardware day: see `docs/ops/drone-day-checklist.md` §2 for the
+# external assets (weather API key, signing keys, MFA provider) that
+# bind to this config on real fleets.
+site_id: vineyard-01
+name: "Vineyard Langhe — demo bench"
+center:
+  lat: 44.7000
+  lon: 8.0300
+  alt_m: 0.0
+geofence:
+  # Counter-clockwise polygon, ~1 km half-extent on each side. The legal
+  # authorization perimeter on a real site MUST be cross-checked against
+  # the site survey before flight (see drone-day-checklist §3).
+  polygon:
+    - { lat: 44.6910, lon: 8.0180 }
+    - { lat: 44.6910, lon: 8.0420 }
+    - { lat: 44.7090, lon: 8.0420 }
+    - { lat: 44.7090, lon: 8.0180 }
+  # CE class C2 → 120 m AGL ceiling. Reduce per local authorization.
+  max_alt_m: 120.0
+thresholds:
+  battery:
+    patrol_min_pct: 30.0
+    verify_min_pct: 40.0
+    rtl_dock_min_pct: 15.0
+    rtl_force_below_pct: 20.0
+  link:
+    min_quality_for_mission: 0.5
+    rtl_below_quality: 0.3
+  weather:
+    max_wind_mps: 12.0
+    min_visibility_km: 3.0
+    temp_c_min: -5.0
+    temp_c_max: 40.0
+weather_provider:
+  # `stub` is the in-process LocalStubWeatherProvider. Production sites
+  # flip this to `openweather` (or equivalent) and bind `api_key_env`
+  # to the env var that holds the secret. Drone-day checklist §2.A.
+  kind: stub
+  refresh_interval_s: 300
+docks:
+  - dock_id: dock-langhe-01
+    primary: true
