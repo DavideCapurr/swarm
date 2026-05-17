@@ -35,12 +35,12 @@ core/                domain layer — pure Python, no I/O (THE OS)
 adapters/            multi-vendor drone interoperability (THE MOAT)
   base.py            DroneAdapter Protocol
   simulated/         drives the 2D sim — used by `make demo`
-  mavlink/           PX4 / ArduPilot placeholder; live SDK decision deferred to Phase 5
+  mavlink/           PX4 / ArduPilot adapter via pymavlink (Phase 5 CI-verified)
   dji_cloud/         DJI Dock + DJI Cloud API (REST + MQTT)
   dji_psdk/          DJI Payload SDK (onboard SoC) — stub
   autel/ parrot/ skydio/    stubs — typed against vendor protocols
 
-sim/                 light Python 2D simulator (placeholder for Gazebo)
+sim/                 light Python 2D simulator (Gazebo/PX4 SITL remains a bench gate)
 orchestrator/        coordination service (auction loop, fleet mgmt)
 backend/             FastAPI app — REST + WebSocket telemetry
 frontend/            Next.js operator dashboard
@@ -58,11 +58,33 @@ git clone https://github.com/davidecapurr/swarm.git
 cd swarm
 cp .env.example .env
 
-make setup     # python venv + deps + pnpm install
-make infra     # postgres + redis via docker compose
-make demo      # boots sim + orchestrator + backend + frontend
-               # opens http://localhost:3000
+make setup               # python venv + deps + pnpm install
+make bootstrap-auth-dev  # JWT secret + 3 local operators (Phase 6.C)
+make infra               # postgres + redis via docker compose
+make demo                # boots sim + orchestrator + backend + frontend
+                         # opens http://localhost:3000 — log in via /login
 ```
+
+`make bootstrap-auth-dev` is idempotent: it generates a random
+`SWARM_JWT_SECRET` if `.env` doesn't already carry one, and writes
+`infra/config/operators.yaml` with three local accounts (all share the
+password `swarm-dev`):
+
+| operator id      | role      | MFA at login         |
+|------------------|-----------|----------------------|
+| `op-viewer01`    | viewer    | no                   |
+| `op-operator01`  | operator  | no                   |
+| `op-commander01` | commander | yes — scan TOTP URI  |
+
+The commander's TOTP URI is written to
+`infra/config/operators.yaml.commander-totp.txt` for one-time
+enrolment in any standard authenticator (Aegis / 1Password / FreeOTP /
+Google Authenticator). Both files are gitignored; never commit them.
+The drone-day checklist
+[`docs/ops/drone-day-checklist.md`](docs/ops/drone-day-checklist.md)
+§2.C documents the real production provisioning flow. See
+[`docs/security/auth.md`](docs/security/auth.md) for the full auth
+design.
 
 Run the wildfire scenario manually:
 

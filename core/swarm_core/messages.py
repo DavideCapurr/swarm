@@ -362,6 +362,9 @@ class DockState(BaseModel):
     visibility_km: float | None = None
     temp_c: float | None = None
     next_patrol_at: datetime | None = None
+    # Phase 3: server marks the canonical dock the Console reads — no more
+    # client-side `pickPrimaryDock` heuristic.
+    primary: bool = False
     ts: datetime = Field(default_factory=_now)
 
 
@@ -383,7 +386,12 @@ class Sector(BaseModel):
 
 
 class AwarenessBreakdown(BaseModel):
-    """Server-computed territorial awareness score + factor decomposition."""
+    """Server-computed territorial awareness score + factor decomposition.
+
+    Phase 3 carries the operating mode and active verifier here so the Console
+    has a single truth frame for top-level state — replacing the Phase 2
+    client-side `deriveOperatingMode` / `deriveVerifier` heuristics.
+    """
 
     model_config = _STRICT
     score: float = Field(..., ge=0.0, le=100.0)
@@ -391,6 +399,8 @@ class AwarenessBreakdown(BaseModel):
     blind_spot_sectors: list[str] = Field(default_factory=list)
     stale_sectors: list[str] = Field(default_factory=list)
     risk_state: RiskState = RiskState.REST
+    mode: OperatingMode = OperatingMode.REST
+    verifying_agent: str | None = None
     ts: datetime = Field(default_factory=_now)
 
 
@@ -407,6 +417,10 @@ class MissionView(BaseModel):
     eta_s: float | None = None
     waypoints: list[Geo] = Field(default_factory=list)
     track: list[Geo] = Field(default_factory=list)  # recent observed positions
+    # Phase 6.A.5: higher wins ties. Auto-RTL emits priority 100; operator
+    # commands use 50; scheduler-auto patrol uses 10. Default 0 keeps legacy
+    # callers compatible.
+    priority: int = 0
     ts: datetime = Field(default_factory=_now)
 
 
@@ -445,7 +459,12 @@ class Event(BaseModel):
 
 
 class OperatorCommand(BaseModel):
-    """The audit record for an operator intent submitted via the Console."""
+    """The audit record for an operator intent submitted via the Console.
+
+    Phase 3 extends the lifecycle with `accepted_at` + `in_flight_at` so the
+    Console can render a timeline of every command. The status machine flows
+    `submitted → accepted → in_flight → completed | rejected | timed_out`.
+    """
 
     model_config = _STRICT
     id: str = Field(default_factory=_new_id)
@@ -453,6 +472,10 @@ class OperatorCommand(BaseModel):
     target: str  # opaque to the model; the command_bus validates by kind:identifier
     operator_id: str
     submitted_at: datetime = Field(default_factory=_now)
+    accepted_at: datetime | None = None
+    in_flight_at: datetime | None = None
     status: CommandStatus = CommandStatus.SUBMITTED
     rejected_reason: RejectedReason | None = None
     completed_at: datetime | None = None
+    mission_id: str | None = None  # the mission the command spawned, if any
+    ts: datetime = Field(default_factory=_now)

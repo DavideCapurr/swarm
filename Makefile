@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit clean
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision
 
 PY := python3
 VENV := .venv
@@ -13,28 +13,40 @@ setup-python:
 	$(UV) sync --frozen --extra dev --extra mavlink --extra dji --python $(PY)
 
 setup-frontend:
-	cd frontend && corepack pnpm install --frozen-lockfile
+	# `--ignore-scripts` is belt-and-suspenders alongside `frontend/.npmrc`:
+	# blocks postinstall lifecycle scripts from npm packages so a malicious
+	# transitive dep can't execute code at install time (threat model §S3).
+	cd frontend && corepack pnpm install --frozen-lockfile --ignore-scripts
 
 # ── lint & test ─────────────────────────────────────────────────────────────
 lint:
 	$(VENV)/bin/ruff check .
-	$(VENV)/bin/mypy core adapters orchestrator sim backend
+	$(VENV)/bin/mypy core adapters orchestrator sim backend swarm_os
 	cd frontend && corepack pnpm typecheck
 
 test: test-python test-frontend
 
 test-python:
-	$(VENV)/bin/pytest -q --cov=core --cov=adapters --cov=orchestrator
+	$(VENV)/bin/pytest -q --cov=core --cov=adapters --cov=orchestrator --cov=swarm_os
 
 test-frontend:
-	cd frontend && corepack pnpm test --run 2>/dev/null || true
+	cd frontend && corepack pnpm typecheck
 
 # ── run ─────────────────────────────────────────────────────────────────────
 infra:
 	docker compose up -d postgres redis
 
-backend: infra
+backend: infra db-migrate
 	$(VENV)/bin/uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8765
+
+# ── database migrations (Phase 4) ───────────────────────────────────────────
+# db-migrate runs `alembic upgrade head` against the URL in $DATABASE_URL.
+# db-revision <message="…"> generates a new migration file from model diffs.
+db-migrate:
+	$(VENV)/bin/alembic upgrade head
+
+db-revision:
+	$(VENV)/bin/alembic revision --autogenerate -m "$(message)"
 
 frontend:
 	cd frontend && corepack pnpm dev
@@ -52,7 +64,7 @@ demo:
 # `make audit` is the one-stop check before pushing. It mirrors what CI runs
 # under .github/workflows/sast.yml + secret-scanning.yml + image-scan.yml +
 # dependency-review.yml. Locally we skip image-scan (needs Docker daemon).
-audit: audit-python audit-frontend audit-bandit
+audit: audit-python audit-frontend audit-bandit audit-pymavlink-integrity
 
 audit-python:
 	$(VENV)/bin/pip-audit --skip-editable --cache-dir .cache/pip-audit
@@ -64,6 +76,23 @@ audit-bandit:
 	$(VENV)/bin/bandit -r core adapters orchestrator sim backend swarm_os \
 		--severity-level medium \
 		--skip B101,B311
+
+audit-pymavlink-integrity:
+	$(PYTHON) scripts/verify_pymavlink_integrity.py
+
+phase5-sitl-gate:
+	$(PYTHON) scripts/phase5_sitl_probe.py \
+		--connection "$${MAVLINK_CONNECTION:-udp:localhost:14540}" \
+		--agent-id "$${MAVLINK_AGENT_ID:-mav-px4-sitl}"
+
+# ── auth bootstrap (Phase 6.C, dev only) ────────────────────────────────────
+# One-shot: generate a JWT secret + write infra/config/operators.yaml with
+# three local accounts (viewer / operator / commander, password swarm-dev).
+# Idempotent — never overwrites an existing operators.yaml or a non-empty
+# SWARM_JWT_SECRET. NEVER use in staging / production: drone-day §2.C
+# documents the real provisioning flow.
+bootstrap-auth-dev:
+	@./scripts/bootstrap_auth_dev.sh
 
 # ── cleanup ─────────────────────────────────────────────────────────────────
 clean:

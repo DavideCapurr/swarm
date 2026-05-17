@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-logger = logging.getLogger("backend.ws")
+from backend.app.observability.logging import get_logger
+from backend.app.observability.metrics import get_metrics
+from swarm_os import COORDINATOR
+
+logger = get_logger("backend.ws")
 
 
 class WSHub:
@@ -17,16 +20,28 @@ class WSHub:
         self._clients: set[WebSocket] = set()
         self._lock = asyncio.Lock()
 
-    async def connect(self, ws: WebSocket) -> None:
-        await ws.accept()
+    async def connect(self, ws: WebSocket, *, subprotocol: str | None = None) -> None:
+        # `subprotocol` is set when the client used the `bearer, <jwt>`
+        # negotiation path so Starlette echoes the chosen protocol back
+        # in the handshake response.
+        if subprotocol:
+            await ws.accept(subprotocol=subprotocol)
+        else:
+            await ws.accept()
         async with self._lock:
             self._clients.add(ws)
-        logger.info("ws connect — %d clients", len(self._clients))
+            count = len(self._clients)
+        get_metrics().ws_clients.set(count)
+        for frame in await COORDINATOR.snapshot_frames():
+            await ws.send_text(json.dumps(frame))
+        logger.info("ws connect", clients=count)
 
     async def disconnect(self, ws: WebSocket) -> None:
         async with self._lock:
             self._clients.discard(ws)
-        logger.info("ws disconnect — %d clients", len(self._clients))
+            count = len(self._clients)
+        get_metrics().ws_clients.set(count)
+        logger.info("ws disconnect", clients=count)
 
     async def broadcast(self, msg: dict[str, Any]) -> None:
         payload = json.dumps(msg)

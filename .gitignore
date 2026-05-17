@@ -28,6 +28,12 @@ out/
 .env.*.local
 !.env.example
 
+# Phase 6.C — operator identity store. Real password hashes + TOTP
+# secrets live here; the example file is the only one committed.
+infra/config/operators.yaml
+infra/config/operators/*.yaml
+infra/config/operators.yaml.commander-totp.txt
+
 # Editor
 .vscode/
 .idea/

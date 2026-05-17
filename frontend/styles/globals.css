@@ -81,7 +81,8 @@
     background: #1A2026; /* gunmetal */
   }
 
-  /* Card — borders, not shadows. */
+  /* Card — borders, not shadows. The 1 px inset highlight is the only
+     allowed glow per design system spread 18 (Surfaces). */
   .card {
     background: #0B0E11; /* obsidian */
     border: 1px solid #1A2026; /* gunmetal hairline */
@@ -89,7 +90,7 @@
     box-shadow: inset 0 1px 0 rgba(238, 240, 243, 0.06);
   }
 
-  /* Status dot with halo. */
+  /* Status dot. */
   .dot {
     display: inline-block;
     width: 6px;
@@ -97,9 +98,9 @@
     border-radius: 50%;
   }
   .dot-rest        { background: #EEF0F3; }
-  .dot-connected   { background: #7BE7FF; box-shadow: 0 0 6px rgba(123,231,255,0.55); }
-  .dot-operational { background: #B8FF66; box-shadow: 0 0 6px rgba(184,255,102,0.5); }
-  .dot-attention   { background: #FFB45C; box-shadow: 0 0 6px rgba(255,180,92,0.55); }
+  .dot-connected   { background: #7BE7FF; }
+  .dot-operational { background: #B8FF66; }
+  .dot-attention   { background: #FFB45C; }
 
   /* Pill / chip — sentence case, uppercase eyebrow style for status. */
   .pill {
