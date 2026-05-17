@@ -3,6 +3,11 @@
  *
  * Emits typed events; callers subscribe via `onMessage`. The union below
  * mirrors the kinds projected by `swarm_os.coordinator.SwarmCoordinator`.
+ *
+ * Phase 6.C: the upgrade carries an access token via the `?token=` query
+ * parameter (the browser WebSocket API does not let JS set custom
+ * headers). The token comes from `lib/auth.tsx` — the socket refuses to
+ * dial without one.
  */
 
 import type {
@@ -19,8 +24,6 @@ import type {
 } from "./api";
 
 function defaultWsUrl(): string {
-  // Derive from the current page so the dashboard works when opened over the
-  // LAN (e.g. http://192.168.x.x:3000) without an explicit NEXT_PUBLIC_WS_URL.
   if (typeof window !== "undefined") {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${window.location.hostname}:8765/ws/telemetry`;
@@ -31,9 +34,6 @@ function defaultWsUrl(): string {
 function resolveWsUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_WS_URL;
   if (!envUrl) return defaultWsUrl();
-  // Ignore a baked-in localhost env value when the page itself is being
-  // served from a different host (LAN access): the browser would otherwise
-  // try to dial its own machine instead of the backend.
   if (typeof window !== "undefined") {
     try {
       const u = new URL(envUrl);
@@ -48,7 +48,7 @@ function resolveWsUrl(): string {
   return envUrl;
 }
 
-const WS_URL = resolveWsUrl();
+const BASE_WS_URL = resolveWsUrl();
 
 export type WSMessage =
   | { kind: "session"; data: Session }
@@ -64,13 +64,38 @@ export type WSMessage =
 
 export type WSHandler = (msg: WSMessage) => void;
 
+/**
+ * `tokenProvider` returns the *current* access token at dial time.
+ * Centralising it here means a refreshed token is picked up on the next
+ * reconnect without surgery on every caller.
+ */
+export type TokenProvider = () => string | null;
+
 export class SwarmSocket {
   private ws?: WebSocket;
   private handlers = new Set<WSHandler>();
   private retry = 0;
+  private tokenProvider: TokenProvider;
+  private closed = false;
+
+  constructor(tokenProvider: TokenProvider) {
+    this.tokenProvider = tokenProvider;
+  }
 
   connect(): void {
-    this.ws = new WebSocket(WS_URL);
+    const token = this.tokenProvider();
+    if (!token) {
+      // Without a token the backend would refuse with 1008 anyway —
+      // skip the dial and retry after a short delay; auth might still be
+      // loading from storage.
+      const delay = Math.min(10_000, 500 * 2 ** this.retry++);
+      window.setTimeout(() => {
+        if (!this.closed) this.connect();
+      }, delay);
+      return;
+    }
+    const url = `${BASE_WS_URL}?token=${encodeURIComponent(token)}`;
+    this.ws = new WebSocket(url);
     this.ws.onopen = () => {
       this.retry = 0;
     };
@@ -83,13 +108,16 @@ export class SwarmSocket {
       }
     };
     this.ws.onclose = () => {
-      // Backoff reconnect, capped at ~10 s.
+      if (this.closed) return;
       const delay = Math.min(10_000, 500 * 2 ** this.retry++);
-      setTimeout(() => this.connect(), delay);
+      window.setTimeout(() => {
+        if (!this.closed) this.connect();
+      }, delay);
     };
   }
 
   close(): void {
+    this.closed = true;
     this.ws?.close();
     this.ws = undefined;
   }

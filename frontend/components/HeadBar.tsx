@@ -9,6 +9,7 @@
 
 import Link from "next/link";
 
+import { useAuth } from "@/lib/auth";
 import { useSwarm } from "@/lib/state";
 import { StatusPill } from "./StatusPill";
 
@@ -24,7 +25,8 @@ const MODE_STATE: Record<
 };
 
 export function HeadBar() {
-  const { session, units, anomalies, link, clock, mode } = useSwarm();
+  const { session, units, anomalies, link, clock, mode, operatorId, role } = useSwarm();
+  const { logout } = useAuth();
   const online = units.filter((u) => u.fsm_state !== "OFFLINE").length;
   const total = units.length;
   const pending = anomalies.filter((a) => a.state === "pending" || a.state === "verifying").length;
@@ -75,8 +77,35 @@ export function HeadBar() {
           {`${String(online).padStart(3, "0")} / ${String(total).padStart(3, "0")} online`}
         </StatusPill>
         {pending > 0 && <StatusPill state="attention">{`${pending} pending`}</StatusPill>}
+        <OperatorBadge operatorId={operatorId} role={role} onLogout={() => void logout()} />
       </div>
     </header>
+  );
+}
+
+function OperatorBadge({
+  operatorId,
+  role,
+  onLogout,
+}: {
+  operatorId: string;
+  role: "viewer" | "operator" | "commander" | null;
+  onLogout: () => void;
+}) {
+  if (!operatorId || !role) return null;
+  return (
+    <span className="flex items-center gap-2 eyebrow-mono text-platinum">
+      <span className="mono-num">{operatorId}</span>
+      <span className="text-muted-silver">/ {role}</span>
+      <button
+        type="button"
+        onClick={onLogout}
+        className="text-ash hover:text-platinum transition-colors duration-press ease-swarm"
+        aria-label="sign out"
+      >
+        / sign out
+      </button>
+    </span>
   );
 }
 
