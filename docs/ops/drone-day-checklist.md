@@ -105,14 +105,51 @@ What still needs you on hardware day:
       a single deploy, run two backend containers behind different
       hostnames, each with its own `SWARM_SITE_ID`.
 
-### 2.C Operator auth (Phase 6.C — pending until that session)
+### 2.C Operator auth (Phase 6.C — code landed)
 
-- [ ] JWT signing key: generate RS256 keypair, store private key in
-      vault, mount public key into backend container.
-- [ ] If you opted into OIDC bridge (not the default): provider URL +
-      client id + secret.
-- [ ] MFA TOTP provider for `commander` role: pick a library (e.g.
-      `pyotp`) and provision QR enrolment flow.
+The 6.C work delivered: pure JWT HS256 (15 min access, 8 h refresh,
+rotation on use), RBAC across viewer/operator/commander, mandatory MFA
+for commander at login and `mfa=true` re-check on commander endpoints,
+in-process revocation list, audit events on every login / refresh /
+logout / revocation, login + WS-upgrade auth, transitional
+`X-Admin-Token` retired. See [`docs/security/auth.md`](../security/auth.md).
+
+What still needs you on hardware day:
+
+- [ ] **JWT secret**: generate ≥ 32 random bytes
+      (`openssl rand -hex 32`) and mount as the `SWARM_JWT_SECRET`
+      env var via a deploy secret. Never commit. Rotate annually +
+      after any suspected compromise (drives all outstanding tokens
+      to invalid; the revocation list is in-process, so a rotation
+      is the supported "log out everyone" lever today).
+- [ ] **Operators YAML**: copy `infra/config/operators.example.yaml`
+      to `infra/config/operators.yaml` (or wherever
+      `SWARM_OPERATORS_CONFIG` points), generate each
+      `password_hash` with
+      `python -m backend.app.auth.cli hash-password`, and provision
+      each commander with
+      `python -m backend.app.auth.cli new-mfa op-<id>`. Mount as a
+      deploy secret. The repo `.gitignore` blocks the real file from
+      being committed.
+- [ ] **MFA enrolment**: scan each commander's `otpauth://…` URI
+      into a TOTP authenticator app (Aegis / 1Password / FreeOTP /
+      Google Authenticator). Print the recovery secret in a sealed
+      envelope and store offline per company key-management policy.
+- [ ] **OIDC bridge (optional)**: not delivered in 6.C. If a
+      customer needs SSO, plug an OIDC provider in front of
+      `/auth/login` in Phase 6.E.
+- [ ] **HttpOnly cookie for refresh (optional)**: today the Console
+      stores both tokens in `localStorage`. CSP forbids third-party
+      scripts; the XSS exposure window is the 15-min access TTL. The
+      cookie-based pipe (CSRF + SameSite + server-side cookie issuer)
+      is queued for 6.E.
+- [ ] **Redis-backed revocation list (multi-replica)**: in-process
+      today, sufficient for single-instance. Multi-replica deploys
+      must wait for the Redis swap together with the rest of the
+      secure-bus rollout in 6.E.
+- [ ] **Pen-test pass**: include the auth surface in the Phase 6
+      external pen-test (login brute force, JTI replay, MFA bypass,
+      WS upgrade auth).
 
 ### 2.D Observability (Phase 6.D — pending until that session)
 

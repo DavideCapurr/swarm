@@ -1,17 +1,23 @@
 """Operator intent endpoints.
 
-Phase 3: every accepted command now flows through `COORDINATOR.apply_command`
-so the lifecycle states (submitted → accepted → in_flight → completed) and
-the audit log live in `state.commands`. The endpoint also broadcasts the
-resulting WS frames so connected Consoles see the operator timeline update
-without waiting for the next telemetry tick.
+Phase 6.C: the caller is identified by the JWT ``Principal`` produced by
+``require_operator``; the transitional ``X-Operator-Id`` header is gone.
+A viewer hitting any of these endpoints gets 403; an operator or
+commander goes through.
+
+Phase 3 mechanics are preserved: every accepted command flows through
+``COORDINATOR.apply_command`` so the lifecycle states
+(submitted → accepted → in_flight → completed) and the audit log live in
+``state.commands``. The endpoint also broadcasts the resulting WS frames
+so connected Consoles see the operator timeline update without waiting
+for the next telemetry tick.
 """
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from pydantic import BaseModel, ConfigDict
 from swarm_core.messages import (
     CommandStatus,
@@ -20,9 +26,10 @@ from swarm_core.messages import (
     RejectedReason,
 )
 
+from backend.app.auth.deps import Principal, require_operator
 from backend.app.db import get_repository
 from backend.app.hub import HUB
-from backend.app.security import RateLimiter, is_valid_operator_id
+from backend.app.security import RateLimiter
 from swarm_os import COORDINATOR
 
 router = APIRouter(prefix="/actions")
@@ -44,17 +51,13 @@ async def _dispatch(
     request: Request,
     action: OperatorAction,
     body: ActionBody,
-    operator_id: str | None,
+    principal: Principal,
 ) -> tuple[dict[str, str | None], int]:
-    if not is_valid_operator_id(operator_id):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_operator_id")
-    assert operator_id is not None
-
-    if not await _limiter.allow(_client_key(request, operator_id)):
+    if not await _limiter.allow(_client_key(request, principal.operator_id)):
         command = OperatorCommand(
             action=action,
             target=body.target,
-            operator_id=operator_id,
+            operator_id=principal.operator_id,
             rejected_reason=RejectedReason.RATE_LIMITED,
             status=CommandStatus.REJECTED,
         )
@@ -67,7 +70,9 @@ async def _dispatch(
             "rejected_reason": RejectedReason.RATE_LIMITED.value,
         }, status.HTTP_429_TOO_MANY_REQUESTS
 
-    command = OperatorCommand(action=action, target=body.target, operator_id=operator_id)
+    command = OperatorCommand(
+        action=action, target=body.target, operator_id=principal.operator_id
+    )
     result, frames = await COORDINATOR.apply_command(command)
     for frame in frames:
         await HUB.broadcast(frame)
@@ -87,9 +92,9 @@ async def verify(
     request: Request,
     response: Response,
     body: ActionBody,
-    x_operator_id: Annotated[str | None, Header(alias="X-Operator-Id")] = None,
+    principal: Annotated[Principal, Depends(require_operator)],
 ) -> dict[str, str | None]:
-    body_out, code = await _dispatch(request, OperatorAction.VERIFY, body, x_operator_id)
+    body_out, code = await _dispatch(request, OperatorAction.VERIFY, body, principal)
     response.status_code = code
     return body_out
 
@@ -99,9 +104,9 @@ async def hold_patrol(
     request: Request,
     response: Response,
     body: ActionBody,
-    x_operator_id: Annotated[str | None, Header(alias="X-Operator-Id")] = None,
+    principal: Annotated[Principal, Depends(require_operator)],
 ) -> dict[str, str | None]:
-    body_out, code = await _dispatch(request, OperatorAction.HOLD_PATROL, body, x_operator_id)
+    body_out, code = await _dispatch(request, OperatorAction.HOLD_PATROL, body, principal)
     response.status_code = code
     return body_out
 
@@ -111,9 +116,9 @@ async def dismiss(
     request: Request,
     response: Response,
     body: ActionBody,
-    x_operator_id: Annotated[str | None, Header(alias="X-Operator-Id")] = None,
+    principal: Annotated[Principal, Depends(require_operator)],
 ) -> dict[str, str | None]:
-    body_out, code = await _dispatch(request, OperatorAction.DISMISS, body, x_operator_id)
+    body_out, code = await _dispatch(request, OperatorAction.DISMISS, body, principal)
     response.status_code = code
     return body_out
 
@@ -123,8 +128,8 @@ async def return_unit(
     request: Request,
     response: Response,
     body: ActionBody,
-    x_operator_id: Annotated[str | None, Header(alias="X-Operator-Id")] = None,
+    principal: Annotated[Principal, Depends(require_operator)],
 ) -> dict[str, str | None]:
-    body_out, code = await _dispatch(request, OperatorAction.RETURN, body, x_operator_id)
+    body_out, code = await _dispatch(request, OperatorAction.RETURN, body, principal)
     response.status_code = code
     return body_out

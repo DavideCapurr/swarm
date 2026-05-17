@@ -1,4 +1,8 @@
-"""Phase 6.B — admin reload endpoint tests."""
+"""Phase 6.B/6.C — admin reload endpoint tests.
+
+Phase 6.B shipped the endpoint behind a transitional ``X-Admin-Token``
+header; Phase 6.C replaced that gate with the JWT ``commander`` role +
+MFA-on-claim. These tests target the 6.C surface."""
 
 from __future__ import annotations
 
@@ -8,25 +12,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.app.api.admin import (
-    ADMIN_TOKEN_ENV,
-    ADMIN_TOKEN_HEADER,
-)
-from backend.app.api.admin import (
-    router as admin_router,
-)
+from backend.app.api.admin import router as admin_router
 from swarm_os import SWARM_STATE
 
 
 @pytest.fixture()
 def site_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Lay down two site configs in a temp dir and point the loader at it.
-
-    The default loader reads `infra/config/sites/<id>.yaml`; tests override
-    DEFAULT_CONFIG_DIR by monkeypatching the env or the constant. The
-    cleanest path is to write the YAMLs in the canonical repo location via
-    a monkeypatch on the module constant.
-    """
+    """Lay down two site configs in a temp dir and point the loader at it."""
 
     site_dir = tmp_path / "sites"
     site_dir.mkdir()
@@ -83,72 +75,73 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
-def test_reload_returns_503_when_admin_disabled(
-    site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv(ADMIN_TOKEN_ENV, raising=False)
-    client = _client()
-    resp = client.post(
-        "/admin/reload-site-config",
-        json={"site_id": "vineyard-01"},
-    )
-    assert resp.status_code == 503
-    assert resp.json()["detail"] == "admin_disabled"
+def test_reload_returns_401_without_token(site_yaml: Path) -> None:
+    """No bearer token → 401."""
 
-
-def test_reload_returns_503_when_admin_token_empty(
-    site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "")
-    client = _client()
-    resp = client.post(
-        "/admin/reload-site-config",
-        json={"site_id": "vineyard-01"},
-        headers={ADMIN_TOKEN_HEADER: "anything"},
-    )
-    assert resp.status_code == 503
-
-
-def test_reload_returns_401_on_missing_token(
-    site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "s3cret")
     client = _client()
     resp = client.post(
         "/admin/reload-site-config",
         json={"site_id": "vineyard-01"},
     )
     assert resp.status_code == 401
-    assert resp.json()["detail"] == "invalid_admin_token"
 
 
-def test_reload_returns_401_on_wrong_token(
+def test_reload_returns_403_for_viewer(
     site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    viewer_headers: dict[str, str],
 ) -> None:
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "s3cret")
+    """RBAC: viewer must not be able to reload site config."""
+
     client = _client()
     resp = client.post(
         "/admin/reload-site-config",
         json={"site_id": "vineyard-01"},
-        headers={ADMIN_TOKEN_HEADER: "wrong"},
+        headers=viewer_headers,
     )
-    assert resp.status_code == 401
+    assert resp.status_code == 403
+
+
+def test_reload_returns_403_for_operator(
+    site_yaml: Path,
+    operator_headers: dict[str, str],
+) -> None:
+    """RBAC: operator role is not allowed on commander-only endpoint."""
+
+    client = _client()
+    resp = client.post(
+        "/admin/reload-site-config",
+        json={"site_id": "vineyard-01"},
+        headers=operator_headers,
+    )
+    assert resp.status_code == 403
+
+
+def test_reload_returns_403_for_commander_without_mfa(
+    site_yaml: Path,
+    commander_headers_no_mfa: dict[str, str],
+) -> None:
+    """A commander whose access token carries ``mfa=False`` is rejected:
+    the route layer re-checks the MFA claim on every call."""
+
+    client = _client()
+    resp = client.post(
+        "/admin/reload-site-config",
+        json={"site_id": "vineyard-01"},
+        headers=commander_headers_no_mfa,
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "mfa_required"
 
 
 def test_reload_returns_404_on_unknown_site(
     site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    commander_headers: dict[str, str],
 ) -> None:
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "s3cret")
     client = _client()
     resp = client.post(
         "/admin/reload-site-config",
         json={"site_id": "does-not-exist"},
-        headers={ADMIN_TOKEN_HEADER: "s3cret"},
+        headers=commander_headers,
     )
     assert resp.status_code == 404
     assert resp.json()["detail"] == "site_config_not_found"
@@ -156,31 +149,29 @@ def test_reload_returns_404_on_unknown_site(
 
 def test_reload_rejects_invalid_site_id_pattern(
     site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    commander_headers: dict[str, str],
 ) -> None:
     """`extra="forbid"` blocks malformed bodies; the regex rejects path-traversal
     attempts before the loader sees a tainted string."""
 
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "s3cret")
     client = _client()
     resp = client.post(
         "/admin/reload-site-config",
         json={"site_id": "../etc/passwd"},
-        headers={ADMIN_TOKEN_HEADER: "s3cret"},
+        headers=commander_headers,
     )
     assert resp.status_code == 422
 
 
 def test_reload_succeeds_and_swaps_policy(
     site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    commander_headers: dict[str, str],
 ) -> None:
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "s3cret")
     client = _client()
     resp = client.post(
         "/admin/reload-site-config",
         json={"site_id": "ranch-02"},
-        headers={ADMIN_TOKEN_HEADER: "s3cret"},
+        headers=commander_headers,
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -190,31 +181,31 @@ def test_reload_succeeds_and_swaps_policy(
     # The policy engine on the shared state must be bound to the new site.
     assert SWARM_STATE.policy.site.site_id == "ranch-02"
     assert SWARM_STATE.session.site_id == "ranch-02"
-    # An audit event was appended.
+    # An audit event was appended; the body names the responsible commander.
     event_ids = [e.id for e in SWARM_STATE.events]
     assert body["event_id"] in event_ids
+    audit = next(e for e in SWARM_STATE.events if e.id == body["event_id"])
+    assert "op-commander01" in audit.body
 
 
 def test_reload_back_to_same_site_keeps_sectors_intact(
     site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    commander_headers: dict[str, str],
 ) -> None:
     """Reloading the current site is a refresh, not a relocation — the
     sector grid must remain in place so coverage history is preserved."""
 
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "s3cret")
     client = _client()
-    # Force the state to vineyard-01 first.
     client.post(
         "/admin/reload-site-config",
         json={"site_id": "vineyard-01"},
-        headers={ADMIN_TOKEN_HEADER: "s3cret"},
+        headers=commander_headers,
     )
     before_sectors = set(SWARM_STATE.sectors)
     resp = client.post(
         "/admin/reload-site-config",
         json={"site_id": "vineyard-01"},
-        headers={ADMIN_TOKEN_HEADER: "s3cret"},
+        headers=commander_headers,
     )
     assert resp.status_code == 200
     assert set(SWARM_STATE.sectors) == before_sectors
@@ -222,7 +213,7 @@ def test_reload_back_to_same_site_keeps_sectors_intact(
 
 def test_reload_preserves_weather_provider_binding(
     site_yaml: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    commander_headers: dict[str, str],
 ) -> None:
     """The reload swaps SiteConfig, not the WeatherProvider. A site-specific
     provider plugged in at boot must survive a config reload — otherwise
@@ -234,12 +225,11 @@ def test_reload_preserves_weather_provider_binding(
 
     marker = _Marker()
     SWARM_STATE.policy.weather_provider = marker  # type: ignore[assignment]
-    monkeypatch.setenv(ADMIN_TOKEN_ENV, "s3cret")
     client = _client()
     resp = client.post(
         "/admin/reload-site-config",
         json={"site_id": "ranch-02"},
-        headers={ADMIN_TOKEN_HEADER: "s3cret"},
+        headers=commander_headers,
     )
     assert resp.status_code == 200
     assert SWARM_STATE.policy.weather_provider is marker  # type: ignore[comparison-overlap]

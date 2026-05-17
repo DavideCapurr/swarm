@@ -1,0 +1,44 @@
+# SwarmOS operator identity store (Phase 6.C).
+#
+# Copy this file to `operators.yaml` (the path read at boot, override via
+# `SWARM_OPERATORS_CONFIG=…`) and regenerate every entry with real values:
+#
+#   1. Generate a password hash:
+#
+#        python -m backend.app.auth.cli hash-password
+#
+#      Paste the hash output into `password_hash` below.
+#
+#   2. For role=commander rows, generate a TOTP secret + provisioning URI:
+#
+#        python -m backend.app.auth.cli new-mfa op-alice01
+#
+#      Scan the printed URI into a TOTP authenticator (Aegis / 1Password /
+#      Google Authenticator / FreeOTP) and paste the BASE32 secret into
+#      `mfa_secret`. The drone-day checklist §2.C tracks the enrolment
+#      flow.
+#
+#   3. Generate a strong JWT signing secret and mount it as
+#      `SWARM_JWT_SECRET` (≥ 32 bytes, e.g. `openssl rand -hex 32`).
+#
+# The file is read once at boot and reloadable via
+# `POST /admin/reload-site-config` only when the operator-set changes
+# require a restart — Phase 6.D adds a dedicated operator-reload endpoint.
+#
+# IMPORTANT: this is sensitive. Never commit a real `operators.yaml` to
+# git. The repository's `.gitignore` blocks it; CI gitleaks catches the
+# rest.
+
+operators:
+  - operator_id: op-viewer01
+    password_hash: "pbkdf2_sha256$600000$REPLACEMESALT$REPLACEMEHASH"
+    role: viewer
+
+  - operator_id: op-operator01
+    password_hash: "pbkdf2_sha256$600000$REPLACEMESALT$REPLACEMEHASH"
+    role: operator
+
+  - operator_id: op-commander01
+    password_hash: "pbkdf2_sha256$600000$REPLACEMESALT$REPLACEMEHASH"
+    role: commander
+    mfa_secret: "BASE32SECRETREPLACEMEAFTERENROLMENT"

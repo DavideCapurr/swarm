@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 
+import { AuthGate } from "@/components/AuthGate";
 import { SwarmStateProvider } from "@/lib/state";
 
 export const metadata = {
@@ -14,5 +15,9 @@ export const viewport = {
 };
 
 export default function MobileLayout({ children }: { children: ReactNode }) {
-  return <SwarmStateProvider>{children}</SwarmStateProvider>;
+  return (
+    <AuthGate>
+      <SwarmStateProvider>{children}</SwarmStateProvider>
+    </AuthGate>
+  );
 }

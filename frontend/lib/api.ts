@@ -3,6 +3,11 @@
  *
  * The dashboard reads the initial state via REST then transitions to live
  * updates over the WebSocket — see `lib/ws.ts`.
+ *
+ * Phase 6.C: every protected route carries `Authorization: Bearer <jwt>`.
+ * The auth hooks below are installed by `lib/auth.tsx`; the API client
+ * stays React-free so server-rendered code can still build without
+ * blowing up at import time.
  */
 
 function defaultApiUrl(): string {
@@ -30,6 +35,7 @@ function resolveApiUrl(): string {
 }
 
 const API_URL = resolveApiUrl();
+export const AUTH_API_URL = API_URL;
 
 // ── Primitives ─────────────────────────────────────────────────────────────────
 
@@ -266,24 +272,15 @@ export type StreamDescriptor = {
   ts: string;
 };
 
-/** Client-side allowlist — same set as the backend's `ALLOWED_STREAM_SCHEMES`.
- *
- * Defense in depth: even though the backend re-validates every descriptor,
- * the Console must refuse to render `<video src=…>` for a URL whose scheme
- * is not in this set. This guards against a configuration drift that
- * relaxes the server-side check without the same change here.
- */
+/** Client-side allowlist — same set as the backend's `ALLOWED_STREAM_SCHEMES`. */
 export const ALLOWED_STREAM_SCHEMES: ReadonlySet<string> = new Set([
   "rtsps",
   "https",
 ]);
 
 export function isAllowedStreamUrl(url: string): boolean {
-  // URL parsing is cheap and avoids regex pitfalls. `new URL` throws on
-  // malformed input — we treat that as "not allowed".
   try {
     const parsed = new URL(url);
-    // `URL.protocol` carries the trailing colon, e.g. "https:".
     const scheme = parsed.protocol.replace(/:$/, "").toLowerCase();
     return ALLOWED_STREAM_SCHEMES.has(scheme);
   } catch {
@@ -291,26 +288,49 @@ export function isAllowedStreamUrl(url: string): boolean {
   }
 }
 
+// ── Auth hooks (installed by lib/auth.tsx) ─────────────────────────────────────
+
+type AuthHooks = {
+  getAccessToken: () => string | null;
+  onUnauthorized: () => void;
+};
+
+let _authHooks: AuthHooks | null = null;
+
+function authHeaders(): Record<string, string> {
+  const token = _authHooks?.getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
+  const res = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (res.status === 401) {
+    _authHooks?.onUnauthorized();
+    throw new Error("401");
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return (await res.json()) as T;
 }
 
 async function post<T>(
   path: string,
-  body: unknown,
-  operatorId: string
+  body: unknown
 ): Promise<{ data: T; status: number }> {
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
-      "X-Operator-Id": operatorId,
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
   });
+  if (res.status === 401) {
+    _authHooks?.onUnauthorized();
+  }
   let data: T;
   try {
     data = (await res.json()) as T;
@@ -321,6 +341,10 @@ async function post<T>(
 }
 
 export const api = {
+  setAuthHooks: (hooks: AuthHooks | null): void => {
+    _authHooks = hooks;
+  },
+
   health: () => get<{ status: string }>("/health"),
 
   // ── Phase 1 view-oriented endpoints ─────────────────────────────────────────
@@ -341,13 +365,13 @@ export const api = {
     return get<{ events: TimelineEvent[] }>(`/events?${q.toString()}`);
   },
 
-  // ── Operator intents ────────────────────────────────────────────────────────
-  verify: (target: string, operatorId: string) =>
-    post<CommandResponse>("/actions/verify", { target }, operatorId),
-  holdPatrol: (target: string, operatorId: string) =>
-    post<CommandResponse>("/actions/hold-patrol", { target }, operatorId),
-  dismiss: (target: string, operatorId: string) =>
-    post<CommandResponse>("/actions/dismiss", { target }, operatorId),
-  returnUnit: (target: string, operatorId: string) =>
-    post<CommandResponse>("/actions/return", { target }, operatorId),
+  // ── Operator intents (auth header now carries identity + role) ─────────────
+  verify: (target: string) =>
+    post<CommandResponse>("/actions/verify", { target }),
+  holdPatrol: (target: string) =>
+    post<CommandResponse>("/actions/hold-patrol", { target }),
+  dismiss: (target: string) =>
+    post<CommandResponse>("/actions/dismiss", { target }),
+  returnUnit: (target: string) =>
+    post<CommandResponse>("/actions/return", { target }),
 };

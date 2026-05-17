@@ -37,6 +37,7 @@ import {
   type TimelineEvent,
   type UnitState,
 } from "./api";
+import { useAuth, type Role } from "./auth";
 import { fallbackAwareness, formatClock } from "./derive";
 import { SwarmSocket, type WSMessage } from "./ws";
 
@@ -74,6 +75,7 @@ export type SwarmState = {
   link: LinkState;
   clock: { time: string; date: string };
   operatorId: string;
+  role: Role | null;
   // Truth values projected by SwarmOS — no derive layer.
   mode: OperatingMode;
   verifier: UnitState | null;
@@ -82,8 +84,6 @@ export type SwarmState = {
 };
 
 const SwarmContext = createContext<SwarmState | null>(null);
-
-const DEFAULT_OPERATOR_ID = "op-0001";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -103,11 +103,13 @@ function upsertById<T extends { [k: string]: unknown }>(
 
 export function SwarmStateProvider({
   children,
-  operatorId = DEFAULT_OPERATOR_ID,
 }: {
   children: ReactNode;
-  operatorId?: string;
 }) {
+  const { state: authState } = useAuth();
+  const isAuthed = authState.status === "authenticated";
+  const operatorId = isAuthed ? authState.session.operatorId : "";
+  const role: Role | null = isAuthed ? authState.session.role : null;
   // Server-issued aggregates.
   const [session, setSession] = useState<Session | null>(null);
   const [units, setUnits] = useState<UnitState[]>([]);
@@ -123,8 +125,11 @@ export function SwarmStateProvider({
   const [link, setLink] = useState<LinkState>("connecting");
   const [clock, setClock] = useState(() => formatClock(new Date()));
 
-  // Boot REST snapshot.
+  // Boot REST snapshot. Re-run whenever auth flips so a fresh login
+  // pulls fresh data; an anonymous user gets no snapshot calls (which
+  // would 401 anyway).
   useEffect(() => {
+    if (!isAuthed) return;
     let cancelled = false;
     (async () => {
       try {
@@ -156,11 +161,18 @@ export function SwarmStateProvider({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthed]);
 
-  // Boot WS subscription.
+  // Boot WS subscription only when authenticated; the backend refuses
+  // upgrades without an access token.
   useEffect(() => {
-    const sock = new SwarmSocket();
+    if (!isAuthed) {
+      setLink("lost");
+      return;
+    }
+    const sock = new SwarmSocket(() =>
+      authState.status === "authenticated" ? authState.session.accessToken : null
+    );
     sock.connect();
     setLink("connecting");
     let lastFrame = 0;
@@ -215,7 +227,7 @@ export function SwarmStateProvider({
       sock.close();
       clearInterval(heartbeat);
     };
-  }, []);
+  }, [isAuthed, authState]);
 
   // Clock tick (UTC, 30s cadence is enough — operator surfaces show hh:mm).
   useEffect(() => {
@@ -225,7 +237,8 @@ export function SwarmStateProvider({
     return () => clearInterval(id);
   }, []);
 
-  // Dispatch.
+  // Dispatch — operator identity rides on the JWT, so the action signatures
+  // don't need an operatorId argument anymore.
   const dispatchRef = useRef<Dispatch | null>(null);
   const dispatch: Dispatch = useCallback(
     async (intent, target) => {
@@ -237,10 +250,10 @@ export function SwarmStateProvider({
             : intent === "dismiss"
               ? api.dismiss
               : api.returnUnit;
-      const { data, status } = await route(target, operatorId);
+      const { data, status } = await route(target);
       return { ok: status >= 200 && status < 300, status, body: data };
     },
-    [operatorId]
+    []
   );
   dispatchRef.current = dispatch;
 
@@ -271,6 +284,7 @@ export function SwarmStateProvider({
       link,
       clock,
       operatorId,
+      role,
       mode: awareness.mode,
       verifier,
       primaryDock,
@@ -290,6 +304,7 @@ export function SwarmStateProvider({
       link,
       clock,
       operatorId,
+      role,
       verifier,
       primaryDock,
       dispatch,
