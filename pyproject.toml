@@ -62,7 +62,7 @@ dev = [
     "pytest-asyncio>=0.23,<2",
     "pytest-cov>=4.1,<7",
     "ruff>=0.4,<1",
-    "mypy>=1.9,<2",
+    "mypy>=1.9,<3",
     "types-redis",
     "types-PyYAML>=6,<7",
     # Phase 4: in-process async SQLite for persistence tests (no Postgres needed).
