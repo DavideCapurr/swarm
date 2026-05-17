@@ -1,0 +1,18 @@
+apiVersion: v2
+name: swarmos
+description: |
+  SwarmOS — autonomous coordination + interoperability layer for
+  heterogeneous drone fleets. This chart deploys one site at a time
+  (multi-site multiplexing is deferred to Phase 7).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - swarmos
+  - drones
+  - fleet
+home: https://github.com/davidecapurr/swarm
+maintainers:
+  - name: SWARM
+icon: ""
+kubeVersion: ">=1.27.0"

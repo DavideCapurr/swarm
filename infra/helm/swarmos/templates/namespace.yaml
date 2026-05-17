@@ -1,0 +1,22 @@
+{{- /*
+Namespace creation is optional — many clusters provision namespaces
+via a separate tooling. Skip if Release.Namespace already exists by
+setting `--create-namespace=false` (the default `helm install` behavior
+relies on the CLI flag).
+
+This template is a no-op renderer that documents the desired label
+posture; the active object is the Namespace stanza below, gated by
+`Values.namespace.create`.
+*/}}
+{{- if .Values.namespace.create | default false }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "swarmos.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+{{- end }}

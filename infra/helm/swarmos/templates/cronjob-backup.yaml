@@ -1,0 +1,108 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: swarmos-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "swarmos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            {{- include "swarmos.labels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: {{ include "swarmos.image" (dict "img" .Values.image.backup) | quote }}
+              imagePullPolicy: {{ .Values.image.backup.pullPolicy }}
+              env:
+                - name: BACKUP_DIR
+                  value: /backups
+                - name: BACKUP_RETENTION_DAYS
+                  value: {{ .Values.backup.retentionDays | quote }}
+                - name: BACKUP_GPG_RECIPIENT
+                  value: {{ .Values.backup.gpgRecipient | quote }}
+              envFrom:
+                - secretRef:
+                    name: swarmos-backup
+              volumeMounts:
+                - { name: backups, mountPath: /backups }
+                - { name: gnupg,   mountPath: /home/swarm/.gnupg, readOnly: true }
+                - { name: script,  mountPath: /usr/local/bin/backup_postgres.sh, subPath: backup_postgres.sh, readOnly: true }
+                - { name: tmp,     mountPath: /tmp }
+              command: ["/usr/local/bin/backup_postgres.sh"]
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits:   { cpu: 500m, memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 10001
+                runAsGroup: 10001
+                capabilities:
+                  drop: [ALL]
+                seccompProfile:
+                  type: RuntimeDefault
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: swarmos-backups
+            - name: gnupg
+              secret:
+                secretName: swarmos-backup-gnupg
+                defaultMode: 0o400
+            - name: script
+              configMap:
+                name: swarmos-backup-script
+                defaultMode: 0o555
+            - name: tmp
+              emptyDir:
+                sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: swarmos-backups
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.backup.storageClass }}
+  storageClassName: {{ .Values.backup.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.storageSize | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swarmos-backup-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "swarmos.labels" . | nindent 4 }}
+data:
+  # Embed the canonical script verbatim so the CronJob always runs the
+  # exact bytes that scripts/backup_postgres.sh ships with this commit.
+  backup_postgres.sh: |
+    {{- .Files.Get "files/backup_postgres.sh" | nindent 4 }}
+{{- end }}
