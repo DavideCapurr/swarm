@@ -202,14 +202,84 @@ choices that need real infrastructure.
       alert): scrape `/ready` from a probe instance so the alert can fire
       on actual probe failure rather than only on missing metrics.
 
-### 2.E Deploy + signing (Phase 6.E — pending until that session)
+### 2.E Deploy + signing (Phase 6.E — code-complete; deploy items remain)
 
-- [ ] Public DNS record + TLS certificate (Let's Encrypt or commercial
-      CA).
-- [ ] Sigstore identity for `cosign sign` of container images. Add
-      `COSIGN_EXPERIMENTAL=1` and OIDC identity to CI.
-- [ ] Backup destination: S3 bucket / off-site location + restore drill
-      scheduled.
+The 6.E work delivered: backend / frontend / backup Dockerfiles
+(multi-stage, non-root, read-only-rootfs-compatible, digest-pinned
+bases), `docker-compose.prod.yml` for single-node deploys (nginx + LE
+certbot + pg + redis + backend + frontend + backup sidecar), full
+`infra/k8s/` raw manifests, the
+[`swarmos` Helm chart](../../infra/helm/swarmos/) parameterised per
+site, cert-manager ClusterIssuers, image build + cosign sign workflows
+in CI, GPG-encrypted pg_dump backup script + restore drill, and the
+deploy + migrations guides at [`deploy.md`](deploy.md) +
+[`migrations.md`](migrations.md). What still needs you on hardware
+day:
+
+- [ ] **Public DNS A/AAAA record** for the chosen `TLS_SERVER_NAME` /
+      `ingress.host`. Point it at the ingress LB (k8s) or single-node
+      host (compose-prod).
+- [ ] **Real TLS certificate**: edit the email in
+      [`infra/cert-manager/issuer-letsencrypt-prod.yaml`](../../infra/cert-manager/issuer-letsencrypt-prod.yaml)
+      and apply both ClusterIssuers. Verify cert issuance against the
+      staging issuer first (it has no rate limit), then flip the
+      Ingress annotation to `letsencrypt-prod`. For compose-prod, fill
+      `TLS_EMAIL` in `.env`; the certbot sidecar handles the rest.
+- [ ] **GHCR push credentials**: the image-build workflow uses
+      `GITHUB_TOKEN` by default. For org-owned packages, set
+      `actions: write` and `packages: write` on the workflow and bind
+      the repo to the package via the GHCR UI.
+- [ ] **Sigstore identity** for `cosign sign --yes`: the image-sign
+      workflow uses keyless OIDC against
+      `https://token.actions.githubusercontent.com`. Verify the
+      certificate identity regex matches your repo path (the workflow
+      uses `^https://github.com/<owner>/swarm/.+$`). Update it if you
+      rename the repo or fork.
+- [ ] **Image-pull Secret**: if pulling from a private GHCR org, create
+      a `dockerconfigjson` Secret and add it to
+      `image.imagePullSecrets` in the Helm values.
+- [ ] **NetworkPolicy CNI**: confirm the cluster CNI enforces
+      `NetworkPolicy` (Calico / Cilium / Antrea / Weave-net 2.6+). EKS
+      / GKE clusters created without the right flag will silently
+      ignore the policies.
+- [ ] **StorageClass for the backup PVC**: `infra/helm/swarmos/values*.yaml`
+      defaults to the cluster default; set
+      `backup.storageClass` if you want an explicit SC (gp3 on AWS,
+      pd-ssd on GCP, csi-driver-nfs on bench clusters).
+- [ ] **GPG backup recipient**:
+      generate the backup keypair offline (`gpg --full-generate-key`),
+      import the public key into the keyring used by the backup
+      container (mounted at `/home/swarm/.gnupg` via the
+      `swarmos-backup-gnupg` Secret), and set the
+      `BACKUP_GPG_RECIPIENT` env to the fingerprint. **Keep the private
+      key offline**; never mount it into the cluster.
+- [ ] **Off-site backup destination**: the local PVC (k8s) / docker
+      volume (compose) holds the last 30 days. Add an rsync, AWS-CLI
+      `s3 sync`, or `restic` cron entry that pushes
+      `/backups/swarm-*.sql.gpg` to an off-site bucket. The dump is
+      already encrypted; the off-site copy can sit on warm storage.
+- [ ] **Quarterly restore drill**: schedule a recurring task that
+      runs the procedure in [`migrations.md`](migrations.md)
+      §"Restore drill" against a throwaway DB and records the RTO/RPO
+      in the runbook.
+- [ ] **Grafana datasource** (closes the 6.D drone-day item): drop
+      [`infra/grafana/datasource.yaml`](../../infra/grafana/datasource.yaml)
+      under the Grafana sidecar's provisioning directory and set
+      `${DS_PROMETHEUS_URL}` (+ optional `${DS_LOKI_URL}`).
+- [ ] **HttpOnly cookie pipe for refresh tokens** (closes the 6.C
+      drone-day item, deferred to 6.E): replace the `localStorage`
+      refresh-token store in `frontend/lib/auth.tsx` with a
+      server-issued cookie. Out of scope on this branch — frontend
+      currently still uses `localStorage` and the 15-min access TTL
+      bounds the exposure.
+- [ ] **Redis mTLS material** for the production secure-bus mode
+      (Phase 5 fail-closed): provision `REDIS_TLS_CA_CERTS`,
+      `REDIS_TLS_CERTFILE`, `REDIS_TLS_KEYFILE` as Secret mounts +
+      switch `REDIS_URL` to `rediss://`. Without this, the backend
+      refuses to fall back to the in-memory bus when `SWARM_ENV=prod`.
+
+To verify the deploy after binding the above, run the checklist at the
+end of [`deploy.md`](deploy.md) §6.
 
 ### 2.F Compliance (Phase 6.I — pending until that session)
 

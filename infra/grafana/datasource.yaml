@@ -1,0 +1,36 @@
+# Grafana datasource provisioning (Phase 6.E closes a 6.D drone-day item).
+#
+# Mount this file into the Grafana container at
+# /etc/grafana/provisioning/datasources/swarmos.yaml. The
+# kube-prometheus-stack chart picks it up automatically when
+# `grafana.additionalDataSources` is wired or via a sidecar (the more
+# common pattern).
+#
+# This file is committed with a templated URL because the Prometheus
+# Service name varies per cluster — flip `${DS_PROMETHEUS_URL}` before
+# loading.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    uid: prometheus
+    # Replace with your Prometheus Service URL (kube-prometheus-stack
+    # default: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090).
+    url: ${DS_PROMETHEUS_URL}
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+  # Optional Loki for the structlog JSON pipeline. Promtail's `json`
+  # parser already understands the event/request_id/path fields.
+  - name: Loki
+    type: loki
+    access: proxy
+    uid: loki
+    url: ${DS_LOKI_URL}
+    editable: false
+    jsonData:
+      maxLines: 1000

@@ -92,6 +92,13 @@ Run the wildfire scenario manually:
 ./scripts/demo_wildfire.sh
 ```
 
+Production deploys (Kubernetes via Helm, single-node via
+`docker-compose.prod.yml`) are documented in
+[`docs/ops/deploy.md`](docs/ops/deploy.md); the migrations runbook lives at
+[`docs/ops/migrations.md`](docs/ops/migrations.md). Hardware-day external
+assets (DNS, TLS, Sigstore, off-site backup) are catalogued in
+[`docs/ops/drone-day-checklist.md`](docs/ops/drone-day-checklist.md) §2.E.
+
 ## Testing
 
 ```bash
