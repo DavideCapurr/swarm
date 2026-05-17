@@ -117,13 +117,33 @@ swarm/
 ## Standard make targets
 
 ```
-make setup          # python venv + pnpm install
-make demo           # boot sim + backend + frontend
-make lint           # ruff + mypy + tsc
-make test           # pytest + frontend tests
-make audit          # pip-audit + pnpm audit + bandit + semgrep
-make clean          # remove caches and node_modules
+make setup                # python venv + pnpm install
+make bootstrap-auth-dev   # Phase 6.C — generate JWT secret + dev operators
+make demo                 # boot sim + backend + frontend
+make lint                 # ruff + mypy + tsc
+make test                 # pytest + frontend tests
+make audit                # pip-audit + pnpm audit + bandit + semgrep
+make clean                # remove caches and node_modules
 ```
+
+## Auth (Phase 6.C)
+
+Auth is in place since Phase 6.C: pure JWT HS256, three roles
+(viewer < operator < commander), MFA mandatory for commander at login
+and `mfa=true` claim re-checked on every commander-only call. Design
+note: [`docs/security/auth.md`](docs/security/auth.md). Operator-store
+schema + CLI helpers documented there too.
+
+Local dev expects two pieces of state:
+
+- `SWARM_JWT_SECRET` in `.env` (≥ 32 bytes).
+- `infra/config/operators.yaml` (gitignored — the example template is
+  at `infra/config/operators.example.yaml`).
+
+`make bootstrap-auth-dev` provisions both idempotently. The transitional
+`X-Operator-Id` header gate (Phase 1) and the `X-Admin-Token` gate
+(Phase 6.B) are gone — anything that touches a protected endpoint must
+go through `Authorization: Bearer <jwt>` (REST) or `?token=<jwt>` (WS).
 
 ## Branch + commit
 

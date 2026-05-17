@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate clean db-migrate db-revision
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision
 
 PY := python3
 VENV := .venv
@@ -84,6 +84,15 @@ phase5-sitl-gate:
 	$(PYTHON) scripts/phase5_sitl_probe.py \
 		--connection "$${MAVLINK_CONNECTION:-udp:localhost:14540}" \
 		--agent-id "$${MAVLINK_AGENT_ID:-mav-px4-sitl}"
+
+# ── auth bootstrap (Phase 6.C, dev only) ────────────────────────────────────
+# One-shot: generate a JWT secret + write infra/config/operators.yaml with
+# three local accounts (viewer / operator / commander, password swarm-dev).
+# Idempotent — never overwrites an existing operators.yaml or a non-empty
+# SWARM_JWT_SECRET. NEVER use in staging / production: drone-day §2.C
+# documents the real provisioning flow.
+bootstrap-auth-dev:
+	@./scripts/bootstrap_auth_dev.sh
 
 # ── cleanup ─────────────────────────────────────────────────────────────────
 clean:
