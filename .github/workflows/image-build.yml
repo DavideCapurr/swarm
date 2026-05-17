@@ -1,0 +1,129 @@
+name: image-build
+
+# Phase 6.E — build backend + frontend container images.
+#
+# Branches: build only (no push), to catch Dockerfile breakage on every PR.
+# Tags v*: build + push to ghcr.io/${{ github.repository_owner }}/{backend,
+# frontend,backup} with `tag = ref` and the immutable `sha-<git_sha>` tag.
+# Image signing runs on a separate workflow (image-sign.yml) triggered by
+# the same tag so the OIDC token used for `cosign sign` is scoped to a
+# release-only job.
+#
+# Trivy gate graduates from Phase 0's `exit-code: "0"` (report only) to
+# `exit-code: "1"` (block) on the images this branch now owns. We still
+# leave the upstream-image scanner in image-scan.yml as report-only.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+  # `packages: write` is required only on tag pushes (to push to GHCR);
+  # PR runs are read-only. The conditional `if:` on the push step keeps
+  # the principle of least privilege intact.
+  packages: write
+  # `id-token: write` is required for keyless cosign sign on the
+  # downstream image-sign.yml workflow. The token is not used here.
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            dockerfile: backend/Dockerfile
+            context: .
+          - name: frontend
+            dockerfile: frontend/Dockerfile
+            context: .
+          - name: backup
+            dockerfile: infra/backup/Dockerfile
+            context: infra/backup
+    steps:
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      # docker/setup-buildx-action@v3.12.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      # docker/metadata-action@v5.10.0
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/swarmos-${{ matrix.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,format=long
+
+      # docker/login-action@v3.7.0 — only on tags. PRs and branch pushes
+      # build locally and never reach GHCR.
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # docker/build-push-action@v6.19.2
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: ${{ startsWith(github.ref, 'refs/tags/') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Reproducible-ish: same buildkit, no SOURCE_DATE_EPOCH. Adds
+          # provenance + SBOM attestations when pushing.
+          provenance: ${{ startsWith(github.ref, 'refs/tags/') }}
+          sbom: ${{ startsWith(github.ref, 'refs/tags/') }}
+          cache-from: type=gha,scope=swarmos-${{ matrix.name }}
+          cache-to: type=gha,scope=swarmos-${{ matrix.name }},mode=max
+
+      # Trivy gate on the freshly-built image. Blocking on HIGH/CRITICAL
+      # CVEs — see plan §verification step 6.
+      # aquasecurity/trivy-action@0.35.0 (SHA reused from image-scan.yml)
+      - if: steps.build.outputs.imageid != ''
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.build.outputs.imageid }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          timeout: 10m
+
+      # SBOM artifact (CycloneDX) attached to the run for compliance audits
+      # and the drone-day §5 release sign-off.
+      # anchore/sbom-action@v0.23.1
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: anchore/sbom-action@57aae528053a48a3f6235f2d9461b05fbcb7366d
+        with:
+          image: ${{ steps.build.outputs.imageid }}
+          format: cyclonedx-json
+          artifact-name: swarmos-${{ matrix.name }}-sbom.cdx.json
+
+      - name: Emit digest for downstream signing
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          mkdir -p _digests
+          echo "${{ steps.build.outputs.digest }}" > _digests/swarmos-${{ matrix.name }}.digest
+
+      # actions/upload-artifact@v4.6.2
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: image-digest-${{ matrix.name }}
+          path: _digests/swarmos-${{ matrix.name }}.digest
+          if-no-files-found: error

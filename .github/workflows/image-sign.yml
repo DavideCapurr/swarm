@@ -1,0 +1,92 @@
+name: image-sign
+
+# Phase 6.E — sign the images published by image-build.yml using cosign
+# keyless OIDC against Sigstore. The Sigstore identity is bound at
+# drone-day time (§2.E); on tag pushes this workflow attempts the
+# signature, on branch pushes it's a no-op.
+#
+# Why a separate workflow:
+#   - The `id-token: write` permission is narrow (release-only).
+#   - Signing depends on the image existing on GHCR (image-build pushes
+#     on tags), so we sequence via `workflow_run`.
+#   - A failed sign does not roll the published image back; cosign
+#     produces an attestation, not a build artifact.
+
+on:
+  workflow_run:
+    workflows: [image-build]
+    types: [completed]
+    branches: ["**"]   # filtered below by ref/tag
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write   # required for keyless cosign OIDC
+
+jobs:
+  sign:
+    # Run only when the upstream image-build succeeded AND the trigger
+    # was a tag push (so the image exists in GHCR).
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend, backup]
+    steps:
+      # actions/checkout@v4 — used only to read .github metadata; no
+      # source code reach is needed for the cosign call itself.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      # sigstore/cosign-installer@v3.10.1
+      - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5
+        with:
+          cosign-release: v2.4.1
+
+      # docker/login-action@v3.7.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # actions/download-artifact@v4.1.8
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: image-digest-${{ matrix.image }}
+          path: _digests
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Sign image with cosign (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          digest="$(cat _digests/swarmos-${{ matrix.image }}.digest)"
+          if [ -z "${digest}" ]; then
+            echo "::error::no digest produced by image-build for ${{ matrix.image }}"
+            exit 1
+          fi
+          owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          ref="ghcr.io/${owner_lc}/swarmos-${{ matrix.image }}@${digest}"
+          echo "::notice::signing ${ref}"
+          cosign sign --yes "${ref}"
+
+      - name: Verify signature
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          set -euo pipefail
+          digest="$(cat _digests/swarmos-${{ matrix.image }}.digest)"
+          owner_lc="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          ref="ghcr.io/${owner_lc}/swarmos-${{ matrix.image }}@${digest}"
+          cosign verify "${ref}" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.+$" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
