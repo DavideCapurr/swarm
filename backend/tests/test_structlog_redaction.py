@@ -35,7 +35,7 @@ def test_redactor_scrubs_sensitive_keys() -> None:
         "event": "auth attempt",
         "password": "secret123",
         "totp_code": "987654",
-        "refresh_token": "eyJhbGciOiJIUzI1NiJ9.xxxx.yyyy",
+        "refresh_token": "fixture-refresh-token",
         "operator_id": "op-alice01",
     }
     out = redactor(None, "info", event.copy())
