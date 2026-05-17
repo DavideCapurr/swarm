@@ -90,7 +90,8 @@ invariants:
   in Phase 1).
 - No PDF report generation.
 - No external weather/NOTAM integrations before Phase 6.
-- No real adapter (MAVLink/DJI/...) before Phase 5.
+- No additional real adapter beyond the Phase 5 MAVLink/PX4 path unless the
+  current phase explicitly asks for it.
 - No autonomy that isn't verifiable.
 - Don't add features or refactors beyond the current phase. Three
   similar lines is better than a premature abstraction.
@@ -116,13 +117,33 @@ swarm/
 ## Standard make targets
 
 ```
-make setup          # python venv + pnpm install
-make demo           # boot sim + backend + frontend
-make lint           # ruff + mypy + tsc
-make test           # pytest + frontend tests
-make audit          # pip-audit + pnpm audit + bandit + semgrep
-make clean          # remove caches and node_modules
+make setup                # python venv + pnpm install
+make bootstrap-auth-dev   # Phase 6.C — generate JWT secret + dev operators
+make demo                 # boot sim + backend + frontend
+make lint                 # ruff + mypy + tsc
+make test                 # pytest + frontend tests
+make audit                # pip-audit + pnpm audit + bandit + semgrep
+make clean                # remove caches and node_modules
 ```
+
+## Auth (Phase 6.C)
+
+Auth is in place since Phase 6.C: pure JWT HS256, three roles
+(viewer < operator < commander), MFA mandatory for commander at login
+and `mfa=true` claim re-checked on every commander-only call. Design
+note: [`docs/security/auth.md`](docs/security/auth.md). Operator-store
+schema + CLI helpers documented there too.
+
+Local dev expects two pieces of state:
+
+- `SWARM_JWT_SECRET` in `.env` (≥ 32 bytes).
+- `infra/config/operators.yaml` (gitignored — the example template is
+  at `infra/config/operators.example.yaml`).
+
+`make bootstrap-auth-dev` provisions both idempotently. The transitional
+`X-Operator-Id` header gate (Phase 1) and the `X-Admin-Token` gate
+(Phase 6.B) are gone — anything that touches a protected endpoint must
+go through `Authorization: Bearer <jwt>` (REST) or `?token=<jwt>` (WS).
 
 ## Branch + commit
 
@@ -142,3 +163,38 @@ make clean          # remove caches and node_modules
 4. Execute the milestone exactly as scoped (no scope creep).
 5. At the end of the phase, run `make lint && make test && make audit`,
    commit, push, and update STATUS.md with the phase as `done`.
+
+## When the user asks for a readiness check on a phase (NEVER just trust STATUS.md)
+
+A previous readiness check missed real Phase 4 blockers because it
+cross-referenced STATUS.md to the code instead of actually running the
+phase end-to-end. STATUS.md describes what was implemented, **not what
+works**. Follow this list every time the user asks "is phase N ready?":
+
+1. **Re-run the gates from a clean state**, not from a warm venv. If `.venv`
+   already exists, that proves nothing — a transitive dep may have been
+   installed by accident. Use `rm -rf .venv && make setup` then
+   `make lint && make test && make audit`.
+2. **Exercise the real infra, not just SQLite/in-memory stubs.** For Phase 4+
+   spin up `docker compose up -d postgres redis`, run
+   `alembic upgrade head` against the live Timescale container, and
+   verify the schema actually applies. SQLite-only tests **do not** catch
+   dialect-specific failures (Timescale unique-index rules, asyncpg SSL,
+   redis ACLs, etc.).
+3. **Read scripts critically.** `|| echo "continuing"`, `|| true`,
+   `--no-verify`, and other failure-swallowing patterns are blockers — flag
+   them. The same goes for `try/except: pass` in startup paths.
+4. **Verify config files are effective, not just present.** Examples:
+   `pnpm config get <key>` from inside the relevant dir, `psql -c '\d'`
+   to confirm a table really has the constraints the migration claims,
+   `python -c "import x"` to confirm an extra was actually pulled.
+5. **Check that dependencies are explicit, not just transitive.** Run a
+   `make setup` in a fresh worktree on a different machine if possible;
+   an env where the lib "happens to be there" hides a missing dep.
+6. **The phase is ready only if a fresh clone can boot the next phase.**
+   Treat the gate as "would a new contributor running `git clone && make
+   setup && make demo` get to the next phase's starting line?", not "is
+   the checklist ticked?".
+7. **Cite evidence, not claims.** When reporting readiness, quote the
+   command output (`make test → 225 passed`), not the STATUS.md line. If
+   you didn't run a real Timescale container, say so.
