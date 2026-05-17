@@ -1,14 +1,15 @@
+import { fixupConfigRules, fixupPluginRules } from "@eslint/compat";
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import securityPlugin from "eslint-plugin-security";
 
 export default defineConfig([
-  ...nextVitals,
-  ...nextTs,
+  ...fixupConfigRules(nextVitals),
+  ...fixupConfigRules(nextTs),
   globalIgnores([".next/**", "node_modules/**", "out/**", "build/**", "next-env.d.ts"]),
   {
-    plugins: { security: securityPlugin },
+    plugins: { security: fixupPluginRules(securityPlugin) },
     rules: {
       // Core OWASP-style checks. Tuned to surface real issues without
       // false-positive noise on the existing typed surface.
