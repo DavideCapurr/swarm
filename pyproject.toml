@@ -117,6 +117,7 @@ testpaths = [
     "swarm_os/tests",
     "tests/fuzz",
     "tests/load",
+    "tests/e2e",
     "tests/test_phase6e_deploy.py",
 ]
 markers = [
@@ -128,6 +129,11 @@ markers = [
     # Phase 6.F — chaos probes that pause/kill an external dep. Not run
     # by default; invoked through `make chaos-redis` / `make chaos-backend`.
     "chaos: external-component chaos probe (Phase 6.F).",
+    # Phase 6.J — end-to-end suite under tests/e2e/. Drives the full
+    # anomaly lifecycle (pending → verifying → verified → escalation →
+    # return → dock) through the real bus + real coordinator + real
+    # FastAPI surface. No internal mocks.
+    "e2e: end-to-end integration test (Phase 6.J).",
 ]
 
 [tool.bandit]
