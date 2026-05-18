@@ -30,13 +30,12 @@ from backend.app.ws.telemetry import WSHub
 from swarm_os import COORDINATOR
 
 
-@dataclass
+@dataclass(eq=False)
 class _RecorderWS:
     """Stand-in for ``starlette.WebSocket``.
 
-    ``WSHub`` only needs ``accept`` and ``send_text`` plus ``close``. We
-    record ``(monotonic_ts, payload)`` per received frame so the test can
-    compute latency without parsing the JSON twice.
+    ``WSHub`` stores clients in a ``set`` so the stand-in must be
+    hashable; ``eq=False`` keeps the default object-identity hash.
     """
 
     received: list[tuple[float, str]] = field(default_factory=list)
