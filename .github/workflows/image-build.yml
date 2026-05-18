@@ -74,14 +74,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # docker/build-push-action@v6.19.2
-      #
-      # `load: true` loads the built image into the local docker daemon so
-      # the Trivy step (further down) can scan it via image-ref. Without
-      # this, build-push-action stops at the BuildKit cache and Trivy
-      # races trying to find an image that was never made available
-      # locally — observed as a sub-30 s fail on build (backend).
-      # `load: true` is only valid for single-platform builds (we already
-      # constrain to linux/amd64 here).
       - id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
@@ -89,7 +81,6 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: ${{ startsWith(github.ref, 'refs/tags/') }}
-          load: ${{ !startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Reproducible-ish: same buildkit, no SOURCE_DATE_EPOCH. Adds
