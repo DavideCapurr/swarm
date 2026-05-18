@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # SwarmOS backend image (Phase 6.E).
 #
 # Multi-stage build:
@@ -58,8 +59,10 @@ COPY pyproject.toml uv.lock README.md ./
 # `--frozen` forbids lock regeneration; `--no-dev` skips test/lint tools;
 # `--no-install-project` keeps the layer reusable until the source changes;
 # `--extra mavlink` pulls pymavlink which the Phase 5 adapter needs.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project --extra mavlink
+# `UV_NO_CACHE=1` (set above) bypasses uv's local cache so we don't need
+# a BuildKit cache-mount here — layer caching from docker/build-push-action
+# (cache-from/cache-to type=gha) handles inter-build reuse.
+RUN uv sync --frozen --no-dev --no-install-project --extra mavlink
 
 # Now copy the source and install the project itself (editable=false).
 COPY core/ ./core/
