@@ -22,10 +22,6 @@
 # python:3.11-slim
 FROM python@sha256:9a7765b36773a37061455b332f18e265e7f58f6fea9c419a550d2a8b0e9db834 AS builder
 
-# ghcr.io/astral-sh/uv:0.5.18 — copy a single static binary instead of
-# pulling uv from PyPI inside the image (no curl/network at build time).
-COPY --from=ghcr.io/astral-sh/uv@sha256:e2101b9e627153b8fe4e8a1249cc4194f1b38ece7f28a5a9b8f958e3b560e69c /uv /uvx /usr/local/bin/
-
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
@@ -38,13 +34,19 @@ ENV UV_LINK_MODE=copy \
 # and pulls `lxml` (libxml2 + libxslt headers needed). These packages
 # never reach the runtime stage — the resolved venv is copied out via
 # `COPY --from=builder /opt/venv` so the runtime image stays slim.
+#
+# uv itself is installed via pip from PyPI (pinned to 0.5.18 — matches
+# the `astral-sh/setup-uv` version used by .github/workflows/test.yml's
+# v8.1.0 default). Pip + a fixed version is simpler and more reliable
+# than juggling a GHCR digest for the upstream `astral-sh/uv` image.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         build-essential \
         libxml2-dev \
         libxslt1-dev \
         zlib1g-dev \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && pip install --no-cache-dir "uv==0.5.18"
 
 WORKDIR /build
 
