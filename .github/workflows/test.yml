@@ -28,8 +28,15 @@ jobs:
         run: uv sync --frozen --extra dev --extra mavlink --extra dji
       - name: pip-audit
         run: uv run pip-audit --skip-editable --cache-dir .cache/pip-audit
-      - name: Run pytest
-        run: uv run pytest -q
+      - name: Run pytest with coverage gate
+        # Phase 6.J — backend ≥80% gate. Load + chaos samples are
+        # deselected here because the coverage instrumentation breaks
+        # their latency SLO; they run in the load-smoke job (no cov)
+        # and in the chaos-test workflow respectively.
+        run: |
+          uv run pytest -q -m "not load_smoke and not chaos" \
+            --cov=core --cov=adapters --cov=orchestrator --cov=swarm_os --cov=backend \
+            --cov-report=term-missing --cov-fail-under=80
 
   load-smoke:
     # Phase 6.F — in-process p95 assertions. Cheap (≤ 15 s wall) and

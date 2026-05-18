@@ -136,6 +136,32 @@ markers = [
     "e2e: end-to-end integration test (Phase 6.J).",
 ]
 
+[tool.coverage.run]
+# Phase 6.J — backend ≥80% gate. The roadmap excludes paths that need
+# external infra or hardware-only branches; tests themselves are also
+# excluded so the gate measures the SUT, not the harness.
+branch = false
+omit = [
+    "tests/*",
+    "*/tests/*",
+    "sim/*",
+    "*/migrations/*",
+    "backend/app/db/migrations/*",
+    "adapters/mavlink/*",
+    "adapters/dji_cloud/*",
+    "adapters/dji_psdk/*",
+    "adapters/autel/*",
+    "adapters/parrot/*",
+    "adapters/skydio/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
 [tool.bandit]
 exclude_dirs = [
     ".venv",
