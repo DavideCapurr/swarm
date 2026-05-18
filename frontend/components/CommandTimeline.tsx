@@ -33,6 +33,7 @@ const ACTION_LABEL: Record<OperatorCommand["action"], string> = {
   mark_known: "Mark known",
   escalate: "Escalate",
   export_report: "Export report",
+  emergency_rtl_all: "Return all units",
 };
 
 export function CommandTimeline({ limit = 5 }: { limit?: number }) {

@@ -279,7 +279,12 @@ class EventKind(str, Enum):
 
 
 class OperatorAction(str, Enum):
-    """The 8 operator intents from PDF §5.7. Step 1 wires verify/hold/dismiss/return."""
+    """The 8 operator intents from PDF §5.7 + Phase 6.G fleet-wide stop.
+
+    Step 1 wires verify/hold/dismiss/return; Phase 6.G adds
+    ``EMERGENCY_RTL_ALL``, the commander-only intent that returns every
+    airborne unit to its dock at once.
+    """
 
     VERIFY = "verify"
     HOLD_PATROL = "hold_patrol"
@@ -289,6 +294,7 @@ class OperatorAction(str, Enum):
     MARK_KNOWN = "mark_known"
     ESCALATE = "escalate"
     EXPORT_REPORT = "export_report"
+    EMERGENCY_RTL_ALL = "emergency_rtl_all"
 
 
 class CommandStatus(str, Enum):

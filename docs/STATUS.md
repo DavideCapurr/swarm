@@ -14,7 +14,7 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E/6.F done; 6.G–6.J pending |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G done; 6.H–6.J pending |
 
 ## Phase 0 — completed checklist
 
@@ -800,7 +800,75 @@ Sub-block progress:
       ready for the dev stack; the gate before flipping 6.G is a
       manual `make chaos-redis` + `make chaos-backend` run plus one
       successful weekly `load-test` workflow run.
-- [ ] 6.G Resilience + DR — pending.
+- [x] **6.G** Resilience + DR — **done** (code-complete).
+      Fleet-wide emergency stop intent `EMERGENCY_RTL_ALL`: extended
+      `core/swarm_core/messages.OperatorAction`, taught
+      `swarm_os/command_bus.py` to dispatch one priority-200
+      `RTL_DOCK` mission per airborne unit (skipping `DOCKED` /
+      `OFFLINE` / `ERROR`), force-fail any conflicting non-RTL
+      missions on those units, pin `state.hold_patrol=True`, and
+      stamp `state.emergency_active_at`. Coordinator suppresses the
+      auto-RTL safety action for units already carrying an emergency
+      mission so the audit log can't double-count the event.
+      Backend endpoint `POST /actions/emergency-rtl-all` gated by
+      `require_commander` (re-checks the `mfa=true` claim on every
+      call); body is a strict `EmergencyRtlAllBody` with
+      `confirm: Literal[True]` + a literal phrase
+      `RETURN ALL UNITS`; dedicated 1/min/operator `RateLimiter`;
+      rejection still audited; SYSTEM event "emergency rtl all
+      triggered by op-xxx · N unit(s) returning · safety policy
+      bypassed" appended + WS-broadcast; metric
+      `swarm_actions_total{action="emergency_rtl_all",outcome=...}`
+      labelled. Safety policy gate intentionally bypassed for the
+      emergency intent (a low battery is *why* we're stopping) and
+      the bypass is recorded in the audit event.
+      Frontend: `lib/api.ts` adds `emergency_rtl_all` to
+      `OperatorAction`, ships `api.emergencyRtlAll(phrase)` +
+      exported `EMERGENCY_CONFIRMATION_PHRASE`; new component
+      `components/EmergencyStop.tsx` (Launch Amber, no red, no
+      external modal library) mounted in `HeadBar` between the
+      pending pill and the operator badge; commander-only,
+      two-stage inline confirmation (typed phrase must match),
+      Esc-to-close, auto-reset after a terminal outcome,
+      `CommandTimeline` label updated.
+      DR runbook `docs/ops/disaster-recovery.md` (RTO 1 h / RPO
+      5 min table, scenarios S1..S5, drill cadence, emergency
+      stop reference). Failover *patterns* shipped as reference
+      configs only — `infra/redis/sentinel-example.yaml` (3
+      sentinels, quorum 2, mTLS, amber-only alerts) and
+      `infra/postgres/patroni-example.yaml` (3 nodes, ETCD,
+      WAL archive, async streaming, amber-only alerts). Monthly
+      backup drill at `scripts/backup_restore_drill.sh`
+      (`make backup-drill`): sidecar Postgres, reuses Phase 6.E
+      `backup_postgres.sh` + `restore_postgres.sh` byte-for-byte
+      so the drill matches prod, asserts Alembic head + audit row
+      counts, exit code is the drill PASS/FAIL. Drone-day items
+      catalogued in `docs/ops/drone-day-checklist.md` §2.G (real
+      Sentinel cluster, real Patroni / managed-RDS replica, WAL
+      archive, off-site backup sync, monthly drill cadence,
+      quarterly DR-site failover rehearsal, GPG recipient rotation,
+      pen-test of the emergency stop endpoint, runbook handover).
+      32 new tests across `swarm_os/tests/test_phase6_emergency.py`
+      (8: target validation, RTL-per-airborne-unit, safety bypass,
+      hold_patrol + timestamp side-effects, scheduler halts,
+      conflicting missions force-failed, idempotency,
+      auto-RTL suppression),
+      `backend/tests/test_emergency_rtl.py` (14: anonymous → 401,
+      viewer/operator/no-MFA commander → 403, body shape
+      validation, wrong/missing phrase → 400, extra fields → 422,
+      happy path dispatch, audit event body, WS broadcast via the
+      hub, 1/min rate limiter, metrics increment, voice-clean
+      audit body), `tests/test_phase6g_dr.py` (10: DR runbook
+      sections + cross-links, Sentinel/Patroni YAML parse + HA
+      shape + amber-only alerts, drill script `set -eu` + guard
+      flag, Makefile target, endpoint registered + commander dep,
+      enum + canonical-target constants, emergency priority above
+      auto-RTL). Full suite: **580 passed, 16 skipped** (vs Phase
+      6.F baseline 558 / 16). `make lint` green (ruff + mypy 151
+      files + tsc), `make audit` green (pip-audit clean, pnpm
+      audit clean, Bandit 0 medium/high, pymavlink integrity
+      PASS). Voice + brand audit greps return zero hits in
+      product code + new docs + new infra example configs.
 - [ ] 6.H Documentation — pending.
 - [ ] 6.I Compliance — pending.
 - [ ] 6.J Testing finale — pending.
@@ -811,6 +879,22 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 checklist and gated on hardware acquisition.
 
 ## Last updated
+
+2026-05-18: Phase 6.G resilience + disaster recovery landed on
+`claude/plan-phase-6g-N1Ail`. New `EMERGENCY_RTL_ALL` operator intent
+(commander+MFA, typed double-confirmation phrase, dedicated 1/min/op
+rate limiter, SYSTEM audit event with the safety-bypass note), DR
+runbook at `docs/ops/disaster-recovery.md`, Sentinel + Patroni
+example configs under `infra/redis/` + `infra/postgres/`,
+`scripts/backup_restore_drill.sh` (`make backup-drill`),
+Console `EmergencyStop` button in HeadBar (Launch Amber, no red,
+inline two-stage confirmation). 32 new tests; full suite
+580 passed / 16 skipped (vs 558 / 16 baseline). `make lint` +
+`make audit` green; voice/brand audits clean. Drone-day items
+(Sentinel cluster, Patroni / managed RDS replica, WAL archive,
+off-site backup sync, quarterly DR rehearsal, GPG rotation,
+emergency stop pen-test) catalogued in
+`docs/ops/drone-day-checklist.md` §2.G.
 
 2026-05-18: Phase 6.F performance + scale targets landed on
 `claude/plan-phase-6f-COete`. Three in-process p95 assertions in

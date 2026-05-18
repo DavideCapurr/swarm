@@ -281,6 +281,65 @@ day:
 To verify the deploy after binding the above, run the checklist at the
 end of [`deploy.md`](deploy.md) §6.
 
+### 2.G Resilience + Disaster Recovery (Phase 6.G — code-complete; deploy items remain)
+
+The 6.G work delivered: the `EMERGENCY_RTL_ALL` operator intent (JWT
+commander + MFA + a typed confirmation phrase, with a dedicated
+1/min/operator rate limiter and a SYSTEM event that records the safety
+policy bypass), the DR runbook at
+[`docs/ops/disaster-recovery.md`](disaster-recovery.md), reference
+configs for the failover patterns at
+[`infra/redis/sentinel-example.yaml`](../../infra/redis/sentinel-example.yaml)
++ [`infra/postgres/patroni-example.yaml`](../../infra/postgres/patroni-example.yaml),
+and the monthly backup drill at `scripts/backup_restore_drill.sh`
+(`make backup-drill`).
+
+What still needs you on hardware day:
+
+- [ ] **Redis Sentinel cluster** (or managed Redis HA) provisioned per
+      the reference config. Three-node quorum, mTLS terminated at
+      Redis, `REDIS_URL` switched to the Sentinel endpoint. Verify
+      failover with `redis-cli SENTINEL FAILOVER swarm-master` and
+      confirm the SwarmOS backend reconnects within 5 s (Phase 6.F
+      chaos drill `make chaos-redis` exercises this path).
+- [ ] **Postgres Patroni cluster** (or managed Postgres HA — RDS
+      multi-AZ, Cloud SQL HA, Azure Flexible Server HA) provisioned
+      per the reference config. ETCD cluster off-host, replication
+      lag < 30 s, automated promotion enabled. Pen-test `patronictl
+      failover` from a hostile network — the promotion command must
+      not be reachable from the cluster's data-plane VLAN.
+- [ ] **WAL archive** to off-site storage (S3 / B2 / GCS) with
+      retention ≥ 7 days. Without this, RPO degrades from 5 min to
+      the daily pg_dump cadence. wal-g + cron job is the supported
+      pattern; document the recovery command in
+      [`disaster-recovery.md`](disaster-recovery.md) §S3.
+- [ ] **Off-site backup sync** for the encrypted pg_dump: nightly
+      `aws s3 sync` (or `rclone` / `restic`) from the Phase 6.E
+      backup PVC to a second-region bucket. Versioning enabled, MFA
+      delete on, lifecycle rule to glacier after 30 days.
+- [ ] **Monthly drill scheduled**: `make backup-drill` from a CI job
+      or a cron entry; the script's exit code is the drill PASS/FAIL.
+      Artifacts (drill log + dump hash) uploaded to the off-site
+      target. Failures page the on-call.
+- [ ] **Quarterly DR-site failover rehearsal** with the customer:
+      promote the replica region, point DNS at the new origin, run
+      the operator manual golden path inside the RTO budget, fail
+      back. Document the RTO/RPO measurement in the runbook.
+- [ ] **GPG backup recipient rotation**: yearly, with overlap so old
+      dumps stay decryptable for the retention window. Procedure
+      lives in [`disaster-recovery.md`](disaster-recovery.md) §Backup
+      drill.
+- [ ] **Emergency stop pen-test**: external red team exercises
+      `POST /actions/emergency-rtl-all` (commander-only, MFA, double
+      confirmation phrase, dedicated rate limiter, safety bypass +
+      audit event). Confirm a stolen non-MFA commander token cannot
+      trigger the intent and that a leaked replay of an accepted
+      request body is throttled within 1 min.
+- [ ] **Runbook handover** to the customer's SRE: walk through every
+      scenario in [`disaster-recovery.md`](disaster-recovery.md), with
+      live keyboard time on at least S2 (Redis loss) and S3 (Postgres
+      primary loss) on a staging stack.
+
 ### 2.F Compliance (Phase 6.I — pending until that session)
 
 - [ ] GDPR DPO contact populated in `docs/compliance/dpa-template.md`.

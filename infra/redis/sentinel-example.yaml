@@ -1,0 +1,77 @@
+# Redis Sentinel — reference configuration for SwarmOS HA.
+#
+# Phase 6.G ships this as a *pattern*, not a deployment. The compose-prod
+# topology Phase 6.E validated runs a single Redis. Customers that need
+# HA point `REDIS_URL` at a Sentinel endpoint and run this stack
+# alongside the SwarmOS deploy (separate cluster, separate ops surface).
+#
+# Three Sentinels + one primary + two replicas. Quorum 2 so a one-node
+# loss still failovers. `down-after-milliseconds 5000` gives the
+# autopilot 5 s of latency tolerance before SwarmOS sees a Redis blip,
+# which matches the bus consumer's 5 s reconnect window.
+#
+# Wire it from the backend via:
+#   REDIS_URL=rediss://swarm-sentinel:26379/0
+#   REDIS_TLS_CA_CERTS=/run/secrets/redis-ca.pem
+#   REDIS_TLS_CERTFILE=/run/secrets/swarm-client.pem
+#   REDIS_TLS_KEYFILE=/run/secrets/swarm-client.key
+#
+# Drone-day items (see docs/ops/drone-day-checklist.md §2.G):
+# real CA, client cert rotation, sentinel auth-pass secrets, off-host
+# quorum nodes, monitoring of `sentinel_master_status`.
+
+apiVersion: redis.swarmos.dev/v1
+kind: SentinelTopology
+metadata:
+  name: swarm-redis-ha
+  description: |
+    HA pattern for the SwarmOS bus. Three Sentinels, one master, two
+    replicas. mTLS terminated at Redis with client-cert auth.
+
+spec:
+  master:
+    name: swarm-master
+    bind:
+      port: 6379
+    tls:
+      enabled: true
+      certificate: /etc/redis/certs/redis-server.pem
+      key: /etc/redis/certs/redis-server.key
+      ca: /etc/redis/certs/redis-ca.pem
+      auth_clients: required
+    persistence:
+      appendonly: true
+      aof_fsync: everysec
+  replicas:
+    count: 2
+    replicate_of: swarm-master:6379
+    tls:
+      enabled: true
+      certificate: /etc/redis/certs/redis-server.pem
+      key: /etc/redis/certs/redis-server.key
+      ca: /etc/redis/certs/redis-ca.pem
+  sentinels:
+    count: 3
+    quorum: 2
+    down_after_milliseconds: 5000
+    failover_timeout_ms: 30000
+    parallel_syncs: 1
+    bind:
+      port: 26379
+    tls:
+      enabled: true
+      certificate: /etc/redis/certs/sentinel.pem
+      key: /etc/redis/certs/sentinel.key
+      ca: /etc/redis/certs/redis-ca.pem
+  observability:
+    redis_exporter: true
+    metrics:
+      - redis_up
+      - redis_connected_clients
+      - redis_master_repl_offset
+      - sentinel_master_status
+    alerts:
+      - name: SentinelQuorumLost
+        when: count(sentinel_master_status == 0) >= 2
+        for: 1m
+        severity: amber  # no red — design system §5.2

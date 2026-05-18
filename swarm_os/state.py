@@ -71,6 +71,10 @@ class SwarmState:
     mode: OperatingMode = OperatingMode.REST
     verifier_id: str | None = None
     hold_patrol: bool = False
+    # Phase 6.G — set when a commander triggers EMERGENCY_RTL_ALL. The
+    # coordinator reads this to halt the patrol scheduler until the fleet
+    # is back on dock; clearing it is an admin action (drone-day §2.G).
+    emergency_active_at: datetime | None = None
     session: Session = field(default_factory=lambda: Session(label=DEFAULT_SESSION_LABEL))
     # Phase 6.A: server-owned safety policy. The coordinator queries it on
     # every refresh; rejected commands and auto-RTL actions both flow back

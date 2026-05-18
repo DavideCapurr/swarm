@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry load-smoke load-soak chaos-redis chaos-backend
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend
 
 PY := python3
 VENV := .venv
@@ -136,6 +136,14 @@ backup-dump-dry:
 	fi
 	@echo "[backup-dump-dry] dry-running pg_dump --schema-only against $$DATABASE_URL"
 	@pg_dump --schema-only "$$DATABASE_URL" >/dev/null && echo "OK"
+
+# Phase 6.G — monthly backup/restore drill. Boots a sidecar Postgres,
+# runs the prod backup script against $DATABASE_URL, restores into the
+# sidecar, asserts schema parity via Alembic. Drone-day §2.G expects
+# this to run monthly and upload artifacts off-site. Requires docker on
+# PATH; gracefully degrades if Alembic is missing.
+backup-drill:
+	@./scripts/backup_restore_drill.sh
 
 # ── load + chaos (Phase 6.F) ────────────────────────────────────────────────
 # `load-smoke` runs the in-process pytest assertions (50-agent x 1 Hz x 5 s

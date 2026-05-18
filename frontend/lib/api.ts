@@ -105,7 +105,8 @@ export type OperatorAction =
   | "increase_scan_freq"
   | "mark_known"
   | "escalate"
-  | "export_report";
+  | "export_report"
+  | "emergency_rtl_all";
 
 export type CommandStatus =
   | "submitted"
@@ -374,4 +375,16 @@ export const api = {
     post<CommandResponse>("/actions/dismiss", { target }),
   returnUnit: (target: string) =>
     post<CommandResponse>("/actions/return", { target }),
+  // Phase 6.G — fleet-wide stop. Commander-only. The backend requires
+  // both fields; the modal that calls this passes them after the
+  // operator types the confirmation phrase.
+  emergencyRtlAll: (confirmationPhrase: string) =>
+    post<CommandResponse>("/actions/emergency-rtl-all", {
+      confirm: true,
+      confirmation_phrase: confirmationPhrase,
+    }),
 };
+
+// Phase 6.G — exported so the EmergencyStop modal and the dispatcher can
+// share the canonical phrase. Mirrors backend ``EMERGENCY_CONFIRMATION``.
+export const EMERGENCY_CONFIRMATION_PHRASE = "RETURN ALL UNITS";
