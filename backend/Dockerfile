@@ -33,6 +33,19 @@ ENV UV_LINK_MODE=copy \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# Build toolchain for native Python extensions in the builder stage only.
+# `pymavlink` (Phase 5) ships a sdist that runs setup.py at install time
+# and pulls `lxml` (libxml2 + libxslt headers needed). These packages
+# never reach the runtime stage — the resolved venv is copied out via
+# `COPY --from=builder /opt/venv` so the runtime image stays slim.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        build-essential \
+        libxml2-dev \
+        libxslt1-dev \
+        zlib1g-dev \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /build
 
 # Resolve dependencies first so a code-only change doesn't bust the
