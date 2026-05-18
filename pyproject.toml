@@ -116,7 +116,18 @@ testpaths = [
     "backend/tests",
     "swarm_os/tests",
     "tests/fuzz",
+    "tests/load",
     "tests/test_phase6e_deploy.py",
+]
+markers = [
+    # Phase 6.F — in-process p95 latency smoke (driven by tests/load/).
+    # Runs in the `load-smoke` job and on every push; the slow soak runs
+    # out-of-process via `python -m tests.load.driver`, gated by the
+    # weekly `.github/workflows/load-test.yml` workflow.
+    "load_smoke: in-process load smoke (Phase 6.F).",
+    # Phase 6.F — chaos probes that pause/kill an external dep. Not run
+    # by default; invoked through `make chaos-redis` / `make chaos-backend`.
+    "chaos: external-component chaos probe (Phase 6.F).",
 ]
 
 [tool.bandit]

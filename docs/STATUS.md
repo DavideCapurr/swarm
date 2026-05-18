@@ -14,7 +14,7 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E done; 6.F–6.J pending |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E done; 6.F in_progress; 6.G–6.J pending |
 
 ## Phase 0 — completed checklist
 
@@ -762,7 +762,12 @@ Sub-block progress:
       binary. The smoke test in `tests/test_phase6e_deploy.py`
       validates the offline-checkable invariants; CI on a clean
       runner is the gate before the first production deploy.
-- [ ] 6.F Performance + scale — pending.
+- [ ] **6.F** Performance + scale — **in_progress**.
+      Target SLOs (per site): 50 unit concorrenti, 10 Hz/unit telemetry
+      (500 msg/s bus), WS frame p95 < 200 ms, REST p95 < 100 ms; burst
+      200 unit con `TelemetryRateLimiter` rejection counter > 0;
+      chaos: Redis pause → `InMemoryBus` fallback, backend SIGTERM →
+      Console reconnect ≤ 6 s. Plan: `docs/plan/phase-6f.md`.
 - [ ] 6.G Resilience + DR — pending.
 - [ ] 6.H Documentation — pending.
 - [ ] 6.I Compliance — pending.
