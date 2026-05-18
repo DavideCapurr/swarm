@@ -17,7 +17,7 @@ from collections.abc import Iterable, Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -305,6 +305,132 @@ class Repository:
         """Return the chronological event timeline for one mission."""
         return await self.list_events(mission_id=mission_id, limit=limit)
 
+    # ── Phase 6.I — compliance helpers ───────────────────────────────────────
+
+    async def export_operator(
+        self, operator_id: str
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Return every persisted row that references ``operator_id``.
+
+        Used by ``POST /admin/export`` to honour an Art. 15 data-subject
+        access request. The returned dict is JSON-ready (every datetime
+        rendered as ISO 8601 by ``Pydantic.model_dump(mode='json')`` on
+        the caller side; this method emits raw dicts and lets the route
+        layer convert).
+
+        The query surface is intentionally narrow: only the tables that
+        actually carry the operator identifier are touched. Telemetry,
+        anomalies, missions, sectors, and sessions are operational data
+        that do not reference the operator and are therefore not part
+        of an Art. 15 export.
+        """
+        if not self.enabled:
+            return {"operator_commands": [], "events": []}
+        try:
+            async with self._session() as db:
+                cmd_stmt = (
+                    select(OperatorCommandRow)
+                    .where(OperatorCommandRow.operator_id == operator_id)
+                    .order_by(OperatorCommandRow.submitted_at.asc())
+                )
+                cmd_rows = (await db.execute(cmd_stmt)).scalars().all()
+                commands = [_command_row_to_dict(r) for r in cmd_rows]
+
+                # Audit events that *mention* the operator. The audit
+                # bus emits the operator id inside `event.body` for
+                # login / refresh / admin actions, so we substring-match
+                # on the body in addition to the explicit relation via
+                # the operator's missions.
+                mission_ids = [
+                    r.mission_id for r in cmd_rows if r.mission_id is not None
+                ]
+                ev_filters = [EventRow.body.contains(operator_id)]
+                if mission_ids:
+                    ev_filters.append(EventRow.mission_id.in_(mission_ids))
+                ev_stmt = (
+                    select(EventRow)
+                    .where(or_(*ev_filters))
+                    .order_by(EventRow.ts.asc())
+                )
+                ev_rows = (await db.execute(ev_stmt)).scalars().all()
+                events = [_event_row_to_dict(r) for r in ev_rows]
+            return {"operator_commands": commands, "events": events}
+        except Exception:  # pragma: no cover — defensive
+            logger.exception("export_operator failed")
+            return {"operator_commands": [], "events": []}
+
+    async def anonymize_operator(self, operator_id: str, pseudonym: str) -> int:
+        """Rewrite every ``operator_commands`` row for ``operator_id``.
+
+        Implements GDPR Art. 17 erasure semantics: the row stays (the
+        audit trail must remain consistent), the identifier becomes a
+        deterministic pseudonym (``op-erased-<sha256_short>``), no
+        other column is modified. Returns the number of rewritten
+        rows.
+
+        Idempotent: calling twice with the same ``operator_id`` yields
+        a second call rewriting zero rows (the first call already
+        pseudonymised them).
+        """
+        if not self.enabled:
+            return 0
+        try:
+            async with self._session() as db:
+                stmt = (
+                    update(OperatorCommandRow)
+                    .where(OperatorCommandRow.operator_id == operator_id)
+                    .values(operator_id=pseudonym)
+                )
+                result = await db.execute(stmt)
+                await db.commit()
+                # ``rowcount`` is -1 on dialects that don't report it;
+                # treat that as "unknown but non-error".
+                rowcount = int(getattr(result, "rowcount", 0) or 0)
+                return max(rowcount, 0)
+        except Exception:  # pragma: no cover — defensive
+            logger.exception("anonymize_operator failed")
+            return 0
+
+    async def prune_old_rows(
+        self,
+        *,
+        sessions_older_than: datetime | None = None,
+        sector_visits_older_than: datetime | None = None,
+    ) -> dict[str, int]:
+        """Application-level prune for non-hypertable tables.
+
+        ``sessions`` and ``sector_visits`` are plain tables (not
+        Timescale hypertables), so their retention is enforced here
+        rather than by ``add_retention_policy``. Both retention windows
+        are documented in ``docs/compliance/retention.md`` (365 days
+        each); the caller decides the cut-off ``datetime`` so the same
+        helper is callable from a cron, a k8s CronJob, or a test.
+        """
+        if not self.enabled:
+            return {"sessions": 0, "sector_visits": 0}
+        try:
+            async with self._session() as db:
+                deleted: dict[str, int] = {"sessions": 0, "sector_visits": 0}
+                if sessions_older_than is not None:
+                    stmt = delete(SessionRow).where(
+                        SessionRow.ts < sessions_older_than
+                    )
+                    result = await db.execute(stmt)
+                    rc1 = int(getattr(result, "rowcount", 0) or 0)
+                    deleted["sessions"] = max(rc1, 0)
+                if sector_visits_older_than is not None:
+                    stmt2 = delete(SectorVisitRow).where(
+                        SectorVisitRow.visited_at < sector_visits_older_than
+                    )
+                    result2 = await db.execute(stmt2)
+                    rc2 = int(getattr(result2, "rowcount", 0) or 0)
+                    deleted["sector_visits"] = max(rc2, 0)
+                await db.commit()
+                return deleted
+        except Exception:  # pragma: no cover — defensive
+            logger.exception("prune_old_rows failed")
+            return {"sessions": 0, "sector_visits": 0}
+
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     @staticmethod
@@ -395,6 +521,41 @@ def _row_to_event(r: EventRow) -> Event:
         body=r.body,
         action_label=r.action_label,
     )
+
+
+def _event_row_to_dict(r: EventRow) -> dict[str, Any]:
+    """JSON-ready serialisation of an EventRow for `/admin/export`."""
+    return {
+        "id": r.id,
+        "kind": r.kind,
+        "ts": r.ts.isoformat() if r.ts is not None else None,
+        "sector_id": r.sector_id,
+        "agent_id": r.agent_id,
+        "mission_id": r.mission_id,
+        "anomaly_id": r.anomaly_id,
+        "dock_id": r.dock_id,
+        "confidence": r.confidence,
+        "body": r.body,
+        "action_label": r.action_label,
+    }
+
+
+def _command_row_to_dict(r: OperatorCommandRow) -> dict[str, Any]:
+    """JSON-ready serialisation of an OperatorCommandRow for `/admin/export`."""
+    return {
+        "id": r.id,
+        "action": r.action,
+        "target": r.target,
+        "operator_id": r.operator_id,
+        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+        "accepted_at": r.accepted_at.isoformat() if r.accepted_at else None,
+        "in_flight_at": r.in_flight_at.isoformat() if r.in_flight_at else None,
+        "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+        "status": r.status,
+        "rejected_reason": r.rejected_reason,
+        "mission_id": r.mission_id,
+        "ts": r.ts.isoformat() if r.ts else None,
+    }
 
 
 def _row_to_command(r: OperatorCommandRow) -> OperatorCommand:

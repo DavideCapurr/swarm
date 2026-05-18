@@ -340,13 +340,61 @@ What still needs you on hardware day:
       live keyboard time on at least S2 (Redis loss) and S3 (Postgres
       primary loss) on a staging stack.
 
-### 2.F Compliance (Phase 6.I — pending until that session)
+### 2.I Compliance (Phase 6.I — code-complete; deploy items remain)
 
-- [ ] GDPR DPO contact populated in `docs/compliance/dpa-template.md`.
-- [ ] Retention windows confirmed with legal (telemetry 30 d, events
-      1 y, audit 7 y — adjust to your jurisdiction).
-- [ ] Data subject request workflow (export + delete) tested against
-      production data.
+Code landed: GDPR data flow + PII inventory ([`docs/compliance/gdpr.md`](../compliance/gdpr.md)),
+canonical retention table ([`docs/compliance/retention.md`](../compliance/retention.md)),
+Art. 28 processor agreement template
+([`docs/compliance/dpa-template.md`](../compliance/dpa-template.md)),
+drone regulatory reference
+([`docs/compliance/drone-regulations.md`](../compliance/drone-regulations.md)),
+admin-mediated DSAR endpoints (`POST /admin/export` for Art. 15,
+`POST /admin/forget` for Art. 17 with pseudonymisation), Timescale
+365-day retention policy on `events` (migration
+`0002_phase6i_retention`), repository helper to prune non-hypertable
+tables (`Repository.prune_old_rows`).
+
+External-asset / operator-side items still to do:
+
+- [ ] **DPA signed** — populate the parties, sub-processors annex, and
+      governing-law clause in `docs/compliance/dpa-template.md` and
+      execute. Controller + Processor legal teams own this.
+- [ ] **DPO contact** — appoint or designate per Art. 37 if required by
+      the controller's profile; document the contact channel that
+      handles incoming DSARs.
+- [ ] **Retention windows confirmed with legal** — telemetry 30 d,
+      events 365 d, audit 7 y are the SwarmOS defaults; adjust to the
+      controller's jurisdiction and update `retention.md` *and* the
+      migration in the same change (the doc-parity test in
+      `tests/test_phase6i_compliance_docs.py` will fail otherwise).
+- [ ] **DSAR procedure** — controller-side workflow that authenticates
+      the data subject and dispatches the commander to invoke
+      `/admin/export` / `/admin/forget`. Out of band, not in SwarmOS.
+- [ ] **Quarterly retention audit** — verify the Timescale retention
+      policies are still running (`SELECT * FROM
+      timescaledb_information.jobs WHERE proc_name='policy_retention';`),
+      verify `BACKUP_RETENTION_DAYS` is honoured by the cron, verify no
+      orphan plaintext dumps.
+- [ ] **Camera-payload site policy** — when the camera lands (drone-day
+      §3 field calibration), publish a per-site policy covering lawful
+      basis, purpose, frame-rate minimisation, on-device face/plate
+      blurring, retention, and signage. Store the policy in
+      `infra/config/sites/<site_id>.yaml` (a future schema extension
+      will codify it).
+- [ ] **NOTAM / U-space integration credentials** — provision the
+      national feed account; wire the runtime hook in `swarm_os/safety.py`
+      (the polygon-rejection path is already in place, only the feed is
+      missing).
+- [ ] **Pen-test of the DSAR endpoints** — verify `/admin/export` and
+      `/admin/forget` cannot be reached by viewer / operator / non-MFA
+      commander, verify the rate limiter holds at 1/min/commander,
+      verify the pseudonymisation is not reversible from log lines.
+- [ ] **Aircraft registration + remote-pilot certification** — operator
+      side, per the relevant jurisdiction (EASA / CAA / FAA / FOCA / …).
+- [ ] **Insurance** — operator side, hull + third-party liability per
+      flight category.
+- [ ] **Annual DPIA review** — controller-side, against the updated
+      data inventory and threat model.
 
 ## 3. Field calibration
 

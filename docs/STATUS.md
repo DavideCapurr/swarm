@@ -870,7 +870,65 @@ Sub-block progress:
       PASS). Voice + brand audit greps return zero hits in
       product code + new docs + new infra example configs.
 - [x] 6.H Documentation — done (2026-05-18). Added docs/architecture/overview.md, docs/api/openapi.yaml, docs/api/ws-contract.md, docs/operator/manual.md, docs/operator/training.md, docs/ops/runbook.md, docs/security/disclosure.md, docs/compliance/gdpr.md, docs/compliance/drone-regulations.md, docs/dev/onboarding.md, docs/dev/release-process.md; updated README docs map; added docs-validation test (tests/test_phase6h_docs.py).
-- [ ] 6.I Compliance — pending.
+- [x] 6.I Compliance + data protection — **done** (2026-05-18, branch
+      `claude/phase-6-planning-X3ICw`).
+      Documentation: expanded `docs/compliance/gdpr.md` with the data
+      controller / processor posture, the canonical PII inventory
+      (operator_id in `operator_commands` + audit-event bodies,
+      authentication secrets in `operators.yaml`, request-log IP),
+      a textual data-flow diagram, the data-subject-rights matrix
+      (Art. 15–22), the DPIA reference inputs, and the breach-
+      notification flow. New canonical retention table at
+      `docs/compliance/retention.md` (telemetry 30 d, events 365 d,
+      operator_commands 7 y, sessions 365 d, sector_visits 365 d,
+      camera-frames drone-day, backups 30 d). New Article 28 processor
+      agreement template at `docs/compliance/dpa-template.md` (parties,
+      sub-processors annex, audit rights, termination obligations).
+      Expanded `docs/compliance/drone-regulations.md` with the
+      responsibility split table, jurisdictional reference (EASA, CAA,
+      FAA, FOCA), the runtime controls SwarmOS enforces (geofence,
+      battery, link, weather, NOTAM hook), the pre/in/post-flight log
+      expectations, and the site-level camera-payload policy.
+      Backend: new Alembic migration
+      `20260518_0002_phase6i_retention.py` adding a 365-day Timescale
+      retention policy to `events` (Postgres-only; no-op on SQLite).
+      New compliance router `backend/app/api/compliance.py` exposing
+      `POST /admin/export` (Art. 15 — returns every persisted row that
+      references the subject in JSON form, audit event + WS broadcast,
+      1/min/operator rate limiter) and `POST /admin/forget` (Art. 17
+      — anonymises `operator_commands.operator_id` to the deterministic
+      pseudonym `op-erased-<sha256_short>`, audit row preserved per
+      Art. 17(3)(b)/(e), idempotent, blocks re-anonymisation). Both
+      gated by `require_commander` (re-checks `mfa=true` claim on every
+      call) and validate `operator_id` against the established regex.
+      Three new repository helpers: `export_operator`,
+      `anonymize_operator`, `prune_old_rows` (application-level
+      retention for non-hypertable tables).
+      Tests: 31 new tests in `backend/tests/test_phase6i_compliance.py`
+      (auth + RBAC + MFA gates, body validation, happy path, audit
+      emission, WS broadcast, rate limiter, metrics, voice-clean audit
+      copy, pseudonym determinism, repository-helper independence) and
+      9 new tests in `tests/test_phase6i_compliance_docs.py` (doc
+      existence, doc voice-clean, retention numbers match the
+      migration, retention table cites `operator_commands` 7 y,
+      compliance router uses canonical phrase + pseudonym prefix,
+      README cites both new docs, gdpr.md references the endpoint
+      surface + Art. 15 / Art. 17, drone-regulations.md calls out
+      operator responsibility). Full suite: **611 passed, 16 skipped**
+      (vs Phase 6.H baseline 580 / 16). `make lint` green (ruff + mypy
+      154 files + tsc), `make audit` green (pip-audit clean, pnpm
+      audit clean, Bandit 0 medium / 0 high, pymavlink integrity
+      PASS). Voice + brand audit greps clean on every new file.
+      Drone-day items (DPA execution, DPO appointment, retention
+      window confirmation with legal, controller-side DSAR procedure,
+      quarterly retention audit, camera-payload site policy, NOTAM
+      integration credentials, DSAR endpoint pen-test, aircraft +
+      pilot registration, insurance, annual DPIA review) catalogued
+      in `docs/ops/drone-day-checklist.md` §2.I.
+      Anti-overreach honoured: no PDF report generation, no
+      self-service DSAR portal, no external NOTAM / weather feed
+      wired, no new tables, no operator-store mutation coupled to
+      `/admin/forget`.
 - [ ] 6.J Testing finale — pending.
 
 External-asset gates (weather API key, JWT signing key, TLS domain,
@@ -879,6 +937,26 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 checklist and gated on hardware acquisition.
 
 ## Last updated
+
+2026-05-18: Phase 6.I compliance + data protection completed on
+branch `claude/phase-6-planning-X3ICw`. Expanded
+`docs/compliance/gdpr.md` (data flow, PII inventory, data-subject
+rights matrix), added the canonical
+`docs/compliance/retention.md`, the Art. 28
+`docs/compliance/dpa-template.md`, and the expanded
+`docs/compliance/drone-regulations.md`. New Alembic migration
+`0002_phase6i_retention` adds a 365-day Timescale retention policy
+on `events`. New `backend/app/api/compliance.py` router exposes
+admin-mediated `POST /admin/export` (Art. 15) and
+`POST /admin/forget` (Art. 17 with pseudonymisation). 31 new
+backend tests + 9 cross-cutting doc-parity tests; full suite
+**611 passed / 16 skipped** (vs 580 / 16 baseline). `make lint` +
+`make audit` green; voice / brand audit clean on every new file.
+Drone-day items (DPA signing, DPO appointment, controller-side
+DSAR procedure, quarterly retention audit, camera-payload site
+policy, NOTAM integration, pen-test, aircraft + pilot
+registration, insurance, annual DPIA review) catalogued in
+`docs/ops/drone-day-checklist.md` §2.I.
 
 2026-05-18: Phase 6.H documentation completed on branch `codex/phase-6h-documentation`. Documentation set added (architecture/API/WS/operator/ops/security/compliance/dev), README docs map refreshed, and `tests/test_phase6h_docs.py` added to validate required files, key links, OpenAPI route presence, WS kinds, and forbidden-word absence in new docs.
 
