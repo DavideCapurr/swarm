@@ -1,0 +1,64 @@
+openapi: 3.1.0
+info:
+  title: SwarmOS Backend
+  version: 0.1.0
+  description: Phase 6.H committed snapshot of backend.app.main:app REST surface.
+servers:
+  - url: /
+paths:
+  /:
+    get: {summary: Root}
+  /health:
+    get: {summary: Health}
+  /session:
+    get: {summary: Session projection}
+  /awareness:
+    get: {summary: Awareness projection}
+  /docks:
+    get: {summary: Dock projections}
+  /sectors:
+    get: {summary: Sector projections}
+  /units:
+    get: {summary: Unit projections}
+  /missions:
+    get: {summary: Mission projections}
+  /missions/{mission_id}/history:
+    get: {summary: Mission history}
+  /commands:
+    get: {summary: Command timeline}
+  /operator-commands:
+    get: {summary: Operator commands}
+  /fleet:
+    get: {summary: Fleet aggregate}
+  /anomalies:
+    get: {summary: Anomaly projections}
+  /anomalies/raw:
+    get: {summary: Raw anomalies}
+  /telemetry/latest:
+    get: {summary: Latest telemetry}
+  /events:
+    get: {summary: Event list}
+  /actions/verify:
+    post: {summary: Verify intent}
+  /actions/hold-patrol:
+    post: {summary: Hold patrol intent}
+  /actions/dismiss:
+    post: {summary: Dismiss intent}
+  /actions/return:
+    post: {summary: Return unit intent}
+  /actions/emergency-rtl-all:
+    post: {summary: Emergency fleet return intent}
+  /admin/reload-site-config:
+    post: {summary: Reload site config}
+  /auth/login:
+    post: {summary: Login}
+  /auth/refresh:
+    post: {summary: Refresh token}
+  /auth/logout:
+    post: {summary: Logout}
+  /auth/me:
+    get: {summary: Current operator}
+  /ready:
+    get: {summary: Readiness probe}
+  /metrics:
+    get: {summary: Prometheus metrics}

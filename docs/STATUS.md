@@ -14,7 +14,7 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G done; 6.H–6.J pending |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G done; 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H done; 6.I–6.J pending |
 
 ## Phase 0 — completed checklist
 
@@ -869,7 +869,7 @@ Sub-block progress:
       audit clean, Bandit 0 medium/high, pymavlink integrity
       PASS). Voice + brand audit greps return zero hits in
       product code + new docs + new infra example configs.
-- [ ] 6.H Documentation — pending.
+- [x] 6.H Documentation — done (2026-05-18). Added docs/architecture/overview.md, docs/api/openapi.yaml, docs/api/ws-contract.md, docs/operator/manual.md, docs/operator/training.md, docs/ops/runbook.md, docs/security/disclosure.md, docs/compliance/gdpr.md, docs/compliance/drone-regulations.md, docs/dev/onboarding.md, docs/dev/release-process.md; updated README docs map; added docs-validation test (tests/test_phase6h_docs.py).
 - [ ] 6.I Compliance — pending.
 - [ ] 6.J Testing finale — pending.
 
@@ -879,6 +879,8 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 checklist and gated on hardware acquisition.
 
 ## Last updated
+
+2026-05-18: Phase 6.H documentation completed on branch `codex/phase-6h-documentation`. Documentation set added (architecture/API/WS/operator/ops/security/compliance/dev), README docs map refreshed, and `tests/test_phase6h_docs.py` added to validate required files, key links, OpenAPI route presence, WS kinds, and forbidden-word absence in new docs.
 
 2026-05-18: Phase 6.G resilience + disaster recovery landed on
 `claude/plan-phase-6g-N1Ail`. New `EMERGENCY_RTL_ALL` operator intent

@@ -139,6 +139,19 @@ Active controls — these are part of the product, not aspirational:
 Report a vulnerability:
 https://github.com/DavideCapurr/swarm/security/advisories/new
 
+
+## Documentation map
+
+- Architecture overview: [`docs/architecture/overview.md`](docs/architecture/overview.md)
+- REST API snapshot: [`docs/api/openapi.yaml`](docs/api/openapi.yaml)
+- WebSocket contract: [`docs/api/ws-contract.md`](docs/api/ws-contract.md)
+- Operator guide: [`docs/operator/manual.md`](docs/operator/manual.md)
+- Operator training: [`docs/operator/training.md`](docs/operator/training.md)
+- Ops runbook index: [`docs/ops/runbook.md`](docs/ops/runbook.md)
+- Security disclosure: [`docs/security/disclosure.md`](docs/security/disclosure.md)
+- Compliance baseline: [`docs/compliance/gdpr.md`](docs/compliance/gdpr.md), [`docs/compliance/drone-regulations.md`](docs/compliance/drone-regulations.md)
+- Developer onboarding + release: [`docs/dev/onboarding.md`](docs/dev/onboarding.md), [`docs/dev/release-process.md`](docs/dev/release-process.md)
+
 ## For Claude Code sessions
 
 [`CLAUDE.md`](CLAUDE.md) is the entry point for any Claude Code session in
