@@ -85,14 +85,22 @@ ENV PYTHONUNBUFFERED=1 \
     SWARM_ENV=prod
 
 # Non-root user. uid 10001 is the convention we'll use across backend +
-# frontend so volume mounts can be chowned consistently. /tmp must remain
-# writable; readonly-rootfs deployments mount a tmpfs over it.
-RUN groupadd --system --gid 10001 swarm \
- && useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin swarm \
- && install -d -o swarm -g swarm /app /tmp \
- && apt-get update \
+# frontend so volume mounts can be chowned consistently. /tmp is left at
+# its default 1777 (world-writable + sticky bit) so apt-get's internal
+# `_apt` user can still verify package signatures; the swarm user gets
+# write access via the sticky bit. Readonly-rootfs deployments mount a
+# tmpfs on /tmp which overrides this anyway.
+#
+# Order matters: apt-get install MUST run before the user is created and
+# /app is chowned, because chowning anything under / can disrupt apt-get's
+# privilege-drop to the `_apt` user (the case that broke an earlier
+# revision when /tmp was chowned to swarm).
+RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 10001 swarm \
+ && useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin swarm \
+ && install -d -o swarm -g swarm /app
 
 # Resolved virtualenv from the builder stage.
 COPY --from=builder --chown=swarm:swarm /opt/venv /opt/venv
