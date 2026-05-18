@@ -31,6 +31,31 @@ jobs:
       - name: Run pytest
         run: uv run pytest -q
 
+  load-smoke:
+    # Phase 6.F — in-process p95 assertions. Cheap (≤ 15 s wall) and
+    # runs on every push so a regression in WS/REST fanout latency
+    # fails the PR. The soak (500 msg/s × 5 min) lives in
+    # `.github/workflows/load-test.yml` (weekly).
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: python
+    steps:
+      # S4: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # S4: actions/setup-python@v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      # astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install Python deps
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+      - name: Run load smoke
+        run: uv run pytest tests/load -m load_smoke -q
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 10
