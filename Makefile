@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry load-smoke load-soak chaos-redis chaos-backend
 
 PY := python3
 VENV := .venv
@@ -136,6 +136,27 @@ backup-dump-dry:
 	fi
 	@echo "[backup-dump-dry] dry-running pg_dump --schema-only against $$DATABASE_URL"
 	@pg_dump --schema-only "$$DATABASE_URL" >/dev/null && echo "OK"
+
+# ── load + chaos (Phase 6.F) ────────────────────────────────────────────────
+# `load-smoke` runs the in-process pytest assertions (50-agent x 1 Hz x 5 s
+# WS p95 < 200 ms, REST p95 < 100 ms, 200-unit burst rate-limiter drops).
+# Cheap enough for every push; CI also runs it under .github/workflows/test.yml.
+load-smoke:
+	$(VENV)/bin/pytest tests/load -m load_smoke -q
+
+# `load-soak` is the out-of-process driver: 500 msg/s x 5 min against a live
+# backend + redis. Used by the weekly load-test workflow. Requires
+# `make infra && make backend && make bootstrap-auth-dev` first.
+load-soak:
+	$(PYTHON) -m tests.load.driver --rate 500 --duration 300
+
+# Chaos drills. Manual; not run by `make test`. Each script asserts the
+# Phase 6.F SLO numerically and exits non-zero on breach.
+chaos-redis:
+	@./scripts/chaos/redis_pause.sh
+
+chaos-backend:
+	@./scripts/chaos/backend_kill.sh
 
 # ── cleanup ─────────────────────────────────────────────────────────────────
 clean:
