@@ -1,0 +1,38 @@
+# Gitleaks config — repo-level allowlist for Phase 6.E template files.
+#
+# The Phase 6.E IaC artifacts (Helm values defaults + the
+# infra/k8s/*.example.yaml manifests) carry visibly-fake placeholders
+# like `REPLACE_ME_AT_DEPLOY_TIME` so an operator copying the file knows
+# exactly where to bind their real secret backend. The strings are long
+# enough that gitleaks' `generic-api-key` rule (entropy ≥ 3.5) flags
+# them as potential secrets.
+#
+# This config keeps gitleaks' default ruleset and adds a narrow
+# allowlist scoped to those template paths + the `REPLACE_*`/`REPLACE-*`
+# placeholder pattern. **Do not loosen this** — every entry must either:
+#   - point at a known-template file (`*.example.yaml`, `values*.yaml`,
+#     the drone-day checklist that lists env var names), or
+#   - match a verbatim placeholder pattern that no real secret could
+#     resemble (`REPLACE_ME_AT_DEPLOY_TIME`, `REPLACE-ME-*`, etc.).
+#
+# Drone-day §2.C documents the real provisioning flow; production
+# secrets must never enter the repo regardless of this allowlist.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Phase 6.E IaC templates and obvious placeholder strings"
+
+paths = [
+    '''^infra/k8s/secret\.example\.yaml$''',
+    '''^infra/helm/swarmos/values\.yaml$''',
+    '''^infra/helm/swarmos/values-.*\.yaml$''',
+    '''^infra/cert-manager/issuer-letsencrypt-.*\.yaml$''',
+    '''^infra/config/operators\.example\.yaml$''',
+]
+
+regexes = [
+    '''REPLACE[_-]ME[_A-Z0-9-]*''',
+    '''REPLACE-ME-WITH-[A-Z0-9-]+''',
+]

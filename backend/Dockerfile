@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # SwarmOS backend image (Phase 6.E).
 #
 # Multi-stage build:
@@ -22,16 +23,31 @@
 # python:3.11-slim
 FROM python@sha256:9a7765b36773a37061455b332f18e265e7f58f6fea9c419a550d2a8b0e9db834 AS builder
 
-# ghcr.io/astral-sh/uv:0.5.18 — copy a single static binary instead of
-# pulling uv from PyPI inside the image (no curl/network at build time).
-COPY --from=ghcr.io/astral-sh/uv@sha256:e2101b9e627153b8fe4e8a1249cc4194f1b38ece7f28a5a9b8f958e3b560e69c /uv /uvx /usr/local/bin/
-
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_NO_CACHE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1
+
+# Build toolchain for native Python extensions in the builder stage only.
+# `pymavlink` (Phase 5) ships a sdist that runs setup.py at install time
+# and pulls `lxml` (libxml2 + libxslt headers needed). These packages
+# never reach the runtime stage — the resolved venv is copied out via
+# `COPY --from=builder /opt/venv` so the runtime image stays slim.
+#
+# uv itself is installed via pip from PyPI (pinned to 0.5.18 — matches
+# the `astral-sh/setup-uv` version used by .github/workflows/test.yml's
+# v8.1.0 default). Pip + a fixed version is simpler and more reliable
+# than juggling a GHCR digest for the upstream `astral-sh/uv` image.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        build-essential \
+        libxml2-dev \
+        libxslt1-dev \
+        zlib1g-dev \
+ && rm -rf /var/lib/apt/lists/* \
+ && pip install --no-cache-dir "uv==0.5.18"
 
 WORKDIR /build
 
@@ -43,8 +59,10 @@ COPY pyproject.toml uv.lock README.md ./
 # `--frozen` forbids lock regeneration; `--no-dev` skips test/lint tools;
 # `--no-install-project` keeps the layer reusable until the source changes;
 # `--extra mavlink` pulls pymavlink which the Phase 5 adapter needs.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project --extra mavlink
+# `UV_NO_CACHE=1` (set above) bypasses uv's local cache so we don't need
+# a BuildKit cache-mount here — layer caching from docker/build-push-action
+# (cache-from/cache-to type=gha) handles inter-build reuse.
+RUN uv sync --frozen --no-dev --no-install-project --extra mavlink
 
 # Now copy the source and install the project itself (editable=false).
 COPY core/ ./core/
@@ -67,14 +85,22 @@ ENV PYTHONUNBUFFERED=1 \
     SWARM_ENV=prod
 
 # Non-root user. uid 10001 is the convention we'll use across backend +
-# frontend so volume mounts can be chowned consistently. /tmp must remain
-# writable; readonly-rootfs deployments mount a tmpfs over it.
-RUN groupadd --system --gid 10001 swarm \
- && useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin swarm \
- && install -d -o swarm -g swarm /app /tmp \
- && apt-get update \
+# frontend so volume mounts can be chowned consistently. /tmp is left at
+# its default 1777 (world-writable + sticky bit) so apt-get's internal
+# `_apt` user can still verify package signatures; the swarm user gets
+# write access via the sticky bit. Readonly-rootfs deployments mount a
+# tmpfs on /tmp which overrides this anyway.
+#
+# Order matters: apt-get install MUST run before the user is created and
+# /app is chowned, because chowning anything under / can disrupt apt-get's
+# privilege-drop to the `_apt` user (the case that broke an earlier
+# revision when /tmp was chowned to swarm).
+RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 10001 swarm \
+ && useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin swarm \
+ && install -d -o swarm -g swarm /app
 
 # Resolved virtualenv from the builder stage.
 COPY --from=builder --chown=swarm:swarm /opt/venv /opt/venv
