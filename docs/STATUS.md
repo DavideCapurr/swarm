@@ -14,7 +14,7 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E done; 6.F in_progress; 6.G–6.J pending |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E/6.F done; 6.G–6.J pending |
 
 ## Phase 0 — completed checklist
 
@@ -762,12 +762,44 @@ Sub-block progress:
       binary. The smoke test in `tests/test_phase6e_deploy.py`
       validates the offline-checkable invariants; CI on a clean
       runner is the gate before the first production deploy.
-- [ ] **6.F** Performance + scale — **in_progress**.
-      Target SLOs (per site): 50 unit concorrenti, 10 Hz/unit telemetry
-      (500 msg/s bus), WS frame p95 < 200 ms, REST p95 < 100 ms; burst
-      200 unit con `TelemetryRateLimiter` rejection counter > 0;
-      chaos: Redis pause → `InMemoryBus` fallback, backend SIGTERM →
-      Console reconnect ≤ 6 s. Plan: `docs/plan/phase-6f.md`.
+- [x] **6.F** Performance + scale — **done** (code-complete).
+      In-process p95 smoke (`tests/load/test_load_inproc.py`): a real
+      `BusConsumer` + `InMemoryBus` + `WSHub` driven by 50 agents at
+      1 Hz × 5 s. Three assertions cover the SLO: `unit` frame p95
+      < 200 ms, REST p95 < 100 ms across `/awareness`, `/units`,
+      `/anomalies`, `/missions` with 0 × 5xx, and a 200-unit burst that
+      exercises the `TelemetryRateLimiter` (`dropped_total` must
+      advance + the consumer must never raise). Each marked
+      `@pytest.mark.load_smoke` — `make load-smoke` runs the trio in
+      ~13 s.
+      Out-of-process driver (`tests/load/driver.py`,
+      `python -m tests.load.driver` / `make load-soak`) auths via
+      `POST /auth/login`, publishes telemetry through Redis at the
+      configured rate, opens N WS subscribers, and pounds REST.
+      Writes `tests/load/results/last.json` with p50/p95/p99 and
+      publish/receipt counts; exits non-zero on any breach.
+      Chaos drills shipped as runnable scripts (not in `make test`):
+      `scripts/chaos/redis_pause.sh` pauses Redis for 8 s, asserts 0
+      `/health` failures; `scripts/chaos/backend_kill.sh` SIGTERMs
+      uvicorn, restarts it, and asserts the WS reconnect via
+      `tests.chaos.ws_probe` lands within 6 s.
+      CI: a new `load-smoke` job in `.github/workflows/test.yml` runs
+      the in-process smoke on every push, plus a weekly soak
+      (`.github/workflows/load-test.yml`, schedule
+      `17 4 * * 1`, also `workflow_dispatch`) that boots Timescale +
+      Redis as service containers, runs `bootstrap-auth-dev`,
+      starts the backend, then drives 500 msg/s × 5 min and uploads
+      the results JSON for triage. Every external action is
+      SHA-pinned. No new dependencies (`httpx`, `websockets`, `redis`
+      are already core deps). Documentation in
+      `docs/ops/performance.md`. Plan: `docs/plan/phase-6f.md`.
+      **Caveat**: in this execution environment we ran only the
+      in-process smoke (3/3 passing in 13 s, full suite still
+      558 passed / 16 skipped). The chaos scripts depend on Docker
+      Compose and a running backend — they're code-complete and
+      ready for the dev stack; the gate before flipping 6.G is a
+      manual `make chaos-redis` + `make chaos-backend` run plus one
+      successful weekly `load-test` workflow run.
 - [ ] 6.G Resilience + DR — pending.
 - [ ] 6.H Documentation — pending.
 - [ ] 6.I Compliance — pending.
@@ -779,6 +811,22 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 checklist and gated on hardware acquisition.
 
 ## Last updated
+
+2026-05-18: Phase 6.F performance + scale targets landed on
+`claude/plan-phase-6f-COete`. Three in-process p95 assertions in
+`tests/load/test_load_inproc.py` (WS p95 < 200 ms, REST p95 < 100 ms,
+200-unit burst rate-limiter drops > 0); standalone soak driver in
+`tests/load/driver.py` (`make load-soak`); chaos drills in
+`scripts/chaos/redis_pause.sh` and `scripts/chaos/backend_kill.sh`
+with a re-usable `tests.chaos.ws_probe` module. New `load-smoke` job
+on every push (`.github/workflows/test.yml`) plus a weekly
+`.github/workflows/load-test.yml` soak (`schedule: 17 4 * * 1`,
+SHA-pinned, runs Timescale + Redis as service containers). Smoke
+locally green (3/3 passed in 13.09 s) and full suite 558 passed /
+16 skipped (vs 555 / 16 baseline). No new dependencies; `httpx` +
+`websockets` + `redis` were already core. Plan +
+docs/ops/performance.md cover the SLO table and the diagnostic
+walk-down for a breach.
 
 2026-05-17: Phase 6.E deployment + infra-as-code landed on
 `claude/memoized-starlight-plan-njyE3`. Backend / frontend / backup
