@@ -1,0 +1,71 @@
+# Root .dockerignore for Phase 6.E images. Mirrors the spirit of the
+# repo .gitignore plus everything that would balloon the build context
+# without adding to the runtime image. Both `backend/Dockerfile` and
+# `frontend/Dockerfile` build from the repo root so they share this
+# exclusion list.
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Local Python state
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+.coverage.*
+htmlcov
+.cache
+
+# Local Node state
+**/node_modules
+**/.next
+**/dist
+**/build
+**/.turbo
+**/.pnpm-store
+
+# IDE + OS
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+*.swp
+
+# Tests + docs are not needed in the runtime image
+tests
+**/tests/__pycache__
+docs
+
+# Bench artifacts, scripts that are dev-only, and CI files
+docs/bench/artifacts
+.github
+.pre-commit-config.yaml
+
+# Secrets that must NEVER enter an image. The committed examples
+# (operators.example.yaml, .env.example) are fine; the real ones
+# (operators.yaml, .env) are blocked here belt-and-suspenders even
+# though .gitignore already excludes them.
+.env
+.env.*
+!.env.example
+infra/config/operators.yaml
+infra/config/operators.*.yaml
+!infra/config/operators.example.yaml
+
+# Dev-only / runtime configs that don't belong inside the runtime image
+docker-compose*.yml
+infra/k8s
+infra/helm
+infra/cert-manager
+infra/proxy
+
+# Misc
+*.log
+*.tmp
+*.bak

@@ -1,0 +1,68 @@
+# SwarmOS Ingress (Phase 6.E).
+#
+# Uses ingress-nginx (cluster-installed). cert-manager issues the TLS cert
+# from the ClusterIssuer `letsencrypt-prod` (see infra/cert-manager/).
+#
+# WebSocket: the /ws/ path needs long-lived connections. ingress-nginx
+# defaults to 60 s read timeout; we raise it to 86400 s (24 h) which
+# matches the compose-prod nginx config. Bus consumer + client both
+# ping-pong far more frequently than that.
+#
+# Security headers: the snippet annotation ensures the proxy emits the
+# same headers as the FastAPI middleware + Next config — defense in depth.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: swarmos
+  namespace: swarmos
+  labels:
+    app.kubernetes.io/name: swarmos
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "Strict-Transport-Security: max-age=63072000; includeSubDomains; preload";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "Referrer-Policy: no-referrer";
+      more_set_headers "Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()";
+      more_set_headers "Cross-Origin-Opener-Policy: same-origin";
+      more_set_headers "Cross-Origin-Resource-Policy: same-origin";
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - swarmos.example.com
+      secretName: swarmos-tls
+  rules:
+    - host: swarmos.example.com
+      http:
+        paths:
+          # WebSocket — match first so the prefix doesn't fall through to /
+          - path: /ws/
+            pathType: Prefix
+            backend:
+              service:
+                name: swarmos-backend
+                port:
+                  name: http
+          # REST
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: swarmos-backend
+                port:
+                  name: http
+          # Console (Next.js)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: swarmos-frontend
+                port:
+                  name: http

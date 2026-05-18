@@ -14,7 +14,7 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D done; 6.E–6.J pending |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E done; 6.F–6.J pending |
 
 ## Phase 0 — completed checklist
 
@@ -681,7 +681,87 @@ Sub-block progress:
       drone-day deploy items in
       [`docs/ops/drone-day-checklist.md`](ops/drone-day-checklist.md)
       §2.D.
-- [ ] 6.E Deployment + infra-as-code — pending.
+- [x] **6.E** Deployment + infra-as-code — **done** (code-complete).
+      Container images for backend, frontend, and backup, all
+      multi-stage, digest-pinned, non-root (uid 10001 / 1001), and
+      read-only-rootfs-compatible (`backend/Dockerfile`,
+      `frontend/Dockerfile`, `infra/backup/Dockerfile`). `frontend/next.config.mjs`
+      switched to `output: "standalone"` so the runtime stage carries
+      only `.next/standalone` + `.next/static` + `public/`. Root
+      `.dockerignore` keeps secrets, `.venv`, `node_modules`, IaC
+      dirs, and tests out of every build context.
+      Single-node production deploy via `docker-compose.prod.yml`:
+      pg + redis + backend + frontend + nginx TLS terminator
+      (`infra/proxy/nginx.conf` + `entrypoint.sh`) + Let's Encrypt
+      certbot sidecar (`infra/proxy/certbot/renew.sh`, SIGHUP reload
+      via shared pid namespace, no docker socket exposed) + backup
+      sidecar. `TLS_MODE=self-signed` escape hatch keeps `make demo`-
+      style boots interactive on a bench without ACME. Hardening
+      posture mirrors `docker-compose.yml`: no-new-privileges,
+      `cap_drop: [ALL]` + minimal `cap_add` for nginx, mem/cpu limits,
+      read-only rootfs with tmpfs writes.
+      Kubernetes raw manifests under `infra/k8s/` and a parameterised
+      Helm chart at `infra/helm/swarmos/` (Chart.yaml + values.yaml +
+      `values-vineyard-01.yaml` overlay + 11 templates). Both deploy
+      paths emit Deployment + Service + Ingress (ingress-nginx +
+      cert-manager) + Secret + ConfigMap + HPA (2..10 on CPU 70% /
+      mem 75%) + NetworkPolicy (default-deny + explicit allows for
+      kube-system probes, ingress-nginx, Prometheus, Postgres, Redis,
+      and outbound 443 for weather/OTLP) + Pod Security Standards
+      `restricted` namespace + CronJob `pg_dump | gpg` daily backup
+      with 30-day retention. ServiceMonitor + Grafana
+      datasource provisioning closes the 6.D drone-day items.
+      cert-manager ClusterIssuers for Let's Encrypt staging + prod
+      under `infra/cert-manager/`.
+      CI: `.github/workflows/image-build.yml` builds backend +
+      frontend + backup on every PR/branch push, with Trivy now a
+      **blocking** gate (`exit-code: "1"` for HIGH/CRITICAL, owns
+      the published images per the plan's graduation from Phase 0's
+      report-only posture). On `v*` tag pushes the images are
+      published to GHCR with SBOM + provenance attestations.
+      `.github/workflows/image-sign.yml` signs each pushed image via
+      `cosign sign --yes` keyless OIDC against Sigstore (drone-day
+      §2.E binds the real identity). Both workflows use SHA-pinned
+      external actions per the security baseline.
+      Backup pipeline: `scripts/backup_postgres.sh` (`pg_dump | gpg
+      --encrypt`, retention-pruning, fingerprint check, no plaintext
+      intermediate); `scripts/restore_postgres.sh` requires
+      `--i-understand-this-overwrites` to prevent foot-guns. The
+      script is mirrored byte-for-byte in
+      `infra/helm/swarmos/files/backup_postgres.sh` so the CronJob's
+      ConfigMap and the local `make` target stay in sync (test
+      enforces parity).
+      Docs: `docs/ops/deploy.md` (topology, image build/sign, k8s
+      Helm install, compose-prod boot, canary via Helm rolling +
+      `helm rollback`); `docs/ops/migrations.md` (additive-first
+      rules, Job-based prod migrations, Timescale gotchas, restore
+      drill). `docs/ops/drone-day-checklist.md` §2.E expanded with
+      every remaining external asset (DNS, real Let's Encrypt prod,
+      GHCR creds, Sigstore identity, image-pull secret,
+      NetworkPolicy CNI, StorageClass, GPG recipient, off-site
+      sync, quarterly restore drill, Grafana datasource URL,
+      HttpOnly cookie pipe, Redis mTLS material).
+      Makefile: `docker-build` / `helm-template` / `helm-lint` /
+      `backup-dump-dry` targets. `docker-compose.yml` carries an
+      inline note pointing at the production paths. README §Quickstart
+      gains a one-liner linking `docs/ops/deploy.md`.
+      14 new tests in `tests/test_phase6e_deploy.py`: chart metadata,
+      template completeness, values-key reference closure, overlay-
+      key sanity, raw k8s manifest parse, Pod Security Standards
+      assertions, compose-prod digest pinning, backup-script byte-
+      identity, restore-script guard flag, Dockerfile digest pinning,
+      Dockerfile non-root, CI workflow SHA pinning. Full suite:
+      555 passed, 16 skipped (vs Phase 6.D baseline 541 / 16).
+      `make lint` green (ruff + mypy 149 files + tsc), `make audit`
+      green (pip-audit clean, pnpm audit clean, Bandit 0 medium/high,
+      pymavlink integrity PASS). Voice + brand audit greps return
+      zero hits in product code + new docs.
+      **Caveat (drone-day)**: this branch did not run `docker build`
+      end-to-end or `helm template` against a real cluster — the
+      execution container has no docker daemon and no helm/kubectl
+      binary. The smoke test in `tests/test_phase6e_deploy.py`
+      validates the offline-checkable invariants; CI on a clean
+      runner is the gate before the first production deploy.
 - [ ] 6.F Performance + scale — pending.
 - [ ] 6.G Resilience + DR — pending.
 - [ ] 6.H Documentation — pending.
@@ -694,6 +774,22 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 checklist and gated on hardware acquisition.
 
 ## Last updated
+
+2026-05-17: Phase 6.E deployment + infra-as-code landed on
+`claude/memoized-starlight-plan-njyE3`. Backend / frontend / backup
+Dockerfiles (multi-stage, digest-pinned, non-root, ro-rootfs);
+`docker-compose.prod.yml` (single-node with nginx + Let's Encrypt
+certbot + backup sidecar); raw k8s manifests + Helm chart with
+ingress-nginx + cert-manager + HPA + NetworkPolicy + PSS-restricted
+namespace + pg_dump CronJob; cert-manager ClusterIssuers;
+`image-build.yml` (Trivy blocking) + `image-sign.yml` (cosign
+keyless); GPG-encrypted pg_dump backup + restore-with-guard scripts;
+`docs/ops/deploy.md` + `docs/ops/migrations.md`. 14 new tests; full
+suite 555 passed / 16 skipped (vs 541 / 16 baseline). `make lint`
++ `make audit` green; voice/brand audits clean. Drone-day items
+(DNS, real Let's Encrypt prod, GHCR creds, Sigstore identity,
+NetworkPolicy CNI, GPG recipient, off-site sync, Grafana datasource
+URL, Redis mTLS) catalogued in `docs/ops/drone-day-checklist.md` §2.E.
 
 2026-05-17: Phase 6.D observability stack landed on
 `claude/observability-stack-setup-Gxzh7`. Prometheus `/metrics`

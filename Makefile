@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision
+.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry
 
 PY := python3
 VENV := .venv
@@ -93,6 +93,49 @@ phase5-sitl-gate:
 # documents the real provisioning flow.
 bootstrap-auth-dev:
 	@./scripts/bootstrap_auth_dev.sh
+
+# ── deploy / images (Phase 6.E) ─────────────────────────────────────────────
+# Local image builds — the same Dockerfiles CI uses. Tags are `:dev` for
+# local builds; CI tags are managed by docker/metadata-action on tag push.
+docker-build: docker-build-backend docker-build-frontend docker-build-backup
+
+docker-build-backend:
+	docker build -t swarmos-backend:dev -f backend/Dockerfile .
+
+docker-build-frontend:
+	docker build -t swarmos-frontend:dev -f frontend/Dockerfile .
+
+docker-build-backup:
+	docker build -t swarmos-backup:dev -f infra/backup/Dockerfile infra/backup
+
+# Helm template render against the vineyard-01 overlay. `kubectl apply
+# --dry-run=client` validates that every rendered manifest is schema-valid
+# and would be accepted by the apiserver. Both `helm` and `kubectl` must
+# be on PATH (drone-day §2.E lists install commands).
+helm-template:
+	helm template infra/helm/swarmos \
+		-f infra/helm/swarmos/values-vineyard-01.yaml \
+		--namespace swarmos \
+		| kubectl apply --dry-run=client -f -
+
+helm-lint:
+	helm lint infra/helm/swarmos -f infra/helm/swarmos/values-vineyard-01.yaml
+
+# Backup dry-run: spins a throwaway sqlite-equivalent via pg_dump --schema-only
+# against a postgres container if available. The full path is exercised in
+# the integration test backend/tests/test_backup_script.py — this target is
+# the ops-side smoke. Skipped if pg_dump is not on PATH.
+backup-dump-dry:
+	@if ! command -v pg_dump >/dev/null 2>&1; then \
+		echo "[backup-dump-dry] pg_dump not installed — skipping (see drone-day §2.E)"; \
+		exit 0; \
+	fi
+	@if [ -z "$$DATABASE_URL" ]; then \
+		echo "[backup-dump-dry] DATABASE_URL not set — skipping"; \
+		exit 0; \
+	fi
+	@echo "[backup-dump-dry] dry-running pg_dump --schema-only against $$DATABASE_URL"
+	@pg_dump --schema-only "$$DATABASE_URL" >/dev/null && echo "OK"
 
 # ── cleanup ─────────────────────────────────────────────────────────────────
 clean:

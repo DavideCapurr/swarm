@@ -1,0 +1,24 @@
+{{- if .Values.observability.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: swarmos-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "swarmos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [ {{ .Release.Namespace }} ]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swarmos
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.observability.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}

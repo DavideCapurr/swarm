@@ -1,0 +1,168 @@
+# SwarmOS NetworkPolicy bundle (Phase 6.E).
+#
+# Default posture: default-deny ingress AND egress on the namespace; then
+# carve explicit allows for kube-system probes, ingress-controller HTTP,
+# Prometheus scrape, DNS, Postgres + Redis, and cert-manager.
+#
+# Requires a CNI that enforces NetworkPolicy (Calico, Cilium, Antrea,
+# Weave-net v2.6+). Cloud-managed clusters: enable NetworkPolicy at
+# cluster create time.
+
+# 1. Default-deny everything in the namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: swarmos
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+
+---
+# 2. Backend ingress: accept from ingress-nginx (HTTP), kube-system
+#    (kubelet probes), and Prometheus (metrics scrape).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-ingress
+  namespace: swarmos
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: swarmos
+      app.kubernetes.io/component: backend
+  policyTypes: [Ingress]
+  ingress:
+    # ingress-nginx in its own namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8765
+    # kubelet probes — kube-system pods/nodes
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8765
+    # Prometheus operator namespace (override via Helm value if different)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8765
+
+---
+# 3. Frontend ingress: only from ingress-nginx and kube-system.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: swarmos
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: swarmos
+      app.kubernetes.io/component: frontend
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 3000
+
+---
+# 4. Backend egress: DNS + Postgres + Redis + (optional) weather provider
+#    + (optional) OTLP collector.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-egress
+  namespace: swarmos
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: swarmos
+      app.kubernetes.io/component: backend
+  policyTypes: [Egress]
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Postgres + Redis are in this namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # External weather provider + OTLP — port 443 to any IPv4/v6 address.
+    # Production deployments should tighten this to the provider's
+    # CIDR(s); ExternalName Services + NetworkPolicy don't compose, so
+    # this is the standard pattern.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+# 5. Frontend egress: DNS only. The browser hits the backend directly
+#    via /api and /ws/ — the frontend pod itself never calls home.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-egress
+  namespace: swarmos
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: swarmos
+      app.kubernetes.io/component: frontend
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

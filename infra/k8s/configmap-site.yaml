@@ -1,0 +1,53 @@
+# SwarmOS site config — Phase 6.E.
+#
+# This ConfigMap is the source of truth for one site's geofence, alt cap,
+# safety thresholds, and weather provider binding. `swarm_os/sites.py`
+# loads it via the path under `SWARM_SITES_DIR` (mounted at
+# /etc/swarmos/sites/<site_id>.yaml in the backend Pod).
+#
+# The Helm chart inlines whichever site overlay is selected so per-site
+# operators only need to touch values-*.yaml. This raw manifest mirrors
+# `infra/config/sites/vineyard-01.yaml` for the kubectl-only deploy path.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swarmos-site
+  namespace: swarmos
+  labels:
+    app.kubernetes.io/name: swarmos
+    app.kubernetes.io/component: site-config
+data:
+  vineyard-01.yaml: |
+    site_id: vineyard-01
+    name: "Vineyard Langhe — production site"
+    center:
+      lat: 44.7000
+      lon: 8.0300
+      alt_m: 0.0
+    geofence:
+      polygon:
+        - { lat: 44.6910, lon: 8.0180 }
+        - { lat: 44.6910, lon: 8.0420 }
+        - { lat: 44.7090, lon: 8.0420 }
+        - { lat: 44.7090, lon: 8.0180 }
+      max_alt_m: 120.0
+    thresholds:
+      battery:
+        patrol_min_pct: 30.0
+        verify_min_pct: 40.0
+        rtl_dock_min_pct: 15.0
+        rtl_force_below_pct: 20.0
+      link:
+        min_quality_for_mission: 0.5
+        rtl_below_quality: 0.3
+      weather:
+        max_wind_mps: 12.0
+        min_visibility_km: 3.0
+        temp_c_min: -5.0
+        temp_c_max: 40.0
+    weather_provider:
+      kind: stub
+      refresh_interval_s: 300
+    docks:
+      - dock_id: dock-langhe-01
+        primary: true

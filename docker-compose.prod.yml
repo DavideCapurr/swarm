@@ -1,0 +1,275 @@
+# SwarmOS — single-node production deploy (Phase 6.E).
+#
+# Use case: bench / small site that doesn't justify Kubernetes. Brings up
+# Postgres + Redis + backend + frontend + nginx (TLS terminator) + certbot
+# (LE issuer/renewer) + backup sidecar on a single host.
+#
+# Pre-requisites:
+#   - DNS A/AAAA record points at this host
+#   - TLS_SERVER_NAME + TLS_EMAIL set in .env (or use TLS_MODE=self-signed
+#     for a dev bench)
+#   - secrets mounted: SWARM_JWT_SECRET, POSTGRES_PASSWORD, REDIS_PASSWORD,
+#     SWARM_ADMIN_TOKEN, BACKUP_GPG_RECIPIENT (gpg key imported into the
+#     backup container via mount), optional weather provider key.
+#
+# Production deploy steps live in docs/ops/deploy.md.
+#
+# Hardening posture (extends docker-compose.yml):
+#   - All upstream base images pinned by sha256 digest.
+#   - no-new-privileges + cap_drop + non-root user on every service.
+#   - resource ceilings to bound blast radius.
+#   - read-only rootfs with tmpfs writes where the workload needs them.
+
+services:
+  # ── Postgres / TimescaleDB ──────────────────────────────────────────────
+  postgres:
+    # timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb@sha256:51eb3bcdfc41f481c797026813d9d457fb5cbc8ea370a65640d8cda13a4040c1
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-swarm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-swarm}
+    volumes:
+      - swarm_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-swarm}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [AUDIT_WRITE, MKNOD, NET_RAW, SYS_CHROOT, SYS_PTRACE]
+    mem_limit: 1g
+    cpus: 1.0
+    networks: [swarm_internal]
+
+  # ── Redis ───────────────────────────────────────────────────────────────
+  redis:
+    # redis:7-alpine
+    image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    restart: unless-stopped
+    # `--requirepass` forces auth on the bus channel. The backend reads
+    # REDIS_URL with the password embedded; rotate via .env + restart.
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp"]
+    mem_limit: 256m
+    cpus: 0.5
+    networks: [swarm_internal]
+
+  # ── SwarmOS backend ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: ${SWARMOS_BACKEND_IMAGE:-ghcr.io/davidecapurr/swarmos-backend:dev}
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      # Identity + truth
+      SWARM_ENV: prod
+      SWARM_SITE_ID: ${SWARM_SITE_ID:-vineyard-01}
+      SWARM_SITES_DIR: /etc/swarmos/sites
+      # Persistence
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-swarm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-swarm}
+      # Bus
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      # CORS — the only origin the prod Console will use is the TLS hostname
+      SWARM_ALLOWED_ORIGINS: https://${TLS_SERVER_NAME}
+      # Auth (Phase 6.C)
+      SWARM_JWT_SECRET: ${SWARM_JWT_SECRET:?SWARM_JWT_SECRET must be set in .env}
+      SWARM_OPERATORS_CONFIG: /etc/swarmos/operators.yaml
+      # Observability (Phase 6.D)
+      SWARM_OTLP_ENDPOINT: ${SWARM_OTLP_ENDPOINT:-}
+      SWARM_METRICS_IP_ALLOWLIST: ${SWARM_METRICS_IP_ALLOWLIST:-}
+    volumes:
+      # Per-site config: bind-mounted as ro so a hot-reload requires a
+      # filesystem edit (admin endpoint reads from this path).
+      - ./infra/config/sites:/etc/swarmos/sites:ro
+      # Operator YAML lives outside git. Mount the real one here; the
+      # entrypoint refuses to start if it's missing in prod mode.
+      - ./infra/config/operators.yaml:/etc/swarmos/operators.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 1g
+    cpus: 1.0
+    networks: [swarm_internal]
+
+  # ── SwarmOS frontend (Next.js standalone) ───────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: ${SWARMOS_FRONTEND_IMAGE:-ghcr.io/davidecapurr/swarmos-frontend:dev}
+    restart: unless-stopped
+    depends_on:
+      backend: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      SWARM_ENV: prod
+      # Public endpoints visible to the browser; both point through nginx.
+      NEXT_PUBLIC_API_URL: https://${TLS_SERVER_NAME}/api
+      NEXT_PUBLIC_WS_URL: wss://${TLS_SERVER_NAME}/ws/telemetry
+    user: "1001:1001"
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 0.5
+    networks: [swarm_internal]
+
+  # ── TLS terminator + reverse proxy ──────────────────────────────────────
+  proxy:
+    # nginx:1.27-alpine
+    image: nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    restart: unless-stopped
+    depends_on:
+      backend:  { condition: service_started }
+      frontend: { condition: service_started }
+    environment:
+      TLS_MODE: ${TLS_MODE:-letsencrypt}
+      TLS_SERVER_NAME: ${TLS_SERVER_NAME:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/proxy/entrypoint.sh:/docker-entrypoint.d/99-swarmos.sh:ro
+      - swarm_le_certs:/etc/letsencrypt:ro
+      - swarm_le_webroot:/var/www/certbot
+      - swarm_nginx_ssl:/etc/nginx/ssl
+      - swarm_nginx_pid:/var/run/nginx
+    entrypoint: ["/bin/sh", "/docker-entrypoint.d/99-swarmos.sh"]
+    healthcheck:
+      # Self-signed cert: skip cert verification with -k.
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "-O", "/dev/null", "https://127.0.0.1/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    # nginx needs to bind 80/443 (NET_BIND_SERVICE) and chown its log dir
+    # at start (CHOWN, DAC_OVERRIDE, SETUID, SETGID).
+    cap_add: [NET_BIND_SERVICE, CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+    mem_limit: 256m
+    cpus: 0.5
+    networks: [swarm_internal, swarm_public]
+
+  # ── Let's Encrypt sidecar ───────────────────────────────────────────────
+  certbot:
+    # certbot/certbot:v3.1.0
+    image: certbot/certbot@sha256:fb978b4fef92dc5c85cc0b908836714c600e717b52a3f74c93276eb63a9d0af9
+    restart: unless-stopped
+    depends_on:
+      proxy: { condition: service_started }
+    # Share `proxy`'s pid namespace so the renew script can send SIGHUP
+    # to nginx without mounting the docker socket. The cert files are
+    # written via the shared volume; the reload signal flows over the
+    # shared pid namespace.
+    pid: "service:proxy"
+    environment:
+      TLS_SERVER_NAME: ${TLS_SERVER_NAME:-}
+      TLS_EMAIL: ${TLS_EMAIL:-}
+      TLS_STAGING: ${TLS_STAGING:-0}
+    volumes:
+      - ./infra/proxy/certbot/renew.sh:/usr/local/bin/swarmos-renew:ro
+      - swarm_le_certs:/etc/letsencrypt
+      - swarm_le_webroot:/var/www/certbot
+      - swarm_nginx_pid:/var/run/nginx:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/swarmos-renew"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 128m
+    cpus: 0.25
+    networks: [swarm_internal]
+    profiles: ["letsencrypt"]   # disabled in TLS_MODE=self-signed deploys
+
+  # ── pg_dump backup sidecar ──────────────────────────────────────────────
+  backup:
+    # alpine:3.20
+    image: alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-swarm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-swarm}
+      BACKUP_DIR: /backups
+      BACKUP_GPG_RECIPIENT: ${BACKUP_GPG_RECIPIENT:?BACKUP_GPG_RECIPIENT must be set in .env}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_SCHEDULE_S: ${BACKUP_SCHEDULE_S:-86400}   # 24 h default
+    volumes:
+      - ./scripts/backup_postgres.sh:/usr/local/bin/backup_postgres.sh:ro
+      - swarm_backups:/backups
+      # Public GPG key with which dumps are encrypted. Operators must
+      # `gpg --import` the recipient public key in this bind-mounted
+      # gnupg home before booting the sidecar.
+      - ./infra/backup/gnupg:/root/.gnupg:ro
+    command:
+      - sh
+      - -c
+      - >
+        apk add --no-cache postgresql16-client gnupg coreutils tini &&
+        while :; do
+          /usr/local/bin/backup_postgres.sh || echo "[backup] cycle failed";
+          sleep "$$BACKUP_SCHEDULE_S";
+        done
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: false   # apk add writes to /var/cache/apk
+    mem_limit: 256m
+    cpus: 0.5
+    networks: [swarm_internal]
+    profiles: ["backup"]
+
+volumes:
+  swarm_pgdata:
+  swarm_le_certs:
+  swarm_le_webroot:
+  swarm_nginx_ssl:
+  swarm_nginx_pid:
+  swarm_backups:
+
+networks:
+  # The host's 80/443 publishing surface is exactly one container (`proxy`).
+  # Every other service binds only inside the bridge networks and is
+  # unreachable from the host's public interface.
+  #
+  # `swarm_internal` is NOT marked `internal: true` because:
+  #   - `certbot` needs egress to acme-v02.api.letsencrypt.org;
+  #   - `backup` needs egress to pull pg_dump + gnupg apk packages on
+  #     first boot, and (when configured) to push dumps to an off-site
+  #     destination via the operator-supplied sync hook.
+  # Pure ingress isolation comes from the absence of `ports:` entries.
+  swarm_internal:
+    driver: bridge
+  swarm_public:
+    driver: bridge

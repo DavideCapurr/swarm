@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swarmos-site
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "swarmos.labels" . | nindent 4 }}
+    app.kubernetes.io/component: site-config
+data:
+  {{ .Values.siteId }}.yaml: |
+    {{- toYaml .Values.siteConfig | nindent 4 }}

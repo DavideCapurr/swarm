@@ -1,0 +1,48 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: swarmos
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "swarmos.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer | quote }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "86400"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    {{- if .Values.ingress.securityHeadersSnippet }}
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      {{- .Values.ingress.securityHeadersSnippet | nindent 6 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tlsSecret | quote }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /ws/
+            pathType: Prefix
+            backend:
+              service:
+                name: swarmos-backend
+                port: { name: http }
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: swarmos-backend
+                port: { name: http }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: swarmos-frontend
+                port: { name: http }
+{{- end }}

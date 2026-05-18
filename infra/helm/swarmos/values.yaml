@@ -1,0 +1,164 @@
+# SwarmOS Helm values — defaults (Phase 6.E).
+#
+# Every key is rendered at `helm install` / `helm upgrade` time; site
+# overlays (values-vineyard-01.yaml) override specific values.
+# Image digests stay empty here and are filled in by `helm upgrade
+# --set image.backend.digest=sha256:…` after `image-sign.yml` reports
+# the published digest from GHCR.
+
+# Identity
+siteId: vineyard-01
+
+# Namespace bookkeeping. When `create: true` the chart emits a Namespace
+# manifest; most installs leave it false and rely on `helm
+# --create-namespace`.
+namespace:
+  create: false
+
+# Inline Secret rendering. Production deploys feed secrets via
+# sealed-secrets / External Secrets Operator / Kustomize SOPS. Setting
+# `secrets.render: true` emits stub Secret manifests pre-populated from
+# the values below — useful for `helm template ... | kubectl apply
+# --dry-run=client` validation and for non-production single-node helm
+# installs. Real values must come from a secret backend in any
+# environment that handles real data.
+secrets:
+  render: false
+  jwtSecret: "REPLACE-ME-32-BYTE-HEX"
+  databaseUrl: "postgresql+asyncpg://swarm:REPLACE-ME@postgres:5432/swarm"
+  redisUrl: "rediss://:REPLACE-ME@redis:6379/0"
+  allowedOrigins: "https://swarmos.example.com"
+  # Operator YAML inlined as a Secret. Same shape as
+  # infra/config/operators.example.yaml.
+  operatorsYaml: |
+    operators: []
+  # Backup credentials. The gpg public-key bundle still goes through ESO
+  # / sealed-secrets — committing a public key inline is fine for
+  # smoke tests but not the supported production path.
+  backupGpgRecipient: ""
+
+# Container image references. Tag + digest are bound at deploy time by
+# the image-sign workflow (CI on a release tag), so the live chart
+# always points at a signed image.
+image:
+  backend:
+    repository: ghcr.io/davidecapurr/swarmos-backend
+    tag: "0.1.0"
+    digest: ""    # e.g. sha256:abcdef... — preferred over `tag`.
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: ghcr.io/davidecapurr/swarmos-frontend
+    tag: "0.1.0"
+    digest: ""
+    pullPolicy: IfNotPresent
+  backup:
+    repository: ghcr.io/davidecapurr/swarmos-backup
+    tag: "0.1.0"
+    digest: ""
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Replica counts. Backend autoscales via the HPA further down.
+backend:
+  replicas: 2
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits:   { cpu: "1",  memory: 1Gi }
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPU: 70
+    targetMemory: 75
+
+frontend:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+# Ingress + cert-manager
+ingress:
+  enabled: true
+  className: nginx
+  host: swarmos.example.com
+  tlsSecret: swarmos-tls
+  clusterIssuer: letsencrypt-prod
+  # Set to "" to omit the configuration-snippet annotation entirely
+  # (use the chart's default which mirrors FastAPI security middleware).
+  securityHeadersSnippet: |
+    more_set_headers "Strict-Transport-Security: max-age=63072000; includeSubDomains; preload";
+    more_set_headers "X-Content-Type-Options: nosniff";
+    more_set_headers "X-Frame-Options: DENY";
+    more_set_headers "Referrer-Policy: no-referrer";
+    more_set_headers "Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()";
+    more_set_headers "Cross-Origin-Opener-Policy: same-origin";
+    more_set_headers "Cross-Origin-Resource-Policy: same-origin";
+
+# NetworkPolicy bundle.
+networkPolicy:
+  enabled: true
+  # Namespace names the policies open holes for. Override if the
+  # cluster uses non-standard names.
+  ingressNamespace: ingress-nginx
+  monitoringNamespace: monitoring
+
+# Observability hooks (Phase 6.D code-complete; this enables the deploy
+# side).
+observability:
+  serviceMonitor:
+    enabled: false        # set true if the cluster has the Prom Operator
+    interval: 15s
+    scrapeTimeout: 10s
+  # Prometheus reaches /metrics either via the commander JWT or a pod
+  # CIDR allowlist. Setting both is fine — the backend short-circuits
+  # on whichever matches first.
+  metricsIPAllowlist: ""  # e.g. "10.42.0.0/16"
+
+# Backup CronJob.
+backup:
+  enabled: true
+  schedule: "17 2 * * *"
+  retentionDays: 30
+  storageSize: 50Gi
+  storageClass: ""    # cluster default if empty
+  gpgRecipient: ""    # set to the public-key fingerprint before deploy
+
+# Site config — inlined into a ConfigMap so per-site policy lives in
+# the Helm release, not a separate kubectl step.
+#
+# To swap site: copy this block into values-<site_id>.yaml and override
+# the polygon + thresholds. Multi-site multiplexing in one release is
+# explicitly out of scope (Phase 7).
+siteConfig:
+  site_id: vineyard-01
+  name: "Vineyard Langhe — production site"
+  center: { lat: 44.7000, lon: 8.0300, alt_m: 0.0 }
+  geofence:
+    polygon:
+      - { lat: 44.6910, lon: 8.0180 }
+      - { lat: 44.6910, lon: 8.0420 }
+      - { lat: 44.7090, lon: 8.0420 }
+      - { lat: 44.7090, lon: 8.0180 }
+    max_alt_m: 120.0
+  thresholds:
+    battery:
+      patrol_min_pct: 30.0
+      verify_min_pct: 40.0
+      rtl_dock_min_pct: 15.0
+      rtl_force_below_pct: 20.0
+    link:
+      min_quality_for_mission: 0.5
+      rtl_below_quality: 0.3
+    weather:
+      max_wind_mps: 12.0
+      min_visibility_km: 3.0
+      temp_c_min: -5.0
+      temp_c_max: 40.0
+  weather_provider:
+    kind: stub
+    refresh_interval_s: 300
+  docks:
+    - dock_id: dock-langhe-01
+      primary: true

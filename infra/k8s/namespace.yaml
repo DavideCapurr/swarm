@@ -1,0 +1,19 @@
+# SwarmOS namespace (Phase 6.E).
+#
+# One namespace per site. Multi-site multiplexing in a single namespace
+# is deferred to Phase 7 — for now, `swarmos-vineyard-01`, `swarmos-x`,
+# etc., each holding one self-contained SwarmOS instance.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: swarmos
+  labels:
+    app.kubernetes.io/name: swarmos
+    app.kubernetes.io/part-of: swarmos
+    # Pod Security Standards: enforce the `restricted` profile across
+    # the namespace. Every Pod must run non-root, read-only-rootfs-friendly,
+    # drop ALL caps, seccompProfile=RuntimeDefault.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

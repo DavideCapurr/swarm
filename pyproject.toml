@@ -116,6 +116,7 @@ testpaths = [
     "backend/tests",
     "swarm_os/tests",
     "tests/fuzz",
+    "tests/test_phase6e_deploy.py",
 ]
 
 [tool.bandit]

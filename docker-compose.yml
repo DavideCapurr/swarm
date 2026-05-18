@@ -1,5 +1,9 @@
-# SwarmOS infra (dev). Production deploy lives under infra/k8s/ + infra/helm/
-# (Phase 6).
+# SwarmOS infra (dev) — postgres + redis only.
+# For production deploys see:
+#   - `docker-compose.prod.yml` (single-node / bench, with TLS terminator
+#     + Let's Encrypt + backup sidecar).
+#   - `infra/k8s/` raw manifests + `infra/helm/swarmos/` chart for
+#     Kubernetes (Phase 6.E). Step-by-step in `docs/ops/deploy.md`.
 #
 # Hardening (Phase 0):
 # - Images pinned by sha256 digest. Tag in comment for traceability;

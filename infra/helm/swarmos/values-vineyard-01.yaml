@@ -1,0 +1,66 @@
+# SwarmOS Helm overlay — vineyard-01 site (Phase 6.E).
+#
+# Inherits defaults from values.yaml. Override only what changes for
+# this site. The siteConfig block here is the authoritative truth
+# for vineyard-01 — values.yaml's siteConfig is a template, this is
+# the real perimeter.
+#
+# Apply: `helm upgrade --install swarmos infra/helm/swarmos
+#         -f infra/helm/swarmos/values-vineyard-01.yaml`
+
+siteId: vineyard-01
+
+ingress:
+  host: swarmos.vineyard-01.example.com
+  tlsSecret: swarmos-tls
+  clusterIssuer: letsencrypt-prod
+
+backend:
+  replicas: 2
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8     # smaller site, smaller ceiling
+
+observability:
+  serviceMonitor:
+    enabled: true
+
+backup:
+  enabled: true
+  retentionDays: 30
+  gpgRecipient: "REPLACE-ME-WITH-VINEYARD-OPS-GPG-FINGERPRINT"
+
+# Hard-pinned site config for vineyard-01. The polygon below MUST match
+# the legal authorization perimeter on the site survey (drone-day §3).
+siteConfig:
+  site_id: vineyard-01
+  name: "Vineyard Langhe — production site"
+  center: { lat: 44.7000, lon: 8.0300, alt_m: 0.0 }
+  geofence:
+    polygon:
+      - { lat: 44.6910, lon: 8.0180 }
+      - { lat: 44.6910, lon: 8.0420 }
+      - { lat: 44.7090, lon: 8.0420 }
+      - { lat: 44.7090, lon: 8.0180 }
+    max_alt_m: 120.0
+  thresholds:
+    battery:
+      patrol_min_pct: 30.0
+      verify_min_pct: 40.0
+      rtl_dock_min_pct: 15.0
+      rtl_force_below_pct: 20.0
+    link:
+      min_quality_for_mission: 0.5
+      rtl_below_quality: 0.3
+    weather:
+      max_wind_mps: 12.0
+      min_visibility_km: 3.0
+      temp_c_min: -5.0
+      temp_c_max: 40.0
+  weather_provider:
+    kind: stub
+    refresh_interval_s: 300
+  docks:
+    - dock_id: dock-langhe-01
+      primary: true

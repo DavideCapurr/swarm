@@ -98,6 +98,11 @@ if (process.env.SWARM_ENV === "prod") {
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Phase 6.E: standalone output ships a self-contained `.next/standalone`
+  // tree (server.js + minimal node_modules) that the Docker runtime stage
+  // copies as-is. Without this the runtime image would need the full
+  // pnpm-installed node_modules tree.
+  output: "standalone",
   turbopack: {
     root: FRONTEND_ROOT,
   },
