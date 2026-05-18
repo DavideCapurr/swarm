@@ -763,6 +763,459 @@ pen-test, bug bounty, CSP nonce script-src.
 - Compliance: DPA template + retention policy documentati;
   drone regulation reference presente.
 
+## Phase 7 → Phase 22 — Visione finale (infrastruttura urbana autonoma)
+
+> Queste fasi sono **scheletro di pianificazione**, decise in conversazione
+> con l'utente come destinazione del prodotto: un'infrastruttura invisibile
+> distribuita nelle città, con migliaia di docking station, app cittadino
+> in abbonamento, dispatch automatico, intervento attivo, sciami che
+> collaborano, autonomia decisionale guidata da AI con shield deterministico.
+> Le Fasi 0–6 restano la fondazione tecnica: queste sono la costruzione del
+> prodotto sopra quella fondazione. Ogni fase qui andrà espansa con la stessa
+> granularità delle Fasi 0–6 prima dell'esecuzione.
+>
+> **Focus MVP (decisione utente 2026-05-18)**: i primi casi d'uso del
+> prodotto sono **incendio**, **protezione case di abbonati**, **bene
+> pubblico** (defibrillatore, ricerca dispersi, supporto Protezione
+> Civile). I casi d'uso "law-enforcement-adjacent" (inseguimento,
+> abbagliamento aggressori) sono **fuori MVP** per resistenza sociale e
+> regolatoria — vengono valutati solo dopo trazione sui casi sopra.
+> Conseguenza pratica: Fase 15 è ristrutturata per priorità; Fasi 17-19
+> (compliance pesante, etica, accettazione sociale) restano
+> obbligatorie per legge sul volo urbano autonomo ma sono
+> **deprioritizzate come driver di prodotto** finché non si vola davvero.
+>
+> Principio guida nuovo (sostituisce "SwarmOS decides. Console
+> supervises." una volta entrati in Fase 7): **"SwarmOS decide ed esegue.
+> L'umano può intervenire se necessario."** Human-on-the-loop, non
+> in-the-loop.
+
+## Phase 7 — Autonomia decisionale (no operator in the loop)
+
+**Obiettivo**: il sistema decide e agisce da solo su anomalie e missioni.
+L'operatore esiste solo come override.
+
+- **7.A** Inversione default in Console: diventa osservatorio. Le 4
+  intent attuali (`verify / hold-patrol / dismiss / return`) restano come
+  pulsanti di override, non sono più il flusso primario.
+- **7.B** Motore `swarm_os/autonomy.py`: dato un'anomalia + contesto +
+  policy del sito, restituisce decisione `VERIFY | DISMISS | ESCALATE |
+  WAIT`. Soglie deterministiche all'inizio (Fase 7), classificatore ML
+  in Fase 9.C.
+- **7.B-bis** Modalità ombra obbligatoria per ogni nuovo decisore prima
+  del go-live: decide + logga + confronta con decisione umana per due
+  settimane; flip del default solo quando convergono.
+- **7.C** Hook intervento umano:
+  - Override soft (annulla/modifica decisione autonoma in corso).
+  - Policy nudge a scadenza (alza/abbassa soglie temporaneamente).
+  - Kill switch (atterra tutti i droni; unica eccezione alla regola
+    "no red" del design system; richiede commander + MFA).
+- **7.D** Eyebrow `AUTO` / `OVERRIDE` ovunque nella Console + nel timeline.
+- **7.E** Decision log firmato (hash chain immutabile su `events` table).
+- **7.F** Explainability obbligatoria per ogni decisione autonoma
+  (SHAP / feature attribution salvata nel decision log).
+
+**Gate**: una settimana in produzione su un sito senza override umano
+critici; tutti i decisori in shadow mode hanno < 5% divergenza dall'umano.
+
+## Phase 8 — Federazione "sciame di sciami"
+
+**Obiettivo**: scalare da un coordinatore singleton a una rete di sciami
+autonomi che collaborano.
+
+- **8.A** Nuova entità `Swarm` in `core/swarm_core/messages.py` (id,
+  goal corrente, droni assegnati, area di responsabilità, stato salute).
+- **8.B** `SwarmCellCoordinator` per ogni sciame al posto del singleton
+  `SwarmCoordinator`. Lock per `swarm_id`.
+- **8.C** Bus Redis namespaced per cella: `swarm:cell:<id>:telemetry`,
+  `swarm:cell:<id>:events`.
+- **8.D** `swarm_os/meta_coordinator.py`: assegna obiettivi alle celle
+  (non missioni atomiche ai droni). Bilanciamento carico, copertura,
+  riserva strategica.
+- **8.E** Protocollo mesh inter-sciame: topic `swarm:mesh:offer`,
+  `swarm:mesh:request`, `swarm:mesh:commit`. Algoritmo contract-net per
+  richiesta/offerta aiuto. Trasferimento temporaneo droni tra celle.
+- **8.F** Fusione/scissione dinamica sciami in base alla situazione.
+- **8.G** Backpressure: una cella può rifiutare assegnazioni se sta
+  gestendo un'emergenza locale.
+- **8.H** Multi-site simultaneo in una sola istanza (sostituisce il
+  modello one-site-at-a-time di Phase 6.B).
+
+**Gate**: chaos test (kill random di celle) → sistema converge senza
+intervento; latenza inter-cell mesh p95 < 200ms.
+
+## Phase 9 — Intelligenza (ML/AI)
+
+**Obiettivo**: sostituire le regole deterministiche del livello
+decisionale con modelli appresi. Shield deterministico (Fase 6.A)
+**resta intatto** sotto.
+
+- **9.A** Computer vision on-edge sui droni: YOLOv8 / RT-DETR per
+  detection persone/veicoli/fuoco/animali. Distillazione modello grosso
+  → modello edge.
+- **9.B** Tracking soggetti (ByteTrack / BoT-SORT) per frame-su-frame.
+- **9.C** Classificatore disposizione anomalie (gradient boosting,
+  leggero, interpretabile, calibrato). Sostituisce le soglie di Fase 7.B.
+- **9.D** Retraining settimanale sugli override umani come label di
+  training oro.
+- **9.E** Reinforcement learning per pattugliamento (PPO o bandit
+  contestuali). Funzione di valore: copertura × novità × rischio − costo.
+- **9.F** Multi-agent RL per allocazione tra sciami (dopo Phase 8).
+- **9.G** Forecast: degrado batterie, meteo nowcasting locale, picchi
+  anomalie.
+- **9.H** LLM per briefing turno + spiegazione decisioni + configurazione
+  assistita. **MAI** safety runtime.
+- **9.I** Pipeline MLOps: model registry, A/B shadow deployment, drift
+  detection, GPU centrale per training.
+- **9.J** Feature store leggero su TimescaleDB esistente.
+- **9.K** Modulo `swarm_os/intelligence/` con classifier, scoring,
+  calibration, explainability.
+
+**Gate**: ogni modello ML ha passato shadow mode + audit di calibrazione
++ SHAP/attention salvate nel decision log.
+
+## Phase 10 — Detection multimodale automatica
+
+**Obiettivo**: il sistema rileva emergenze senza che nessuno prema un
+pulsante.
+
+- **10.A** Integrazione sensori IoT urbani: microfoni, qualità aria,
+  fumo, vibrazioni.
+- **10.B** Detection audio (urla, vetri rotti, colpi d'arma — modelli
+  tipo ShotSpotter).
+- **10.C** Detection da camere fisse pubbliche/private convenzionate.
+- **10.D** Fusione multi-sorgente (sensore + camera + segnalazione utente).
+- **10.E** Trigger automatico dispatching senza intervento umano.
+- **10.F** Filtro falsi positivi multimodale (rumore singolo ≠ emergenza).
+
+**Gate**: tasso falsi positivi < 1% su dataset città-scala di 30 giorni.
+
+## Phase 11 — App cittadino (consumer)
+
+**Obiettivo**: l'utente abbonato può chiedere aiuto e ricevere supporto
+dal sistema.
+
+- **11.A** App nativa iOS/Android (non solo web mobile).
+- **11.B** Pulsante SOS one-tap con timer "annulla" + anti-misclick.
+- **11.C** SOS silenzioso (movimento, password coercion, shake).
+- **11.D** Geolocalizzazione opt-in.
+- **11.E** Notifiche push: drone in arrivo, ETA, drone sul posto.
+- **11.F** Video live dal drone all'utente (rassicurazione).
+- **11.G** Comunicazione audio bidirezionale utente↔drone.
+- **11.H** Storico personale interventi.
+- **11.I** Profilo medico/contatti d'emergenza (per dispatch informato).
+- **11.J** Sharing localizzazione con persone fidate durante emergenza.
+- **11.K** Modalità "viaggio sicuro" (drone scorta opzionale).
+
+**Gate**: tempo da tap-SOS a drone-arrivato p95 < 120s; UX accessibilità
+WCAG AA.
+
+## Phase 12 — Business / abbonamenti
+
+**Obiettivo**: modello di ricavo sostenibile.
+
+- **12.A** Multi-tenant (provider per città/comune/quartiere).
+- **12.B** Piani abbonamento (free, base, premium, family).
+- **12.C** Billing ricorrente (Stripe o Adyen).
+- **12.D** SLA per piano (tempo di risposta garantito).
+- **12.E** Dashboard amministrazione comunale.
+- **12.F** Integrazione assicurazioni (sconti polizza per abbonati).
+- **12.G** KPI pubblici (trasparenza: tempi risposta, interventi, falsi
+  positivi).
+- **12.H** White-label per partner.
+
+**Gate**: revenue model dimostrabile su un pilota cittadino.
+
+## Phase 13 — Infrastruttura fisica (docking stations urbane)
+
+**Obiettivo**: rete di docking station strategicamente posizionate.
+
+- **13.A** Hardware docking station weather-proof, anti-vandalismo.
+- **13.B** Algoritmo posizionamento ottimo (copertura città, ETA target).
+- **13.C** Permessi pubblici (suolo pubblico, palazzi privati con accordo).
+- **13.D** Alimentazione (rete + solare backup + UPS).
+- **13.E** Connettività (4G/5G primaria + LoRaWAN backup + ethernet).
+- **13.F** Diagnostica remota docking station.
+- **13.G** Manutenzione predittiva (drone + dock).
+- **13.H** Inventory management droni (rotazione, riparazioni,
+  sostituzioni).
+- **13.I** Carico drone su dock libero più vicino dopo intervento.
+
+**Gate**: densità docking station sufficiente a garantire ETA < 120s
+sul 95% del territorio coperto.
+
+## Phase 14 — Dispatch intelligente città-scala
+
+**Obiettivo**: scegliere il drone giusto e portarlo lì nel tempo target.
+
+- **14.A** Algoritmo "qual drone mandare" (distanza, batteria, tipo
+  payload, meteo, traffico aereo).
+- **14.B** Path planning 3D urbano (evita palazzi, alberi, linee
+  elettriche, no-fly aree).
+- **14.C** ETA garantito 1-2 minuti come SLO.
+- **14.D** Backup drone automatico se primo fallisce.
+- **14.E** Dispatch multi-drone con ruoli specializzati.
+- **14.F** Coda priorità (emergenza vitale > rapina > vandalismo).
+- **14.G** Pre-posizionamento predittivo (sposta droni dove probabilmente
+  serviranno, da forecast 9.G).
+- **14.H** Coordinamento traffico aereo locale (altri droni,
+  elisoccorso) via U-space.
+
+**Gate**: SLO ETA p95 < 120s su 1000+ dispatch reali; zero near-miss
+con traffico aereo terzo.
+
+## Phase 15 — Intervento attivo (non solo osservare)
+
+**Obiettivo**: il drone agisce sulla situazione, non solo la documenta.
+
+> **Priorità di prodotto (MVP)**: incendio + protezione case + bene
+> pubblico (defibrillatore, ricerca dispersi, illuminazione zone
+> pericolose). I casi d'uso "law-enforcement-adjacent" (inseguimento
+> sospetti, abbagliamento aggressori) restano **fuori MVP** perché
+> hanno alta resistenza sociale e regolatoria — vengono valutati solo
+> dopo trazione sui casi a bene pubblico evidente.
+
+### Incendio (priorità 1 — MVP)
+- **15.A** Camera termica per detection precoce + targeting fonte calore.
+- **15.B** Sistema spegnimento mirato (capsule polvere/gel/aerosol
+  pulito, non spray indiscriminato; payload sostenibile).
+- **15.C** Coordinamento multi-drone per contenimento perimetrale (da
+  Phase 8 federazione).
+- **15.D** Evacuazione assistita (annunci vocali, indicazione vie fuga).
+- **15.E** Stop intervento se aria contaminata o pericolo esplosione
+  (deterministico, parte dello shield 6.A).
+- **15.F** Handoff strutturato ai VVF con posizione fonte + propagazione
+  + persone rilevate.
+
+### Protezione case (priorità 2 — MVP)
+- **15.G** Risposta a chiamata SOS da app del proprietario (da Phase
+  11.B).
+- **15.H** Risposta a sensori IoT casa abbonata (fumo, allarme intrusione
+  domotica, vetro rotto — da Phase 10.A).
+- **15.I** Ispezione perimetrale on-demand (proprietario chiede "controlla
+  il giardino").
+- **15.J** Illuminazione perimetrale dissuasiva (faro LED ad alta
+  intensità — uso passivo, non puntato su persone).
+- **15.K** Live feed criptato proprietario + (su richiesta proprietario)
+  alle FF.OO. tramite handoff Phase 16.
+- **15.L** Modalità "viaggio sicuro casa" (drone scorta opt-in nei
+  pressi dell'abitazione).
+- **15.M** Audio bidirezionale per dialogo proprietario↔persona
+  presente (es. corriere, vicino).
+
+### Bene pubblico (priorità 3 — MVP)
+- **15.N** Drone-defibrillatore per arresti cardiaci (modello già
+  esistente Svezia/Olanda, accettazione pubblica alta).
+- **15.O** Ricerca dispersi (anziani, bambini, escursionisti) con
+  termocamera + CV.
+- **15.P** Illuminazione zone pubbliche pericolose temporanee (lavori
+  stradali, incidente notturno).
+- **15.Q** Supporto Protezione Civile durante eventi climatici.
+- **15.R** Ricognizione post-evento (allagamenti, frane) per
+  prioritizzare soccorsi.
+
+### Payload + hardware (trasversale a tutte le priorità)
+- **15.S** Modulo payload swappabile (termocamera, spegnimento,
+  defibrillatore, kit primo soccorso, faro).
+- **15.T** Standardizzazione interfaccia drone↔payload (per terze parti).
+
+### Out of MVP — valutare solo dopo trazione sui casi sopra
+- **15.U** Sicurezza personale antiaggressione (faro/sirena/tracking
+  soggetto in fuga). Richiede compliance Phase 17 completa + sondaggi
+  accettazione Phase 19 verdi prima di pilotare.
+
+**Gate MVP**: ogni payload incendio/casa/bene-pubblico ha passato
+sicurezza fisica + approvazione regolatoria base + insurance coverage.
+Use case 15.U **non parte** finché non ci sono dati di trazione sui
+casi MVP.
+
+## Phase 16 — Integrazione autorità
+
+**Obiettivo**: il sistema lavora **prima** delle forze tradizionali, non
+**al posto** loro.
+
+- **16.A** Chiamata automatica 112/113/115/118 con dati strutturati.
+- **16.B** Live feed alle FF.OO. con autenticazione.
+- **16.C** Handoff custodia evento (drone passa il "caso" all'umano).
+- **16.D** Chain of custody video/audio per uso giudiziale (estende
+  l'hash chain di 7.E).
+- **16.E** API verso centrali operative regionali.
+- **16.F** Coordinamento con elisoccorso (separazione altitudini).
+- **16.G** Protocollo "stand-down" quando arriva pattuglia (drone si
+  ritira o supporta).
+
+**Gate**: accordo operativo siglato con almeno una centrale 112
+regionale; protocollo handoff testato in esercitazione.
+
+## Phase 17 — Compliance + regolatorio pesante
+
+**Obiettivo**: il sistema è legale e auditabile in UE.
+
+- **17.A** SORA categoria Specific autorizzato per volo urbano autonomo.
+- **17.B** Approvazione EASA U-space.
+- **17.C** GDPR completo: privacy mask volti/targhe/finestre automatica.
+- **17.D** Conservazione dati: retention policy, cancellazione
+  automatica.
+- **17.E** DPIA pubblico e auditato.
+- **17.F** Consenso cittadini (chi accetta di essere ripreso).
+- **17.G** Diritto all'oblio video.
+- **17.H** Audit indipendente algoritmico annuale.
+- **17.I** Compliance uso forza (sirene/luci): legalità coercizione
+  psicologica.
+- **17.J** Polizza assicurativa civile multimilionaria.
+- **17.K** Accountability cascade (provider → comune → utente).
+- **17.L** Public oversight board per ogni città.
+- **17.M** Trasparenza pubblica: report falsi positivi, interventi,
+  danni.
+
+**Gate**: autorizzazione regolatoria scritta da autorità competente per
+ogni città servita. **Bloccante**: senza 17.A non si vola.
+
+## Phase 18 — Sicurezza fisica e cyber dei droni
+
+**Obiettivo**: il sistema resiste ad attacchi attivi.
+
+- **18.A** Anti-spoofing GPS (multi-constellation, RTK).
+- **18.B** Resistenza a jamming radio (frequency hopping).
+- **18.C** Anti-hijacking comandi (firma crittografica end-to-end).
+- **18.D** Backup comms multi-canale (4G + LoRa + satellite).
+- **18.E** Protezione fisica drone (carrozzeria leggera, fail-safe
+  atterraggio).
+- **18.F** Decommissioning sicuro se catturato (wipe + brick).
+- **18.G** Difesa anti-drone offensivo (se qualcuno cerca di abbatterli).
+- **18.H** Penetration testing annuale obbligatorio.
+- **18.I** Bug bounty program.
+- **18.J** SBOM completo + supply chain attestation per ogni componente
+  (estende Phase 6.E cosign).
+
+**Gate**: red team esterno (drone hijack + GPS spoof + radio jam) tutti
+falliti.
+
+## Phase 19 — Etica + accettazione sociale
+
+**Obiettivo**: il sistema è accettato e accettabile.
+
+- **19.A** Bias check algoritmico (più droni in zone povere? falsi
+  positivi su etnie?).
+- **19.B** Trasparenza modelli ML (cosa decidono e perché — estende 9.K).
+- **19.C** Diritto a non essere ripreso (opt-out cittadini).
+- **19.D** Citizen review board con potere di veto.
+- **19.E** Comunicazione pubblica chiara (cosa il sistema fa e NON fa).
+- **19.F** Sondaggi accettazione periodici per quartiere.
+- **19.G** Modalità "drone visibile" (livrea distintiva, luci sempre
+  accese).
+- **19.H** Pubblicità statistiche reali, non marketing.
+
+**Gate**: bias audit indipendente verde + accettazione pubblica > soglia
+in sondaggi cittadini.
+
+## Phase 20 — Resilienza e disastri
+
+**Obiettivo**: il sistema funziona anche quando il mondo intorno crolla.
+
+- **20.A** Failover regionale (se cade un data center, continua un altro).
+- **20.B** Modalità degraded (rete cellulare giù → mesh radio drone-to-
+  drone).
+- **20.C** Backup energia docking station (batteria 48h+).
+- **20.D** Continuità durante eventi di massa (terremoto, alluvione).
+- **20.E** Disaster mode (sospende SLA normali, prioritizza vite umane).
+
+**Gate**: DR drill annuale superato; RTO/RPO dichiarati e rispettati.
+
+## Phase 21 — Operazioni & supporto
+
+**Obiettivo**: il sistema autonomo ha comunque un'organizzazione umana
+dietro.
+
+- **21.A** Operations center 24/7 (umani di supervisione, non operatori
+  in-the-loop).
+- **21.B** Tier 1/2/3 support per cittadini abbonati.
+- **21.C** Onboarding municipalità (installazione, calibrazione,
+  training).
+- **21.D** Programma certificazione tecnici manutenzione.
+- **21.E** Centro ricerca + sviluppo continuo.
+
+**Gate**: SLO supporto p95 < target; turnover tecnici certificati
+sotto soglia.
+
+## Phase 22 — Espansione
+
+**Obiettivo**: scalare oltre la prima città.
+
+- **22.A** Espansione geografica (città → regione → nazione →
+  internazionale).
+- **22.B** Adapter vendor multipli (PX4, DJI Enterprise, custom hardware
+  proprietario).
+- **22.C** Marketplace skill plugin (detector specializzati per use case).
+- **22.D** Open API per integratori terzi.
+- **22.E** SDK Python/TypeScript.
+- **22.F** Sandbox/demo cloud per prospect.
+
+**Gate**: prima città estera servita con stesso codebase + adattamenti
+regolatori locali.
+
+## Dipendenze tra le fasi 7-22
+
+```
+7 (autonomia) ──┬──> 9 (ML)  ──┬──> 14 (dispatch città)
+                │              │
+                ├──> 10 (detection multimodale)
+                │              │
+                └──> 8 (federazione) ──> 14
+                               │
+11 (app cittadino) ────────────┼──> 12 (business)
+                               │
+13 (docking station) ──────────┼──> 14 ──> 15 (intervento attivo)
+                               │
+17 (compliance) ── BLOCKER trasversale per 15, 16, 22
+                               │
+16 (autorità) ────> 15 ────────┘
+18 (sicurezza) ── trasversale (richiesto da 15 in poi)
+19 (etica) ── trasversale (richiesto da 15 in poi)
+20 (resilienza) ── richiesto prima di 22
+21 (operazioni) ── richiesto prima di scala > 1 città
+```
+
+**Ordine consigliato di attacco** (sequenziale dove non sganciabile,
+parallelo dove indipendente):
+
+1. **Fase 7** prima di tutto (sblocca semantica autonoma).
+2. **Fase 9 (ML)** + **Fase 8 (federazione)** in parallelo (branch
+   distinti) — entrambi si appoggiano alla Fase 7 ma sono indipendenti.
+3. **Fase 10 (detection multimodale)** dopo 9.A/9.B (CV pronta).
+4. **Fase 11 (app)** in parallelo a tutto il resto (team frontend
+   distinto).
+5. **Fase 13 (docking)** + **Fase 17 (compliance)** in parallelo —
+   17 è bloccante per il volo reale, deve partire **prestissimo** anche
+   se completa per ultima.
+6. **Fase 14 (dispatch)** richiede 8 + 9.E + 13.
+7. **Fase 15 (intervento attivo)** richiede 17 sbloccata + 18 in piedi.
+8. **Fase 16 (autorità)** prima di 15 in produzione.
+9. **Fase 18 (sicurezza)** + **Fase 19 (etica)** trasversali, sempre on.
+10. **Fase 20 (resilienza)** prima di andare oltre la città pilota.
+11. **Fase 21 (ops)** richiesta per pilota.
+12. **Fase 22 (espansione)** ultimo blocco.
+
+## Caveat sul piano 7-22
+
+- **Effort realistico**: 5-10 anni con team da 15-30 persone (ingegneria,
+  ML, hardware, legale, ops). Le Fasi 0-6 sono ~5% del lavoro totale.
+- **Blocco più duro NON tecnico**: Fase 17 (regolatorio). Senza SORA
+  Specific approvato, nessun volo urbano autonomo è legale in UE oggi.
+  Va affrontata in parallelo all'ingegneria, **non dopo**.
+- **Blocco secondo più duro**: Fase 19 (accettazione sociale). Un
+  sistema tecnicamente perfetto rigettato dalla cittadinanza muore.
+- **Capitale**: hardware (droni + docking) + R&D ML + legale +
+  assicurazioni richiedono finanziamento serio (decine di milioni per
+  pilota cittadino realistico).
+- **Ordine di esecuzione potrebbe cambiare** in base a feedback
+  regolatorio, capitale disponibile, pilota cittadino concreto.
+
+Queste 16 fasi sono **scheletro decisionale**, non specifica
+implementativa. Ogni fase, prima di partire, va espansa allo stesso
+livello di dettaglio delle Fasi 0-6 (file specifici, contratti API,
+test, gate di accettazione).
+
 ## Definition of Done dell'intero piano
 
 A **fine Phase 6**, lo stato consegnato all'utente è:
