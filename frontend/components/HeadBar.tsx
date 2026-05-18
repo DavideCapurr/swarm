@@ -11,6 +11,7 @@ import Link from "next/link";
 
 import { useAuth } from "@/lib/auth";
 import { useSwarm } from "@/lib/state";
+import { EmergencyStop } from "./EmergencyStop";
 import { StatusPill } from "./StatusPill";
 
 const MODE_STATE: Record<
@@ -77,6 +78,7 @@ export function HeadBar() {
           {`${String(online).padStart(3, "0")} / ${String(total).padStart(3, "0")} online`}
         </StatusPill>
         {pending > 0 && <StatusPill state="attention">{`${pending} pending`}</StatusPill>}
+        <EmergencyStop />
         <OperatorBadge operatorId={operatorId} role={role} onLogout={() => void logout()} />
       </div>
     </header>

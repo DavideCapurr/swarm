@@ -139,6 +139,17 @@ export const IconBack = (p: IconProps) => (
   </Svg>
 );
 
+// Phase 6.G — fleet-wide return icon. A nested ring + an inward chevron so
+// the affordance reads as "everything coming home" without any red-band
+// imagery. Stays inside the 24px viewBox at stroke 1.5px.
+export const IconEmergencyReturn = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 3v4M21 12h-4M12 21v-4M3 12h4" />
+  </Svg>
+);
+
 export const IconClose = (p: IconProps) => (
   <Svg {...p}>
     <path d="M6 6l12 12M18 6 6 18" />

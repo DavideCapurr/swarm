@@ -1,0 +1,113 @@
+# Patroni — reference configuration for SwarmOS Postgres / Timescale HA.
+#
+# Phase 6.G ships this as a *pattern*, not a deployment. Phase 6.E
+# validated single-node Postgres via docker-compose.prod.yml; customers
+# that want HA either run this Patroni stack alongside SwarmOS or use a
+# managed equivalent (RDS multi-AZ, Cloud SQL HA, Azure Flexible Server
+# HA). From SwarmOS's point of view the contract is identical: a single
+# DATABASE_URL that resolves to the writable endpoint, with retries
+# tolerated.
+#
+# Three-node cluster, ETCD-backed leader election, async streaming
+# replication with 30 s lag tolerance. WAL archive ships to off-site
+# storage to honour the 5-min RPO; without WAL archive, RPO degrades to
+# the daily pg_dump cadence (≤ 24 h).
+#
+# Drone-day items (see docs/ops/drone-day-checklist.md §2.G):
+# real ETCD cluster, real WAL archive target + retention policy,
+# pgBouncer in front for connection pooling, pen-tested replication
+# secrets.
+
+apiVersion: postgres.swarmos.dev/v1
+kind: PatroniTopology
+metadata:
+  name: swarm-postgres-ha
+  description: |
+    HA pattern for the SwarmOS audit + telemetry store. Three nodes,
+    ETCD-backed leader election, async streaming replication.
+
+spec:
+  postgres:
+    version: "16"
+    timescale_version: "2.16"
+    extensions:
+      - timescaledb
+      - uuid-ossp
+    config:
+      max_connections: 200
+      shared_buffers: 1GB
+      wal_level: replica
+      max_wal_senders: 6
+      max_replication_slots: 6
+      hot_standby: "on"
+      archive_mode: "on"
+      archive_command: 'wal-g wal-push %p'
+      archive_timeout: 60s
+  patroni:
+    scope: swarmos
+    namespace: /db/swarmos
+    bootstrap:
+      dcs:
+        ttl: 30
+        loop_wait: 10
+        retry_timeout: 10
+        synchronous_mode: false
+        synchronous_mode_strict: false
+        maximum_lag_on_failover: 30000000  # 30 MB
+        master_start_timeout: 300
+      initdb:
+        - encoding: UTF8
+        - data-checksums
+        - locale: en_US.UTF-8
+      users:
+        replicator:
+          password: file:/run/secrets/pg-replicator-password
+          options:
+            - replication
+        swarm:
+          password: file:/run/secrets/pg-swarm-password
+          options:
+            - createdb
+    nodes:
+      count: 3
+      placement: spread  # no two replicas in the same failure domain
+  etcd:
+    nodes: 3
+    tls:
+      enabled: true
+      ca: /etc/etcd/certs/etcd-ca.pem
+      certificate: /etc/etcd/certs/etcd-client.pem
+      key: /etc/etcd/certs/etcd-client.key
+  backups:
+    daily:
+      schedule: "0 3 * * *"
+      command: scripts/backup_postgres.sh
+      retention_days: 30
+      destination: gpg://offsite-recipient/swarmos-backups
+    wal_archive:
+      tool: wal-g
+      destination: s3://swarmos-wal-archive/
+      compression: zstd
+  failover:
+    automatic: true
+    trigger_on_master_lag_s: 60
+    promote_replica_command: |
+      patronictl -c /etc/patroni.yml failover --master swarm-pg-leader \
+        --candidate swarm-pg-replica-1
+  observability:
+    pg_exporter: true
+    metrics:
+      - pg_up
+      - pg_replication_lag
+      - pg_stat_replication
+      - patroni_master
+      - patroni_leader
+    alerts:
+      - name: PatroniLeaderMissing
+        when: max(patroni_master) < 1
+        for: 1m
+        severity: amber  # no red — design system §5.2
+      - name: ReplicationLagHigh
+        when: max(pg_replication_lag) > 30
+        for: 5m
+        severity: amber

@@ -35,7 +35,7 @@ from swarm_core.messages import (
 from swarm_core.voice import band
 
 from swarm_os.awareness import calculate_awareness
-from swarm_os.command_bus import CommandResult
+from swarm_os.command_bus import EMERGENCY_MISSION_PREFIX, CommandResult
 from swarm_os.command_bus import submit as command_submit
 from swarm_os.command_bus import tick as command_tick
 from swarm_os.event_detector import EventDetector
@@ -264,6 +264,16 @@ class SwarmCoordinator:
         actions = self.state.policy.evaluate_safety_actions(self.state.units)
         for action in actions:
             if action.kind is not SafetyActionKind.AUTO_RTL:
+                continue
+            # Phase 6.G: a unit already carrying an active emergency RTL
+            # doesn't need an additional auto-RTL — they'd race for the
+            # same slot and the audit log would double-count the event.
+            emergency_id = f"{EMERGENCY_MISSION_PREFIX}{action.agent_id}"
+            emergency = self.state.missions.get(emergency_id)
+            if emergency is not None and emergency.phase not in {
+                MissionPhase.DONE,
+                MissionPhase.FAILED,
+            }:
                 continue
             mission_id = f"{AUTO_RTL_PREFIX}{action.agent_id}"
             existing = self.state.missions.get(mission_id)
