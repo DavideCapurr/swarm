@@ -149,7 +149,7 @@ https://github.com/DavideCapurr/swarm/security/advisories/new
 - Operator training: [`docs/operator/training.md`](docs/operator/training.md)
 - Ops runbook index: [`docs/ops/runbook.md`](docs/ops/runbook.md)
 - Security disclosure: [`docs/security/disclosure.md`](docs/security/disclosure.md)
-- Compliance baseline: [`docs/compliance/gdpr.md`](docs/compliance/gdpr.md), [`docs/compliance/drone-regulations.md`](docs/compliance/drone-regulations.md)
+- Compliance baseline: [`docs/compliance/gdpr.md`](docs/compliance/gdpr.md), [`docs/compliance/retention.md`](docs/compliance/retention.md), [`docs/compliance/dpa-template.md`](docs/compliance/dpa-template.md), [`docs/compliance/drone-regulations.md`](docs/compliance/drone-regulations.md)
 - Developer onboarding + release: [`docs/dev/onboarding.md`](docs/dev/onboarding.md), [`docs/dev/release-process.md`](docs/dev/release-process.md)
 
 ## For Claude Code sessions

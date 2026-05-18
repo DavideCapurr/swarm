@@ -27,6 +27,7 @@ from starlette.websockets import WebSocketDisconnect
 from backend.app.api.actions import router as actions_router
 from backend.app.api.admin import router as admin_router
 from backend.app.api.auth_routes import router as auth_router
+from backend.app.api.compliance import router as compliance_router
 from backend.app.api.routes import public_router as public_api_router
 from backend.app.api.routes import router as api_router
 from backend.app.auth import (
@@ -199,6 +200,7 @@ app.include_router(public_api_router)
 app.include_router(api_router)
 app.include_router(actions_router)
 app.include_router(admin_router)
+app.include_router(compliance_router)
 app.include_router(auth_router)
 app.include_router(obs_public_router)  # /ready
 app.include_router(obs_router)         # /metrics
