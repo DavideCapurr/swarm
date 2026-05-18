@@ -1,16 +1,23 @@
-# SwarmOS — Piano completo Phase 0 → Phase 26
+# SwarmOS — Piano completo Phase 0 → Phase 27
 
 Phase 0–6 = PDF roadmap originale (fondazione tecnica, in larga parte
 fatta).
-Phase 7–10 = **pre-seed sprint** (founder solo + Claude Code + Codex
-fino a primo capitale).
-Phase 11–26 = **post-seed execution** (visione finale dopo team +
+Phase 7–11 = **pre-seed sprint** (founder solo + Claude Code + Codex
+fino a primo capitale). Include test reale su terreno privato del
+founder prima del pitch.
+Phase 12–27 = **post-seed execution** (visione finale dopo team +
 capitale + giurisdizione target attiva).
 
-Giurisdizioni target iniziali (decisione utente 2026-05-18):
-**Rwanda + Dubai (UAE)**, non UE. Casi MVP: incendio + protezione case
-+ bene pubblico (defibrillatore, ricerca dispersi, supporto Protezione
-Civile).
+Giurisdizioni (decisione utente 2026-05-18, aggiornata):
+1. **Terreno privato del founder in Italia** per il bench reale
+   pre-pitch (categoria ENAC Open su proprietà privata, niente SORA
+   necessario per VLOS sotto 25 kg, "freghiamoci di regulations a
+   livello prodotto").
+2. **Rwanda + Dubai (UAE)** post-seed per il deploy commerciale.
+3. UE/USA solo in Phase 27 dopo trazione.
+
+Casi MVP: incendio + protezione case + bene pubblico (defibrillatore,
+ricerca dispersi, supporto Protezione Civile).
 
 ## Context
 
@@ -775,775 +782,894 @@ pen-test, bug bounty, CSP nonce script-src.
 - Compliance: DPA template + retention policy documentati;
   drone regulation reference presente.
 
-## Phase 7 → Phase 10 — Pre-seed sprint (solo + Claude Code + Codex)
+## Phase 7 → Phase 22 — Pre-seed sprint (solo + Claude Code + Codex)
 
-**Contesto reale (decisione utente 2026-05-18)**: il "team" oggi è
-**founder solo + Claude Code + Codex**. Niente assunti, niente
-hardware, niente investitori, niente partner. Ogni decisione di queste
-4 fasi deve essere fattibile in queste condizioni.
+**Contesto reale (decisione utente 2026-05-18, aggiornata)**: il "team"
+oggi è **founder solo + Claude Code + Codex**. Niente assunti, niente
+investitori, niente partner.
 
-**Obiettivo pre-seed**: arrivare a un **MVP demo-able + pacchetto
-pitch + outreach attivo** in 3-4 mesi, e a un **seed round chiuso**
-(o term sheet firmato) entro 6-9 mesi. Niente hardware reale, niente
-deployment reale, niente partner sul campo fino al seed.
+**Ordine temporale richiesto dall'utente**: prima TUTTO il software in
+simulazione (Phase 7-18, founder + AI possono farlo senza spese), poi
+SOLO ALLA FINE l'acquisto hardware e il bench reale sul terreno
+privato del founder in Italia (Phase 19), poi pitch con video reali
+(Phase 20), outreach (Phase 21), seed close (Phase 22).
 
-**Giurisdizioni target**: Rwanda + Dubai (UAE). Rwanda per il caso
-"bene pubblico" (defibrillatore, ricerca dispersi, Protezione Civile —
-Zipline ha già aperto la strada lì), Dubai per "premium / protezione
-case + incendio sterpaglie / wildfire desertico". Entrambe hanno
-autorità collaborative (RCAA + Dubai DCAA / GCAA), entrambe vogliono
-attirare deep-tech.
+Vantaggi di questo ordine:
+- Software è il pezzo a costo zero (solo tempo founder + AI tools).
+- Hardware costa, non lo si compra finché software non è maturo.
+- Quando arriva hardware in Phase 19, è solo integrazione +
+  validazione finale, non build.
+- Pitch in Phase 20 mostra software completo + video reali + drone
+  vero che ha già volato → narrativa molto più forte di "abbiamo
+  fatto MVP basico, fidatevi del piano".
+
+**Obiettivo pre-seed**: arrivare a seed round chiuso (o term sheet
+firmato) entro 12-18 mesi. Pre-seed più lungo rispetto alla versione
+precedente del piano, ma con prodotto molto più maturo all'arrivo
+del pitch.
+
+**Strategia geografica pre-seed**:
+1. **Phase 19** (hardware bench) sul **terreno privato del founder in
+   Italia** — categoria ENAC Open su proprietà privata recintata,
+   VLOS, sotto 25 kg, sotto 120m. Niente SORA, niente autorizzazione
+   speciale, niente comune, niente VVF: solo proprietà privata +
+   consenso founder + assicurazione drone professionale
+   (€300-800/anno standard). "Freghiamoci di regulations" = nessuna
+   procedura pubblica, solo invariante di sicurezza basico.
+2. **Phase 23+** (post-seed) sul terreno **Rwanda + Dubai** per il
+   deploy commerciale, con tutte le autorizzazioni del caso.
+
+**Giurisdizioni commerciali (post-seed)**: Rwanda + Dubai (UAE).
+Rwanda per "bene pubblico" (Zipline ha già aperto la strada), Dubai
+per "premium / protezione case + incendio sterpaglie".
 
 **Principio guida nuovo** (sostituisce "SwarmOS decides. Console
 supervises." una volta entrati in Fase 7): **"SwarmOS decide ed
 esegue. L'umano può intervenire se necessario."** Human-on-the-loop,
 non in-the-loop.
 
-## Phase 7 — MVP demo-able (solo + AI, 6-10 settimane)
+### Mappa Phase 7-22 in sintesi
 
-**Obiettivo**: video demo da 90 secondi che mostra il sistema reagire
-autonomamente a 3 scenari MVP (incendio, SOS casa, defibrillatore) in
-simulazione realistica. Il demo deve essere **girabile live in 5 minuti
-su laptop**, niente magia di editing.
+| Phase | Categoria | Cosa | Durata stimata |
+|---|---|---|---|
+| 7 | sw sim | MVP base + 3 scenari | 3-5 sett |
+| 8 | sw sim | Autonomy engine completo | 3-4 sett |
+| 9 | sw sim | Federazione sciame-di-sciami | 4-6 sett |
+| 10 | sw sim | Intelligenza ML/AI (pretrained + custom) | 6-8 sett |
+| 11 | sw sim | Detection multimodale (mock sensori) | 2-3 sett |
+| 12 | sw | App cittadino (working, backend mock) | 4-6 sett |
+| 13 | sw sim | Dispatch city-scale (algoritmo completo) | 3-4 sett |
+| 14 | sw sim | Intervento attivo logica (senza payload reale) | 3-4 sett |
+| 15 | sw | Multi-tenant + business + mock payments | 2-3 sett |
+| 16 | sw | Decision log firmato + cyber sw | 2-3 sett |
+| 17 | sw | Resilience sw (failover, degraded mode) | 2 sett |
+| 18 | sw | Privacy mask + explainability + bias check | 2-3 sett |
+| 19 | hw | Bench su terreno privato founder (Italia) | 4-10 sett |
+| 20 | sw + media | Pitch materials con video reali | 2-4 sett |
+| 21 | outreach | Outreach pre-seed investitori | 4-12 sett |
+| 22 | corporate | Seed close + team minimo | mesi 13-18 |
 
-Tutto in simulazione — zero hardware. Slice tattiche delle Fasi 11-26
-prese solo quanto basta per la demo. Profondità completa di ogni fase
-arriva dopo il seed.
+Totale pre-seed: ~13-18 mesi solo + AI.
 
-- **7.A** Tre scenari simulati in `sim/scenarios/`:
-  - `wildfire_dubai.yaml`: incendio sterpaglie desertico, propagazione,
-    detection CV + termocamera simulata, dispatch multi-drone
-    autonomo, contenimento perimetrale, handoff Civil Defense Dubai.
-  - `home_sos_dubai.yaml`: villa abbonata, sensore fumo + pulsante
-    SOS app, dispatch drone perimetrale, ispezione, live feed
-    proprietario.
-  - `aed_rwanda.yaml`: chiamata 912 (numero emergenza Rwanda) → dispatch
-    drone-AED → consegna a indirizzo cittadino in Kigali. Inspired da
-    pattern Zipline ma per scenari emergency-on-demand.
-- **7.B** `swarm_os/autonomy.py` deterministico funzionante sui 3
-  scenari (slice della Phase 11 — solo soglie, no ML).
+## Phase 7 — Software MVP base in simulazione (3-5 settimane)
+
+**Obiettivo**: software end-to-end girabile in sim sui 3 scenari MVP,
+fondazione su cui costruire tutto il resto delle fasi software.
+
+- **7.A** Tre scenari simulati in `sim/scenarios/`, costruiti per
+  essere **replicabili sul terreno del founder** in Phase 19:
+  - `wildfire_owner_land.yaml`: incendio sterpaglie su area
+    rettangolare ~1-3 ettari (dimensione terreno founder),
+    detection CV + termocamera, dispatch multi-drone autonomo,
+    contenimento perimetrale.
+  - `intrusion_owner_land.yaml`: intrusione su perimetro recintato,
+    dispatch drone, ispezione, live feed.
+  - `search_owner_land.yaml`: soggetto disperso su area, ricerca
+    con termocamera + CV.
+- **7.B** `swarm_os/autonomy.py` versione baseline deterministica
+  funzionante sui 3 scenari (versione production in Phase 8).
 - **7.C** Console esistente come "osservatorio" con eyebrow `AUTO`
-  per ogni decisione autonoma (no intent buttons per la demo — è
-  uno spettacolo di autonomia).
-- **7.D** Mobile mockup funzionante (Next.js mobile o Expo) con
-  pulsante SOS one-tap che genera evento nella sim. No app store, no
-  publishing — solo demo locale.
-- **7.E** Computer vision su modelli pretrained + dataset pubblici:
-  - Fuoco: **FLAME** + **D-Fire** dataset, YOLOv8 pretrained
-    fine-tuned su 2-3 epoche.
-  - Aerial detection: **VisDrone** pretrained.
-  - Inference live nello scenario, non training pesante.
-- **7.F** Federazione minima (slice della Phase 12): 2-3 celle che si
-  passano un drone durante il wildfire scenario. Solo quanto basta a
-  vedere il "sciame di sciami" in azione, niente meta-coordinatore
-  completo.
-- **7.G** Dispatch sim base (slice della Phase 18): 100 settori, 30
-  droni, 10 docking station distribuite su mappa di Kigali o Dubai
-  Marina. ETA calcolato realistico (3D path planning semplificato).
-- **7.H** Demo recording pipeline: script Python che lancia scenario
-  in headless + `ffmpeg` screen capture + voice-over scriptato (TTS
-  inglese + italiano).
-- **7.I** Metrics dashboard live durante demo: tempo risposta p50/p95,
-  decisioni autonome corrette vs override, falsi positivi. Numeri reali
-  della sim, quotabili nel pitch.
-- **7.J** "Make demo" target: `make demo-wildfire`, `make demo-home`,
-  `make demo-aed`. Replicabile dal computer di un investitore in 1 cmd.
+  per ogni decisione autonoma.
+- **7.D** Computer vision baseline (pretrained, no fine-tuning):
+  - Fuoco: **FLAME** + **D-Fire** dataset, YOLOv8 pretrained.
+  - Persona aerial: **VisDrone** pretrained.
+  - Inferenza live nello scenario.
+- **7.E** "Make demo" target: `make demo-wildfire-sim`,
+  `make demo-intrusion-sim`, `make demo-search-sim`. Replicabili in
+  1 comando.
 
-**Gate**: video demo 90s girabile in 5 minuti, con metriche convincenti
-(ETA p95 < 120s in sim, accuratezza decisioni > 90% su dataset noto).
+**Gate**: i 3 scenari girano end-to-end in sim, ogni decisione
+autonoma è loggata, metriche baseline raccolte.
 
-## Phase 8 — Materiali pitch (solo + AI, 2-4 settimane)
+## Phase 8 — Autonomy engine production (sim) (3-4 settimane)
 
-**Obiettivo**: arrivare a una demo call con tutto pronto. Niente
-slide brutte, niente whitepaper vago.
+**Obiettivo**: portare l'autonomy.py da baseline a production-grade.
+Tutto ancora in sim — l'hardware reale arriva in Phase 19.
 
-- **8.A** Pitch deck 12-15 slide:
-  problema → mercato → soluzione → demo embed → traction (=metriche
-  sim) → team (=founder + AI stack) → business model → giurisdizione
+- **8.A** Inversione default in Console: diventa osservatorio. Le 4
+  intent attuali (`verify / hold-patrol / dismiss / return`) restano
+  come pulsanti di override, non sono più il flusso primario.
+- **8.B** `swarm_os/autonomy.py` completo: decisioni `VERIFY |
+  DISMISS | ESCALATE | WAIT` su ogni anomalia. Soglie deterministiche
+  configurabili per scenario.
+- **8.B-bis** Modalità ombra obbligatoria per ogni nuovo decisore
+  prima del go-live: decide + logga + confronta con decisione umana.
+- **8.C** Hook intervento umano completi:
+  - Override soft (annulla/modifica decisione autonoma in corso).
+  - Policy nudge a scadenza (alza/abbassa soglie temporaneamente).
+  - Kill switch (atterra tutti i droni in sim; unica eccezione alla
+    regola "no red" del design system).
+- **8.D** Eyebrow `AUTO` / `OVERRIDE` ovunque nella Console + timeline.
+
+**Gate**: 100+ esecuzioni dei 3 scenari in sim con autonomy completo,
+< 5% divergenza da decisione umana baseline.
+
+## Phase 9 — Federazione "sciame di sciami" (sim) (4-6 settimane)
+
+**Obiettivo**: architettura completa multi-cella, non più singleton.
+Tutto in sim.
+
+- **9.A** Nuova entità `Swarm` in `core/swarm_core/messages.py` (id,
+  goal corrente, droni assegnati, area di responsabilità, salute).
+- **9.B** `SwarmCellCoordinator` per ogni sciame al posto del
+  singleton `SwarmCoordinator`. Lock per `swarm_id`.
+- **9.C** Bus Redis namespaced per cella: `swarm:cell:<id>:telemetry`,
+  `swarm:cell:<id>:events`.
+- **9.D** `swarm_os/meta_coordinator.py`: assegna obiettivi alle celle
+  (non missioni atomiche). Bilanciamento carico, copertura, riserva.
+- **9.E** Protocollo mesh inter-sciame: topic `swarm:mesh:offer`,
+  `swarm:mesh:request`, `swarm:mesh:commit`. Algoritmo contract-net.
+- **9.F** Fusione/scissione dinamica sciami.
+- **9.G** Backpressure: cella può rifiutare assegnazioni in emergenza.
+- **9.H** Multi-site simultaneo in una sola istanza (sostituisce
+  Phase 6.B one-site-at-a-time).
+
+**Gate**: chaos test in sim (kill random di celle) → sistema converge
+senza intervento; latenza inter-cell mesh p95 < 200ms in sim.
+
+## Phase 10 — Intelligenza ML/AI (sim + dati propri) (6-8 settimane)
+
+**Obiettivo**: sostituire le regole deterministiche con modelli
+appresi. Shield deterministico (Fase 6.A) resta intatto sotto.
+
+- **10.A** Computer vision custom training: fine-tuning YOLOv8 / RT-DETR
+  su dataset pubblici + dataset sintetici generati nella sim.
+- **10.B** Tracking soggetti (ByteTrack / BoT-SORT) per frame-su-frame.
+- **10.C** Classificatore disposizione anomalie (gradient boosting,
+  leggero, interpretabile, calibrato). Sostituisce le soglie di Fase 8.B.
+- **10.D** Pipeline retraining (anche se senza override umani reali,
+  preparare l'infrastruttura per quando arriveranno post-seed).
+- **10.E** Reinforcement learning per pattugliamento (PPO o bandit
+  contestuali) addestrato nella sim.
+- **10.F** Multi-agent RL per allocazione tra sciami (in sim).
+- **10.G** Forecast: degrado batterie, meteo nowcasting, picchi
+  anomalie. Addestrati su dati sim.
+- **10.H** LLM per briefing turno + spiegazione decisioni +
+  configurazione assistita. **MAI** safety runtime.
+- **10.I** Pipeline MLOps: model registry, A/B shadow deployment,
+  drift detection. Codice + infra pronta.
+- **10.J** Feature store leggero su TimescaleDB esistente.
+- **10.K** Modulo `swarm_os/intelligence/` con classifier, scoring,
+  calibration, explainability.
+
+**Gate**: ogni modello ML ha passato shadow mode in sim + audit di
+calibrazione + SHAP/attention salvate nel decision log.
+
+## Phase 11 — Detection multimodale (sim, mock sensori) (2-3 settimane)
+
+**Obiettivo**: software che fonde input da molteplici sorgenti
+sensoriali. Sensori reali post-seed; qui mock.
+
+- **11.A** Integrazione mock sensori IoT: microfoni, qualità aria,
+  fumo, vibrazioni (eventi sim, non hardware vero).
+- **11.B** Detection audio software (modelli pretrained ShotSpotter-
+  like su sample sim).
+- **11.C** Fusione multi-sorgente (sensore + camera + segnalazione
+  app utente).
+- **11.D** Trigger automatico dispatching senza intervento umano.
+- **11.E** Filtro falsi positivi multimodale.
+
+**Gate**: tasso falsi positivi < 1% su dataset sim di 30 giorni.
+
+## Phase 12 — App cittadino (software completo, backend mock) (4-6 settimane)
+
+**Obiettivo**: app reale funzionante, con backend che parla con la sim.
+Niente cloud production ancora — backend gira locale + tunnel.
+
+- **12.A** App nativa iOS/Android via React Native o Expo.
+  Localizzazioni: EN, IT (per founder testing), AR + KIN come stub
+  per dopo.
+- **12.B** Pulsante SOS one-tap con timer "annulla" + anti-misclick.
+- **12.C** SOS silenzioso (movimento, password coercion, shake).
+- **12.D** Geolocalizzazione opt-in.
+- **12.E** Notifiche push: drone in arrivo, ETA, drone sul posto.
+- **12.F** Video live dal drone all'utente (rassicurazione). In sim
+  → finto stream sintetico; in Phase 19 → stream vero.
+- **12.G** Comunicazione audio bidirezionale utente↔drone (TTS).
+- **12.H** Storico personale interventi.
+- **12.I** Profilo medico/contatti d'emergenza.
+- **12.J** Sharing localizzazione con persone fidate durante emergenza.
+
+**Gate**: app installabile e funzionante su iPhone + Android del
+founder; SOS → evento sim → drone parte in < 2s.
+
+## Phase 13 — Dispatch city-scale (sim) (3-4 settimane)
+
+**Obiettivo**: algoritmo dispatch completo per scenario città grande.
+
+- **13.A** Algoritmo "qual drone mandare" (distanza, batteria, tipo
+  payload, meteo, traffico aereo).
+- **13.B** Path planning 3D urbano (evita palazzi sim, alberi, linee).
+- **13.C** ETA garantito 1-2 minuti come SLO.
+- **13.D** Backup drone automatico se primo fallisce.
+- **13.E** Dispatch multi-drone con ruoli specializzati.
+- **13.F** Coda priorità (emergenza vitale > incendio > protezione
+  case > ronda).
+- **13.G** Pre-posizionamento predittivo (sposta droni dove
+  probabilmente serviranno, da forecast 10.G).
+- **13.H** Coordinamento traffico aereo locale simulato.
+
+**Gate**: SLO ETA p95 < 120s su 1000+ dispatch sim; zero collision in
+sim multi-drone.
+
+## Phase 14 — Intervento attivo logica (sim, no payload) (3-4 settimane)
+
+**Obiettivo**: tutta la logica di intervento attivo in sim. Payload
+hardware reali in Phase 19 (limitato) + post-seed (completo).
+
+### Incendio (priorità 1)
+- **14.A** Logica detection precoce + targeting fonte calore (CV
+  termico già in 10.A).
+- **14.B** Logica sistema spegnimento mirato (sim: payload virtuale).
+- **14.C** Logica coordinamento multi-drone per contenimento
+  perimetrale (da Phase 9 federazione).
+- **14.D** Logica evacuazione assistita (TTS multilingua).
+- **14.E** Stop intervento se aria contaminata o pericolo esplosione
+  (deterministico, parte dello shield 6.A).
+- **14.F** Logica handoff strutturato ad autorità (interfaccia, no
+  call reale).
+
+### Protezione case/terreno (priorità 2)
+- **14.G** Risposta a chiamata SOS da app del proprietario (da 12.B).
+- **14.H** Risposta a sensori IoT mock (da 11.A).
+- **14.I** Ispezione perimetrale on-demand.
+- **14.J** Logica illuminazione perimetrale dissuasiva (sim: faro
+  virtuale).
+- **14.K** Logica live feed criptato proprietario.
+- **14.L** Modalità "viaggio sicuro casa" (drone scorta opt-in).
+- **14.M** Audio bidirezionale per dialogo proprietario↔persona.
+
+### Bene pubblico (priorità 3)
+- **14.N** Logica drone-defibrillatore (sim: payload virtuale).
+- **14.O** Ricerca dispersi con termocamera + CV (sim su scenari
+  sintetici).
+- **14.P** Logica illuminazione zone pubbliche pericolose.
+- **14.Q** Logica supporto Protezione Civile per eventi climatici.
+
+### Fuori MVP
+- **14.R** Sicurezza personale antiaggressione (faro/sirena/tracking).
+  Logica non implementata; placeholder per quando si valuta
+  post-seed.
+
+**Gate**: tutti gli scenari MVP eseguibili in sim, decisioni autonome
+loggate, payload virtuali "attivati" coerentemente.
+
+## Phase 15 — Multi-tenant + business logic + mock payments (2-3 settimane)
+
+**Obiettivo**: software pronto per multi-cliente, pagamenti mockati
+(integrazione reale post-seed).
+
+- **15.A** Multi-tenant: provider per nazione/città/quartiere/compound.
+- **15.B** Piani abbonamento (free, base, premium, family) come schema
+  software con prezzi configurabili per giurisdizione.
+- **15.C** Integrazione billing mock (interfaccia Stripe + Flutterwave
+  + MTN MoMo simulata; switch reale post-seed).
+- **15.D** SLA per piano (tempo risposta garantito; gradient da
+  premium a community).
+- **15.E** Dashboard amministrazione city/government partner (mock
+  data).
+- **15.F** Interfaccia integrazione assicurazioni (mock).
+- **15.G** KPI pubblici (trasparenza: tempi risposta, interventi,
+  falsi positivi).
+- **15.H** White-label code-side (theming, branding).
+
+**Gate**: 3-5 tenant simulati attivi simultaneamente nella sim, ognuno
+con proprio billing/SLA/branding mock.
+
+## Phase 16 — Decision log firmato + cyber security software (2-3 settimane)
+
+**Obiettivo**: tutta la sicurezza software-side. Sicurezza fisica
+(anti-spoof GPS, anti-jam) in Phase 26 post-seed.
+
+- **16.A** Decision log firmato (hash chain immutabile su `events`).
+- **16.B** Explainability completa per ogni decisione autonoma
+  (SHAP / feature attribution / regola applicata, salvata nel decision
+  log) — estende 10.K.
+- **16.C** Chain of custody video/audio software-side per uso
+  giudiziale futuro.
+- **16.D** Anti-hijacking comandi software (firma crittografica
+  end-to-end del piano missione).
+- **16.E** Penetration testing software (bandit + semgrep estesi).
+- **16.F** SBOM completo + supply chain attestation per ogni dependency
+  (estende Phase 6.E cosign).
+
+**Gate**: hash chain verificabile su 30 giorni di sim; pen-test
+software interno passato; SBOM clean.
+
+## Phase 17 — Resilience software (failover, degraded) (2 settimane)
+
+**Obiettivo**: il software gestisce situazioni avverse. Test reali di
+failover regionale post-seed.
+
+- **17.A** Failover regionale (codice + config; cross-region replication
+  attivabile).
+- **17.B** Modalità degraded software (rete cellulare giù → mesh radio
+  drone-to-drone simulato, LoRa backup interface).
+- **17.C** Backup energia logica (gestione drone con dock offline).
+- **17.D** Continuità durante eventi di massa (priority queue
+  emergenza vitale, batch deferral missioni di ronda).
+- **17.E** Disaster mode (sospende SLA normali, prioritizza vite umane).
+
+**Gate**: tutti i fallimenti simulati (kill region, kill bus, kill dock)
+gestiti senza loss di stato critico.
+
+## Phase 18 — Privacy mask + explainability + bias check (2-3 settimane)
+
+**Obiettivo**: chiudere il "compliance software" che serve a girare
+post-seed senza riscritture. La legalità per giurisdizione è in Phase 25
+post-seed; qui le primitive software.
+
+- **18.A** Privacy mask automatica su video (volti, targhe, finestre
+  edifici terzi). Pipeline CV su ogni frame prima della persistenza.
+- **18.B** Diritto all'oblio video: API + UI per richiesta
+  cancellazione, conferma immutabile nel decision log.
+- **18.C** Conservazione dati: retention policy software (cancellazione
+  automatica dopo N giorni, configurabile per giurisdizione).
+- **18.D** Bias check tool: dataset sintetici con varianti
+  demografiche, misura accuracy gap, flag per audit.
+- **18.E** Opt-out cittadini: schema dati + endpoint per registrare
+  preferenza, rispetto in dispatch.
+- **18.F** Trasparenza statistiche pubbliche: API pubblica + dashboard
+  Grafana per metriche aggregate (no PII).
+
+**Gate**: privacy mask attiva su 100% video in sim; bias gap < 5%;
+opt-out rispettato; dashboard pubblica accessibile.
+
+## Phase 19 — Hardware bench su terreno privato del founder (4-10 settimane)
+
+**Obiettivo**: portare TUTTO il software delle Phase 7-18 sul **drone
+vero sul terreno proprio del founder**, generando video reali ad
+altissima densità informativa per il pitch.
+
+**Capitale richiesto**: 5-15k EUR personali del founder (out-of-pocket
+o piccola linea di credito). Non si aspetta seed.
+
+**Setup legale leggero (decisione utente: "freghiamoci di
+regulations")**:
+- Categoria ENAC Open A2/A3 (sotto 25 kg, VLOS, sotto 120m, su
+  proprietà privata recintata con consenso del proprietario =
+  founder stesso). Nessuna autorizzazione speciale richiesta.
+- Patentino pilota drone Open A1/A3 ENAC: gratuito online, 1 giorno.
+- Iscrizione operatore ENAC: gratuita, online.
+- Assicurazione RC droni professionale: €300-800/anno (UnipolSai,
+  AON, brokers specializzati).
+- DPIA leggero per dati personali eventualmente catturati (founder
+  + collaboratori consenzienti = banale).
+- Totale tempo bureaucracy: ~1 settimana.
+
+**Hardware shopping list (5-15k EUR)**:
+- **19.A** 1-2 droni PX4-compatibili:
+  - Holybro X500 V2 (kit ARF ~$700) + autopilot Pixhawk 6X (~$300)
+    + payload bay = base configurabile.
+  - Oppure ModalAI Starling 2 (~$5k) — più caro ma onboard compute
+    pronto.
+  - Telemetria radio SiK 433/915 MHz (~$80 coppia).
+- **19.B** Camera + termocamera:
+  - Visible: Runcam o GoPro Hero (~$200-400).
+  - Termica: FLIR Boson 320 (~$2-3k) o Seek Thermal modulo OEM
+    (~$500-1k) — risoluzione bassa OK per MVP.
+- **19.C** GPS RTK (Ardusimple simpleRTK2B base + rover, ~$600 totale).
+- **19.D** Batterie + spare parts + caricabatterie (€500-1k).
+- **19.E** Docking station prototype "casalinga": ricarica
+  semi-manuale + pannello solare basico. Per MVP basta uno spazio
+  coperto con caricabatterie automatico (€200-500 componenti).
+- **19.F** Sicurezza: estintore CO2 a bordo, kit primo soccorso,
+  elmetto, area zero terzi durante test fuoco. **Non negoziabile**.
+
+**Integrazione hardware → SwarmOS**:
+- **19.G** Validazione Phase 5 sull'hardware reale (MAVLink/PX4):
+  HEARTBEAT, mission upload, RTL, fence enable, param writes tutti
+  verificati col drone reale. Finalmente passa il gate hardware
+  pending della Phase 5.
+- **19.H** CV su feed video reale del drone: fine-tuning leggero
+  YOLOv8 (già allenato in Phase 10) su immagini girate sul terreno
+  per aumentare detection accuracy su scenari italiani specifici.
+- **19.I** Adapter termocamera (FLIR Boson o Seek): integrato come
+  payload secondario, frame termici allineati a frame visibili.
+- **19.J** Onboard compute: Raspberry Pi 5 o Jetson Nano/Orin Nano
+  sul drone per inference CV in volo.
+- **19.K** Tooling registrazione: pipeline che salva ogni volo come
+  bundle (telemetria + video visibile + video termico + decisioni
+  SwarmOS + audio scriptato) per debug e per montaggio pitch.
+
+**Scenari testati sul terreno reale**:
+- **19.L** **Pattugliamento autonomo** del perimetro del terreno:
+  drone decolla, fa la ronda, rientra, si ricarica, da solo. Replica
+  reale di 7-8-9 (autonomy + federation se 2 droni).
+- **19.M** **Detection intrusione**: amico/collaboratore entra nel
+  terreno, drone lo rileva con CV, si avvicina, illumina, manda audio
+  dissuasivo TTS, registra. Replica reale 14.G-M (protezione casa).
+- **19.N** **Detection incendio + intervento minimo**: fuoco
+  controllato in barile metallico (con tutte le sicurezze), drone lo
+  rileva con termocamera, si avvicina, telecamera punta la fonte.
+  Spegnimento attivo **opzionale** (capsula gel se si trova un payload
+  economico e sicuro; altrimenti solo detection + handoff a estintore
+  manuale dietro). Replica reale 14.A-F (incendio).
+- **19.O** **Ricerca soggetto**: amico nascosto in vegetazione del
+  terreno, drone lo trova con termocamera + CV. Replica reale 14.O.
+- **19.P** **Notte + illuminazione**: ronda notturna con faro LED ad
+  alta intensità, detection di soggetti in zone non illuminate.
+- **19.Q** **Multi-drone coordinato**: se in 19.A si comprano 2 droni,
+  test di handoff sciame su scenario pattugliamento. Replica reale 9.
+
+**Output di Phase 19**:
+- **19.R** Video pitch reali (non sim): 5-10 minuti totali di footage
+  girato, pronto per montaggio Phase 20.
+- **19.S** Lessons learned: cosa funziona, cosa va riscritto, metriche
+  realisticamente raggiungibili.
+- **19.T** Lista bug + miglioramenti per backlog post-seed.
+- **19.U** Self-validated SwarmOS che vola davvero — sblocca tutte le
+  affermazioni "we have flown" nel pitch.
+
+**Gate Phase 19**: almeno 10 ore di volo cumulativo, almeno 5 scenari
+testati con successo end-to-end, video raw raccolto, zero incidenti
+con feriti o danni terzi. Nessun pitch parte finché Phase 19 non passa
+questo gate.
+
+## Phase 20 — Materiali pitch con video reali (2-4 settimane)
+
+**Obiettivo**: pacchetto pitch professionale, demo call ready.
+
+- **20.A** Pitch deck 12-15 slide: problema → mercato → soluzione →
+  demo embed (video Phase 19) → traction (=metriche sim + ore di volo
+  reali) → team (=founder + AI stack) → business model → giurisdizione
   + go-to-market Rwanda/Dubai → roadmap → ask + use-of-funds.
-- **8.B** Demo video editato 90s, sottotitolato inglese, per
-  email/LinkedIn/landing.
-- **8.C** Technical whitepaper 15-25 pagine: architettura SwarmOS,
+- **20.B** Demo video editato 90s da raw Phase 19, sottotitolato
+  inglese, per email/LinkedIn/landing.
+- **20.C** Technical whitepaper 15-25 pagine: architettura SwarmOS,
   shield deterministico vs ML, federazione, decision log firmato,
-  perché Rwanda+Dubai. Pubblico target: CTO degli investitori
-  + advisor tecnici.
-- **8.D** One-pager PDF per cold email.
-- **8.E** Financial model Google Sheets, 5 anni:
-  - Costi: hardware (droni + dock), cloud, team, legal/insurance.
-  - Ricavi: abbonamento individuale (Dubai $20-50/mese), municipal
-    contract (Rwanda — paga il governo/donor), insurance partnerships.
-  - Sensitivity: numero abbonati × penetrazione × ARPU.
-  - Break-even per città.
-- **8.F** Business plan 20 pagine: TAM/SAM/SOM, competitive analysis
-  (Zipline, Skydio, Brinc, Hivemapper), unit economics, milestone
-  timeline.
-- **8.G** Landing page (Next.js, hostata su Vercel) con email capture,
+  perché Rwanda+Dubai, evidence dal bench Phase 19.
+- **20.D** One-pager PDF per cold email.
+- **20.E** Financial model Google Sheets, 5 anni (costi, ricavi,
+  break-even per città).
+- **20.F** Business plan 20 pagine.
+- **20.G** Landing page (Next.js, hostata su Vercel) con email capture,
   demo video embed, contatto founder.
-- **8.H** Press kit minimal: logo SVG, screenshot, founder bio,
-  one-pager.
-- **8.I** Profili pubblici: LinkedIn aggiornato, Twitter/X attivo,
-  AngelList/Crunchbase claim.
+- **20.H** Press kit minimal.
+- **20.I** Profili pubblici: LinkedIn, Twitter/X, AngelList/Crunchbase.
 
-**Gate**: pacchetto inviabile a investitore Tier-1 senza vergogna —
-verificato da almeno 1 advisor esterno (anche fractional/payback in
-equity).
+**Gate**: pacchetto inviabile a investitore Tier-1 — verificato da
+almeno 1 advisor esterno.
 
-## Phase 9 — Outreach pre-seed (solo, 4-12 settimane)
+## Phase 21 — Outreach pre-seed (4-12 settimane)
 
-**Obiettivo**: chiudere primo capitale (target 500K-2M EUR pre-seed o
-seed bridge).
+**Obiettivo**: chiudere primo capitale (target 500K-3M EUR pre-seed o
+seed, più alto rispetto a piano precedente perché il prodotto è più
+maturo).
 
-- **9.A** Lista 100 investitori target:
-  - **VC deep-tech UE/USA** con tesi su autonomous systems
-    (Lakestar, NGP Capital, Bessemer, In-Q-Tel, Lockheed Martin
-    Ventures, ecc.).
-  - **VC climate-tech** (per il pitch wildfire/Protezione Civile).
-  - **VC Africa-focused** (Partech Africa, TLcom, Norrsken22 —
-    perfetti per la narrativa Rwanda).
-  - **VC GCC / Middle East** (MEVP, Wamda, Saudi PIF-linked,
-    Mubadala — perfetti per Dubai).
-  - **Angel italiani con exit** (deep-tech background).
-  - **Family office** Gulf + Italian.
-- **9.B** Lista 30 partner potenziali:
-  - **Rwanda**: RCAA (autorità aviazione), MININFRA, Rwanda
-    Development Board, Kigali City, Zipline (potenziale parnership
-    o quanto meno benchmark), Civil Protection Rwanda.
-  - **Dubai**: DCAA, RTA (Roads & Transport), Dubai Civil Defense
-    (incendi), Dubai Police (per coordinamento, non subordinazione),
-    DEWA, EmiratesNBD (insurance).
-  - **Insurance/reinsurance**: SwissRe, Munich Re partnership
-    Africa, Dubai Islamic Insurance.
-- **9.C** Lista 20 advisor potenziali (pagamento equity-only o
-  fractional):
-  - Ex-Zipline operations Rwanda.
-  - Ex-EASA / ex-FAA con esperienza autonomous certification.
-  - Ex-founder con exit deep-tech (preferibile drone/AI).
-  - Ex-VVF/Civil Defense ufficiale.
-  - Legal counsel drone law UAE + UE.
-- **9.D** Cold outreach: email + LinkedIn + intro warm. Target: 30-50
+- **21.A** Lista 100 investitori target:
+  - VC deep-tech UE/USA (Lakestar, NGP Capital, Bessemer, In-Q-Tel,
+    Lockheed Martin Ventures).
+  - VC climate-tech (per wildfire/Protezione Civile).
+  - VC Africa-focused (Partech Africa, TLcom, Norrsken22).
+  - VC GCC / Middle East (MEVP, Wamda, Mubadala, PIF-linked).
+  - Angel italiani con exit deep-tech.
+  - Family office Gulf + Italian.
+- **21.B** Lista 30 partner potenziali:
+  - Rwanda: RCAA, MININFRA, Rwanda Development Board, Kigali City,
+    Zipline (benchmark), Civil Protection Rwanda.
+  - Dubai: DCAA, RTA, Dubai Civil Defense, DEWA, EmiratesNBD.
+  - Insurance: SwissRe, Munich Re Africa, Dubai Islamic Insurance.
+- **21.C** Lista 20 advisor (equity-only o fractional): ex-Zipline,
+  ex-EASA/FAA, ex-founder con exit deep-tech, ex-Civil Defense,
+  legal counsel drone law UAE + UE.
+- **21.D** Cold outreach: email + LinkedIn + intro warm. Target: 30-50
   demo call nei primi 3 mesi.
-- **9.E** Letter of Intent da 3-5 partner potenziali (non vincolanti
-  — servono solo come validazione narrativa per investitori).
-- **9.F** Contatti preliminari regolatori: email/call esplorative con
-  RCAA + Dubai DCAA / GCAA. **Solo esplorative**, niente applicazioni
-  SORA o equivalenti finché non c'è capitale + counsel locale.
-- **9.G** Iterazione pitch su feedback (deck v2, v3, v4 normale).
-- **9.H** Convertire interesse in term sheet.
+- **21.E** Letter of Intent da 3-5 partner potenziali (non vincolanti).
+- **21.F** Contatti preliminari regolatori: email/call esplorative con
+  RCAA + Dubai DCAA / GCAA.
+- **21.G** Iterazione pitch su feedback.
+- **21.H** Convertire interesse in term sheet.
 
 **Gate**: term sheet firmato, oppure 3+ investitori in due diligence
 attiva con LOI verbali.
 
-## Phase 10 — Seed close + team minimo (mesi 6-9)
+## Phase 22 — Seed close + team minimo (mesi 13-18)
 
 **Obiettivo**: trasformarsi da founder solo + AI in azienda operativa
 minima.
 
-- **10.A** Setup legale: holding (probabilmente Delaware o Singapore
-  per investitori internazionali) + opco locale Rwanda e/o Dubai. Counsel
-  locale + counsel corporate USA/SG.
-- **10.B** Closing seed round.
-- **10.C** Prime 3-5 assunzioni in ordine di criticità:
-  1. **CTO / tech-lead senior** (co-decide architettura, libera il
-     founder dal codice quotidiano).
-  2. **ML/CV engineer** (per portare Fase 13 da pretrained a custom).
-  3. **Hardware/integrazione engineer** (per Fase 17).
-  4. **Business development + legal locale** Rwanda o Dubai (per
-     trattative regolatorie + partner).
-  5. **(Opzionale) Operations** Rwanda+Dubai (fractional all'inizio).
-- **10.D** Workspace fisico minimo (anche coworking + lab spazio
-  separato per drone bench).
-- **10.E** Hardware procurement iniziale: 5-10 droni PX4-compatible
-  per test (Holybro X500, ModalAI VOXL2, o equivalente; budget
-  100-200k EUR include payload swap + RTK base + spare parts) +
-  1-2 docking station prototype (BRINC o costruzione custom, valutare
-  partnership).
-- **10.F** Primo pilota concordato con partner pubblico:
-  - **Rwanda preferibile come primo pilota** per AED/ricerca
-    dispersi (più facile da autorizzare, allineamento con Vision
-    2050 Rwanda, Zipline ha già normalizzato il volo BVLOS).
-  - **Dubai parallelo** per wildfire test in zone desertiche
-    extra-urbane (low-risk, no popolazione).
-- **10.G** Apertura cantieri Fasi 11+ in parallelo (con team, non più
-  solo founder).
+- **22.A** Setup legale: holding (probabilmente Delaware o Singapore
+  per investitori internazionali) + opco locale Rwanda e/o Dubai.
+- **22.B** Closing seed round.
+- **22.C** Prime 3-5 assunzioni in ordine di criticità:
+  1. CTO / tech-lead senior.
+  2. ML/CV engineer.
+  3. Hardware/integrazione engineer.
+  4. Business development + legal locale.
+  5. (Opzionale) Operations fractional.
+- **22.D** Workspace fisico minimo.
+- **22.E** Hardware procurement scala: 5-10 droni PX4-compatible
+  + 1-2 docking station prototype.
+- **22.F** Primo pilota concordato con partner pubblico (Rwanda
+  preferibile come primo per AED/ricerca dispersi; Dubai parallelo per
+  wildfire test in zone desertiche extra-urbane).
+- **22.G** Apertura cantieri Fasi 23+ in parallelo.
 
 **Gate**: primo drone reale vola sotto controllo SwarmOS in spazio
-aereo controllato (campo prove privato Dubai o area test Rwanda
-autorizzata).
+aereo controllato in giurisdizione target (campo prove Dubai o area
+test Rwanda autorizzata).
 
 ---
 
-## Phase 11 → Phase 26 — Post-seed execution (con team + capitale)
+## Phase 23 → Phase 30 — Post-seed execution (con team + capitale + giurisdizione attiva)
 
-> Queste 16 fasi sono la traduzione della "visione finale"
-> (infrastruttura urbana autonoma) in esecuzione dopo il seed. Sono
-> **scheletro di pianificazione** — ogni fase qui va espansa con la
-> stessa granularità delle Fasi 0–6 prima dell'esecuzione, con il team
-> in carne ed ossa che è stato hired in Fase 10.
+> Queste 8 fasi sono ciò che richiede genuinamente team, capitale,
+> infrastruttura fisica, autorità locali, o trazione utenti — niente
+> di tutto questo è bootstrappabile da founder solo + AI.
 >
-> Pre-seed (Fasi 7-10) ha già usato slice tattiche di queste fasi per
-> la demo MVP; qui si fa l'esecuzione a regime, con hardware reale,
-> deployment reale, autorità reali.
+> Tutto il software è stato sviluppato in Phase 7-18, validato su
+> hardware in Phase 19, mostrato agli investitori in Phase 20-21, e il
+> seed è chiuso in Phase 22. Le 16 fasi software pre-seed coprono ~90%
+> del codice; post-seed è prevalentemente hardware fisico, partnership,
+> regolatorio, ops.
 >
-> **Focus MVP** (decisione utente 2026-05-18, da Fase 7): incendio +
-> protezione case + bene pubblico. Casi "law-enforcement-adjacent"
-> (inseguimento, abbagliamento aggressori) restano fuori MVP — vengono
-> valutati solo dopo trazione sui casi sopra. Conseguenza pratica:
-> Fase 19 (intervento attivo) è ristrutturata per priorità; Fasi 21+23
-> (compliance pesante, etica) sono trattate come requisito legale
-> locale, non come driver di prodotto.
->
-> **Giurisdizioni**: Rwanda + Dubai prima, eventuale espansione UE/USA
-> dopo trazione (Fase 26).
+> **Giurisdizioni commerciali**: Rwanda + Dubai (UAE) prima. Espansione
+> ulteriore (incluso eventuale rientro UE/USA) in Phase 30.
 
-## Phase 11 — Autonomia decisionale (no operator in the loop)
+## Phase 23 — Infrastruttura docking stations fisica
 
-**Obiettivo**: il sistema decide e agisce da solo su anomalie e missioni.
-L'operatore esiste solo come override. Pre-seed (Fase 7.B) ha già la
-versione deterministica funzionante in sim — qui si porta a maturità in
-produzione.
+**Obiettivo**: rete di docking station strategicamente posizionate sul
+territorio. Software dispatch (Phase 13) e ML positioning algorithm
+(Phase 10) sono già pronti — qui si dispiegano fisicamente.
 
-- **11.A** Inversione default in Console: diventa osservatorio. Le 4
-  intent attuali (`verify / hold-patrol / dismiss / return`) restano
-  come pulsanti di override, non sono più il flusso primario.
-- **11.B** Motore `swarm_os/autonomy.py` produzione: dato un'anomalia +
-  contesto + policy del sito, restituisce decisione `VERIFY | DISMISS
-  | ESCALATE | WAIT`. Soglie deterministiche per partire, classificatore
-  ML in Fase 13.C.
-- **11.B-bis** Modalità ombra obbligatoria per ogni nuovo decisore prima
-  del go-live: decide + logga + confronta con decisione umana per due
-  settimane; flip del default solo quando convergono.
-- **11.C** Hook intervento umano:
-  - Override soft (annulla/modifica decisione autonoma in corso).
-  - Policy nudge a scadenza (alza/abbassa soglie temporaneamente).
-  - Kill switch (atterra tutti i droni; unica eccezione alla regola
-    "no red" del design system; richiede commander + MFA).
-- **11.D** Eyebrow `AUTO` / `OVERRIDE` ovunque nella Console + timeline.
-- **11.E** Decision log firmato (hash chain immutabile su `events`).
-- **11.F** Explainability obbligatoria per ogni decisione autonoma
-  (SHAP / feature attribution salvata nel decision log).
+Profili ambientali distinti: Rwanda (clima collinare, 1500m, piogge) e
+Dubai (deserto, 50°+ estate, polvere, salinità costiera).
 
-**Gate**: una settimana in produzione su un sito Rwanda o Dubai senza
-override umano critici; decisori in shadow mode con < 5% divergenza.
-
-## Phase 12 — Federazione "sciame di sciami"
-
-**Obiettivo**: scalare da un coordinatore singleton a una rete di sciami
-autonomi che collaborano. Pre-seed (Fase 7.F) ha già 2-3 celle in sim;
-qui si fa l'architettura completa.
-
-- **12.A** Nuova entità `Swarm` in `core/swarm_core/messages.py` (id,
-  goal corrente, droni assegnati, area di responsabilità, stato salute).
-- **12.B** `SwarmCellCoordinator` per ogni sciame al posto del singleton
-  `SwarmCoordinator`. Lock per `swarm_id`.
-- **12.C** Bus Redis namespaced per cella: `swarm:cell:<id>:telemetry`,
-  `swarm:cell:<id>:events`.
-- **12.D** `swarm_os/meta_coordinator.py`: assegna obiettivi alle celle
-  (non missioni atomiche ai droni). Bilanciamento carico, copertura,
-  riserva strategica.
-- **12.E** Protocollo mesh inter-sciame: topic `swarm:mesh:offer`,
-  `swarm:mesh:request`, `swarm:mesh:commit`. Algoritmo contract-net per
-  richiesta/offerta aiuto. Trasferimento temporaneo droni tra celle.
-- **12.F** Fusione/scissione dinamica sciami in base alla situazione.
-- **12.G** Backpressure: una cella può rifiutare assegnazioni se sta
-  gestendo un'emergenza locale.
-- **12.H** Multi-site simultaneo in una sola istanza (sostituisce il
-  modello one-site-at-a-time di Phase 6.B). Critico per gestire Rwanda
-  + Dubai in parallelo dalla stessa control plane.
-
-**Gate**: chaos test (kill random di celle) → sistema converge senza
-intervento; latenza inter-cell mesh p95 < 200ms.
-
-## Phase 13 — Intelligenza (ML/AI)
-
-**Obiettivo**: sostituire le regole deterministiche del livello
-decisionale con modelli appresi. Shield deterministico (Fase 6.A) resta
-intatto sotto. Pre-seed (Fase 7.E) ha già modelli pretrained su dataset
-pubblici — qui si addestra su dati propri.
-
-- **13.A** Computer vision on-edge sui droni: YOLOv8 / RT-DETR per
-  detection persone/veicoli/fuoco/animali. Distillazione modello grosso
-  → modello edge. Training su dati propri (incendi sterpaglie Dubai
-  + scenari Rwanda).
-- **13.B** Tracking soggetti (ByteTrack / BoT-SORT) per frame-su-frame.
-- **13.C** Classificatore disposizione anomalie (gradient boosting,
-  leggero, interpretabile, calibrato). Sostituisce le soglie di Fase 11.B.
-- **13.D** Retraining settimanale sugli override umani come label di
-  training oro.
-- **13.E** Reinforcement learning per pattugliamento (PPO o bandit
-  contestuali). Funzione di valore: copertura × novità × rischio − costo.
-- **13.F** Multi-agent RL per allocazione tra sciami (dopo Phase 12).
-- **13.G** Forecast: degrado batterie (importantissimo nel caldo Dubai
-  50°+), meteo nowcasting locale, picchi anomalie (stagioni: harmattan
-  Rwanda, shamal Dubai).
-- **13.H** LLM per briefing turno + spiegazione decisioni +
-  configurazione assistita. Multilingua (EN/AR/KIN). **MAI** safety
-  runtime.
-- **13.I** Pipeline MLOps: model registry, A/B shadow deployment, drift
-  detection, GPU centrale per training.
-- **13.J** Feature store leggero su TimescaleDB esistente.
-- **13.K** Modulo `swarm_os/intelligence/` con classifier, scoring,
-  calibration, explainability.
-
-**Gate**: ogni modello ML ha passato shadow mode + audit di calibrazione
-+ SHAP/attention salvate nel decision log.
-
-## Phase 14 — Detection multimodale automatica
-
-**Obiettivo**: il sistema rileva emergenze senza che nessuno prema un
-pulsante.
-
-- **14.A** Integrazione sensori IoT urbani: microfoni, qualità aria
-  (importante per Dubai polvere/calima), fumo, vibrazioni.
-- **14.B** Detection audio (esplosioni, vetri rotti — modelli tipo
-  ShotSpotter ma per scenari MVP, non gunshot).
-- **14.C** Detection da camere fisse convenzionate (centri commerciali,
-  compound privati abbonati in Dubai; mercati e zone pubbliche in
-  Kigali).
-- **14.D** Fusione multi-sorgente (sensore + camera + segnalazione
-  utente da app).
-- **14.E** Trigger automatico dispatching senza intervento umano.
-- **14.F** Filtro falsi positivi multimodale (rumore singolo ≠
-  emergenza).
-
-**Gate**: tasso falsi positivi < 1% su dataset città-scala di 30 giorni
-in giurisdizione attiva.
-
-## Phase 15 — App cittadino (consumer)
-
-**Obiettivo**: l'utente abbonato (o cittadino in scenari pubblici) può
-chiedere aiuto. Pre-seed (Fase 7.D) ha già un mockup funzionante per la
-demo — qui si porta a livello prodotto.
-
-- **15.A** App nativa iOS/Android (non solo web mobile). Localizzazioni:
-  EN, AR (Dubai), KIN (Rwanda) come minimo.
-- **15.B** Pulsante SOS one-tap con timer "annulla" + anti-misclick.
-- **15.C** SOS silenzioso (movimento, password coercion, shake).
-- **15.D** Geolocalizzazione opt-in.
-- **15.E** Notifiche push: drone in arrivo, ETA, drone sul posto.
-- **15.F** Video live dal drone all'utente (rassicurazione).
-- **15.G** Comunicazione audio bidirezionale utente↔drone (TTS
-  multilingua, voce calma scriptata).
-- **15.H** Storico personale interventi.
-- **15.I** Profilo medico/contatti d'emergenza (per dispatch informato).
-- **15.J** Sharing localizzazione con persone fidate durante emergenza.
-- **15.K** Modalità "viaggio sicuro casa" (drone scorta opt-in
-  perimetrale, non per inseguimento).
-
-**Gate**: tempo da tap-SOS a drone-arrivato p95 < 120s; UX accessibilità
-WCAG AA; pubblicato su Apple App Store + Google Play in entrambe le
-giurisdizioni.
-
-## Phase 16 — Business / abbonamenti
-
-**Obiettivo**: modello di ricavo sostenibile, multi-tenant per Rwanda +
-Dubai con economie diverse.
-
-- **16.A** Multi-tenant: provider per nazione/città/quartiere/compound.
-- **16.B** Piani abbonamento:
-  - Dubai: B2C premium $20-50/mese individuale; B2B compound/villa
-    $200-500/mese; B2G assistenza Civil Defense.
-  - Rwanda: B2G dominante (governo paga per accesso pubblico AED +
-    Civil Protection); B2C low-cost per ceto medio Kigali ($2-5/mese).
-- **16.C** Billing ricorrente: Stripe (Dubai globale), Flutterwave o
-  MTN MoMo (Rwanda), bonifico bancario per B2B/B2G.
-- **16.D** SLA per piano (tempo di risposta garantito; gradient da
-  premium a community).
-- **16.E** Dashboard amministrazione city/government partner.
-- **16.F** Integrazione assicurazioni (sconti polizza per abbonati;
-  Dubai Islamic Insurance, AAR Rwanda).
-- **16.G** KPI pubblici (trasparenza: tempi risposta, interventi, falsi
-  positivi).
-- **16.H** White-label per partner (operatore telecom, banca, sviluppatore
-  immobiliare).
-
-**Gate**: revenue model dimostrabile su un pilota in entrambe le
-giurisdizioni; unit economics positive a 12 mesi proiettati.
-
-## Phase 17 — Infrastruttura fisica (docking stations urbane)
-
-**Obiettivo**: rete di docking station strategicamente posizionate.
-Profili ambientali molto diversi tra Rwanda (clima collinare, 1500m,
-piogge) e Dubai (deserto, 50°+ estate, polvere, salinità costiera).
-
-- **17.A** Hardware docking station weather-proof per due profili
-  ambientali distinti: tropical highland (Rwanda) + desert/coastal
-  (Dubai). Anti-vandalismo.
-- **17.B** Algoritmo posizionamento ottimo (copertura città, ETA target,
-  vincoli legali locali).
-- **17.C** Permessi pubblici: Kigali City + Rwanda Development Board
+- **23.A** Hardware docking station weather-proof per due profili
+  ambientali: tropical highland (Rwanda) + desert/coastal (Dubai).
+  Anti-vandalismo.
+- **23.B** Applicare algoritmo posizionamento Phase 10.E sul layout
+  reale (copertura città, ETA target, vincoli legali locali).
+- **23.C** Permessi pubblici: Kigali City + Rwanda Development Board
   per suolo pubblico; Dubai Municipality + RTA per suolo pubblico;
   accordi con sviluppatori privati (Emaar/Damac Dubai, Vision City
   Rwanda) per palazzi privati.
-- **17.D** Alimentazione (rete + solare backup obbligatorio — Rwanda
+- **23.D** Alimentazione (rete + solare backup obbligatorio — Rwanda
   rete instabile, Dubai sole abbondante; UPS sempre).
-- **17.E** Connettività (4G/5G primaria + LoRaWAN backup; Rwanda ha MTN
-  e Airtel, Dubai ha du e Etisalat).
-- **17.F** Diagnostica remota docking station.
-- **17.G** Manutenzione predittiva (drone + dock).
-- **17.H** Inventory management droni (rotazione, riparazioni,
-  sostituzioni; supply chain hardware da Cina via Dubai hub).
-- **17.I** Carico drone su dock libero più vicino dopo intervento.
+- **23.E** Connettività (4G/5G primaria + LoRaWAN backup; Rwanda ha
+  MTN e Airtel, Dubai ha du e Etisalat).
+- **23.F** Diagnostica remota docking station (software dashboard
+  esistente da Phase 16.A).
+- **23.G** Manutenzione predittiva drone + dock (ML model da Phase 10.G).
+- **23.H** Inventory management droni (rotazione, riparazioni;
+  supply chain hardware da Cina via Dubai hub).
+- **23.I** Carico drone su dock libero più vicino dopo intervento
+  (logica software da Phase 13.A).
 
 **Gate**: densità docking station sufficiente a garantire ETA < 120s
-sul 95% del territorio coperto in zona pilota (quartiere Kigali e
-quartiere Dubai distinti).
+sul 95% del territorio coperto in zona pilota (un quartiere Kigali e
+un quartiere Dubai).
 
-## Phase 18 — Dispatch intelligente città-scala
-
-**Obiettivo**: scegliere il drone giusto e portarlo lì nel tempo target.
-Pre-seed (Fase 7.G) ha già il dispatch in sim — qui si fa city-scale
-reale.
-
-- **18.A** Algoritmo "qual drone mandare" (distanza, batteria, tipo
-  payload, meteo, traffico aereo, vento — Dubai shamal forte).
-- **18.B** Path planning 3D urbano (Dubai grattacieli alti, Kigali
-  topografia collinare, evita palazzi, alberi, linee elettriche, NFZ).
-- **18.C** ETA garantito 1-2 minuti come SLO.
-- **18.D** Backup drone automatico se primo fallisce.
-- **18.E** Dispatch multi-drone con ruoli specializzati.
-- **18.F** Coda priorità (emergenza vitale > incendio > protezione
-  case > ronda).
-- **18.G** Pre-posizionamento predittivo (sposta droni dove probabilmente
-  serviranno, da forecast 13.G).
-- **18.H** Coordinamento traffico aereo locale (altri droni, elisoccorso,
-  Zipline Rwanda se opera ancora). Dubai ha già un quadro UTM nascente.
-
-**Gate**: SLO ETA p95 < 120s su 1000+ dispatch reali per giurisdizione;
-zero near-miss con traffico aereo terzo.
-
-## Phase 19 — Intervento attivo (non solo osservare)
-
-**Obiettivo**: il drone agisce sulla situazione, non solo la documenta.
-
-> **Priorità di prodotto (MVP)**: incendio + protezione case + bene
-> pubblico (defibrillatore, ricerca dispersi). I casi d'uso
-> "law-enforcement-adjacent" (inseguimento sospetti, abbagliamento
-> aggressori) restano **fuori MVP** — vengono valutati solo dopo trazione
-> sui casi a bene pubblico evidente, e probabilmente mai in giurisdizioni
-> dove il rapporto popolazione-polizia è teso.
-
-### Incendio (priorità 1 — MVP)
-- **19.A** Camera termica per detection precoce + targeting fonte calore.
-  Use case prioritario Dubai: incendi sterpaglie/desert vegetation,
-  incendi compound; Rwanda: incendi mercati, incendi mattoneria/cottage
-  industries.
-- **19.B** Sistema spegnimento mirato (capsule polvere/gel/aerosol
-  pulito, non spray indiscriminato; payload sostenibile in clima caldo).
-- **19.C** Coordinamento multi-drone per contenimento perimetrale (da
-  Phase 12 federazione).
-- **19.D** Evacuazione assistita (annunci vocali multilingua, indicazione
-  vie fuga).
-- **19.E** Stop intervento se aria contaminata o pericolo esplosione
-  (deterministico, parte dello shield 6.A).
-- **19.F** Handoff strutturato:
-  - Dubai → Dubai Civil Defense (incendi).
-  - Rwanda → Rwanda National Police / Rwanda Fire & Rescue Brigade.
-
-### Protezione case (priorità 2 — MVP, soprattutto Dubai)
-- **19.G** Risposta a chiamata SOS da app del proprietario (da Phase 15.B).
-- **19.H** Risposta a sensori IoT casa abbonata (fumo, allarme intrusione
-  domotica, vetro rotto — da Phase 14.A).
-- **19.I** Ispezione perimetrale on-demand (proprietario chiede
-  "controlla il giardino"). Use case dominante villa/compound Dubai.
-- **19.J** Illuminazione perimetrale dissuasiva (faro LED ad alta
-  intensità — uso passivo, non puntato su persone).
-- **19.K** Live feed criptato proprietario + (su richiesta esplicita
-  proprietario) handoff alle autorità tramite Phase 20.
-- **19.L** Modalità "viaggio sicuro casa" (drone scorta opt-in
-  perimetrale).
-- **19.M** Audio bidirezionale per dialogo proprietario↔persona
-  presente (es. corriere, vicino, addetto manutenzione).
-
-### Bene pubblico (priorità 3 — MVP, soprattutto Rwanda)
-- **19.N** Drone-defibrillatore per arresti cardiaci (modello già
-  esistente Svezia/Olanda; Rwanda first-mover Africa).
-- **19.O** Ricerca dispersi (bambini, anziani, escursionisti area
-  laghi/vulcani Rwanda; turisti in deserto Dubai) con termocamera + CV.
-- **19.P** Illuminazione zone pubbliche pericolose temporanee (lavori
-  stradali, incidente notturno).
-- **19.Q** Supporto Protezione Civile durante eventi climatici (frane
-  Rwanda stagione piogge, tempeste sabbia Dubai).
-- **19.R** Ricognizione post-evento (allagamenti, frane, incendi
-  spenti) per prioritizzare soccorsi.
-
-### Payload + hardware (trasversale a tutte le priorità)
-- **19.S** Modulo payload swappabile (termocamera, spegnimento,
-  defibrillatore, kit primo soccorso, faro).
-- **19.T** Standardizzazione interfaccia drone↔payload (per terze parti).
-
-### Fuori MVP — valutare solo dopo trazione e contesto locale
-- **19.U** Sicurezza personale antiaggressione (faro/sirena/tracking
-  soggetto in fuga). Richiede compliance Phase 21 completa + accettazione
-  pubblica + valutazione caso per caso giurisdizione.
-
-**Gate MVP**: ogni payload incendio/casa/bene-pubblico ha passato
-sicurezza fisica + approvazione regolatoria locale + insurance coverage.
-Use case 19.U **non parte** finché non c'è trazione + autorizzazione
-specifica per giurisdizione (probabilmente mai in Rwanda; valutabile in
-Dubai con framework chiaro).
-
-## Phase 20 — Integrazione autorità locali
+## Phase 24 — Integrazione autorità locali
 
 **Obiettivo**: il sistema lavora **prima** dei servizi tradizionali,
 mai **al posto** loro. Posizionamento "infrastruttura primo strato",
 non "polizia privata" — coerente con la sensibilità locale.
 
-- **20.A** Chiamata automatica numero emergenza nazionale:
-  - Rwanda: 912 (emergency), 113 (police), 911/912 (medical/fire).
+- **24.A** Chiamata automatica numero emergenza nazionale (codice già
+  pronto da Phase 14.F, qui si firma il contratto con il provider
+  telecomunicazioni che permette l'inoltro):
+  - Rwanda: 912 (emergency), 113 (police), 912 (medical/fire).
   - Dubai: 999 (police), 998 (ambulance), 997 (fire).
-- **20.B** Live feed alle autorità competenti con autenticazione (Dubai
-  Civil Defense per incendi, Rwanda Fire & Rescue + RBC per emergenze
-  mediche).
-- **20.C** Handoff custodia evento (drone passa il "caso" all'umano
+- **24.B** Live feed alle autorità competenti con autenticazione
+  (Dubai Civil Defense per incendi, Rwanda Fire & Rescue + RBC per
+  emergenze mediche). Software pronto da Phase 16.C; qui contratti +
+  endpoint reali.
+- **24.C** Handoff custodia evento (drone passa il "caso" all'umano
   appena arrivano).
-- **20.D** Chain of custody video/audio per uso giudiziale (estende
-  l'hash chain di 11.E).
-- **20.E** API verso centrali operative locali.
-- **20.F** Coordinamento con elisoccorso e altri servizi aerei
+- **24.D** Chain of custody video/audio per uso giudiziale (estende
+  l'hash chain di Phase 16.A).
+- **24.E** API verso centrali operative locali.
+- **24.F** Coordinamento con elisoccorso e altri servizi aerei
   (separazione altitudini).
-- **20.G** Protocollo "stand-down" quando arriva pattuglia (drone si
+- **24.G** Protocollo "stand-down" quando arriva pattuglia (drone si
   ritira o supporta in modo subordinato).
 
 **Gate**: accordo operativo scritto con almeno una autorità per
-giurisdizione (es. Dubai Civil Defense per incendi, Rwanda Civil
+giurisdizione (Dubai Civil Defense per incendi, Rwanda Civil
 Protection per emergenze mediche); protocollo handoff testato in
 esercitazione congiunta.
 
-## Phase 21 — Compliance giurisdizione target
+## Phase 25 — Compliance giurisdizione target
 
-**Obiettivo**: il sistema è legale e auditabile **in Rwanda e Dubai**.
-UE/USA non sono obiettivo prima della Phase 26.
+**Obiettivo**: il sistema è legale e auditabile in Rwanda e Dubai.
+Software privacy/explainability/bias-check è già in Phase 18 — qui si
+fa la parte legale + autorizzazioni + insurance.
 
-- **21.A** Autorizzazione volo BVLOS / autonomo urbano:
+- **25.A** Autorizzazione volo BVLOS / autonomo urbano:
   - **Rwanda**: RCAA — Rwanda Civil Aviation Authority. Quadro
     progressivo, hanno già autorizzato Zipline. Categoria
     "performance-based" applicabile.
   - **Dubai**: DCAA + GCAA federale + Dubai Sky Dome iniziativa.
     Sandbox attivi per droni autonomi.
-- **21.B** Coordinamento traffico aereo: Rwanda RCAA UTM nascente;
+- **25.B** Coordinamento traffico aereo: Rwanda RCAA UTM nascente;
   Dubai SkyHub UTM in pilota — partecipare al pilota se accessibile.
-- **21.C** Privacy data protection:
+- **25.C** Privacy data protection compliance (software già pronto
+  in Phase 18.A privacy mask + 18.B oblio + 18.C retention):
   - **Rwanda**: Law N° 058/2021 (data protection); registrazione
-    presso NCSA. Privacy mask volti/targhe/finestre automatica.
+    presso NCSA.
   - **Dubai**: PDPL (Personal Data Protection Law UAE 2021) + DIFC
-    DP Law se holding DIFC. Stessa privacy mask.
-- **21.D** Conservazione dati: retention policy esplicita per
-  giurisdizione, cancellazione automatica, sovranità dati locale.
-- **21.E** DPIA / equivalent risk assessment pubblicato per ogni città
-  servita.
-- **21.F** Consenso cittadini opt-in (per scenari attivi, non per zona
-  pubblica con privacy mask).
-- **21.G** Diritto all'oblio video (richieste cancellazione).
-- **21.H** Audit indipendente algoritmico annuale (terza parte
-  certificata).
-- **21.I** Compliance uso dispositivi attivi (sirene/luci): valutazione
-  legale locale caso per caso.
-- **21.J** Polizza assicurativa civile multimilionaria (Lloyd's
+    DP Law se holding DIFC.
+- **25.D** Sovranità dati locale (data residency per giurisdizione,
+  region cloud locale).
+- **25.E** DPIA / equivalent risk assessment pubblicato per ogni
+  città servita.
+- **25.F** Consenso cittadini opt-in (per scenari attivi, non per
+  zona pubblica con privacy mask).
+- **25.G** Audit indipendente algoritmico annuale (terza parte
+  certificata; tooling bias-check da Phase 18.D).
+- **25.H** Compliance uso dispositivi attivi (sirene/luci/payload):
+  valutazione legale locale caso per caso.
+- **25.I** Polizza assicurativa civile multimilionaria (Lloyd's
   internazionale + reinsurance locale).
-- **21.K** Accountability cascade chiara (provider → city partner →
+- **25.J** Accountability cascade chiara (provider → city partner →
   utente).
-- **21.L** Public oversight committee per ogni città servita
+- **25.K** Public oversight committee per ogni città servita
   (composizione: cittadini + autorità + advisor).
-- **21.M** Trasparenza pubblica: report quadrimestrale falsi positivi,
+- **25.L** Trasparenza pubblica: report quadrimestrale falsi positivi,
   interventi, danni.
 
 **Gate**: autorizzazione regolatoria scritta da autorità competente per
-ogni città servita. **Bloccante**: senza 21.A non si vola.
+ogni città servita. **Bloccante**: senza 25.A non si vola
+commercialmente.
 
-## Phase 22 — Sicurezza fisica e cyber dei droni
+## Phase 26 — Sicurezza fisica drone in produzione
 
-**Obiettivo**: il sistema resiste ad attacchi attivi. Rilevante
-soprattutto Dubai (target alto-profilo, capacità adversariali
-sofisticate disponibili nella regione).
+**Obiettivo**: difese hardware contro attacchi attivi. Software cyber
+(decision log firmato, anti-hijack firma comandi, SBOM) già pronto in
+Phase 16.
 
-- **22.A** Anti-spoofing GPS (multi-constellation: GPS + GLONASS +
+- **26.A** Anti-spoofing GPS (multi-constellation: GPS + GLONASS +
   Galileo + BeiDou; RTK quando possibile).
-- **22.B** Resistenza a jamming radio (frequency hopping).
-- **22.C** Anti-hijacking comandi (firma crittografica end-to-end).
-- **22.D** Backup comms multi-canale (4G + LoRa + satellite Iridium
+- **26.B** Resistenza a jamming radio (frequency hopping).
+- **26.C** Backup comms multi-canale (4G + LoRa + satellite Iridium
   per fallback assoluto).
-- **22.E** Protezione fisica drone (carrozzeria leggera, fail-safe
+- **26.D** Protezione fisica drone (carrozzeria leggera, fail-safe
   atterraggio, ditching sicuro).
-- **22.F** Decommissioning sicuro se catturato (wipe + brick remoto).
-- **22.G** Difesa anti-drone offensivo (se qualcuno cerca di abbatterli).
-- **22.H** Penetration testing annuale obbligatorio (red team esterno).
-- **22.I** Bug bounty program.
-- **22.J** SBOM completo + supply chain attestation per ogni componente
-  (estende Phase 6.E cosign).
+- **26.E** Decommissioning sicuro se catturato (wipe + brick remoto;
+  trigger da Phase 16.D).
+- **26.F** Difesa anti-drone offensivo (se qualcuno cerca di
+  abbatterli).
+- **26.G** Penetration testing annuale obbligatorio (red team esterno,
+  estende il pen-test software di Phase 16.E).
+- **26.H** Bug bounty program (target hardware + cloud).
+- **26.I** Cosign + Sigstore identity reale per immagini production
+  (estende Phase 6.E + 16.F).
 
-**Gate**: red team esterno (drone hijack + GPS spoof + radio jam) tutti
-falliti, almeno una volta per giurisdizione.
+**Gate**: red team esterno (drone hijack + GPS spoof + radio jam +
+abbattimento fisico) tutti respinti, almeno una volta per giurisdizione.
 
-## Phase 23 — Etica + accettazione locale
+## Phase 27 — Etica e accettazione locale
 
-**Obiettivo**: il sistema è accettato culturalmente nelle giurisdizioni
-target. Le metriche di "accettazione" cambiano profondamente tra Kigali
-(comunità collettivista, post-genocidio, alta fiducia istituzioni) e
-Dubai (multiculturale, transitoria, alta tolleranza tech).
+**Obiettivo**: il sistema è accettato culturalmente. Le metriche di
+"accettazione" cambiano profondamente tra Kigali (comunità
+collettivista, post-genocidio, alta fiducia istituzioni) e Dubai
+(multiculturale, transitoria, alta tolleranza tech).
 
-- **23.A** Bias check algoritmico (più droni in zone povere? falsi
-  positivi su gruppi specifici? — particolarmente delicato Dubai con
-  manodopera espatriata).
-- **23.B** Trasparenza modelli ML (cosa decidono e perché — estende 13.K).
-- **23.C** Diritto a non essere ripreso (opt-out cittadini dove
-  applicabile).
-- **23.D** Community advisory board locale (composizione adatta alla
-  cultura: per Rwanda — leader cellule amministrative + civil society;
-  per Dubai — rappresentanti compound + camere di commercio).
-- **23.E** Comunicazione pubblica chiara (cosa il sistema fa e NON fa);
-  ufficio stampa locale.
-- **23.F** Sondaggi accettazione periodici per quartiere/compound.
-- **23.G** Modalità "drone visibile" (livrea distintiva, luci sempre
+Software-side (bias check, explainability, opt-out cittadini) già
+pronto in Phase 18 — qui si fa la parte community + comunicazione.
+
+- **27.A** Community advisory board locale (Rwanda — leader cellule
+  amministrative + civil society; Dubai — rappresentanti compound +
+  camere di commercio).
+- **27.B** Comunicazione pubblica chiara (cosa il sistema fa e NON
+  fa); ufficio stampa locale.
+- **27.C** Sondaggi accettazione periodici per quartiere/compound
+  (target: > 70% favorevoli a 6 mesi).
+- **27.D** Modalità "drone visibile" (livrea distintiva, luci sempre
   accese, suono identificabile).
-- **23.H** Trasparenza statistiche reali pubblicate, non marketing.
+- **27.E** Pubblicazione trasparente statistiche reali (dashboard
+  pubblica già pronta da Phase 18.F) — no marketing.
+- **27.F** Programma educativo nelle scuole / community center
+  (Rwanda: alta efficacia; Dubai: meno necessario ma utile).
+- **27.G** Risposta strutturata a incidenti pubblici (PR crisis
+  playbook).
 
-**Gate**: community advisory board attivo + accettazione pubblica >
-soglia in sondaggi locali; revisione semestrale.
+**Gate**: community advisory board attivo per ogni città; accettazione
+pubblica > soglia in sondaggi locali; revisione semestrale board.
 
-## Phase 24 — Resilienza e disastri
+## Phase 28 — Resilience operativa
 
-**Obiettivo**: il sistema funziona anche quando il mondo intorno crolla.
+**Obiettivo**: il sistema funziona anche quando il mondo intorno
+crolla. Software failover/degraded/disaster mode già in Phase 17 — qui
+si fanno gli esercizi reali + infra distribuita.
+
 Profili disastro diversi: Rwanda (frane, terremoti minori, piogge);
-Dubai (tempeste sabbia, alluvioni urbane occasionali, eventi tecnologici).
+Dubai (tempeste sabbia, alluvioni urbane occasionali, eventi
+tecnologici).
 
-- **24.A** Failover regionale (region AWS Bahrain o Frankfurt per
-  Dubai; region AWS Cape Town o GCP Johannesburg per Rwanda; cross-
-  region replication).
-- **24.B** Modalità degraded (rete cellulare giù → mesh radio drone-to-
-  drone + LoRa backup).
-- **24.C** Backup energia docking station (batteria 48h+, solare in
-  entrambe le giurisdizioni).
-- **24.D** Continuità durante eventi di massa (terremoto, alluvione,
-  tempesta).
-- **24.E** Disaster mode (sospende SLA normali, prioritizza vite umane).
+- **28.A** Failover regionale operativo: AWS Bahrain o Frankfurt per
+  Dubai; AWS Cape Town o GCP Johannesburg per Rwanda; cross-region
+  replication attiva e testata.
+- **28.B** Test reali modalità degraded (rete cellulare giù → mesh
+  radio drone-to-drone + LoRa backup) — code esiste da Phase 17.B.
+- **28.C** Backup energia docking station verificato sul campo
+  (batteria 48h+, solare).
+- **28.D** Continuità durante eventi di massa (esercitazione
+  terremoto/alluvione/tempesta con comuni partner).
+- **28.E** Disaster mode (Phase 17.E già scritto) attivato in drill
+  almeno una volta per giurisdizione.
+- **28.F** Off-site backup encrypted + restore drill quarterly.
+- **28.G** RTO/RPO dichiarati per giurisdizione e rispettati.
 
-**Gate**: DR drill annuale superato per giurisdizione; RTO/RPO
-dichiarati e rispettati.
+**Gate**: DR drill annuale superato per giurisdizione; RTO < 4h, RPO
+< 1h; restore drill verde.
 
-## Phase 25 — Operazioni & supporto
+## Phase 29 — Operations + supporto
 
 **Obiettivo**: il sistema autonomo ha comunque un'organizzazione umana
 dietro, distribuita tra le giurisdizioni servite.
 
-- **25.A** Operations center 24/7 per fuso orario coperto (Dubai GMT+4
-  + Kigali GMT+2 sono solo 2h di delta — un team unico con shifting
-  funziona).
-- **25.B** Tier 1/2/3 support per cittadini abbonati (multilingua
+- **29.A** Operations center 24/7 per fuso orario coperto (Dubai
+  GMT+4 + Kigali GMT+2 sono solo 2h di delta — un team unico con
+  shifting funziona).
+- **29.B** Tier 1/2/3 support per cittadini abbonati (multilingua
   EN/AR/KIN/FR).
-- **25.C** Onboarding city partner (installazione, calibrazione,
+- **29.C** Onboarding city partner (installazione, calibrazione,
   training operatori locali).
-- **25.D** Programma certificazione tecnici manutenzione locali
-  (riduce dipendenza espatriati).
-- **25.E** Centro ricerca + sviluppo continuo (HQ R&D Dubai o
+- **29.D** Programma certificazione tecnici manutenzione locali
+  (riduce dipendenza espatriati; impegno verso Rwanda Vision 2050 +
+  Emiratisation Dubai).
+- **29.E** Centro ricerca + sviluppo continuo (HQ R&D Dubai o
   Lussemburgo per ragioni fiscali; team distribuiti).
+- **29.F** Apertura ufficio legale + business operations locale per
+  giurisdizione.
 
-**Gate**: SLO supporto p95 < target; turnover tecnici certificati sotto
-soglia.
+**Gate**: SLO supporto p95 < target; turnover tecnici certificati
+sotto soglia; tempo di risoluzione tier-1 < 1h, tier-2 < 4h, tier-3
+< 24h.
 
-## Phase 26 — Espansione
+## Phase 30 — Espansione
 
 **Obiettivo**: scalare oltre Rwanda + Dubai.
 
-- **26.A** Seconda ondata: GCC (Riyadh / NEOM Arabia Saudita, Doha
+- **30.A** Seconda ondata: GCC (Riyadh / NEOM Arabia Saudita, Doha
   Qatar) + East Africa (Nairobi Kenya, Kampala Uganda); copia il
   template Dubai e Rwanda con minimi adattamenti.
-- **26.B** Terza ondata (post-trazione): rientro UE/USA con caso di
+- **30.B** Terza ondata (post-trazione): rientro UE/USA con caso di
   successo dimostrato, dati reali in mano, framework regolatori UE
-  affrontabili (SORA Specific). A questo punto Phase 21 si estende
-  per coprire EASA + GDPR + FAA.
-- **26.C** Adapter vendor multipli (PX4, DJI Enterprise se serve, custom
-  hardware proprietario).
-- **26.D** Marketplace skill plugin (detector specializzati per use
+  affrontabili (SORA Specific). A questo punto Phase 25 si estende per
+  coprire EASA + GDPR + FAA.
+- **30.C** Adapter vendor multipli (PX4, DJI Enterprise se serve,
+  custom hardware proprietario).
+- **30.D** Marketplace skill plugin (detector specializzati per use
   case nuovi: agricoltura precision, monitoraggio infrastrutture).
-- **26.E** Open API per integratori terzi.
-- **26.F** SDK Python/TypeScript.
-- **26.G** Sandbox/demo cloud per prospect.
+- **30.E** Open API per integratori terzi.
+- **30.F** SDK Python/TypeScript per partner.
+- **30.G** Sandbox/demo cloud per prospect.
 
 **Gate**: ogni nuova città servita con stesso codebase + adattamenti
 regolatori locali + community advisory board attivo entro 6 mesi
 dall'avvio.
 
-## Dipendenze tra le fasi 11-26
+## Dipendenze tra le fasi 7-30
 
 ```
-11 (autonomia) ──┬──> 13 (ML)  ──┬──> 18 (dispatch città)
-                 │                │
-                 ├──> 14 (detection multimodale)
-                 │                │
-                 └──> 12 (federazione) ──> 18
-                                  │
-15 (app cittadino) ───────────────┼──> 16 (business)
-                                  │
-17 (docking station) ─────────────┼──> 18 ──> 19 (intervento attivo)
-                                  │
-21 (compliance giurisdizione) ── BLOCKER trasversale per 19, 20, 26
-                                  │
-20 (autorità locali) ────> 19 ────┘
-22 (sicurezza) ── trasversale (richiesto da 19 in poi)
-23 (etica/accettazione) ── trasversale (richiesto da 19 in poi)
-24 (resilienza) ── richiesto prima di 26
-25 (operazioni) ── richiesto per ogni pilot live
+PRE-SEED (solo + AI, nessun investitore necessario):
+7 (sw MVP base) ──> 8 (autonomy) ──┬──> 9 (federazione sim)
+                                    ├──> 10 (ML sim)
+                                    ├──> 11 (detection multimodale sim)
+                                    ├──> 12 (app cittadino)
+                                    ├──> 13 (dispatch sim)
+                                    ├──> 14 (intervento attivo sim)
+                                    ├──> 15 (multi-tenant + biz)
+                                    ├──> 16 (decision log + cyber sw)
+                                    ├──> 17 (resilience sw)
+                                    └──> 18 (privacy + bias + explain sw)
+                                                  │
+                                                  ↓
+                              19 (HARDWARE BENCH su terreno founder)
+                                                  │
+                                                  ↓
+                                          20 (pitch reale)
+                                                  │
+                                                  ↓
+                                          21 (outreach)
+                                                  │
+                                                  ↓
+                                          22 (SEED CLOSE)
+
+POST-SEED (con team + capitale + giurisdizione attiva):
+22 ──┬──> 23 (docking fisico) ──┬──> 30 (espansione)
+     ├──> 24 (autorità locali) ─┤
+     ├──> 25 (compliance) ──────┤ ← BLOCKER per 23, 24, 26
+     ├──> 26 (sicurezza fisica)─┤
+     ├──> 27 (etica/community) ─┤
+     ├──> 28 (resilience ops) ──┤
+     └──> 29 (operations) ──────┘
 ```
 
-**Ordine consigliato di attacco post-seed** (sequenziale dove non
-sganciabile, parallelo dove indipendente):
+**Ordine consigliato di attacco**:
 
-1. **Fase 11** prima di tutto (sblocca semantica autonoma; pre-seed
-   ha già fondamenta deterministiche).
-2. **Fase 13 (ML)** + **Fase 12 (federazione)** in parallelo (branch
-   distinti) — entrambe appoggiate sulla Fase 11.
-3. **Fase 14 (detection multimodale)** dopo 13.A/13.B (CV pronta).
-4. **Fase 15 (app)** in parallelo a tutto (team frontend distinto).
-5. **Fase 17 (docking)** + **Fase 21 (compliance giurisdizione)** in
-   parallelo — 21 è bloccante per il volo reale, deve partire **subito
-   dopo seed close**.
-6. **Fase 18 (dispatch)** richiede 12 + 13.E + 17.
-7. **Fase 19 (intervento attivo)** richiede 21 sbloccata + 22 in piedi.
-8. **Fase 20 (autorità locali)** prima di 19 in produzione.
-9. **Fase 22 (sicurezza)** + **Fase 23 (etica)** trasversali, sempre on.
-10. **Fase 24 (resilienza)** prima di andare oltre la città pilota.
-11. **Fase 25 (ops)** richiesta per pilota.
-12. **Fase 26 (espansione)** ultimo blocco.
+Pre-seed (sequenziale stretto):
+1. Phase 7 sblocca tutto.
+2. Phase 8-18 in parallelo dove possibile, ma realisticamente solo
+   con AI è meglio sequenziale (focus founder = uno alla volta).
+3. Phase 19 SOLO dopo che tutto il software (7-18) ha gate verde.
+4. Phase 20 SOLO dopo Phase 19 con almeno 10 ore di volo reali.
+5. Phase 21-22 sequenziali.
 
-## Caveat sul piano 7-26
+Post-seed (parallelizzabile con team):
+1. Phase 25 (compliance) parte **subito** dopo seed — è il
+   bloccante non-tecnico più lungo.
+2. Phase 23 (docking) + Phase 24 (autorità) in parallelo.
+3. Phase 26 (sicurezza fisica) + Phase 27 (community) trasversali,
+   sempre on.
+4. Phase 28 (resilience ops) richiesta prima del go-live.
+5. Phase 29 (ops) richiesta per pilot live.
+6. Phase 30 (espansione) ultimo blocco.
 
-### Pre-seed (Fasi 7-10) — founder + AI
+## Caveat sul piano 7-30
 
-- **Effort realistico**: 4-6 mesi di lavoro intenso founder + Claude
-  Code + Codex per arrivare a seed.
-- **Bloccante reale**: capacità di chiudere capitale. Il software è
-  veloce, l'outreach investitori no. Iniziare 9.A (lista investitori)
-  in parallelo a 7 fin dal giorno 1.
-- **Rischio principale**: founder burnout. Solo + AI è efficiente ma
-  isolante. Trovare 1-2 advisor presto (Fase 9.C) anche solo per
-  sanity check.
+### Pre-seed (Fasi 7-22) — founder + AI
 
-### Post-seed (Fasi 11-26) — team + capitale + regolatorio
+- **Effort realistico**: 13-18 mesi di lavoro intenso founder + Claude
+  Code + Codex. Software (Phase 7-18) ~9-12 mesi, hardware bench
+  (Phase 19) ~2 mesi, pitch+outreach+seed (Phase 20-22) ~3-5 mesi
+  parallelizzati.
+- **Capitale founder out-of-pocket**: ~10-20k EUR (hardware bench
+  Phase 19 + iscrizioni + assicurazione + viaggi networking pre-seed).
+- **Bloccanti reali**:
+  - **Focus founder**: 9-12 mesi solo su software prima di vedere
+    soldi è lungo. Rischio burnout serio. Mitigazione: trovare
+    1-2 advisor presto (Phase 21.C anticipata anche in fase
+    software), check-in mensili per sanity.
+  - **Lentezza outreach**: anche con tutto pronto, chiudere seed può
+    richiedere 6-12 mesi di outreach. Iniziare Phase 21 lavori
+    preparatori (lista, intro warm) in parallelo a Phase 18-19.
+- **Rischio principale**: il prodotto è tecnicamente pronto ma il
+  mercato/regolatorio Rwanda+Dubai cambia. Mitigazione: contatti
+  esplorativi RCAA + DCAA fin da Phase 21.F.
 
-- **Effort realistico**: 5-10 anni con team da 15-30 persone (ingegneria,
-  ML, hardware, legale, ops) per coprire tutte le 16 fasi su 2
-  giurisdizioni. Le Fasi 0-10 sono ~10% del lavoro totale.
-- **Blocco più duro NON tecnico**: Fase 21 (regolatorio). Rwanda RCAA
-  e Dubai DCAA sono **più rapide** di EASA, ma comunque mesi di
-  procedure. Va affrontata in parallelo all'ingegneria, **non dopo**.
-- **Blocco secondo più duro**: Fase 23 (accettazione locale). Errare
+### Post-seed (Fasi 23-30) — team + capitale + regolatorio
+
+- **Effort realistico**: 3-7 anni con team da 10-25 persone (ingegneria
+  ridotta perché il software è fatto; più hardware, ops, legal,
+  business dev). Il software pre-seed copre ~90% del codice; post-seed
+  è hardware fisico, partnership, regolatorio, ops, scale.
+- **Blocco più duro NON tecnico**: Phase 25 (regolatorio). Rwanda RCAA
+  e Dubai DCAA sono **più rapide** di EASA, ma comunque 6-18 mesi di
+  procedure. Va affrontata in parallelo all'hardware, **non dopo**.
+- **Blocco secondo più duro**: Phase 27 (accettazione locale). Errare
   un'esercitazione pubblica in Kigali o Dubai uccide il prodotto per
   anni. Investire seriamente in community engagement.
-- **Capitale**: hardware (droni + docking) + R&D ML + legale +
-  assicurazioni richiedono seed serio (1-3M EUR per la prima coppia
-  di piloti); Series A 5-15M per scale su entrambe le giurisdizioni.
+- **Capitale**: seed serio (1-3M EUR per coprire Phase 23+25+26+27 a
+  piccola scala); Series A 5-15M per scale su entrambe le giurisdizioni
+  + apertura prima città Phase 30.
 - **Hardware lead time**: 3-6 mesi tipici per quantità (droni custom
   + docking station prototype). Ordinare appena chiuso il seed.
 - **Ordine di esecuzione potrebbe cambiare** in base a feedback
   regolatorio, capitale disponibile, primo pilota concreto. Le Fasi
-  11-26 sono **scheletro decisionale**, non specifica implementativa.
+  23-30 sono **scheletro decisionale**, non specifica implementativa.
 
-Queste 20 fasi totali (4 pre-seed + 16 post-seed) sono **piano vivente**:
-ogni fase, prima di partire, va espansa allo stesso livello di dettaglio
-delle Fasi 0-6 (file specifici, contratti API, test, gate di accettazione).
-Aspettarsi che la roadmap cambi dopo seed close (feedback investitori),
-dopo primo pilota (feedback regolatorio Rwanda/Dubai), e dopo prima
-trazione utenti (feedback prodotto).
+Queste 24 fasi totali (16 pre-seed + 8 post-seed) sono **piano
+vivente**: ogni fase, prima di partire, va espansa allo stesso livello
+di dettaglio delle Fasi 0-6 (file specifici, contratti API, test,
+gate di accettazione). Aspettarsi che la roadmap cambi dopo Phase 19
+(feedback hardware reale), dopo seed close (feedback investitori),
+dopo primo pilota commerciale (feedback regolatorio Rwanda/Dubai), e
+dopo prima trazione utenti (feedback prodotto).
 
 ## Definition of Done dell'intero piano
 
