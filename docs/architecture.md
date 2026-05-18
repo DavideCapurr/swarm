@@ -1,5 +1,8 @@
 # SWARM OS — Architecture
 
+> Primary architecture entrypoint moved to [`docs/architecture/overview.md`](docs/architecture/overview.md).
+> This file is retained for backward-compatible links and the detailed architecture narrative.
+
 ## System diagram
 
 ```
