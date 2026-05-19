@@ -50,9 +50,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install "semgrep>=1.70"
       - name: Run semgrep (advisory)
-        # Phase 0 posture: semgrep with broad rule packs *reports* findings
-        # without failing the build. The signal value is the report itself;
-        # we tighten to blocking in Phase 6 once we've triaged the baseline.
+        # Posture: semgrep with broad rule packs *reports* findings without
+        # failing the build. Bandit + ruff + pip-audit + pnpm audit + Trivy
+        # are the blocking SAST/supply-chain gates that already cover the
+        # OWASP surface. Semgrep is secondary signal across the same code.
+        # The gate stays advisory because the public rule packs can change
+        # between runs (registry-side rule churn) and we don't want that to
+        # red-bar the build before triage. Tightening to blocking is queued
+        # for the Phase 7-prep registry-pinning work (see
+        # docs/security/threat-model.md §S3).
         run: |
           semgrep \
             --config p/security-audit \
@@ -63,4 +69,4 @@ jobs:
             --exclude .next \
             --exclude .venv \
             --exclude tests/fuzz \
-            || echo "::warning::semgrep found issues (advisory for Phase 0)"
+            || echo "::warning::semgrep found issues (advisory — see workflow comment)"

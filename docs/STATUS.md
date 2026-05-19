@@ -14,7 +14,8 @@ of every phase.
 | 3     | Truth Layer (no DERIVED)                              | **done** |
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
-| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **in_progress** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G done; 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H done; 6.I–6.J pending |
+| 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **not started** — see Phase 7 entry criteria below |
 
 ## Phase 0 — completed checklist
 
@@ -301,8 +302,11 @@ explicit phase request.
 - **Phase 5 MAVLink runtime**: **resolved** — `pymavlink>=2.4.40,<3` is
   the wire-protocol library; the adapter is implemented directly on top
   of `mavutil.mavlink_connection` (no MAVSDK, no gRPC, no protobuf).
-- **Phase 6 deploy target**: Kubernetes vs compose-prod — to be decided
-  based on customer requirements.
+- **Phase 6 deploy target**: **resolved** — both paths shipped in Phase
+  6.E. `docker-compose.prod.yml` for single-node bench/customer-pilot
+  deploys, Helm chart at `infra/helm/swarmos/` for Kubernetes. The
+  per-customer choice is documented in `docs/ops/deploy.md`; the repo no
+  longer pre-decides one over the other.
 - **Phase 6 auth provider**: **resolved** — pure JWT HS256 (Phase 6.C);
   OIDC bridge deferred to Phase 6.E as an optional addition when a
   customer needs SSO. See [`docs/security/auth.md`](security/auth.md).
@@ -977,7 +981,97 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 "required to be done in this branch"; they are captured in the drone-day
 checklist and gated on hardware acquisition.
 
+## Phase 7 — entry criteria (pre-flight, 2026-05-19)
+
+Phase 7 ("Software MVP base in simulazione") begins fresh:
+`sim/scenarios/`, `swarm_os/autonomy.py` baseline, Console `AUTO`
+eyebrow, CV baseline, `make demo-*` targets. Before declaring Phase 6
+ready and starting Phase 7, the readiness audit specified in
+`CLAUDE.md` ("When the user asks for a readiness check on a phase")
+was re-run from a clean state on branch
+`claude/fix-phase-7-prep-OeSvj`. Evidence (not claims):
+
+- `rm -rf .venv && uv sync --frozen --extra dev --extra mavlink
+  --extra dji` → clean install; 92+ packages locked.
+- `pnpm install --frozen-lockfile --ignore-scripts` → clean;
+  `.npmrc` `ignore-scripts=true` honored.
+- `ruff check .` → `All checks passed!`
+- `mypy core adapters orchestrator sim backend swarm_os` →
+  `Success: no issues found in 154 source files`.
+- `tsc --noEmit` → green (engine warning Node 22 vs declared 24 — CI
+  consumes `.nvmrc=24`, local web container ships 22; warning only).
+- `pytest -q -m "not load_smoke and not chaos" --cov-fail-under=80`
+  → **625 passed, 16 skipped, 3 deselected**; coverage **88.37%**
+  (vs 80% gate).
+- `vitest run --coverage` → **36 passed / 5 files**; coverage
+  76.5% statements / 82.7% branches (vs 70% gate).
+- `pip-audit --skip-editable` → "No known vulnerabilities found".
+- `bandit -r … --severity-level medium` → 0 medium / 0 high (23 low).
+- `scripts/verify_pymavlink_integrity.py` → PASS, version 2.4.49,
+  36 wheels, 176 record hashes verified offline.
+- `pnpm audit --audit-level=high` → 0 high / 0 critical (2 moderate
+  in dev-only transitive deps — `vitest@2.1.9` → `vite@5.4.21`
+  + `esbuild@0.24.0`; below `make audit` gate threshold; fixing
+  requires bumping to vitest 3+ and is queued for a separate
+  branch alongside the Phase 7 frontend tweaks).
+
+Real infra exercised inside the session:
+
+- Postgres 16 booted natively (no docker daemon in the web
+  container); Timescale extension is **not available** locally so
+  `alembic upgrade head` against the pinned `timescale/timescaledb`
+  image remains a CI-only gate (caveat consistent with Phase 4
+  post-readiness note). Same caveat as before — *not* claimed as
+  validated here.
+- Redis 7 booted natively; bus + WS hub paths exercise the in-memory
+  bus in tests and the real Redis client driver in the load-smoke
+  suite.
+
+Doc + script audit (`CLAUDE.md` rule 3 — failure-swallowing patterns):
+
+- `scripts/dev_up.sh` → fail-fast Alembic step; no `|| true` masks
+  on critical paths.
+- `scripts/backup_restore_drill.sh` → `set -eu`; `|| true`/`|| echo
+  0` are diagnostic-only (row-count trend metrics; schema parity is
+  asserted via `alembic current` vs `alembic heads`).
+- `scripts/chaos/*` → `|| true` only in cleanup traps.
+- `.github/workflows/sast.yml` → semgrep stays advisory; comment
+  updated to reflect Phase 6 completion + the registry-pinning
+  deferral. Blocking SAST/supply-chain gates are bandit, ruff,
+  pip-audit, pnpm audit, Trivy (image-scan).
+
+Doc fixes shipped with this audit:
+
+- STATUS table row 6 → `done` (was `in_progress` with a stale
+  duplicate counter that contradicted the rest of the file).
+- Open decisions → Phase 6 deploy target marked **resolved** (both
+  `docker-compose.prod.yml` and the Helm chart shipped in 6.E;
+  per-customer choice lives in `docs/ops/deploy.md`).
+- 6.J update typo "630 passed" → "625 passed" (matches the re-run
+  evidence above and the earlier section in this file).
+
+Phase 7 is unblocked. Hardware-day and external-asset items
+remain catalogued in `docs/ops/drone-day-checklist.md`.
+
 ## Last updated
+
+2026-05-19: Phase 7-prep readiness audit on branch
+`claude/fix-phase-7-prep-OeSvj`. Re-ran the full gate from a clean
+`.venv` per the `CLAUDE.md` readiness rules. Results: `make lint`
+green, `pytest` 625 passed / 16 skipped / 3 deselected (cov 88.37%),
+`vitest` 36 passed (cov 76.5% / 82.7%), `pip-audit` clean, `bandit`
+0 medium/high, `pnpm audit --audit-level=high` clean (2 moderate in
+dev-only `vitest@2.1.9 → vite@5.4.21 / esbuild@0.24.0` deferred —
+bump to vitest 3+ tracked separately), pymavlink integrity PASS.
+Doc fixes: Phase 6 marked `done` in the status table (the row had a
+stale duplicated counter that contradicted the rest of the file),
+"Phase 6 deploy target" open decision marked **resolved** (both
+deploy paths shipped in 6.E), "Last updated" typo 630 → 625
+(matches the actual pytest output). `sast.yml` semgrep comment
+updated to reflect Phase 6 completion + the registry-pinning
+deferral; semantics unchanged. No code logic touched. Phase 7
+("Software MVP base in simulazione" — 3 scenari + autonomy
+baseline + CV + `make demo-*`) is unblocked.
 
 2026-05-19: Phase 6.J testing finale completed on branch
 `claude/phase-6j-planning-9YCmF`. Added end-to-end suite at
@@ -995,7 +1089,7 @@ OWASP ZAP baseline workflow (HIGH-only fail gate via
 drone-day field items: `docs/security/pentest-scope.md`,
 `docs/operator/acceptance.md`, `docs/ops/drone-day-checklist.md §2.J`.
 Tests: 2 new e2e + 15 new doc-parity + 36 new frontend vitest; full
-backend suite **630 passed / 16 skipped / 3 deselected** (vs 611 /
+backend suite **625 passed / 16 skipped / 3 deselected** (vs 611 /
 16 baseline). `make lint` + `make audit` green; voice / brand audit
 clean on every new file. Drone-day items (real external pen-test
 execution, live operator acceptance, prod-domain ZAP, prod-cluster
