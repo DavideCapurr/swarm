@@ -37,6 +37,7 @@ test-python:
 
 test-frontend:
 	cd frontend && corepack pnpm typecheck
+	cd frontend && corepack pnpm test
 
 # ── run ─────────────────────────────────────────────────────────────────────
 infra:

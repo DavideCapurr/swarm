@@ -86,3 +86,5 @@ jobs:
         run: corepack pnpm audit --audit-level=high
       - name: Type check
         run: corepack pnpm typecheck
+      - name: Vitest (critical-path coverage, Phase 6.J)
+        run: corepack pnpm test
