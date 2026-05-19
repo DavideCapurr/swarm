@@ -117,7 +117,9 @@ testpaths = [
     "swarm_os/tests",
     "tests/fuzz",
     "tests/load",
+    "tests/e2e",
     "tests/test_phase6e_deploy.py",
+    "tests/test_phase6j_testing.py",
 ]
 markers = [
     # Phase 6.F — in-process p95 latency smoke (driven by tests/load/).
@@ -128,6 +130,37 @@ markers = [
     # Phase 6.F — chaos probes that pause/kill an external dep. Not run
     # by default; invoked through `make chaos-redis` / `make chaos-backend`.
     "chaos: external-component chaos probe (Phase 6.F).",
+    # Phase 6.J — end-to-end suite under tests/e2e/. Drives the full
+    # anomaly lifecycle (pending → verifying → verified → escalation →
+    # return → dock) through the real bus + real coordinator + real
+    # FastAPI surface. No internal mocks.
+    "e2e: end-to-end integration test (Phase 6.J).",
+]
+
+[tool.coverage.run]
+# Phase 6.J — backend ≥80% gate. The roadmap excludes paths that need
+# external infra or hardware-only branches; tests themselves are also
+# excluded so the gate measures the SUT, not the harness.
+branch = false
+omit = [
+    "tests/*",
+    "*/tests/*",
+    "sim/*",
+    "*/migrations/*",
+    "backend/app/db/migrations/*",
+    "adapters/mavlink/*",
+    "adapters/dji_cloud/*",
+    "adapters/dji_psdk/*",
+    "adapters/autel/*",
+    "adapters/parrot/*",
+    "adapters/skydio/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
 ]
 
 [tool.bandit]

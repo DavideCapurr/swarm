@@ -27,10 +27,17 @@ lint:
 test: test-python test-frontend
 
 test-python:
-	$(VENV)/bin/pytest -q --cov=core --cov=adapters --cov=orchestrator --cov=swarm_os
+	# Phase 6.J — backend in coverage scope at the 80% gate. Load + chaos
+	# samples are deselected because coverage instrumentation distorts
+	# the latency p95 they assert on; the dedicated `load-smoke` /
+	# `chaos-*` targets run them without coverage.
+	$(VENV)/bin/pytest -q -m "not load_smoke and not chaos" \
+		--cov=core --cov=adapters --cov=orchestrator --cov=swarm_os --cov=backend \
+		--cov-report=term-missing --cov-fail-under=80
 
 test-frontend:
 	cd frontend && corepack pnpm typecheck
+	cd frontend && corepack pnpm test
 
 # ── run ─────────────────────────────────────────────────────────────────────
 infra:

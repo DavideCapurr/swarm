@@ -147,8 +147,10 @@ https://github.com/DavideCapurr/swarm/security/advisories/new
 - WebSocket contract: [`docs/api/ws-contract.md`](docs/api/ws-contract.md)
 - Operator guide: [`docs/operator/manual.md`](docs/operator/manual.md)
 - Operator training: [`docs/operator/training.md`](docs/operator/training.md)
+- Operator acceptance runbook: [`docs/operator/acceptance.md`](docs/operator/acceptance.md)
 - Ops runbook index: [`docs/ops/runbook.md`](docs/ops/runbook.md)
 - Security disclosure: [`docs/security/disclosure.md`](docs/security/disclosure.md)
+- External pen-test scope: [`docs/security/pentest-scope.md`](docs/security/pentest-scope.md)
 - Compliance baseline: [`docs/compliance/gdpr.md`](docs/compliance/gdpr.md), [`docs/compliance/retention.md`](docs/compliance/retention.md), [`docs/compliance/dpa-template.md`](docs/compliance/dpa-template.md), [`docs/compliance/drone-regulations.md`](docs/compliance/drone-regulations.md)
 - Developer onboarding + release: [`docs/dev/onboarding.md`](docs/dev/onboarding.md), [`docs/dev/release-process.md`](docs/dev/release-process.md)
 

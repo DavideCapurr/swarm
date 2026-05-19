@@ -48,3 +48,6 @@ logs/
 data/
 *.sqlite
 *.db
+
+# Phase 6.J — Vitest coverage output
+frontend/coverage/
