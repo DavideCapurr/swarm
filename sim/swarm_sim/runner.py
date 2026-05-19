@@ -13,6 +13,7 @@ import asyncio
 import logging
 import os
 import signal
+from pathlib import Path
 from typing import Any
 
 from swarm_core.messages import Anomaly, FleetState
@@ -92,11 +93,21 @@ async def _tick_world(world: World, hz: float) -> None:
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
-    n_drones = int(os.getenv("SIM_DRONES", "3"))
-    hz = float(os.getenv("SIM_TICK_HZ", "10"))
-    ignition_after_s = float(os.getenv("SIM_IGNITION_AT_S", "10"))
+    scenario_path = os.getenv("SIM_SCENARIO")
+    if scenario_path:
+        from sim.swarm_sim.scenario import load_scenario
 
-    world = World.vineyard(n_drones=n_drones, ignition_after_s=ignition_after_s)
+        scenario = load_scenario(Path(scenario_path))
+        world = scenario.build_world()
+        hz = scenario.tick_hz
+        n_drones = scenario.fleet.n_drones
+        logger.info("loaded scenario %s (%d drones, %d anomalies)",
+                    scenario.id, n_drones, len(scenario.anomalies))
+    else:
+        n_drones = int(os.getenv("SIM_DRONES", "3"))
+        hz = float(os.getenv("SIM_TICK_HZ", "10"))
+        ignition_after_s = float(os.getenv("SIM_IGNITION_AT_S", "10"))
+        world = World.vineyard(n_drones=n_drones, ignition_after_s=ignition_after_s)
     registry = AdapterRegistry()
 
     bus: Bus

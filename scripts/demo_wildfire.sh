@@ -9,6 +9,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Phase 7.A: scenario YAML is the primary path. When SIM_SCENARIO is set,
+# SIM_DRONES / SIM_IGNITION_AT_S / SIM_TICK_HZ are ignored by the runner
+# (kept here for back-compat with anyone unsetting SIM_SCENARIO manually).
+export SIM_SCENARIO="${SIM_SCENARIO:-sim/scenarios/wildfire_owner_land.yaml}"
 export SIM_DRONES=3
 export SIM_IGNITION_AT_S=10
 export SIM_TICK_HZ=10

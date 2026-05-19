@@ -115,6 +115,7 @@ testpaths = [
     "orchestrator/swarm_orchestrator/tests",
     "backend/tests",
     "swarm_os/tests",
+    "sim/swarm_sim/tests",
     "tests/fuzz",
     "tests/load",
     "tests/e2e",

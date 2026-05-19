@@ -1,0 +1,28 @@
+id: search_owner_land
+name: "Search — owner land"
+description: |
+  Low-confidence heat-spot signature (body heat) detected within a ~10 ha
+  rectangular search area. Multi-drone thermal + RGB sweep for missing
+  subject. Replicable on the founder site in Phase 19.
+tick_hz: 10
+anchor:
+  # Placeholder coords — Langhe vineyard, same as DEFAULT_DOCK in
+  # sim/swarm_sim/world.py:20. Phase 19 swaps these for the founder site
+  # coords (gitignored or env-overridden, never committed).
+  lat: 44.7000
+  lon: 8.0300
+  alt_m: 0.0
+plot:
+  shape: rectangle
+  width_m: 400.0
+  height_m: 250.0
+fleet:
+  n_drones: 3
+  dock_offset_m: { east: 0.0, north: 0.0 }
+perception:
+  territory_radius_m: 250.0
+anomalies:
+  - after_s: 20.0
+    kind: HEAT_SPOT
+    position: { mode: offset_m, east: 120.0, north: 60.0 }
+    confidence: 0.55

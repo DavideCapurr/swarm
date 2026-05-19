@@ -1,0 +1,32 @@
+id: wildfire_owner_land
+name: "Wildfire — owner land"
+description: |
+  Low-confidence smoke detected on ~2 ha rectangular owner land; rises to
+  verified fire 15 s later. Multi-drone perimeter containment scenario.
+  Replicable on the founder site in Phase 19 by swapping anchor coords.
+tick_hz: 10
+anchor:
+  # Placeholder coords — Langhe vineyard, same as DEFAULT_DOCK in
+  # sim/swarm_sim/world.py:20. Phase 19 swaps these for the founder site
+  # coords (gitignored or env-overridden, never committed).
+  lat: 44.7000
+  lon: 8.0300
+  alt_m: 0.0
+plot:
+  shape: rectangle
+  width_m: 200.0
+  height_m: 100.0
+fleet:
+  n_drones: 3
+  dock_offset_m: { east: 0.0, north: 0.0 }
+perception:
+  territory_radius_m: 150.0
+anomalies:
+  - after_s: 10.0
+    kind: SMOKE
+    position: { mode: offset_m, east: 40.0, north: 25.0 }
+    confidence: 0.62
+  - after_s: 25.0
+    kind: FIRE
+    position: { mode: offset_m, east: 40.0, north: 25.0 }
+    confidence: 0.88
