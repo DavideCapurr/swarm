@@ -5,6 +5,12 @@ on:
     branches: ["**"]
   pull_request:
 
+# Cancel an in-progress run when a newer commit lands on the same ref.
+# Saves runner minutes on fast push cycles without changing semantics.
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # S5: GITHUB_TOKEN least-privilege. Lint workflow only needs to clone the
 # repo; no write to issues, packages, or anything else.
 permissions:

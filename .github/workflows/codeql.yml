@@ -9,6 +9,12 @@ on:
     # deps that landed without our involvement.
     - cron: "23 4 * * 1"
 
+# Cancel an in-progress CodeQL run when a newer commit lands on the same
+# ref; weekly schedule runs are never cancelled.
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
 permissions:
   contents: read
   security-events: write
