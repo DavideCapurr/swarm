@@ -396,6 +396,50 @@ External-asset / operator-side items still to do:
 - [ ] **Annual DPIA review** — controller-side, against the updated
       data inventory and threat model.
 
+### 2.J Testing finale (Phase 6.J — code-complete; field items remain)
+
+Code landed: end-to-end suite at
+[`tests/e2e/`](../../tests/e2e/test_anomaly_lifecycle.py) (PENDING →
+VERIFYING → VERIFIED → ESCALATION → RETURN → DOCKED via the real bus +
+coordinator, no internal mocks), backend coverage gate at 80% in
+`Makefile` + `.github/workflows/test.yml`, frontend critical-path
+coverage at 70% on `lib/auth.tsx`, `lib/api.ts`, `lib/ws.ts`,
+`components/EmergencyStop.tsx`, `components/AuthGate.tsx` via Vitest,
+monthly chaos workflow at `.github/workflows/chaos-test.yml`, OWASP
+ZAP baseline workflow at `.github/workflows/zap-baseline.yml` with a
+HIGH-only fail gate (`scripts/ci/zap_fail_on_high.py`), external
+pen-test scope at [`docs/security/pentest-scope.md`](../security/pentest-scope.md),
+operator acceptance runbook at [`docs/operator/acceptance.md`](../operator/acceptance.md).
+
+External-asset / field items still to do on drone-day:
+
+- [ ] **External pen-test executed** — engage a qualified provider per
+      [`docs/security/pentest-scope.md`](../security/pentest-scope.md);
+      zero CRITICAL and no HIGH unmitigated before sign-off. Tester
+      receives the operator + commander + viewer accounts described
+      in that scope doc, revoked at engagement close.
+- [ ] **Live operator acceptance** — a real operator runs scenarios
+      A–J of [`docs/operator/acceptance.md`](../operator/acceptance.md)
+      on the customer site (Langhe vineyard for the first deployment),
+      with sign-off captured in the table at the bottom of that doc.
+      Cross-links to §4 (customer / operator acceptance) below for the
+      hardware-day demo checklist.
+- [ ] **ZAP prod scan** — re-run the baseline against the TLS-bound
+      production hostname (`https://<site>.swarm.example`). The CI
+      workflow scans the local backend only; CSP nonce evaluation,
+      HSTS, and the real cert chain only show up against the public
+      surface. Cross-links to §2.E (deploy / TLS).
+- [ ] **Chaos prod drill** — execute the chaos workflow against the
+      live cluster (Sentinel failover, Patroni primary loss, network
+      partition between regions). The CI workflow exercises a local
+      docker-compose stack; the prod failure modes only surface
+      against real replication and a real network. Cross-links to
+      §2.G (resilience / DR).
+- [ ] **Coverage drift watch** — Phase 7+ contributors keep the
+      backend gate at 80% and the frontend critical-path gate at 70%.
+      The CI is the enforcer; this checkbox is the reminder during
+      hardware-day audit that the gates are still wired.
+
 ## 3. Field calibration
 
 - [ ] Compass + accel calibration done in QGroundControl, parameters
