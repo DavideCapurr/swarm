@@ -1,0 +1,145 @@
+name: zap-baseline
+
+# Phase 6.J — dynamic security baseline scan.
+#
+# Boots postgres + redis (service containers), brings the backend up
+# on the runner host, then runs the OWASP ZAP baseline against the
+# live HTTP surface. The scan publishes its JSON + HTML report as a
+# CI artifact and fails the build on any HIGH (riskcode >= 3)
+# finding via scripts/ci/zap_fail_on_high.py. Medium / Low / Info
+# findings stay in the artifact for triage but never block merge.
+#
+# Triggers: pull_request, push to main, workflow_dispatch. No
+# schedule — the scan adds ~3 min to PR CI; the production-domain
+# scan (TLS, real headers, real CSP nonce) is a drone-day item in
+# docs/ops/drone-day-checklist.md §2.J.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: timescale/timescaledb@sha256:51eb3bcdfc41f481c797026813d9d457fb5cbc8ea370a65640d8cda13a4040c1
+        env:
+          POSTGRES_USER: swarm
+          POSTGRES_PASSWORD: swarm
+          POSTGRES_DB: swarm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U swarm"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+      redis:
+        image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+asyncpg://swarm:swarm@localhost:5432/swarm
+      REDIS_URL: redis://localhost:6379/0
+      SWARM_ENV: dev
+      SWARM_AUTH_DISABLED: "0"
+    steps:
+      # S4: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # S4: actions/setup-python@v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      # astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python deps
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+
+      - name: Bootstrap auth (dev operator + JWT secret)
+        run: |
+          ./scripts/bootstrap_auth_dev.sh
+          set -a
+          . ./.env
+          set +a
+          echo "SWARM_JWT_SECRET=${SWARM_JWT_SECRET}" >> "$GITHUB_ENV"
+
+      - name: Apply DB migrations
+        run: uv run alembic upgrade head
+
+      - name: Start backend (background)
+        run: |
+          mkdir -p artifacts
+          nohup uv run uvicorn backend.app.main:app \
+            --host 0.0.0.0 --port 8765 \
+            > artifacts/backend.log 2>&1 &
+          echo $! > artifacts/backend.pid
+
+      - name: Wait for /ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 1 http://127.0.0.1:8765/ready >/dev/null; then
+              echo "ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend never became ready" >&2
+          cat artifacts/backend.log >&2 || true
+          exit 1
+
+      - name: Run ZAP baseline scan
+        # ghcr.io/zaproxy/zaproxy:stable resolved 2026-05-19.
+        # `-I` continues past INFO-level findings; HIGH gating happens
+        # in the post-step (scripts/ci/zap_fail_on_high.py).
+        # `--network host` lets the container reach 127.0.0.1:8765.
+        run: |
+          mkdir -p artifacts
+          docker run --rm \
+            --network host \
+            -v "$PWD/artifacts:/zap/wrk:rw" \
+            -t ghcr.io/zaproxy/zaproxy@sha256:8770b23f9e8b49038f413cb2b10c58c901e5b6717be221a22b1bcab5c9771b8a \
+            zap-baseline.py \
+              -t http://127.0.0.1:8765 \
+              -r zap-report.html \
+              -J zap-report.json \
+              -m 5 -I || true
+          # ZAP exits with non-zero codes for WARN/FAIL findings; we
+          # gate on High alone via the post-step script.
+
+      - name: Fail on HIGH findings
+        run: python3 scripts/ci/zap_fail_on_high.py artifacts/zap-report.json
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f artifacts/backend.pid ]; then
+            kill -TERM "$(cat artifacts/backend.pid)" || true
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        # S4: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: zap-baseline-report
+          path: |
+            artifacts/zap-report.html
+            artifacts/zap-report.json
+            artifacts/backend.log
+          retention-days: 30
