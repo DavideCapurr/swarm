@@ -1,0 +1,148 @@
+name: chaos-test
+
+# Phase 6.J — monthly chaos drill.
+#
+# Boots Postgres + Redis via docker-compose (so the redis-pause drill
+# can `docker compose pause redis`), starts the backend on the runner
+# host, then runs both Phase 6.F chaos drills sequentially:
+#
+#   1. backend-kill — SIGTERM the live uvicorn, restart it, assert the
+#      Console WS reconnect happens within 6 s (RECONNECT_MS <= 6000).
+#   2. redis-pause — pause the redis container for 8 s, assert /health
+#      keeps returning 200 throughout.
+#
+# Cron sits at 06:23 UTC on the 1st of each month — off-window from the
+# weekly load-test (Mon 04:17 UTC) and the daily image-scan (11:03 UTC).
+# Drone-day items (real cluster chaos drill, Sentinel failover, Patroni
+# failover) live in docs/ops/drone-day-checklist.md §2.J.
+
+on:
+  schedule:
+    - cron: "23 6 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chaos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql+asyncpg://swarm:swarm@localhost:5432/swarm
+      REDIS_URL: redis://localhost:6379/0
+      SWARM_ENV: dev
+      SWARM_AUTH_DISABLED: "0"
+      SWARM_LOAD_USER: op-operator01
+      SWARM_LOAD_PASSWORD: swarm-dev
+    steps:
+      # S4: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # S4: actions/setup-python@v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      # astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python deps
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+
+      - name: Bring up infra (postgres + redis via docker compose)
+        # docker-compose is the redis-pause drill's prerequisite — service
+        # containers cannot be `docker compose pause`'d. The same compose
+        # file is what `make infra` brings up locally.
+        run: |
+          docker compose up -d postgres redis
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U swarm >/dev/null 2>&1 \
+               && docker compose exec -T redis redis-cli ping >/dev/null 2>&1; then
+              echo "infra ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "infra never became ready" >&2
+          docker compose logs >&2 || true
+          exit 1
+
+      - name: Bootstrap auth (dev operator + JWT secret)
+        run: |
+          ./scripts/bootstrap_auth_dev.sh
+          set -a
+          . ./.env
+          set +a
+          echo "SWARM_JWT_SECRET=${SWARM_JWT_SECRET}" >> "$GITHUB_ENV"
+
+      - name: Apply DB migrations
+        run: uv run alembic upgrade head
+
+      - name: Start backend (background)
+        run: |
+          mkdir -p artifacts
+          nohup .venv/bin/uvicorn backend.app.main:app \
+            --host 0.0.0.0 --port 8765 \
+            > artifacts/backend.log 2>&1 &
+          echo $! > artifacts/backend.pid
+
+      - name: Wait for /ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 1 http://127.0.0.1:8765/ready >/dev/null; then
+              echo "ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend never became ready" >&2
+          cat artifacts/backend.log >&2 || true
+          exit 1
+
+      - name: Chaos drill — backend SIGTERM + reconnect
+        run: |
+          # The script kills the running backend, restarts it, and asserts
+          # the WS reconnect SLO. Output is captured into artifacts/ so a
+          # failure has the probe log handy.
+          ./scripts/chaos/backend_kill.sh 2>&1 | tee artifacts/chaos-backend.log
+
+      - name: Wait for /ready (post-restart)
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 1 http://127.0.0.1:8765/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend did not recover post-restart" >&2
+          exit 1
+
+      - name: Chaos drill — redis pause + /health invariant
+        run: |
+          ./scripts/chaos/redis_pause.sh 2>&1 | tee artifacts/chaos-redis.log
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f artifacts/backend.pid ]; then
+            kill -TERM "$(cat artifacts/backend.pid)" || true
+          fi
+          pkill -f "backend.app.main" || true
+
+      - name: Tear down infra
+        if: always()
+        run: docker compose down -v || true
+
+      - name: Upload artifacts
+        if: always()
+        # S4: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chaos-test-artifacts
+          path: |
+            artifacts/backend.log
+            artifacts/chaos-backend.log
+            artifacts/chaos-redis.log
+          retention-days: 30
