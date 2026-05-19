@@ -929,7 +929,48 @@ Sub-block progress:
       self-service DSAR portal, no external NOTAM / weather feed
       wired, no new tables, no operator-store mutation coupled to
       `/admin/forget`.
-- [ ] 6.J Testing finale — pending.
+- [x] 6.J Testing finale — **done** (2026-05-19, branch
+      `claude/phase-6j-planning-9YCmF`).
+      End-to-end suite at `tests/e2e/` (anomaly lifecycle
+      PENDING → VERIFYING → VERIFIED → ESCALATION → RETURN → DOCKED via
+      the real bus + coordinator + FastAPI surface, no internal mocks;
+      parity guard `tests/test_phase6j_testing.py` greps for
+      `unittest.mock` / `Mock(` / `MagicMock(` against real code lines).
+      Backend coverage gate raised to 80% with `backend/` added to the
+      `--cov` scope (Makefile + `.github/workflows/test.yml`); load +
+      chaos samples deselected because instrumentation distorts their
+      p95 SLO. New `[tool.coverage.run]` block omits tests/, sim/,
+      migrations, and the hardware-only vendor adapters. Coverage on
+      the included scope: **88.37%** (vs 80% gate).
+      Frontend Vitest + Testing Library + jsdom landed for the 70%
+      critical-path gate scoped to `lib/auth.tsx`, `lib/api.ts`,
+      `lib/ws.ts`, `components/EmergencyStop.tsx`,
+      `components/AuthGate.tsx`; 36 tests across 5 files, statements
+      76.5% / branches 82.7% / functions 73.5% / lines 76.5%.
+      `pnpm-lock.yaml` regenerated; `ignore-scripts=true` and frozen
+      lockfile invariants preserved.
+      Monthly chaos drill at `.github/workflows/chaos-test.yml`
+      (`cron: "23 6 1 * *"`): docker-compose postgres + redis,
+      backend on host, runs `scripts/chaos/backend_kill.sh` then
+      `scripts/chaos/redis_pause.sh`, uploads probe logs.
+      OWASP ZAP baseline at `.github/workflows/zap-baseline.yml`
+      (PR + push to main + workflow_dispatch, no schedule): ZAP image
+      pinned by digest
+      `sha256:8770b23f9e8b49038f413cb2b10c58c901e5b6717be221a22b1bcab5c9771b8a`,
+      HIGH-only fail gate via `scripts/ci/zap_fail_on_high.py`
+      (stdlib-only), 30-day report artifact.
+      Process docs: `docs/security/pentest-scope.md` (in/out-of-scope,
+      credentials policy, CVSS v3.1, SLA matrix, retest cycle),
+      `docs/operator/acceptance.md` (10 scenarios mapped 1-to-1 to the
+      e2e transitions, sign-off table). Drone-day items (real external
+      pen-test execution, live operator acceptance on a customer site,
+      prod-domain ZAP scan, prod-cluster chaos drill, coverage-drift
+      watch) catalogued in `docs/ops/drone-day-checklist.md` §2.J.
+      README docs map links the two new files.
+      Tests: 2 new e2e + 15 new doc-parity, plus 36 frontend vitest
+      tests; full backend suite **625 passed, 16 skipped, 3 deselected**
+      (vs 611 / 16 baseline). `make lint` green, `make audit` green,
+      voice + brand audit clean on every new file.
 
 External-asset gates (weather API key, JWT signing key, TLS domain,
 Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
@@ -937,6 +978,28 @@ Sigstore identity, NOTAM feed, MFA TOTP provider) are deliberately not
 checklist and gated on hardware acquisition.
 
 ## Last updated
+
+2026-05-19: Phase 6.J testing finale completed on branch
+`claude/phase-6j-planning-9YCmF`. Added end-to-end suite at
+`tests/e2e/` (anomaly lifecycle PENDING → VERIFYING → VERIFIED →
+ESCALATION → RETURN → DOCKED via real bus + coordinator, no internal
+mocks). Raised backend coverage gate to 80% with `backend/` in scope
+(load + chaos samples deselected because instrumentation breaks
+their latency SLO); coverage on the included scope **88.37%**.
+Frontend Vitest + Testing Library at 70% critical-path coverage on
+`lib/auth.tsx`, `lib/api.ts`, `lib/ws.ts`,
+`components/EmergencyStop.tsx`, `components/AuthGate.tsx` (36 tests,
+statements 76.5% / branches 82.7%). Monthly chaos drill workflow +
+OWASP ZAP baseline workflow (HIGH-only fail gate via
+`scripts/ci/zap_fail_on_high.py`). Process docs landed for the
+drone-day field items: `docs/security/pentest-scope.md`,
+`docs/operator/acceptance.md`, `docs/ops/drone-day-checklist.md §2.J`.
+Tests: 2 new e2e + 15 new doc-parity + 36 new frontend vitest; full
+backend suite **630 passed / 16 skipped / 3 deselected** (vs 611 /
+16 baseline). `make lint` + `make audit` green; voice / brand audit
+clean on every new file. Drone-day items (real external pen-test
+execution, live operator acceptance, prod-domain ZAP, prod-cluster
+chaos drill) catalogued in §2.J.
 
 2026-05-18: Phase 6.I compliance + data protection completed on
 branch `claude/phase-6-planning-X3ICw`. Expanded

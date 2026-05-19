@@ -27,6 +27,16 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from adapters.base import AdapterRegistry
+from adapters.simulated.adapter import SimulatedAdapter
+from backend.app.api.actions import _emergency_limiter, _limiter
+from backend.app.api.actions import router as actions_router
+from backend.app.api.routes import public_router as public_api_router
+from backend.app.api.routes import router as api_router
+from backend.app.bus_consumer import BusConsumer
+from backend.app.db import Repository, set_repository
+from backend.app.ws.telemetry import WSHub
+
 # Re-export the JWT/operator-store fixtures from the backend test suite so
 # pytest picks them up under tests/e2e/ without duplicating wiring. The
 # `auth_env` fixture is autouse in the backend conftest and stays autouse
@@ -40,16 +50,6 @@ from backend.tests.conftest import (  # noqa: F401
     token_factory,
     viewer_headers,
 )
-
-from adapters.base import AdapterRegistry
-from adapters.simulated.adapter import SimulatedAdapter
-from backend.app.api.actions import _emergency_limiter, _limiter
-from backend.app.api.actions import router as actions_router
-from backend.app.api.routes import public_router as public_api_router
-from backend.app.api.routes import router as api_router
-from backend.app.bus_consumer import BusConsumer
-from backend.app.db import Repository, get_repository, set_repository
-from backend.app.ws.telemetry import WSHub
 from sim.swarm_sim.world import World
 from swarm_os import COORDINATOR, SWARM_STATE
 

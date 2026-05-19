@@ -119,6 +119,7 @@ testpaths = [
     "tests/load",
     "tests/e2e",
     "tests/test_phase6e_deploy.py",
+    "tests/test_phase6j_testing.py",
 ]
 markers = [
     # Phase 6.F — in-process p95 latency smoke (driven by tests/load/).
