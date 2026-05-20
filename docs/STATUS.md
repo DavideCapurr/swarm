@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **not started** — see Phase 7 entry criteria below |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C/7.D/7.E pending |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,40 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-20: Phase 7.B autonomy baseline landed on branch
+`claude/autonomy-baseline-sim-X51Id`. Three new deterministic rules in
+`swarm_os/autonomy.py` (R1 auto-VERIFY at conf>=0.50 + age>=2 s, R2
+auto-ESCALATE at conf>=0.80 + idle>=10 s, R3 auto-DISMISS at
+conf<0.30 + age>=30 s) dispatch through the existing operator
+command bus via a new lock-free `submit_locked` helper — same
+audit log, same Phase 6.A policy gate (geofence / battery / link /
+weather), same MissionView lifecycle. `OperatorCommand.source`
+distinguishes "operator" vs "autonomy" rows; Phase 7.C will read
+this field for the Console `AUTO` eyebrow. Additive Alembic
+migration `0003_phase7b_command_source.py` (portable SQLite +
+Timescale; default 'operator' backfills the 614 historical rows).
+The three scenario YAMLs opt in via `autonomy_baseline: true`; the
+sim runner stamps `state.autonomy_enabled = True` in-process and
+the backend reads `SWARM_AUTONOMY_BASELINE` from the env for the
+cross-process `make demo` path. ESCALATE was an unwired enum value
+— now wired in `command_bus._validate_target` + `_apply` (state
+transition only, no mission spawned). pyjwt PYSEC-2025-183 disposed
+via `--ignore-vuln` (disputed by supplier, no fix; SwarmOS enforces
+SWARM_JWT_SECRET >= 32 bytes through `make bootstrap-auth-dev`).
+Tests: 22 unit (rule boundaries, debounce, idle, stale, idempotency,
+voice-clean, sentinel-outside-API-regex) + 10 integration
+(coordinator end-to-end against each scenario YAML; wildfire reaches
+ESCALATED via autonomy alone, intrusion/search stay VERIFIED below
+0.80) + 6 backend (source persistence + migration round-trip) + 2
+scenario (autonomy_baseline schema field). Full suite **684 passed
+/ 16 skipped / 3 deselected** (vs 641 baseline, +43 new).
+`make lint` + `make audit` green; voice/brand audit clean on every
+new file. Out of scope (Phase 8+ explicitly): per-scenario
+thresholds, WAIT decision, shadow mode, override soft, kill switch,
+runtime admin toggle for `autonomy_enabled`. Out of scope for 7.B
+specifically: Console `AUTO` eyebrow (7.C), `make demo-*` targets
+(7.E), CV inference (7.D).
 
 2026-05-19: Phase 7-prep readiness audit on branch
 `claude/fix-phase-7-prep-OeSvj`. Re-ran the full gate from a clean
