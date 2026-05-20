@@ -42,6 +42,14 @@ OPERATOR_RETURN_PRIORITY = 80  # but below auto-RTL (100)
 EMERGENCY_RTL_PRIORITY = 200
 EMERGENCY_FLEET_TARGET = "fleet:all"
 EMERGENCY_MISSION_PREFIX = "emergency-rtl-"
+# Phase 7.B — autonomy decisions sit between auto-PATROL (10) and operator
+# VERIFY (50), so an operator intent cleanly preempts any in-flight autonomy
+# mission at every level. The synthetic operator-id is intentionally outside
+# the API operator-id regex (`^op-[a-z0-9]{4,32}$`) so a forged HTTP body
+# cannot reach the autonomy lane — autonomy must inject via the in-process
+# `command_submit()` path.
+AUTONOMY_PRIORITY = 40
+AUTONOMY_OPERATOR_ID = "swarmos-autonomy"
 # FSM states for units that are *not* candidates for emergency RTL: already
 # safely on the ground or unreachable. Everything else gets an RTL queued.
 _GROUNDED_STATES = frozenset(
@@ -69,65 +77,78 @@ class CommandResult:
 
 
 async def submit(state: SwarmState, command: OperatorCommand) -> CommandResult:
-    """Validate, apply, and store an operator intent."""
+    """Validate, apply, and store an operator intent (acquires state.lock)."""
 
     async with state.lock:
-        now = datetime.now(UTC)
-        reason = _validate_target(state, command)
-        if reason is None and command.action != OperatorAction.EMERGENCY_RTL_ALL:
-            # Phase 6.A: policy gate. Build the would-be mission and let the
-            # engine reject for geofence / battery / link / weather reasons
-            # before we mutate state. HOLD_PATROL / DISMISS return None here
-            # — they create no mission and have no policy surface.
-            #
-            # Phase 6.G: EMERGENCY_RTL_ALL deliberately skips this gate. An
-            # emergency stop must dispatch RTL even when battery is low or
-            # the link is degraded — the alternative is letting the unit
-            # stay airborne in exactly the conditions that triggered the
-            # emergency. The audit event records the bypass (§2.G).
-            tentative = _tentative_mission(state, command, now)
-            if tentative is not None:
-                decision = state.policy.validate_mission(
-                    tentative, units=state.units, docks=state.docks
-                )
-                if not decision.allowed and decision.reason is not None:
-                    reason = decision.reason
-        if reason is not None:
-            rejected = command.model_copy(
-                update={
-                    "status": CommandStatus.REJECTED,
-                    "rejected_reason": reason,
-                    "completed_at": now,
-                    "ts": now,
-                }
-            )
-            state.commands[rejected.id] = rejected
-            return CommandResult(command.id, CommandStatus.REJECTED, reason)
+        return submit_locked(state, command, datetime.now(UTC))
 
-        mission_id = _apply(state, command, now)
-        # Commands without an external mission (hold-patrol, dismiss) finish
-        # the instant they are applied — there is nothing to wait on.
-        if mission_id is None:
-            accepted = command.model_copy(
-                update={
-                    "status": CommandStatus.COMPLETED,
-                    "accepted_at": now,
-                    "in_flight_at": now,
-                    "completed_at": now,
-                    "ts": now,
-                }
+
+def submit_locked(
+    state: SwarmState, command: OperatorCommand, now: datetime
+) -> CommandResult:
+    """Lock-free variant for in-process callers that already hold `state.lock`.
+
+    Phase 7.B uses this from the coordinator's `_refresh_async` so autonomy
+    decisions land in the audit log without re-entering the lock (asyncio
+    locks are non-reentrant). Same semantics as `submit()` otherwise — same
+    validation, same policy gate, same audit record.
+    """
+
+    reason = _validate_target(state, command)
+    if reason is None and command.action != OperatorAction.EMERGENCY_RTL_ALL:
+        # Phase 6.A: policy gate. Build the would-be mission and let the
+        # engine reject for geofence / battery / link / weather reasons
+        # before we mutate state. HOLD_PATROL / DISMISS return None here
+        # — they create no mission and have no policy surface.
+        #
+        # Phase 6.G: EMERGENCY_RTL_ALL deliberately skips this gate. An
+        # emergency stop must dispatch RTL even when battery is low or
+        # the link is degraded — the alternative is letting the unit
+        # stay airborne in exactly the conditions that triggered the
+        # emergency. The audit event records the bypass (§2.G).
+        tentative = _tentative_mission(state, command, now)
+        if tentative is not None:
+            decision = state.policy.validate_mission(
+                tentative, units=state.units, docks=state.docks
             )
-        else:
-            accepted = command.model_copy(
-                update={
-                    "status": CommandStatus.ACCEPTED,
-                    "accepted_at": now,
-                    "mission_id": mission_id,
-                    "ts": now,
-                }
-            )
-        state.commands[accepted.id] = accepted
-        return CommandResult(command.id, accepted.status, mission_id=mission_id)
+            if not decision.allowed and decision.reason is not None:
+                reason = decision.reason
+    if reason is not None:
+        rejected = command.model_copy(
+            update={
+                "status": CommandStatus.REJECTED,
+                "rejected_reason": reason,
+                "completed_at": now,
+                "ts": now,
+            }
+        )
+        state.commands[rejected.id] = rejected
+        return CommandResult(command.id, CommandStatus.REJECTED, reason)
+
+    mission_id = _apply(state, command, now)
+    # Commands without an external mission (hold-patrol, dismiss) finish
+    # the instant they are applied — there is nothing to wait on.
+    if mission_id is None:
+        accepted = command.model_copy(
+            update={
+                "status": CommandStatus.COMPLETED,
+                "accepted_at": now,
+                "in_flight_at": now,
+                "completed_at": now,
+                "ts": now,
+            }
+        )
+    else:
+        accepted = command.model_copy(
+            update={
+                "status": CommandStatus.ACCEPTED,
+                "accepted_at": now,
+                "mission_id": mission_id,
+                "ts": now,
+            }
+        )
+    state.commands[accepted.id] = accepted
+    return CommandResult(command.id, accepted.status, mission_id=mission_id)
 
 
 def tick(state: SwarmState, now: datetime) -> None:
@@ -221,6 +242,14 @@ def _validate_target(state: SwarmState, command: OperatorCommand) -> RejectedRea
             if target_kind == "anomaly" and target_id in state.anomalies
             else RejectedReason.TARGET_NOT_FOUND
         )
+    if command.action == OperatorAction.ESCALATE:
+        # Phase 7.B — escalation is a state transition on an existing
+        # anomaly. No mission spawned (downstream notifications are Phase 12).
+        return (
+            None
+            if target_kind == "anomaly" and target_id in state.anomalies
+            else RejectedReason.TARGET_NOT_FOUND
+        )
     if command.action == OperatorAction.RETURN:
         return (
             None
@@ -247,6 +276,13 @@ def _apply(
     target_kind, target_id = command.target.split(":", 1)
 
     if command.action == OperatorAction.VERIFY:
+        # Phase 7.B — autonomy VERIFY missions sit at AUTONOMY_PRIORITY (40),
+        # below operator VERIFY (50) so an operator intent cleanly preempts.
+        priority = (
+            AUTONOMY_PRIORITY
+            if command.source == "autonomy"
+            else OPERATOR_VERIFY_PRIORITY
+        )
         mission = MissionView(
             id=f"cmd-{command.id}",
             kind="VERIFY",
@@ -254,6 +290,7 @@ def _apply(
             assigned_agent=state.verifier_id,
             phase=MissionPhase.ACCEPTED,
             progress_pct=0.0,
+            priority=priority,
             ts=now,
         )
         state.missions[mission.id] = mission
@@ -278,6 +315,13 @@ def _apply(
         anomaly = state.anomalies[target_id]
         state.anomalies[target_id] = anomaly.model_copy(
             update={"state": AnomalyState.DISMISSED, "ts": now}
+        )
+        return None
+
+    if command.action == OperatorAction.ESCALATE:
+        anomaly = state.anomalies[target_id]
+        state.anomalies[target_id] = anomaly.model_copy(
+            update={"state": AnomalyState.ESCALATED, "ts": now}
         )
         return None
 
@@ -379,6 +423,11 @@ def _tentative_mission(
     if command.action == OperatorAction.VERIFY:
         sector = state.sectors.get(target_id) if target_kind == "sector" else None
         waypoints = [sector.centroid] if sector is not None else []
+        priority = (
+            AUTONOMY_PRIORITY
+            if command.source == "autonomy"
+            else OPERATOR_VERIFY_PRIORITY
+        )
         return MissionView(
             id=f"cmd-{command.id}",
             kind="VERIFY",
@@ -387,7 +436,7 @@ def _tentative_mission(
             phase=MissionPhase.ACCEPTED,
             progress_pct=0.0,
             waypoints=waypoints,
-            priority=OPERATOR_VERIFY_PRIORITY,
+            priority=priority,
             ts=now,
         )
     if command.action == OperatorAction.RETURN:

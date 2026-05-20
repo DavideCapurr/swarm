@@ -181,6 +181,7 @@ class Repository:
                         else None
                     ),
                     "mission_id": command.mission_id,
+                    "source": command.source,
                     "ts": command.ts,
                 }
                 await self._upsert(db, OperatorCommandRow, [row], pk_cols=("id",))
@@ -554,6 +555,7 @@ def _command_row_to_dict(r: OperatorCommandRow) -> dict[str, Any]:
         "status": r.status,
         "rejected_reason": r.rejected_reason,
         "mission_id": r.mission_id,
+        "source": r.source,
         "ts": r.ts.isoformat() if r.ts else None,
     }
 
@@ -566,6 +568,7 @@ def _row_to_command(r: OperatorCommandRow) -> OperatorCommand:
         action=OperatorAction(r.action),
         target=r.target,
         operator_id=r.operator_id,
+        source=r.source if r.source in {"operator", "autonomy"} else "operator",
         submitted_at=r.submitted_at,
         accepted_at=r.accepted_at,
         in_flight_at=r.in_flight_at,

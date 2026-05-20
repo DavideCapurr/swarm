@@ -5,6 +5,10 @@ description: |
   rectangular perimeter. Single drone dispatched for sector verification,
   inspection, and live feed. Replicable on the founder site in Phase 19.
 tick_hz: 10
+# Phase 7.B — autonomy R1 fires on the 0.71 INTRUSION; deliberately
+# stays under the R2 ESCALATE floor (0.80) so the operator owns
+# escalation in this scenario.
+autonomy_baseline: true
 anchor:
   # Placeholder coords — Langhe vineyard, same as DEFAULT_DOCK in
   # sim/swarm_sim/world.py:20. Phase 19 swaps these for the founder site

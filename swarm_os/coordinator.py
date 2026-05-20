@@ -34,6 +34,8 @@ from swarm_core.messages import (
 )
 from swarm_core.voice import band
 
+from swarm_os.autonomy import tick as autonomy_tick
+from swarm_os.autonomy import to_command as autonomy_to_command
 from swarm_os.awareness import calculate_awareness
 from swarm_os.command_bus import EMERGENCY_MISSION_PREFIX, CommandResult
 from swarm_os.command_bus import submit as command_submit
@@ -231,7 +233,22 @@ class SwarmCoordinator:
         # Phase 6.A: auto-RTL precedes the command tick so the auto-RTL
         # mission is observable before any operator command lifecycle moves.
         self._apply_safety_actions(now)
+        # Phase 7.B: refresh mode + verifier *before* the autonomy tick so
+        # autonomy's tentative VERIFY mission can be checked against a
+        # real assignee by the policy gate (battery / link / weather).
+        # Without this, a fresh anomaly would dispatch through autonomy
+        # with assigned_agent=None and bypass the per-unit battery floor.
+        self.state.mode = compute_mode(self.state)
+        self._refresh_verifier()
+        # Autonomy decisions ride the same command bus + audit log as
+        # operator commands. Runs after safety so an auto-RTL still wins,
+        # before command_tick so the decision's lifecycle advances on the
+        # same coordinator pass.
+        self._apply_autonomy_decisions(now)
         command_tick(self.state, now)
+        # Recompute mode + verifier so any state mutations the autonomy
+        # tick triggered (anomaly state change, new mission) are
+        # reflected before the awareness frame snapshot.
         self.state.mode = compute_mode(self.state)
         self._refresh_verifier()
         self._propagate_verifier_to_anomalies(now)
@@ -250,6 +267,28 @@ class SwarmCoordinator:
         # emitted by the caller — we keep the list for testability though.
         _ = new_missions
         return events
+
+    def _apply_autonomy_decisions(self, now: datetime) -> None:
+        """Phase 7.B — translate autonomy decisions into audited commands.
+
+        Each decision becomes an `OperatorCommand(source="autonomy")` and
+        flows through the lock-free `submit_locked` path. That single call
+        re-runs validation + the Phase 6.A policy gate (geofence / battery
+        / link / weather), records the result in `state.commands`, and
+        spawns the mission view — i.e. an autonomy decision is fully
+        verifiable the same way an operator command is.
+
+        Rejections (e.g. low battery on the verifier) land as REJECTED
+        rows in the audit log; no fallback or retry in the 7.B baseline.
+        Phase 8.C handles re-decisioning.
+        """
+
+        from swarm_os.command_bus import submit_locked
+
+        decisions = autonomy_tick(self.state, now)
+        for decision in decisions:
+            command = autonomy_to_command(decision)
+            submit_locked(self.state, command, now)
 
     def _apply_safety_actions(self, now: datetime) -> None:
         """Phase 6.A — translate PolicyEngine safety actions into RTL missions.

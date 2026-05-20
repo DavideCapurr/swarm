@@ -149,6 +149,11 @@ class OperatorCommandRow(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     rejected_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
     mission_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # Phase 7.B — "operator" (default) or "autonomy". Lets the Console
+    # render an AUTO eyebrow (Phase 7.C) without re-running migrations.
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="operator", server_default="operator"
+    )
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -470,6 +470,11 @@ class OperatorCommand(BaseModel):
     Phase 3 extends the lifecycle with `accepted_at` + `in_flight_at` so the
     Console can render a timeline of every command. The status machine flows
     `submitted → accepted → in_flight → completed | rejected | timed_out`.
+
+    Phase 7.B adds `source` so autonomy decisions land in the same audit
+    log as operator commands but stay distinguishable for the Console
+    `AUTO` eyebrow (Phase 7.C). Defaults to "operator" — every existing
+    call site is unaffected.
     """
 
     model_config = _STRICT
@@ -477,6 +482,7 @@ class OperatorCommand(BaseModel):
     action: OperatorAction
     target: str  # opaque to the model; the command_bus validates by kind:identifier
     operator_id: str
+    source: Literal["operator", "autonomy"] = "operator"
     submitted_at: datetime = Field(default_factory=_now)
     accepted_at: datetime | None = None
     in_flight_at: datetime | None = None
