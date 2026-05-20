@@ -243,6 +243,9 @@ export type OperatorCommand = {
   action: OperatorAction;
   target: string;
   operator_id: string;
+  // Phase 7.B — "operator" or "autonomy". Defaults to "operator" on every
+  // existing API surface; Phase 7.C renders the AUTO eyebrow off this field.
+  source: "operator" | "autonomy";
   submitted_at: string;
   accepted_at: string | null;
   in_flight_at: string | null;

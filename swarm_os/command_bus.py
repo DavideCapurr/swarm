@@ -42,6 +42,14 @@ OPERATOR_RETURN_PRIORITY = 80  # but below auto-RTL (100)
 EMERGENCY_RTL_PRIORITY = 200
 EMERGENCY_FLEET_TARGET = "fleet:all"
 EMERGENCY_MISSION_PREFIX = "emergency-rtl-"
+# Phase 7.B — autonomy decisions sit between auto-PATROL (10) and operator
+# VERIFY (50), so an operator intent cleanly preempts any in-flight autonomy
+# mission at every level. The synthetic operator-id is intentionally outside
+# the API operator-id regex (`^op-[a-z0-9]{4,32}$`) so a forged HTTP body
+# cannot reach the autonomy lane — autonomy must inject via the in-process
+# `command_submit()` path.
+AUTONOMY_PRIORITY = 40
+AUTONOMY_OPERATOR_ID = "swarmos-autonomy"
 # FSM states for units that are *not* candidates for emergency RTL: already
 # safely on the ground or unreachable. Everything else gets an RTL queued.
 _GROUNDED_STATES = frozenset(
