@@ -80,8 +80,9 @@ class SwarmCoordinator:
                 ts=telemetry.ts,
             )
             self.state.units[unit.agent_id] = unit
-            new_events = await self._refresh_async(now)
+            new_events, autonomy_cmds = await self._refresh_async(now)
             frames = self._frames("unit", unit)
+            frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
             frames.extend(self._frame("event", event) for event in new_events)
             return frames
 
@@ -119,9 +120,10 @@ class SwarmCoordinator:
                         "ts": now,
                     }
                 )
-            new_events = await self._refresh_async(now)
+            new_events, autonomy_cmds = await self._refresh_async(now)
             frames = self._frames("unit", unit)
             frames.extend(self._frame("dock", d) for d in self.state.docks.values())
+            frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
             frames.extend(self._frame("event", event) for event in new_events)
             return frames
 
@@ -149,8 +151,9 @@ class SwarmCoordinator:
                 self.state.sectors[sector_id] = sector.model_copy(
                     update={"pending_anomaly_ids": pending, "ts": now}
                 )
-            new_events = await self._refresh_async(now)
+            new_events, autonomy_cmds = await self._refresh_async(now)
             frames = self._frames("anomaly_view", view)
+            frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
             frames.extend(self._frame("event", event) for event in new_events)
             return frames
 
@@ -173,8 +176,9 @@ class SwarmCoordinator:
                 ts=progress.ts,
             )
             self.state.missions[mission.id] = mission
-            new_events = await self._refresh_async(now)
+            new_events, autonomy_cmds = await self._refresh_async(now)
             frames = self._frames("mission", mission)
+            frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
             frames.extend(self._frame("event", event) for event in new_events)
             return frames
 
@@ -184,11 +188,15 @@ class SwarmCoordinator:
         result = await command_submit(self.state, command)
         async with self.state.lock:
             now = datetime.now(UTC)
-            new_events = await self._refresh_async(now)
+            new_events, autonomy_cmds = await self._refresh_async(now)
             stored = self.state.commands.get(command.id)
             frames: list[dict[str, Any]] = []
             if stored is not None:
                 frames.append(self._frame("operator", stored))
+            # Autonomy decisions surfaced during the same refresh tick get
+            # their own `operator` frames so the Console (Phase 7.C) sees
+            # them with the AUTO eyebrow alongside the operator command.
+            frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
             # Awareness + sector frames in case the command shifted mode.
             frames.append(self._frame("awareness", self.state.awareness))
             frames.extend(
@@ -224,8 +232,14 @@ class SwarmCoordinator:
 
     # ── Internals ────────────────────────────────────────────────────────────
 
-    def _refresh(self, now: datetime) -> list[Any]:
-        """Recompute every derived field server-side and return new events."""
+    def _refresh(self, now: datetime) -> tuple[list[Any], list[OperatorCommand]]:
+        """Recompute every derived field server-side.
+
+        Returns (events, autonomy_commands) so each `apply_*` can emit
+        both `event` and `operator` frames for live WS push — Phase 7.C
+        depends on the Console seeing autonomy decisions as they happen,
+        not only on snapshot reload.
+        """
 
         self.state.sectors = refresh_visits(self.state.sectors, self.state.units, now)
         self.state.sectors = score_sectors(self.state.sectors, now)
@@ -244,7 +258,7 @@ class SwarmCoordinator:
         # operator commands. Runs after safety so an auto-RTL still wins,
         # before command_tick so the decision's lifecycle advances on the
         # same coordinator pass.
-        self._apply_autonomy_decisions(now)
+        autonomy_commands = self._apply_autonomy_decisions(now)
         command_tick(self.state, now)
         # Recompute mode + verifier so any state mutations the autonomy
         # tick triggered (anomaly state change, new mission) are
@@ -266,17 +280,28 @@ class SwarmCoordinator:
         # New auto-scheduled missions surface implicitly via the mission frames
         # emitted by the caller — we keep the list for testability though.
         _ = new_missions
-        return events
+        # Read the post-submit state of each autonomy command so the
+        # broadcast frame carries the lifecycle status (ACCEPTED /
+        # REJECTED / COMPLETED) and not just the submitted draft.
+        autonomy_post = [
+            self.state.commands[c.id]
+            for c in autonomy_commands
+            if c.id in self.state.commands
+        ]
+        return events, autonomy_post
 
-    def _apply_autonomy_decisions(self, now: datetime) -> None:
+    def _apply_autonomy_decisions(self, now: datetime) -> list[OperatorCommand]:
         """Phase 7.B — translate autonomy decisions into audited commands.
 
-        Each decision becomes an `OperatorCommand(source="autonomy")` and
-        flows through the lock-free `submit_locked` path. That single call
-        re-runs validation + the Phase 6.A policy gate (geofence / battery
-        / link / weather), records the result in `state.commands`, and
-        spawns the mission view — i.e. an autonomy decision is fully
-        verifiable the same way an operator command is.
+        Returns the list of `OperatorCommand` records submitted this tick
+        (whether accepted or rejected by the policy gate) so the caller
+        can emit `operator` WS frames for live Console push (Phase 7.C).
+
+        Each decision flows through the lock-free `submit_locked` path —
+        that single call re-runs validation + the Phase 6.A policy gate
+        (geofence / battery / link / weather), records the result in
+        `state.commands`, and spawns the mission view — i.e. an autonomy
+        decision is fully verifiable the same way an operator command is.
 
         Rejections (e.g. low battery on the verifier) land as REJECTED
         rows in the audit log; no fallback or retry in the 7.B baseline.
@@ -286,9 +311,12 @@ class SwarmCoordinator:
         from swarm_os.command_bus import submit_locked
 
         decisions = autonomy_tick(self.state, now)
+        submitted: list[OperatorCommand] = []
         for decision in decisions:
             command = autonomy_to_command(decision)
             submit_locked(self.state, command, now)
+            submitted.append(command)
+        return submitted
 
     def _apply_safety_actions(self, now: datetime) -> None:
         """Phase 6.A — translate PolicyEngine safety actions into RTL missions.
@@ -332,7 +360,9 @@ class SwarmCoordinator:
             )
             self.state.safety_actions.append(action)
 
-    async def _refresh_async(self, now: datetime) -> list[Any]:
+    async def _refresh_async(
+        self, now: datetime
+    ) -> tuple[list[Any], list[OperatorCommand]]:
         """Async wrapper that refreshes dock weather before `_refresh`.
 
         Every async `apply_*` path goes through this so the sync `_refresh`

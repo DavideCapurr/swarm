@@ -63,6 +63,10 @@ class BusConsumer:
         # Monotonic start time per mission_id. Populated on first non-terminal
         # sighting, popped on terminal sighting to feed the histogram.
         self._mission_started_at: dict[str, float] = {}
+        # Phase 7.B — track which autonomy commands have already been
+        # persisted to the DB so we don't re-write on every refresh tick.
+        # Bounded by `state.commands` retention, same as operator commands.
+        self._persisted_autonomy_ids: set[str] = set()
 
     async def start(self) -> None:
         redis_url = os.getenv("REDIS_URL")
@@ -275,3 +279,29 @@ class BusConsumer:
         # Only persist the tail to bound write rate — older events are already
         # in the DB from earlier ticks.
         await get_repository().write_events(events[-32:])
+        # Phase 7.B — autonomy commands are submitted in-process through
+        # `_apply_autonomy_decisions` (no HTTP path), so the audit row is
+        # only in `state.commands`. Persist them here so the DB carries
+        # the same `source="autonomy"` rows as the operator commands
+        # written by `backend/app/api/actions.py`. Without this the audit
+        # log loses every autonomy decision at backend restart, breaking
+        # the "every decision verifiable" invariant (PDF §10).
+        await self._persist_new_autonomy_commands()
+
+    async def _persist_new_autonomy_commands(self) -> None:
+        """Write any autonomy command not yet pushed to the DB this session.
+
+        The seen-set is bounded by the size of `state.commands` (the
+        kernel itself does not GC; this is in line with the existing
+        operator command audit retention).
+        """
+        for command in list(self._coordinator.state.commands.values()):
+            if command.source != "autonomy":
+                continue
+            if command.id in self._persisted_autonomy_ids:
+                continue
+            try:
+                await get_repository().write_operator_command(command)
+                self._persisted_autonomy_ids.add(command.id)
+            except Exception:  # pragma: no cover — defensive
+                logger.exception("write_operator_command(autonomy) failed")
