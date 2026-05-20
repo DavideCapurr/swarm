@@ -74,7 +74,12 @@ demo:
 audit: audit-python audit-frontend audit-bandit audit-pymavlink-integrity
 
 audit-python:
-	$(VENV)/bin/pip-audit --skip-editable --cache-dir .cache/pip-audit
+	# PYSEC-2025-183 (pyjwt 2.12.1, "weak encryption"): disputed by supplier,
+	# no fix version published. SwarmOS enforces SWARM_JWT_SECRET >= 32 bytes
+	# via `make bootstrap-auth-dev` (CLAUDE.md §Auth) so the weakness premise
+	# does not apply. Re-evaluate at every dependabot bump.
+	$(VENV)/bin/pip-audit --skip-editable --cache-dir .cache/pip-audit \
+		--ignore-vuln PYSEC-2025-183
 
 audit-frontend:
 	cd frontend && corepack pnpm audit --audit-level=high
