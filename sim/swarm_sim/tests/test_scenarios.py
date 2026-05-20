@@ -114,6 +114,31 @@ def test_build_world_smoke(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", SCENARIO_NAMES)
+def test_scenario_opts_into_autonomy_baseline(name: str) -> None:
+    """Phase 7.B — every owner-land scenario opts into the baseline."""
+
+    scenario = load_scenario(_scenario_path(name))
+    assert scenario.autonomy_baseline is True
+
+
+def test_scenario_autonomy_baseline_defaults_to_false(tmp_path: Path) -> None:
+    """Backwards-compatible default — legacy YAMLs without the flag stay off."""
+
+    yaml_text = (
+        "id: x\nname: x\ndescription: x\ntick_hz: 10\n"
+        "anchor: { lat: 0, lon: 0 }\n"
+        "plot: { shape: rectangle, width_m: 10, height_m: 10 }\n"
+        "fleet: { n_drones: 1 }\n"
+        "perception: { territory_radius_m: 10 }\n"
+        "anomalies: []\n"
+    )
+    p = tmp_path / "legacy.yaml"
+    p.write_text(yaml_text)
+    scenario = load_scenario(p)
+    assert scenario.autonomy_baseline is False
+
+
+@pytest.mark.parametrize("name", SCENARIO_NAMES)
 def test_scenario_is_deterministic(name: str) -> None:
     """Required by Phase 8.B-bis modalità ombra: same YAML → same World."""
     a = load_scenario(_scenario_path(name)).build_world()

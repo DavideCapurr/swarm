@@ -233,12 +233,22 @@ class SwarmCoordinator:
         # Phase 6.A: auto-RTL precedes the command tick so the auto-RTL
         # mission is observable before any operator command lifecycle moves.
         self._apply_safety_actions(now)
-        # Phase 7.B: autonomy decisions ride the same command bus + audit log
-        # as operator commands. Runs after safety so an auto-RTL still wins,
+        # Phase 7.B: refresh mode + verifier *before* the autonomy tick so
+        # autonomy's tentative VERIFY mission can be checked against a
+        # real assignee by the policy gate (battery / link / weather).
+        # Without this, a fresh anomaly would dispatch through autonomy
+        # with assigned_agent=None and bypass the per-unit battery floor.
+        self.state.mode = compute_mode(self.state)
+        self._refresh_verifier()
+        # Autonomy decisions ride the same command bus + audit log as
+        # operator commands. Runs after safety so an auto-RTL still wins,
         # before command_tick so the decision's lifecycle advances on the
         # same coordinator pass.
         self._apply_autonomy_decisions(now)
         command_tick(self.state, now)
+        # Recompute mode + verifier so any state mutations the autonomy
+        # tick triggered (anomaly state change, new mission) are
+        # reflected before the awareness frame snapshot.
         self.state.mode = compute_mode(self.state)
         self._refresh_verifier()
         self._propagate_verifier_to_anomalies(now)

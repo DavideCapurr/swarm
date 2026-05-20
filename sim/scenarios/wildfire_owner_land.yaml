@@ -5,6 +5,9 @@ description: |
   verified fire 15 s later. Multi-drone perimeter containment scenario.
   Replicable on the founder site in Phase 19 by swapping anchor coords.
 tick_hz: 10
+# Phase 7.B — deterministic autonomy baseline (R1 auto-VERIFY on the
+# 0.62 SMOKE; R2 auto-ESCALATE on the 0.88 FIRE follow-up).
+autonomy_baseline: true
 anchor:
   # Placeholder coords — Langhe vineyard, same as DEFAULT_DOCK in
   # sim/swarm_sim/world.py:20. Phase 19 swaps these for the founder site

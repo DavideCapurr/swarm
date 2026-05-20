@@ -103,6 +103,16 @@ async def main() -> None:
         n_drones = scenario.fleet.n_drones
         logger.info("loaded scenario %s (%d drones, %d anomalies)",
                     scenario.id, n_drones, len(scenario.anomalies))
+        # Phase 7.B — flip the in-process autonomy gate when the scenario
+        # opts in. The backend process owns the COORDINATOR + state; this
+        # stamp is only meaningful when the runner + backend share a
+        # process (e.g. integration tests). For `make demo` the backend
+        # reads `SWARM_AUTONOMY_BASELINE` from the env at boot.
+        if scenario.autonomy_baseline:
+            from swarm_os import SWARM_STATE
+
+            SWARM_STATE.autonomy_enabled = True
+            logger.info("autonomy baseline enabled for scenario %s", scenario.id)
     else:
         n_drones = int(os.getenv("SIM_DRONES", "3"))
         hz = float(os.getenv("SIM_TICK_HZ", "10"))

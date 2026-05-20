@@ -164,6 +164,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.error("fleet: refusing to boot (%s)", e)
         raise
 
+    # Phase 7.B — env-var-driven autonomy baseline. The runner stamps its
+    # own in-process state when the loaded scenario sets
+    # autonomy_baseline: true, but `make demo` runs runner + backend in
+    # separate processes, so the backend needs an explicit env override.
+    # Phase 8.C will add a runtime admin endpoint for this toggle.
+    if os.getenv("SWARM_AUTONOMY_BASELINE", "").lower() in {"1", "true", "yes"}:
+        COORDINATOR.state.autonomy_enabled = True
+        logger.info("autonomy baseline enabled via SWARM_AUTONOMY_BASELINE")
+
     logger.info("backend ready")
     try:
         yield

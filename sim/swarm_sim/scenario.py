@@ -84,6 +84,10 @@ class Scenario(BaseModel):
     name: str
     description: str
     tick_hz: float = Field(10.0, gt=0.0)
+    # Phase 7.B — flips the deterministic autonomy baseline on when this
+    # scenario is loaded by `sim/swarm_sim/runner.py`. Default False so
+    # legacy scenarios (and every existing test) keep operator-only flow.
+    autonomy_baseline: bool = False
     anchor: AnchorCfg
     plot: PlotCfg
     fleet: FleetCfg
