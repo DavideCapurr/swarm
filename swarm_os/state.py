@@ -71,6 +71,11 @@ class SwarmState:
     mode: OperatingMode = OperatingMode.REST
     verifier_id: str | None = None
     hold_patrol: bool = False
+    # Phase 7.B — gates the deterministic autonomy baseline. False everywhere
+    # by default; the sim runner flips it to True when a scenario YAML with
+    # `autonomy_baseline: true` is loaded. Phase 8.C will add a runtime
+    # admin toggle.
+    autonomy_enabled: bool = False
     # Phase 6.G — set when a commander triggers EMERGENCY_RTL_ALL. The
     # coordinator reads this to halt the patrol scheduler until the fleet
     # is back on dock; clearing it is an admin action (drone-day §2.G).
