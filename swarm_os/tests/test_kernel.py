@@ -139,3 +139,47 @@ async def test_command_bus_accepts_verify_and_rejects_missing_target() -> None:
         ),
     )
     assert rejected.rejected_reason == RejectedReason.TARGET_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_command_bus_escalate_transitions_anomaly() -> None:
+    """Phase 7.B prereq — ESCALATE flips AnomalyState without spawning a mission."""
+
+    from swarm_core.messages import AnomalyView, ConfidenceBand
+
+    state = SwarmState.vineyard()
+    anomaly = AnomalyView(
+        id="a-test",
+        kind=AnomalyKind.SMOKE,
+        geo=VINEYARD_CENTER,
+        sector_id="center-b",
+        confidence=0.88,
+        band=ConfidenceBand.VERIFIED,
+        state=AnomalyState.VERIFIED,
+        detected_at=datetime.now(UTC),
+    )
+    state.anomalies[anomaly.id] = anomaly
+    n_missions_before = len(state.missions)
+
+    result = await submit(
+        state,
+        OperatorCommand(
+            action=OperatorAction.ESCALATE,
+            target=f"anomaly:{anomaly.id}",
+            operator_id="op-davide",
+        ),
+    )
+    assert result.status.value == "completed"
+    assert result.mission_id is None
+    assert state.anomalies[anomaly.id].state == AnomalyState.ESCALATED
+    assert len(state.missions) == n_missions_before
+
+    missing = await submit(
+        state,
+        OperatorCommand(
+            action=OperatorAction.ESCALATE,
+            target="anomaly:does-not-exist",
+            operator_id="op-davide",
+        ),
+    )
+    assert missing.rejected_reason == RejectedReason.TARGET_NOT_FOUND

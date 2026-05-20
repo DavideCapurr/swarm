@@ -221,6 +221,14 @@ def _validate_target(state: SwarmState, command: OperatorCommand) -> RejectedRea
             if target_kind == "anomaly" and target_id in state.anomalies
             else RejectedReason.TARGET_NOT_FOUND
         )
+    if command.action == OperatorAction.ESCALATE:
+        # Phase 7.B — escalation is a state transition on an existing
+        # anomaly. No mission spawned (downstream notifications are Phase 12).
+        return (
+            None
+            if target_kind == "anomaly" and target_id in state.anomalies
+            else RejectedReason.TARGET_NOT_FOUND
+        )
     if command.action == OperatorAction.RETURN:
         return (
             None
@@ -278,6 +286,13 @@ def _apply(
         anomaly = state.anomalies[target_id]
         state.anomalies[target_id] = anomaly.model_copy(
             update={"state": AnomalyState.DISMISSED, "ts": now}
+        )
+        return None
+
+    if command.action == OperatorAction.ESCALATE:
+        anomaly = state.anomalies[target_id]
+        state.anomalies[target_id] = anomaly.model_copy(
+            update={"state": AnomalyState.ESCALATED, "ts": now}
         )
         return None
 
