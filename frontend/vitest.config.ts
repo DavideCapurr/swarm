@@ -42,6 +42,7 @@ export default defineConfig({
         "lib/auth.tsx",
         "lib/api.ts",
         "lib/ws.ts",
+        "lib/autonomy.ts",
         "components/EmergencyStop.tsx",
         "components/AuthGate.tsx",
       ],

@@ -72,6 +72,14 @@ class EventRow(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
     action_label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Phase 7.C — "operator" (default) or "autonomy". Mirrors the
+    # ``OperatorCommand.source`` column so an offline reader of the events
+    # log can still spot autonomy decisions without joining against
+    # ``operator_commands``. Migration 0004 backfills historical rows
+    # with "operator" via ``server_default``.
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="operator", server_default="operator"
+    )
 
     __table_args__ = (
         Index("events_kind_ts_idx", "kind", "ts"),
@@ -154,6 +162,10 @@ class OperatorCommandRow(Base):
     source: Mapped[str] = mapped_column(
         String(16), nullable=False, default="operator", server_default="operator"
     )
+    # Phase 7.C — autonomy rule label ("R1" / "R2" / "R3") when the
+    # command came from the deterministic baseline. Nullable for every
+    # operator-issued command and any pre-7.C autonomy row.
+    rule: Mapped[str | None] = mapped_column(String(8), nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

@@ -26,7 +26,17 @@ const MODE_STATE: Record<
 };
 
 export function HeadBar() {
-  const { session, units, anomalies, link, clock, mode, operatorId, role } = useSwarm();
+  const {
+    session,
+    units,
+    anomalies,
+    link,
+    clock,
+    mode,
+    operatorId,
+    role,
+    autonomyEnabled,
+  } = useSwarm();
   const { logout } = useAuth();
   const online = units.filter((u) => u.fsm_state !== "OFFLINE").length;
   const total = units.length;
@@ -73,6 +83,11 @@ export function HeadBar() {
         <span className="mono-num text-platinum text-ui">{clock.time} UTC</span>
         <span className="flex items-center gap-2">
           <StatusPill state={MODE_STATE[mode]}>{`mode · ${mode}`}</StatusPill>
+          {autonomyEnabled && (
+            <StatusPill state="connected" data-testid="autonomy-chip">
+              autonomy baseline
+            </StatusPill>
+          )}
         </span>
         <StatusPill state={fleetState}>
           {`${String(online).padStart(3, "0")} / ${String(total).padStart(3, "0")} online`}

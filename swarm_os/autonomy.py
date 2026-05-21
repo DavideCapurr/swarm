@@ -203,4 +203,5 @@ def to_command(decision: AutonomyDecision) -> OperatorCommand:
         target=f"anomaly:{decision.anomaly_id}",
         operator_id=AUTONOMY_OPERATOR_ID,
         source="autonomy",
+        rule=decision.rule,
     )

@@ -11,13 +11,17 @@ import Link from "next/link";
 
 import { useFocusAnomaly, useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
+import { findActiveAutonomyCommand } from "@/lib/autonomy";
 import { IconAnomaly } from "@/icons";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
 
 export function AnomalySummary() {
   const anomaly = useFocusAnomaly();
-  const { verifier, anomalies } = useSwarm();
+  const { verifier, anomalies, commands } = useSwarm();
+  const autonomyCommand = anomaly
+    ? findActiveAutonomyCommand(commands, anomaly.id)
+    : null;
 
   if (!anomaly) {
     const dismissed = anomalies.filter((a) => a.state === "dismissed").length;
@@ -48,7 +52,17 @@ export function AnomalySummary() {
     <div className="card p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <Eyebrow mono>Anomaly · {anomaly.id.slice(0, 4)}</Eyebrow>
-        <StatusPill state={pillState}>{describeBand(anomaly.band)}</StatusPill>
+        <span className="flex items-center gap-2">
+          {autonomyCommand && (
+            <span
+              className="eyebrow-mono text-orbital-blue"
+              data-testid="anomaly-auto-chip"
+            >
+              AUTO · {autonomyCommand.action.replace("_", " ")}
+            </span>
+          )}
+          <StatusPill state={pillState}>{describeBand(anomaly.band)}</StatusPill>
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-y-1 text-ui">

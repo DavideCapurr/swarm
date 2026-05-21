@@ -261,17 +261,46 @@ def _anomaly_transition_event(anomaly: AnomalyView) -> Event:
     )
 
 
+_AUTONOMY_BODY_FOR_ACTION: dict[str, str] = {
+    "verify": "autonomy verify dispatched",
+    "escalate": "autonomy escalate dispatched",
+    "dismiss": "autonomy dismiss dispatched",
+}
+
+
 def _command_event(command: OperatorCommand, prev: CommandStatus | None) -> Event | None:
-    body_for_status = {
-        CommandStatus.SUBMITTED: f"operator intent submitted · {command.action.value}",
-        CommandStatus.ACCEPTED: f"operator intent accepted · {command.action.value}",
-        CommandStatus.IN_FLIGHT: f"operator intent in flight · {command.action.value}",
-        CommandStatus.COMPLETED: f"operator intent completed · {command.action.value}",
-        CommandStatus.TIMED_OUT: f"operator intent timed out · {command.action.value}",
-    }
+    is_autonomy = command.source == "autonomy"
+    if is_autonomy:
+        # Phase 7.C — autonomy bodies are confidence-bound. The Console
+        # renders the AUTO eyebrow off `source`, so the body stays compact.
+        base = _AUTONOMY_BODY_FOR_ACTION.get(
+            command.action.value, f"autonomy {command.action.value} dispatched"
+        )
+        rule_suffix = f" · {command.rule}" if command.rule else ""
+        body_for_status = {
+            CommandStatus.SUBMITTED: f"{base}{rule_suffix}",
+            CommandStatus.ACCEPTED: f"{base}{rule_suffix}",
+            CommandStatus.IN_FLIGHT: f"{base}{rule_suffix}",
+            CommandStatus.COMPLETED: f"autonomy {command.action.value} completed{rule_suffix}",
+            CommandStatus.TIMED_OUT: f"autonomy {command.action.value} timed out{rule_suffix}",
+        }
+    else:
+        body_for_status = {
+            CommandStatus.SUBMITTED: f"operator intent submitted · {command.action.value}",
+            CommandStatus.ACCEPTED: f"operator intent accepted · {command.action.value}",
+            CommandStatus.IN_FLIGHT: f"operator intent in flight · {command.action.value}",
+            CommandStatus.COMPLETED: f"operator intent completed · {command.action.value}",
+            CommandStatus.TIMED_OUT: f"operator intent timed out · {command.action.value}",
+        }
     if command.status == CommandStatus.REJECTED:
         reason = command.rejected_reason.value if command.rejected_reason else "policy_deny"
-        body: str = f"operator intent rejected · {command.action.value} · {reason}"
+        prefix = "autonomy" if is_autonomy else "operator intent"
+        rule_suffix = (
+            f" · {command.rule}" if is_autonomy and command.rule else ""
+        )
+        body: str = (
+            f"{prefix} rejected · {command.action.value} · {reason}{rule_suffix}"
+        )
     else:
         body_opt = body_for_status.get(command.status)
         if body_opt is None:
@@ -288,4 +317,5 @@ def _command_event(command: OperatorCommand, prev: CommandStatus | None) -> Even
         mission_id=command.mission_id,
         body=body,
         action_label=None,
+        source=command.source,
     )

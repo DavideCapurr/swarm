@@ -170,7 +170,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # separate processes, so the backend needs an explicit env override.
     # Phase 8.C will add a runtime admin endpoint for this toggle.
     if os.getenv("SWARM_AUTONOMY_BASELINE", "").lower() in {"1", "true", "yes"}:
-        COORDINATOR.state.autonomy_enabled = True
+        COORDINATOR.state.set_autonomy_enabled(True)
         logger.info("autonomy baseline enabled via SWARM_AUTONOMY_BASELINE")
 
     logger.info("backend ready")

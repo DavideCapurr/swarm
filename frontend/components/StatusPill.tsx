@@ -11,6 +11,7 @@ type Props = {
   state: SwarmState;
   children: React.ReactNode;
   className?: string;
+  "data-testid"?: string;
 };
 
 const STATE_CLASS: Record<SwarmState, string> = {
@@ -27,9 +28,17 @@ const DOT_CLASS: Record<SwarmState, string> = {
   attention: "dot dot-attention",
 };
 
-export function StatusPill({ state, children, className = "" }: Props) {
+export function StatusPill({
+  state,
+  children,
+  className = "",
+  "data-testid": dataTestId,
+}: Props) {
   return (
-    <span className={`${STATE_CLASS[state]} ${className}`}>
+    <span
+      className={`${STATE_CLASS[state]} ${className}`}
+      data-testid={dataTestId}
+    >
       <span className={DOT_CLASS[state]} />
       {children}
     </span>

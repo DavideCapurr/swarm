@@ -35,6 +35,15 @@ DEFAULT_DOCK_ID = "dock-langhe-01"
 DEFAULT_SESSION_LABEL = "session 014"
 VINEYARD_CENTER = Geo(lat=44.7000, lon=8.0300, alt_m=0.0)
 SITE_ID_ENV = "SWARM_SITE_ID"  # Phase 6.B — boot-time site selector
+# Phase 7.C — boot-time gate on the deterministic autonomy baseline. Read
+# at SwarmState construction so the env path and the scenario path produce
+# the same Session.autonomy_enabled value the Console reads.
+AUTONOMY_ENV = "SWARM_AUTONOMY_BASELINE"
+_AUTONOMY_TRUTHY = frozenset({"1", "true", "yes"})
+
+
+def _env_autonomy_enabled() -> bool:
+    return os.getenv(AUTONOMY_ENV, "").lower() in _AUTONOMY_TRUTHY
 
 
 def _default_policy() -> PolicyEngine:
@@ -108,12 +117,20 @@ class SwarmState:
         all derive from `site_config`. Existing hardcoded vineyard
         topology is preserved when the config uses the same center +
         single primary dock, so Phase 1..5 tests continue to pass.
+
+        Phase 7.C: ``state.autonomy_enabled`` and ``state.session.autonomy_enabled``
+        seed from ``SWARM_AUTONOMY_BASELINE`` so the env path and the
+        scenario-YAML path (sim runner) both surface the chip on the
+        Console HeadBar without an additional projection step.
         """
 
         state = cls()
+        autonomy = _env_autonomy_enabled()
+        state.autonomy_enabled = autonomy
         state.session = Session(
             label=DEFAULT_SESSION_LABEL,
             site_id=site_config.site_id,
+            autonomy_enabled=autonomy,
         )
         state.policy = PolicyEngine(site_config, LocalStubWeatherProvider())
         state.sectors = {
@@ -149,6 +166,17 @@ class SwarmState:
 
     def append_event(self, event: Event) -> None:
         self.events.append(event)
+
+    def set_autonomy_enabled(self, value: bool) -> None:
+        """Flip the autonomy gate and mirror it onto ``self.session``.
+
+        Centralising the dual write keeps the boot paths (main.py env var,
+        sim runner scenario opt-in) honest: the Console always observes
+        ``session.autonomy_enabled`` consistent with the kernel flag.
+        """
+
+        self.autonomy_enabled = value
+        self.session = self.session.model_copy(update={"autonomy_enabled": value})
 
 
 SWARM_STATE = SwarmState.vineyard()

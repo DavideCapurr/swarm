@@ -135,6 +135,9 @@ export type Session = {
   id: string;
   label: string;
   site_id: string;
+  // Phase 7.C — boot-time gate on the deterministic autonomy baseline.
+  // True when SWARM_AUTONOMY_BASELINE=1 or a scenario YAML opted in.
+  autonomy_enabled: boolean;
   started_at: string;
   ts: string;
 };
@@ -236,6 +239,9 @@ export type TimelineEvent = {
   confidence: number | null;
   body: string;
   action_label: string | null;
+  // Phase 7.C — mirrors OperatorCommand.source; the EventFeed renders an
+  // "auto" kind label (Orbital Blue) when this is "autonomy".
+  source: "operator" | "autonomy";
 };
 
 export type OperatorCommand = {
@@ -246,6 +252,9 @@ export type OperatorCommand = {
   // Phase 7.B — "operator" or "autonomy". Defaults to "operator" on every
   // existing API surface; Phase 7.C renders the AUTO eyebrow off this field.
   source: "operator" | "autonomy";
+  // Phase 7.C — autonomy rule label ("R1" / "R2" / "R3") when the command
+  // came from the deterministic baseline. Null for every operator command.
+  rule?: string | null;
   submitted_at: string;
   accepted_at: string | null;
   in_flight_at: string | null;

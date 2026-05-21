@@ -182,6 +182,7 @@ class Repository:
                     ),
                     "mission_id": command.mission_id,
                     "source": command.source,
+                    "rule": command.rule,
                     "ts": command.ts,
                 }
                 await self._upsert(db, OperatorCommandRow, [row], pk_cols=("id",))
@@ -205,6 +206,7 @@ class Repository:
                 "confidence": e.confidence,
                 "body": e.body,
                 "action_label": e.action_label,
+                "source": e.source,
             }
             for e in events
         ]
@@ -521,6 +523,7 @@ def _row_to_event(r: EventRow) -> Event:
         confidence=r.confidence,
         body=r.body,
         action_label=r.action_label,
+        source=r.source if r.source in {"operator", "autonomy"} else "operator",
     )
 
 
@@ -538,6 +541,7 @@ def _event_row_to_dict(r: EventRow) -> dict[str, Any]:
         "confidence": r.confidence,
         "body": r.body,
         "action_label": r.action_label,
+        "source": r.source,
     }
 
 
@@ -556,6 +560,7 @@ def _command_row_to_dict(r: OperatorCommandRow) -> dict[str, Any]:
         "rejected_reason": r.rejected_reason,
         "mission_id": r.mission_id,
         "source": r.source,
+        "rule": r.rule,
         "ts": r.ts.isoformat() if r.ts else None,
     }
 
@@ -569,6 +574,7 @@ def _row_to_command(r: OperatorCommandRow) -> OperatorCommand:
         target=r.target,
         operator_id=r.operator_id,
         source=r.source if r.source in {"operator", "autonomy"} else "operator",
+        rule=r.rule,
         submitted_at=r.submitted_at,
         accepted_at=r.accepted_at,
         in_flight_at=r.in_flight_at,
