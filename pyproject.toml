@@ -57,6 +57,21 @@ otel = [
     "opentelemetry-exporter-otlp-proto-http>=1.25,<2",
     "opentelemetry-instrumentation-fastapi>=0.46b0,<1",
 ]
+# Phase 7.D — Computer-vision baseline. Opt-in only. NEVER installed in
+# `make setup` (~2 GB wheels) and NEVER pulled into the prod image:
+# `backend/Dockerfile` + `docker-compose.prod.yml` build without `[cv]`.
+# Ultralytics ships under AGPL-3.0 — runtime stays scoped to sim/CI/dev.
+# Hardware-day customer deploys that need CV runtime require a separate
+# legal review (e.g. Ultralytics Enterprise license); see
+# `docs/security/threat-model.md` §Supply chain.
+cv = [
+    "ultralytics>=8.3,<8.4",
+    "torch>=2.4,<2.6",
+    "torchvision>=0.19,<0.21",
+    "opencv-python-headless>=4.10,<4.11",
+    "numpy>=1.26,<3",
+    "Pillow>=10.0,<12",
+]
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=0.23,<2",
@@ -116,6 +131,7 @@ testpaths = [
     "backend/tests",
     "swarm_os/tests",
     "sim/swarm_sim/tests",
+    "sim/swarm_sim/cv/tests",
     "tests/fuzz",
     "tests/load",
     "tests/e2e",
@@ -136,6 +152,15 @@ markers = [
     # return → dock) through the real bus + real coordinator + real
     # FastAPI surface. No internal mocks.
     "e2e: end-to-end integration test (Phase 6.J).",
+    # Phase 7.D — CV baseline inference tests. Skipped by default because
+    # they need the `cv` extra (~2 GB wheels). Run via `make test-cv`
+    # after `make setup-cv`. The infrastructure tests that DON'T need
+    # ultralytics (manifest schema, scenario default unchanged) are NOT
+    # marked `cv_baseline` so they keep running on every push.
+    "cv_baseline: CV baseline inference (Phase 7.D, needs [cv] extra).",
+    # Phase 7.D — subset that additionally needs reference samples from
+    # FLAME/D-Fire/VisDrone to be cached locally. Skipped when offline.
+    "cv_baseline_realistic: CV inference on cached dataset samples (Phase 7.D).",
 ]
 
 [tool.coverage.run]
@@ -155,6 +180,11 @@ omit = [
     "adapters/autel/*",
     "adapters/parrot/*",
     "adapters/skydio/*",
+    # Phase 7.D — CV baseline runtime is opt-in (extra `cv`, ~2 GB wheels).
+    # Default CI does not install the extra, so the module is unimportable
+    # by design; its coverage is enforced by the dedicated `make test-cv`
+    # gate against the `cv_baseline` marker.
+    "sim/swarm_sim/cv/*",
 ]
 
 [tool.coverage.report]

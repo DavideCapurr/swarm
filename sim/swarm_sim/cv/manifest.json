@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "comment": "Phase 7.D — pinned CV asset manifest. Every entry MUST carry a HTTPS url, a sha256 of the exact bytes, and an explicit license. weights/ assets are fetched on first use (gitignored cache). samples/ assets are dataset subsets (FLAME / D-Fire / VisDrone) that are research-only and never redistributed in this repo. Real fixtures live in sim/swarm_sim/cv/fixtures/ and ARE committed (CC0 only).",
+  "weights": {
+    "yolov8n.pt": {
+      "url": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt",
+      "sha256": "31e20dde3def09e2cf938c7be6fe23d9150bbbe503982af13345706515f2ef95",
+      "size_bytes": 6534387,
+      "license": "AGPL-3.0",
+      "description": "YOLOv8n baseline COCO weights. 80 classes (incl. person)."
+    },
+    "yolov8n-fire.pt": {
+      "url": "https://github.com/davidecapurr/swarm-cv-weights/releases/download/v0.1.0/yolov8n-fire.pt",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size_bytes": 0,
+      "license": "AGPL-3.0",
+      "description": "YOLOv8n fine-tuned on FLAME + D-Fire (smoke/fire). Drone-day: pin sha256 + size_bytes after first verified download; until then, fire detection falls back to the COCO baseline + a smoke/fire kind heuristic.",
+      "drone_day": true
+    },
+    "yolov8n-person-aerial.pt": {
+      "url": "https://github.com/davidecapurr/swarm-cv-weights/releases/download/v0.1.0/yolov8n-person-aerial.pt",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size_bytes": 0,
+      "license": "AGPL-3.0",
+      "description": "YOLOv8n fine-tuned on VisDrone (person/people, aerial). Drone-day: pin sha256 + size_bytes after first verified download; until then, person detection falls back to the COCO baseline `person` class.",
+      "drone_day": true
+    }
+  },
+  "samples": {
+    "flame-fire-001.jpg": {
+      "url": "https://ieee-dataport.s3.amazonaws.com/open/27007/Frame_0001.jpg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size_bytes": 0,
+      "license": "FLAME dataset — research use only (Roberts et al., 2020). Not redistributed in this repo. Verified pin TBD on first cached download.",
+      "drone_day": true
+    },
+    "visdrone-aerial-001.jpg": {
+      "url": "https://github.com/VisDrone/VisDrone-Dataset/releases/download/v1.0/9999999_00000_d_0000001.jpg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size_bytes": 0,
+      "license": "VisDrone dataset — research use only (Zhu et al., 2018). Not redistributed in this repo. Verified pin TBD on first cached download.",
+      "drone_day": true
+    }
+  }
+}

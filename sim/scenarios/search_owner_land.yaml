@@ -25,6 +25,10 @@ fleet:
   dock_offset_m: { east: 0.0, north: 0.0 }
 perception:
   territory_radius_m: 250.0
+  # Phase 7.D — opt-in CV baseline. YOLOv8 pretrained runs on a committed
+  # fixture frame per ignition; only `confidence` (below) is then replaced
+  # by the real model score.
+  cv_enabled: true
 anomalies:
   - after_s: 20.0
     kind: HEAT_SPOT

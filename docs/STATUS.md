@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D/7.E pending |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E pending |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,48 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-21: Phase 7.D CV baseline landed on branch
+`claude/cv-baseline-sim-zOUAx`. New `sim/swarm_sim/cv/` package
+(`detector.py` lazy-imports `ultralytics`+`torch`; `perception_cv.py`
+is a drop-in for `MockPerception`; `weights.py` owns the manifest →
+download → sha256 → cache flow; `manifest.json` pins HTTPS urls,
+sha256, size, license per asset; `fixtures/` carries 12 CC0 32x32 PNG
+placeholders authored by SwarmOS plus `LICENSES.md` with per-file
+provenance; `_generate.py` regenerates the placeholders via stdlib
+`zlib` only). Opt-in `[cv]` extra in `pyproject.toml`
+(ultralytics 8.3, torch 2.4, opencv-headless 4.10, Pillow, numpy);
+`make setup` deliberately does NOT install it (~2 GB wheels) so the
+default contributor experience and the prod image
+(`backend/Dockerfile`, `docker-compose.prod.yml`) stay
+AGPL-free. Scenario opt-in via `perception.cv_enabled: true` in the
+three owner-land YAMLs; `Scenario.build_world()` branches on the flag.
+New `scripts/verify_cv_assets_integrity.py` mirrors
+`scripts/verify_pymavlink_integrity.py` (offline, sha256-only, no
+network); wired into `make audit` via the always-on
+`audit-cv-integrity` step (fixture provenance is verified even without
+the `[cv]` extra). New `make setup-cv` / `make test-cv` /
+`make cv-generate-fixtures` targets. Default `make test` deselects
+the `cv_baseline` + `cv_baseline_realistic` markers so the gate stays
+green without the extra. Tests: 5 test files under
+`sim/swarm_sim/cv/tests/` (manifest schema/integrity/offline gate ×
+12 cases; detector smoke + determinism × 2; CVPerception seam ×
+4; wildfire e2e × 1; default-unchanged × 5). Docs:
+`docs/cv/phase-7d.md` (asset classes, fixture flow, drone-day pin
+flow, license posture, anti-overreach), AGPL-3.0 perimeter section
+added to `docs/security/threat-model.md`, README docs map points at
+`docs/cv/phase-7d.md`. Out of scope per the plan: per-scenario
+thresholds (8.B), shadow / A-B mode (8.B-bis), detection-bbox overlay
+in Console (8.D / 10), `make demo-*` (7.E), training loop (10.A), live
+RTSP / WebRTC ingestion (11 / 14), detection-history table (16). Last
+verified locally: `python sim/swarm_sim/cv/fixtures/_generate.py` → 12
+PNGs (6 fire + 6 person_aerial) ; `python scripts/verify_cv_assets_integrity.py`
+→ `cv assets integrity: PASS fixtures=12 weights_cached=0
+samples_cached=0 network=not-used`. Full `make lint && make test &&
+make audit` from a clean `.venv` requires the existing `make setup`
+infrastructure (uv + node + frontend pnpm) and is the pre-merge gate;
+the `cv_baseline` suite is gated by `pytest.importorskip("ultralytics")`
+so the default `make test` suite is unchanged.
 
 2026-05-21: Phase 7.C Console "AUTO" eyebrow + observatory surface
 landed on branch `claude/execute-eager-robin-plan-H9ppE`. Backend:
