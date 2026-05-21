@@ -51,3 +51,10 @@ data/
 
 # Phase 6.J — Vitest coverage output
 frontend/coverage/
+
+# Phase 7.D — CV asset cache. Weights + dataset samples are downloaded
+# on first use, verified via SHA256 from sim/swarm_sim/cv/manifest.json,
+# and never committed. `.cache/` is already ignored above; this is
+# belt-and-suspenders so a missing `.cache/` rule does not silently
+# leak ~6 MB / 200 MB weight binaries into the repo.
+.cache/cv/

@@ -93,6 +93,36 @@ Phase 0 baseline (2026-05).
 | Compromised Docker base image | Digest-pin + Trivy scan + Dependabot for docker. |
 | Compromised CI runner | GitHub-hosted runners only (no self-hosted in Phase 0-6). |
 | Compromised maintainer token | Branch protection + required reviews + signed commits encouraged. |
+| Tampered CV weight / dataset sample (Phase 7.D+) | Manifest pin (`sim/swarm_sim/cv/manifest.json`) with HTTPS url + sha256 + size + license per asset. `make audit-cv-integrity` re-verifies every cached asset offline; mismatches fail closed (`AssetIntegrityError`). Drone-day placeholders refuse to resolve until pinned. Committed CC0 fixtures carry per-file sha256 prefix in `fixtures/LICENSES.md`; orphan files (no row) fail the audit. |
+
+### Phase 7.D — CV runtime license note (Ultralytics AGPL-3.0)
+
+The Phase 7.D CV baseline relies on Ultralytics YOLOv8, which is
+distributed under **AGPL-3.0**. The product perimeter for that license
+is scoped as follows:
+
+- The `cv` optional extra is **never** installed by default `make setup`
+  and is **not** present in the production container images
+  (`backend/Dockerfile`, `infra/backup/Dockerfile`,
+  `docker-compose.prod.yml`) nor in the Helm chart values.
+- The CV runtime lives in `sim/swarm_sim/cv/` — the simulator package.
+  The simulator is dev / CI tooling, not a network service offered to
+  customers, so the AGPL §13 network-distribution clause does not
+  trigger for the current deploy posture.
+- If a future hardware phase (Phase 19+) requires the CV runtime on
+  customer hardware (or as a network service), that triggers a fresh
+  legal review: either Ultralytics Enterprise license, or a swap to a
+  permissively-licensed detector (e.g. MMDetection variants under
+  Apache-2.0). The compliance decision must precede the hardware
+  rollout.
+- The AGPL deny-list in `.github/workflows/dependency-review.yml`
+  remains scoped to Phase 6 (default runtime), per its existing
+  comment. Phase 7.D does not flip it, because the `cv` extra is not
+  on the default install path that the workflow audits.
+- License provenance for every CV asset (weights, dataset samples,
+  fixtures) is captured in `sim/swarm_sim/cv/manifest.json` and
+  `sim/swarm_sim/cv/fixtures/LICENSES.md`; the integrity gate refuses
+  to resolve assets that carry a placeholder license string.
 
 ## Attack scenarios considered
 

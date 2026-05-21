@@ -59,6 +59,14 @@ class FleetCfg(BaseModel):
 class PerceptionCfg(BaseModel):
     model_config = _STRICT
     territory_radius_m: float = Field(..., gt=0.0)
+    # Phase 7.D — opt-in CV baseline. Default off so legacy scenarios
+    # (and every existing test) keep the deterministic MockPerception.
+    # When true, `Scenario.build_world()` returns a World whose
+    # perception runs YOLOv8 pretrained inference on committed smoke
+    # fixtures (or downloaded reference samples) at every scheduled
+    # ignition. The geo + kind stay scripted (sim has no geo-localized
+    # frames); only `confidence` is derived from the real model output.
+    cv_enabled: bool = False
 
 
 class AnomalyPositionCfg(BaseModel):
@@ -124,12 +132,25 @@ class Scenario(BaseModel):
             )
             for a in self.anomalies
         ]
-        perception = MockPerception(
+        if self.perception.cv_enabled:
+            # Lazy import — keeps the `cv` extra opt-in and the import
+            # path off the default sim boot. The module raises an actionable
+            # error if `ultralytics`/`torch` aren't installed.
+            from sim.swarm_sim.cv.perception_cv import CVPerception
+
+            cv_perception = CVPerception(
+                territory_center=dock,
+                territory_radius_m=self.perception.territory_radius_m,
+                ignitions=ignitions,
+                scenario_id=self.id,
+            )
+            return World(dock=dock, drones=drones, perception=cv_perception)
+        mock_perception = MockPerception(
             territory_center=dock,
             territory_radius_m=self.perception.territory_radius_m,
             ignitions=ignitions,
         )
-        return World(dock=dock, drones=drones, perception=perception)
+        return World(dock=dock, drones=drones, perception=mock_perception)
 
 
 def load_scenario(path: Path) -> Scenario:

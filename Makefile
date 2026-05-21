@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend lint test test-python test-frontend sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend
+.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
 
 PY := python3
 VENV := .venv
@@ -18,6 +18,13 @@ setup-frontend:
 	# transitive dep can't execute code at install time (threat model §S3).
 	cd frontend && corepack pnpm install --frozen-lockfile --ignore-scripts
 
+# Phase 7.D — opt-in CV runtime. Adds ultralytics + torch + opencv-headless
+# + Pillow + numpy on top of the default dev env. NOT pulled by `make setup`
+# because the wheels are ~2 GB and 99% of contributors never opt into CV.
+# Pairs with `make test-cv` and `make audit-cv-integrity`.
+setup-cv:
+	$(UV) sync --frozen --extra dev --extra mavlink --extra dji --extra cv --python $(PY)
+
 # ── lint & test ─────────────────────────────────────────────────────────────
 lint:
 	$(VENV)/bin/ruff check .
@@ -31,13 +38,24 @@ test-python:
 	# samples are deselected because coverage instrumentation distorts
 	# the latency p95 they assert on; the dedicated `load-smoke` /
 	# `chaos-*` targets run them without coverage.
-	$(VENV)/bin/pytest -q -m "not load_smoke and not chaos" \
+	# Phase 7.D — `cv_baseline` / `cv_baseline_realistic` deselected by
+	# default; they require the opt-in `[cv]` extra and run via
+	# `make test-cv`.
+	$(VENV)/bin/pytest -q -m "not load_smoke and not chaos and not cv_baseline and not cv_baseline_realistic" \
 		--cov=core --cov=adapters --cov=orchestrator --cov=swarm_os --cov=backend \
 		--cov-report=term-missing --cov-fail-under=80
 
 test-frontend:
 	cd frontend && corepack pnpm typecheck
 	cd frontend && corepack pnpm test
+
+# Phase 7.D — CV baseline suite. Requires `make setup-cv` first. Runs
+# the tests marked `cv_baseline` (and, when reference samples are cached,
+# the `cv_baseline_realistic` subset). The default `make test` deselects
+# both markers so a contributor without the `cv` extra never sees a
+# spurious failure.
+test-cv:
+	$(VENV)/bin/pytest sim/swarm_sim/cv/tests -q -m "cv_baseline or cv_baseline_realistic"
 
 # ── run ─────────────────────────────────────────────────────────────────────
 infra:
@@ -71,7 +89,7 @@ demo:
 # `make audit` is the one-stop check before pushing. It mirrors what CI runs
 # under .github/workflows/sast.yml + secret-scanning.yml + image-scan.yml +
 # dependency-review.yml. Locally we skip image-scan (needs Docker daemon).
-audit: audit-python audit-frontend audit-bandit audit-pymavlink-integrity
+audit: audit-python audit-frontend audit-bandit audit-pymavlink-integrity audit-cv-integrity
 
 audit-python:
 	# PYSEC-2025-183 (pyjwt 2.12.1, "weak encryption"): disputed by supplier,
@@ -91,6 +109,20 @@ audit-bandit:
 
 audit-pymavlink-integrity:
 	$(PYTHON) scripts/verify_pymavlink_integrity.py
+
+# Phase 7.D — CV asset integrity. Always-on (no [cv] extra required):
+# the gate verifies the manifest schema + the sha256 of every committed
+# fixture against fixtures/LICENSES.md, fully offline. If the `[cv]`
+# extra IS installed it also re-verifies any cached weights / samples.
+audit-cv-integrity:
+	$(PY) scripts/verify_cv_assets_integrity.py
+
+# Phase 7.D — regenerate the synthetic CC0 placeholder fixtures. Only
+# writes files that do NOT already exist, so a real Pexels/Unsplash
+# frame dropped in by an operator is never overwritten. After running,
+# update the row in fixtures/LICENSES.md if anything was created.
+cv-generate-fixtures:
+	$(PY) sim/swarm_sim/cv/fixtures/_generate.py
 
 phase5-sitl-gate:
 	$(PYTHON) scripts/phase5_sitl_probe.py \

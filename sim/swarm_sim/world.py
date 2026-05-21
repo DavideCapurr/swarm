@@ -10,11 +10,19 @@ The runner (`sim.swarm_sim.runner`) wires this up to the bus and adapter layer.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from swarm_core.messages import AnomalyKind, Geo
 
 from sim.swarm_sim.drone import Drone
 from sim.swarm_sim.perception import IgnitionEvent, MockPerception
+
+if TYPE_CHECKING:
+    # Phase 7.D — opt-in. `CVPerception` is the same shape as
+    # `MockPerception` (structural typing) so a union here keeps the
+    # diff minimal and avoids promoting Perception to a Protocol until
+    # a third implementor lands (Phase 19).
+    from sim.swarm_sim.cv.perception_cv import CVPerception
 
 # A representative northern-Italian vineyard — Langhe, near Alba.
 DEFAULT_DOCK = Geo(lat=44.7000, lon=8.0300, alt_m=0.0)
@@ -26,7 +34,7 @@ class World:
 
     dock: Geo = field(default_factory=lambda: DEFAULT_DOCK)
     drones: list[Drone] = field(default_factory=list)
-    perception: MockPerception | None = None
+    perception: "MockPerception | CVPerception | None" = None
     t_s: float = 0.0
 
     @classmethod

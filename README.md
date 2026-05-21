@@ -153,6 +153,7 @@ https://github.com/DavideCapurr/swarm/security/advisories/new
 - External pen-test scope: [`docs/security/pentest-scope.md`](docs/security/pentest-scope.md)
 - Compliance baseline: [`docs/compliance/gdpr.md`](docs/compliance/gdpr.md), [`docs/compliance/retention.md`](docs/compliance/retention.md), [`docs/compliance/dpa-template.md`](docs/compliance/dpa-template.md), [`docs/compliance/drone-regulations.md`](docs/compliance/drone-regulations.md)
 - Developer onboarding + release: [`docs/dev/onboarding.md`](docs/dev/onboarding.md), [`docs/dev/release-process.md`](docs/dev/release-process.md)
+- CV baseline (Phase 7.D): [`docs/cv/phase-7d.md`](docs/cv/phase-7d.md)
 
 ## For Claude Code sessions
 
