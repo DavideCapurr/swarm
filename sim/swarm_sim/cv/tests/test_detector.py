@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 
 pytestmark = pytest.mark.cv_baseline
-ultralytics = pytest.importorskip("ultralytics")  # noqa: F841
+pytest.importorskip("ultralytics")
 
 from swarm_core.messages import AnomalyKind  # noqa: E402
 
