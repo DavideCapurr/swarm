@@ -55,23 +55,35 @@ export function EventFeed({ events }: Props) {
             no events yet.
           </div>
         )}
-        {ordered.slice(0, 50).map((e) => (
-          <div
-            key={e.id}
-            className="grid grid-cols-[88px_72px_140px_1fr] items-baseline gap-4 py-2 border-b border-gunmetal text-ui"
-          >
-            <span className="mono-num text-ash">{timestamp(e.ts)}</span>
-            <span
-              className={`font-mono uppercase tracking-eyebrow text-eyebrow ${KIND_CLASS[e.kind]}`}
+        {ordered.slice(0, 50).map((e) => {
+          // Phase 7.C — autonomy-issued OPERATOR rows show "auto" in
+          // Orbital Blue so the operator spots them at a glance. Other
+          // kinds keep their existing tier/color.
+          const isAutoOperator = e.kind === "operator" && e.source === "autonomy";
+          const kindLabel = isAutoOperator ? "auto" : e.kind;
+          const kindClass = isAutoOperator
+            ? "text-orbital-blue"
+            : KIND_CLASS[e.kind];
+          return (
+            <div
+              key={e.id}
+              className="grid grid-cols-[88px_72px_140px_1fr] items-baseline gap-4 py-2 border-b border-gunmetal text-ui"
+              data-testid={`event-row-${e.id}`}
             >
-              {e.kind}
-            </span>
-            <span className="font-mono uppercase tracking-eyebrow text-eyebrow text-muted-silver truncate">
-              {target(e)}
-            </span>
-            <span className="font-display text-platinum truncate">{e.body}</span>
-          </div>
-        ))}
+              <span className="mono-num text-ash">{timestamp(e.ts)}</span>
+              <span
+                className={`font-mono uppercase tracking-eyebrow text-eyebrow ${kindClass}`}
+                data-testid={isAutoOperator ? `event-kind-auto-${e.id}` : undefined}
+              >
+                {kindLabel}
+              </span>
+              <span className="font-mono uppercase tracking-eyebrow text-eyebrow text-muted-silver truncate">
+                {target(e)}
+              </span>
+              <span className="font-display text-platinum truncate">{e.body}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

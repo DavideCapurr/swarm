@@ -58,8 +58,18 @@ export function CommandTimeline({ limit = 5 }: { limit?: number }) {
           {recent.map((c) => (
             <li
               key={c.id}
-              className="grid grid-cols-[120px_1fr_92px] items-baseline gap-3 text-ui"
+              className="grid grid-cols-[64px_120px_1fr_92px] items-baseline gap-3 text-ui"
             >
+              {c.source === "autonomy" ? (
+                <span
+                  className="eyebrow-mono text-orbital-blue truncate"
+                  data-testid={`command-auto-chip-${c.id}`}
+                >
+                  {c.rule ? `AUTO · ${c.rule}` : "AUTO"}
+                </span>
+              ) : (
+                <span aria-hidden="true" />
+              )}
               <span className="font-display text-platinum truncate">
                 {ACTION_LABEL[c.action]}
               </span>

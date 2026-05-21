@@ -80,6 +80,9 @@ export type SwarmState = {
   mode: OperatingMode;
   verifier: UnitState | null;
   primaryDock: DockState | null;
+  // Phase 7.C — mirrors session.autonomy_enabled. Read by HeadBar to
+  // render the inline `autonomy baseline` chip.
+  autonomyEnabled: boolean;
   dispatch: Dispatch;
 };
 
@@ -288,6 +291,7 @@ export function SwarmStateProvider({
       mode: awareness.mode,
       verifier,
       primaryDock,
+      autonomyEnabled: session?.autonomy_enabled ?? false,
       dispatch,
     }),
     [

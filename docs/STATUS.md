@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C/7.D/7.E pending |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D/7.E pending |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,44 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-21: Phase 7.C Console "AUTO" eyebrow + observatory surface
+landed on branch `claude/execute-eager-robin-plan-H9ppE`. Backend:
+`Session.autonomy_enabled` (Phase 7.B boot-time gate surfaced to the
+Console), `Event.source` (operator vs. autonomy projection on the
+audit log), `OperatorCommand.rule` (structured "R1"/"R2"/"R3" label
+on autonomy decisions — forward-compatible with 8.B-bis shadow,
+8.C override soft, 8.D rule-level eyebrows, 10.I A/B). New
+``SwarmState.set_autonomy_enabled`` helper keeps state +
+session in lockstep across the env-var path (`SWARM_AUTONOMY_BASELINE=1`
+in `main.py`) and the scenario-YAML path (sim runner). Event
+detector emits "autonomy verify dispatched · R1" / "autonomy
+escalate dispatched · R2" / "autonomy dismiss dispatched · R3" on
+the OPERATOR-kind timeline, voice-clean. Alembic migration 0004
+adds ``events.source`` (server_default 'operator') and
+``operator_commands.rule`` (nullable); repository writes + reads
+both. Frontend: HeadBar inline ``autonomy baseline`` chip
+(StatusPill connected variant — Orbital Blue halo), CommandTimeline
+``AUTO · {rule}`` chip on autonomy rows, EventFeed ``auto`` kind
+label (Orbital Blue), AnomalySummary / verify panel /
+MobileAnomalyScreen all carry ``AUTO · {action}`` while a
+non-terminal autonomy command targets the focus anomaly via a new
+shared selector ``frontend/lib/autonomy.ts``. 27 new tests (13
+backend + 14 frontend including 5 selector unit tests); full
+backend suite **701 passed / 16 skipped / 3 deselected** (vs 684
+baseline), backend coverage 88.64% (≥ 80% gate), frontend vitest
+**49 passed**, critical-path coverage 77.3% lines / 83.1% branches
+(≥ 70% / 60% gate). `make lint` (ruff + mypy 168 files + tsc),
+`make audit` (pip-audit clean, pnpm audit at gate, Bandit 0
+medium/high, pymavlink integrity PASS) all green. Voice + brand
+audit greps return zero hits in product code. No new dependencies
+in `pyproject.toml` or `package.json`; no inversion of the Console
+default (8.A scope); no per-scenario thresholds (8.B scope); no CV
+runtime (7.D scope); no `make demo-*` (7.E scope). Manual smoke
+end-to-end with `SWARM_AUTONOMY_BASELINE=1 make demo` requires a
+local Docker stack and is deferred to the next demo session — the
+in-process integration tests already exercise the wildfire R1+R2
+path end-to-end.
 
 2026-05-20: Phase 7.B autonomy baseline landed on branch
 `claude/autonomy-baseline-sim-X51Id`. Three new deterministic rules in

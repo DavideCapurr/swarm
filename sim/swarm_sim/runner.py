@@ -111,7 +111,7 @@ async def main() -> None:
         if scenario.autonomy_baseline:
             from swarm_os import SWARM_STATE
 
-            SWARM_STATE.autonomy_enabled = True
+            SWARM_STATE.set_autonomy_enabled(True)
             logger.info("autonomy baseline enabled for scenario %s", scenario.id)
     else:
         n_drones = int(os.getenv("SIM_DRONES", "3"))

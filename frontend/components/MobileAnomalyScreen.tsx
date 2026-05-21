@@ -12,13 +12,17 @@ import Link from "next/link";
 
 import { useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
+import { findActiveAutonomyCommand } from "@/lib/autonomy";
 import { IconBack } from "@/icons";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
 
 export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
-  const { anomalies, verifier } = useSwarm();
+  const { anomalies, verifier, commands } = useSwarm();
   const anomaly = anomalies.find((a) => a.id === anomalyId);
+  const autonomyCommand = anomaly
+    ? findActiveAutonomyCommand(commands, anomaly.id)
+    : null;
 
   return (
     <main className="min-h-screen flex flex-col bg-absolute-black px-4 py-6 gap-4">
@@ -43,11 +47,21 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
         <div className="card p-4 flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
             <Eyebrow mono>Anomaly · {anomaly.id.slice(0, 4)}</Eyebrow>
-            <StatusPill
-              state={anomaly.band === "verified" ? "operational" : "attention"}
-            >
-              {describeBand(anomaly.band)}
-            </StatusPill>
+            <span className="flex items-center gap-2">
+              {autonomyCommand && (
+                <span
+                  className="eyebrow-mono text-orbital-blue"
+                  data-testid="mobile-auto-chip"
+                >
+                  AUTO · {autonomyCommand.action.replace("_", " ")}
+                </span>
+              )}
+              <StatusPill
+                state={anomaly.band === "verified" ? "operational" : "attention"}
+              >
+                {describeBand(anomaly.band)}
+              </StatusPill>
+            </span>
           </div>
 
           <span className="mono-num text-platinum" style={{ fontSize: 56, lineHeight: 1 }}>

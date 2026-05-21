@@ -323,12 +323,18 @@ class RejectedReason(str, Enum):
 
 
 class Session(BaseModel):
-    """Operational session identifier. Server-issued, immutable."""
+    """Operational session identifier. Server-issued, immutable.
+
+    Phase 7.C: ``autonomy_enabled`` reflects the boot-time gate on the
+    deterministic autonomy baseline (Phase 7.B). The Console reads it to
+    render the inline ``autonomy baseline`` chip on the HeadBar.
+    """
 
     model_config = _STRICT
     id: str = Field(default_factory=_new_id)
     label: str  # e.g., "session 014"
     site_id: str = "vineyard-01"
+    autonomy_enabled: bool = False
     started_at: datetime = Field(default_factory=_now)
     ts: datetime = Field(default_factory=_now)
 
@@ -448,7 +454,13 @@ class AnomalyView(BaseModel):
 
 
 class Event(BaseModel):
-    """Typed timeline entry for the Console EventFeed."""
+    """Typed timeline entry for the Console EventFeed.
+
+    Phase 7.C: ``source`` distinguishes operator-issued events from
+    autonomy-issued ones (Phase 7.B baseline). The Console renders the
+    eyebrow tier differently for ``"autonomy"`` rows; defaults to
+    ``"operator"`` so every existing emitter is unaffected.
+    """
 
     model_config = _STRICT
     id: str = Field(default_factory=_new_id)
@@ -462,6 +474,7 @@ class Event(BaseModel):
     confidence: float | None = Field(None, ge=0.0, le=1.0)
     body: str = ""  # Confidence-bound copy — never user-controlled
     action_label: str | None = None
+    source: Literal["operator", "autonomy"] = "operator"
 
 
 class OperatorCommand(BaseModel):
@@ -475,6 +488,11 @@ class OperatorCommand(BaseModel):
     log as operator commands but stay distinguishable for the Console
     `AUTO` eyebrow (Phase 7.C). Defaults to "operator" — every existing
     call site is unaffected.
+
+    Phase 7.C adds `rule` as a structured field so the Console can render
+    the rule label (`R1`/`R2`/`R3`) on the AUTO eyebrow without parsing
+    free-form copy. Nullable for backward compatibility — every operator
+    command and any pre-7.C autonomy command leaves it ``None``.
     """
 
     model_config = _STRICT
@@ -483,6 +501,7 @@ class OperatorCommand(BaseModel):
     target: str  # opaque to the model; the command_bus validates by kind:identifier
     operator_id: str
     source: Literal["operator", "autonomy"] = "operator"
+    rule: str | None = None
     submitted_at: datetime = Field(default_factory=_now)
     accepted_at: datetime | None = None
     in_flight_at: datetime | None = None
