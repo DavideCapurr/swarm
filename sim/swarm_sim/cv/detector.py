@@ -133,9 +133,9 @@ class YOLODetector:
         return self._models[wanted], wanted
 
     def _load_yolo(self, weight_path: Path) -> Any:
-        YOLO, torch = _load_runtime()
+        yolo_cls, torch = _load_runtime()
         torch.manual_seed(_TORCH_SEED)
-        return YOLO(str(weight_path))
+        return yolo_cls(str(weight_path))
 
     def predict(self, frame_path: Path, kind: AnomalyKind) -> Detection:
         """Run inference on `frame_path` and return the top-1 detection.

@@ -34,7 +34,7 @@ class World:
 
     dock: Geo = field(default_factory=lambda: DEFAULT_DOCK)
     drones: list[Drone] = field(default_factory=list)
-    perception: "MockPerception | CVPerception | None" = None
+    perception: MockPerception | CVPerception | None = None
     t_s: float = 0.0
 
     @classmethod
