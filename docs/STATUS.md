@@ -4,6 +4,11 @@ This file tracks where we are in the
 [`swarmos-roadmap.md`](plan/swarmos-roadmap.md) plan. Update it at the end
 of every phase.
 
+Phase 7+ execution order is now in
+[`swarm-roadmap-evidence-to-scale.md`](plan/swarm-roadmap-evidence-to-scale.md).
+It replaces the older "all sim software before field/market proof" draft
+for current execution.
+
 ## Current state
 
 | Phase | Description                                           | Status |
@@ -16,6 +21,9 @@ of every phase.
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
 | 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **done** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); 7.G manual end-to-end gate green on Python 3.13 (lint/test/audit clean: 726 passed/19 skipped; demo wildfire boot evidence + 5 desktop + 2 mobile screenshots in `docs/yc/screenshots/`; a11y sweep report in `docs/yc/m1-a11y-report.md`; pitch VO script in `docs/yc/m1-vo-script.md`); **WS1 (2026-05-29) closed the live verify-loop** — `apply_mission_progress(DONE)` promotes VERIFYING→VERIFIED so R2 auto-ESCALATE fires on the wildfire FIRE follow-up (`by_rule.R2==1`), and AUTO attribution persists past command completion (`findLatestAutonomyCommand`); `make lint/test/audit` green (751 py / 61 fe). **WS2 (2026-05-31)** added the honest in-Console autonomy metrics surface (`frontend/lib/metrics.ts` mirroring `scripts/scenario_metrics.py` + `AutonomyMetrics.tsx` in QuietPanel, CSS/SVG-only, every readout `(sim)`, no red) and parametrized `scripts/m1_capture_screenshots.py` by `--scenario {wildfire,intrusion,search}` (intrusion/search = standby/R1-verify/VERIFIED, operator-owns-escalation); `pnpm test` 86 fe passed (metrics.ts 100% lines). The 3-scenario live capture + `phase-7e-{intrusion,search}` metrics artifacts and the `.mov` screen-recording (plan §1f) remain the same manual founder-machine step. |
+| 8     | Wedge + customer validation | **next** — run discovery before broadening software scope |
+| 9     | PX4/SITL + hardware bench de-risk | **next in parallel after Phase 7 demo** — Phase 5 hardware claim remains pending |
+| 10    | Summer evidence pack + BIEF/YC future-batch decision | **planned** — YC Summer 2026 is not the target |
 
 ## Phase 0 — completed checklist
 

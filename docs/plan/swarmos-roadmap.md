@@ -2,22 +2,35 @@
 
 Phase 0–6 = PDF roadmap originale (fondazione tecnica, in larga parte
 fatta).
-Phase 7–11 = **pre-seed sprint** (founder solo + Claude Code + Codex
-fino a primo capitale). Include test reale su terreno privato del
-founder prima del pitch.
-Phase 12–27 = **post-seed execution** (visione finale dopo team +
-capitale + giurisdizione target attiva).
+Phase 7–10 = **evidence sprint**: founder solo + AI tools costruiscono
+una prova leggibile prima dell'inizio di BIEF Bocconi, senza aspettare
+che tutto il prodotto finale sia scritto.
+Phase 11–14 = **pilot + capital sprint**: prova fisica supervisionata,
+pilot candidate, application per batch YC futuri/acceleratori coerenti,
+advisor e struttura societaria minima solo quando serve.
+Phase 15–22 = **post-proof product execution**: prodotto e dati si
+allargano dopo che wedge, flight path e buyer sono stati testati.
+Phase 23–30 = **scale execution**: capitale, team, compliance e
+operations per deploy ripetibili.
 
-Giurisdizioni (decisione utente 2026-05-18, aggiornata):
-1. **Terreno privato del founder in Italia** per il bench reale
-   pre-pitch (categoria ENAC Open su proprietà privata, niente SORA
-   necessario per VLOS sotto 25 kg, "freghiamoci di regulations a
-   livello prodotto").
-2. **Rwanda + Dubai (UAE)** post-seed per il deploy commerciale.
-3. UE/USA solo in Phase 27 dopo trazione.
+Decisioni aggiornate 2026-05-22:
+1. Il wedge davanti resta **wildfire early detection + verification**
+   per territori privati ad alto valore. La North Star resta una rete
+   autonoma di risposta e resilienza territoriale.
+2. La maturita 2026 e l'avvio di **BIEF Bocconi a settembre 2026** sono
+   vincoli di calendario. YC Summer 2026 non e il target operativo:
+   eventuale candidatura YC usa un batch successivo / Early Decision.
+3. Il de-risk reale non aspetta piu la fine di tutte le feature software:
+   PX4/SITL, hardware bench e primo test fisico supervisionato entrano
+   appena la demo Phase 7 e ripetibile.
+4. UAE, HAX, B4i e altri ecosistemi sono piste da validare con intro,
+   buyer e pilot path. Non sono relocation o product pivot automatici.
+5. Ogni affermazione esterna distingue `sim`, `SITL`, `bench`,
+   `supervised field`, `pilot` e `commercial production`.
 
-Casi MVP: incendio + protezione case + bene pubblico (defibrillatore,
-ricerca dispersi, supporto Protezione Civile).
+Casi dopo il wedge: protezione territori, search/verification,
+infrastructure sensing e public-safety handoff. Non vanno presentati
+come MVP simultanei.
 
 ## Context
 
@@ -782,7 +795,21 @@ pen-test, bug bounty, CSP nonce script-src.
 - Compliance: DPA template + retention policy documentati;
   drone regulation reference presente.
 
-## Phase 7 → Phase 22 — Pre-seed sprint (solo + Claude Code + Codex)
+## Phase 7+ current roadmap
+
+The current Phase 7-30 execution order lives in
+[`swarm-roadmap-evidence-to-scale.md`](swarm-roadmap-evidence-to-scale.md).
+It was updated on 2026-05-22 after re-evaluating YC timing, maturita,
+BIEF Bocconi, UAE as a discovery lane, market validation and the need to
+de-risk PX4/SITL and hardware before a year of extra simulation work.
+
+The block below is the previous detailed Phase 7-30 draft. Keep it as
+historical backlog context until each later phase is expanded, but do not
+use its order as the active execution plan. In particular it delays
+customer discovery, hardware de-risk and fundraising/application work too
+far for the current founder calendar.
+
+## Archived prior Phase 7 → Phase 22 draft
 
 **Contesto reale (decisione utente 2026-05-18, aggiornata)**: il "team"
 oggi è **founder solo + Claude Code + Codex**. Niente assunti, niente
@@ -1312,7 +1339,7 @@ test Rwanda autorizzata).
 
 ---
 
-## Phase 23 → Phase 30 — Post-seed execution (con team + capitale + giurisdizione attiva)
+## Archived prior Phase 23 → Phase 30 draft
 
 > Queste 8 fasi sono ciò che richiede genuinamente team, capitale,
 > infrastruttura fisica, autorità locali, o trazione utenti — niente
