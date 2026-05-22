@@ -4,6 +4,11 @@ This file tracks where we are in the
 [`swarmos-roadmap.md`](plan/swarmos-roadmap.md) plan. Update it at the end
 of every phase.
 
+Phase 7+ execution order is now in
+[`swarm-roadmap-evidence-to-scale.md`](plan/swarm-roadmap-evidence-to-scale.md).
+It replaces the older "all sim software before field/market proof" draft
+for current execution.
+
 ## Current state
 
 | Phase | Description                                           | Status |
@@ -15,7 +20,10 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E pending |
+| 7     | Wildfire sim demo proof (3 scenarios + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E one-command wildfire demo pending |
+| 8     | Wedge + customer validation | **next** — run discovery before broadening software scope |
+| 9     | PX4/SITL + hardware bench de-risk | **next in parallel after Phase 7 demo** — Phase 5 hardware claim remains pending |
+| 10    | Summer evidence pack + BIEF/YC future-batch decision | **planned** — YC Summer 2026 is not the target |
 
 ## Phase 0 — completed checklist
 

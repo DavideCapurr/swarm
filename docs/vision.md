@@ -51,7 +51,14 @@ Hardware commoditizes. The network becomes the product.
 - Government contracts (Phase 5+).
 - Crime / security adjacencies (focus discipline).
 
-## Phased roadmap (`SWARM_execution_roadmap_0_to_100M.pdf`)
+## Phased roadmap
+
+The long-range capability horizon below comes from
+`SWARM_execution_roadmap_0_to_100M.pdf`. Current execution from the
+Phase 7 state is tracked in
+[`docs/plan/swarm-roadmap-evidence-to-scale.md`](plan/swarm-roadmap-evidence-to-scale.md):
+finish the wildfire proof, validate the buyer and flight path, then earn
+pilot, capital and later platform scope.
 
 | Phase | Months | Focus |
 |---|---|---|

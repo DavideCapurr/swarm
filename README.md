@@ -153,15 +153,18 @@ https://github.com/DavideCapurr/swarm/security/advisories/new
 - External pen-test scope: [`docs/security/pentest-scope.md`](docs/security/pentest-scope.md)
 - Compliance baseline: [`docs/compliance/gdpr.md`](docs/compliance/gdpr.md), [`docs/compliance/retention.md`](docs/compliance/retention.md), [`docs/compliance/dpa-template.md`](docs/compliance/dpa-template.md), [`docs/compliance/drone-regulations.md`](docs/compliance/drone-regulations.md)
 - Developer onboarding + release: [`docs/dev/onboarding.md`](docs/dev/onboarding.md), [`docs/dev/release-process.md`](docs/dev/release-process.md)
+- Phase 7+ execution roadmap: [`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md)
 - CV baseline (Phase 7.D): [`docs/cv/phase-7d.md`](docs/cv/phase-7d.md)
 
 ## For Claude Code sessions
 
 [`CLAUDE.md`](CLAUDE.md) is the entry point for any Claude Code session in
 this repo: terminology, hard rules, current phase, conventions. The full
-development plan is at
-[`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md). Execution
-progress lives at [`docs/STATUS.md`](docs/STATUS.md).
+Phase 0-6 development plan is at
+[`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md). Current
+Phase 7+ execution order is at
+[`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md).
+Execution progress lives at [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Architecture
 
@@ -170,14 +173,14 @@ contracts. Key decisions are recorded as ADRs in [`docs/adr/`](docs/adr/).
 
 ## Roadmap
 
-- **Commit 1 (now)** — full skeleton; `make demo` end-to-end; simulated + MAVLink +
-  DJI Cloud adapters wired; other vendor adapters stubbed.
-- **Commit 2** — design-system tokens from `SWARM-design-system-v1.pdf` applied to the
-  frontend.
-- **Phase 0 graduation** — promote the 2D sim to Gazebo + PX4 SITL for realistic flight
-  dynamics; ROS2 only if/when proprietary drones come into scope (see `docs/adr/0002`).
-- **Phase 1+** — real customer pilots, real DJI Dock deployments, ML-based anomaly
-  classifier, multi-tenant backend.
+- **Phase 0-6** — technical foundation already tracked in
+  [`docs/STATUS.md`](docs/STATUS.md); Phase 5 PX4/SITL and hardware
+  evidence are still explicit de-risk items.
+- **Phase 7** — finish the repeatable wildfire simulation proof now.
+- **Phase 8-10** — evidence sprint: customer discovery, flight-path/bench
+  proof, future-batch application pack and the BIEF founder decision gate.
+- **Phase 11+** — supervised field proof, pilot path, capital and the later
+  platform/scale phases only after the first evidence supports them.
 
 The full strategic roadmap is in [`docs/vision.md`](docs/vision.md), distilled from
 the founder documents in [`docs/pdf/`](docs/pdf/).

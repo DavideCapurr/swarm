@@ -28,6 +28,10 @@ and rendered with the eyebrow `DERIVED`.
 
 The full development plan covering Phase 0 → Phase 6 lives at
 [`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md).
+The current Phase 7+ execution order lives at
+[`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md);
+it moves market validation, PX4/SITL/hardware evidence and the
+founder-calendar decision gate ahead of later platform scope.
 Current execution status lives at [`docs/STATUS.md`](docs/STATUS.md). When
 starting a session, read STATUS first to see which phase is current and
 what's pending.
@@ -157,8 +161,10 @@ go through `Authorization: Bearer <jwt>` (REST) or `?token=<jwt>` (WS).
 
 1. Read [`docs/STATUS.md`](docs/STATUS.md) to confirm the current
    completed phase.
-2. Read the corresponding section of
-   [`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md).
+2. Read the corresponding roadmap section: Phase 0-6 in
+   [`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md), Phase
+   7+ in
+   [`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md).
 3. Update STATUS.md with the new phase as `in_progress`.
 4. Execute the milestone exactly as scoped (no scope creep).
 5. At the end of the phase, run `make lint && make test && make audit`,
