@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
+.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo demo-wildfire-sim demo-intrusion-sim demo-search-sim audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
 
 PY := python3
 VENV := .venv
@@ -84,6 +84,19 @@ orchestrator:
 
 demo:
 	@./scripts/demo_wildfire.sh
+
+# Phase 7.E — one-command boot of each MVP scenario. Each target loads its
+# YAML via SIM_SCENARIO (sim runner enables autonomy baseline + opt-in CV
+# from the YAML itself) and launches scripts/scenario_metrics.py in the
+# background to snapshot the audit log into docs/bench/artifacts/.
+demo-wildfire-sim:
+	@./scripts/demo_scenario.sh sim/scenarios/wildfire_owner_land.yaml --metrics
+
+demo-intrusion-sim:
+	@./scripts/demo_scenario.sh sim/scenarios/intrusion_owner_land.yaml --metrics
+
+demo-search-sim:
+	@./scripts/demo_scenario.sh sim/scenarios/search_owner_land.yaml --metrics
 
 # ── security audit ──────────────────────────────────────────────────────────
 # `make audit` is the one-stop check before pushing. It mirrors what CI runs

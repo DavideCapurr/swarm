@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E pending |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); manual end-to-end gate pending |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,38 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-25: Phase 7.E `make demo-*` code-complete on branch
+`claude/loving-feynman-yxQqU`. Three one-command targets shipped:
+`make demo-wildfire-sim`, `make demo-intrusion-sim`,
+`make demo-search-sim`. Implementation is shell + Makefile + a
+read-only metrics collector — no new backend surface, no new Python
+or JS dependency. Parametric script `scripts/demo_scenario.sh`
+(`set -euo pipefail`, no `|| true` masks) exports `SIM_SCENARIO` and
+delegates infra/sim/backend/Console boot to the existing
+`scripts/dev_up.sh`; `scripts/demo_wildfire.sh` reduced to a thin
+back-compat wrapper so `make demo` still works. New collector
+`scripts/scenario_metrics.py` logs in as `op-viewer01` (provisioned
+by `make bootstrap-auth-dev`), sleeps `--duration` seconds (default
+60), snapshots `/commands` + `/events`, and writes
+`docs/bench/artifacts/phase-7e-<scenario>-<utcts>.json` with
+autonomy-decision counts by rule (R1/R2/R3) + by status, event
+counts by kind, and the audit window. `/metrics` is deliberately
+out of scope (commander+MFA gated); the SwarmOS audit log is the
+gate's source-of-truth and is already populated by Phase 7.B + 7.C
+(`OperatorCommand.source="autonomy"`, `Event.source="autonomy"`,
+`OperatorCommand.rule`). 18 new smoke tests in
+`tests/test_phase7e_demo.py` (Makefile shape, executable bits,
+fail-fast shell, scenario YAML opt-in, collector `--help` smoke,
+artifact-path isolation) — all green. Plan in
+`docs/plan/phase-7e.md`. Hands-on end-to-end gate (3× `make demo-*`
+runs with screenshot of `AUTO · R1`/`R2` chips + artifact JSON with
+`auto_decisions.by_rule.R1 >= 1`) remains the final step before
+flipping the table row to `done`; it requires a local Docker stack
+and is documented in the plan file §Verifica. Out of scope per
+roadmap §10: no Console inversion to observatory-default (8.A), no
+per-scenario thresholds (8.B), no shadow / A-B (8.B-bis), no
+detection-bbox overlay (8.D / 10).
 
 2026-05-21: Phase 7.D CV baseline landed on branch
 `claude/cv-baseline-sim-zOUAx`. New `sim/swarm_sim/cv/` package

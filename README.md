@@ -86,11 +86,19 @@ The drone-day checklist
 [`docs/security/auth.md`](docs/security/auth.md) for the full auth
 design.
 
-Run the wildfire scenario manually:
+Run a specific Phase 7 scenario in one command (each boots the same
+sim + backend + Console stack with the matching YAML, autonomy
+baseline enabled, and a background metrics collector that dumps an
+audit-log snapshot to `docs/bench/artifacts/`):
 
 ```bash
-./scripts/demo_wildfire.sh
+make demo-wildfire-sim   # SMOKE → FIRE, autonomy R1 + R2
+make demo-intrusion-sim  # perimeter intrusion, autonomy R1
+make demo-search-sim     # missing-person search, autonomy R1
 ```
+
+`make demo` and `./scripts/demo_wildfire.sh` still work and delegate
+to `demo-wildfire-sim`.
 
 Production deploys (Kubernetes via Helm, single-node via
 `docker-compose.prod.yml`) are documented in
