@@ -48,6 +48,13 @@ services:
   redis:
     # redis:7-alpine
     image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    # UID 999 / GID 1000 are the `redis:redis` ids baked into the alpine
+    # image (see docker-library/redis 7.x/alpine Dockerfile). Running as
+    # that user from the outside skips the entrypoint's `setpriv` privilege
+    # drop — which otherwise fails under `cap_drop: ALL` with
+    # `setresuid failed: Operation not permitted`. Same fix in
+    # docker-compose.prod.yml.
+    user: "999:1000"
     ports:
       - "6379:6379"
     healthcheck:

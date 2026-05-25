@@ -48,6 +48,11 @@ services:
   redis:
     # redis:7-alpine
     image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    # UID 999 / GID 1000 = `redis:redis` baked into the alpine image. Run
+    # as that user from the outside so the entrypoint's `setpriv` step
+    # never executes — it would otherwise fail under `cap_drop: ALL` with
+    # `setresuid failed: Operation not permitted`.
+    user: "999:1000"
     restart: unless-stopped
     # `--requirepass` forces auth on the bus channel. The backend reads
     # REDIS_URL with the password embedded; rotate via .env + restart.
