@@ -62,6 +62,13 @@ PR #62 (`codex/yc-bief-roadmap`, draft) richiama esplicitamente che
      timed_out),
    - conteggio eventi per kind + sotto-conteggio degli eventi con
      `source="autonomy"`,
+   - **latencies_ms** (richiesta YC playbook §12.2):
+     `anomaly_to_autonomy_decision` (p50/p95/n) calcolata correlando
+     `Event{kind=anomaly, anomaly_id=X, ts}` col primo
+     `OperatorCommand{source=autonomy, target="anomaly:X", submitted_at}`;
+     `autonomy_decision_to_mission_dispatch` (p50/p95/n) calcolata da
+     `in_flight_at - submitted_at` sulle decisioni che hanno spawned
+     una missione (DISMISS R3 lascia `in_flight_at=null` → escluso),
    - finestra di osservazione.
    Niente `/metrics` Prometheus: è commander+MFA gated (Phase 6.D) — il
    collector resta in scope viewer. La audit-log è la source-of-truth

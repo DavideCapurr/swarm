@@ -93,6 +93,101 @@ def _fetch(backend: str, path: str, token: str) -> dict[str, Any]:
     return r.json()
 
 
+def _parse_ts(value: Any) -> datetime | None:
+    """ISO-8601 parser tolerant of a trailing 'Z' (UTC)."""
+
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _percentiles(samples_ms: list[float]) -> dict[str, Any]:
+    """p50 / p95 over a list of millisecond samples. Empty → all None.
+
+    Stays in the stdlib (`statistics`) — no numpy, no scipy. The samples
+    are tiny (≤ a few dozen per scenario window) so an O(n log n) sort is
+    fine.
+    """
+
+    n = len(samples_ms)
+    if n == 0:
+        return {"p50_ms": None, "p95_ms": None, "n": 0}
+    ordered = sorted(samples_ms)
+
+    def _pct(p: float) -> float:
+        # Nearest-rank percentile. Same convention used by the load driver.
+        if n == 1:
+            return ordered[0]
+        rank = max(1, min(n, int(round(p / 100.0 * n))))
+        return ordered[rank - 1]
+
+    return {
+        "p50_ms": round(_pct(50.0), 1),
+        "p95_ms": round(_pct(95.0), 1),
+        "n": n,
+    }
+
+
+def _latency_samples(
+    events: list[dict[str, Any]], commands: list[dict[str, Any]]
+) -> dict[str, list[float]]:
+    """Correlate raw anomaly events with the autonomy command that
+    targeted them. Returns two lists of millisecond samples:
+
+      * `anomaly_to_autonomy_decision_ms`:
+        ``cmd.submitted_at - first(event.ts where event.anomaly_id matches)``
+      * `autonomy_decision_to_mission_dispatch_ms`:
+        ``cmd.in_flight_at - cmd.submitted_at`` (only for commands that
+        spawned a mission — DISMISS leaves ``in_flight_at`` null).
+
+    The autonomy command's ``target`` field carries ``"anomaly:<id>"``
+    (see ``swarm_os/autonomy.py``); we strip the prefix to match the
+    ``Event.anomaly_id`` column.
+    """
+
+    earliest_anomaly_ts: dict[str, datetime] = {}
+    for ev in events:
+        if str(ev.get("kind")) != "anomaly":
+            continue
+        aid = ev.get("anomaly_id")
+        ts = _parse_ts(ev.get("ts"))
+        if not aid or ts is None:
+            continue
+        prev = earliest_anomaly_ts.get(aid)
+        if prev is None or ts < prev:
+            earliest_anomaly_ts[aid] = ts
+
+    det_to_dec: list[float] = []
+    dec_to_dispatch: list[float] = []
+    for cmd in commands:
+        if cmd.get("source") != "autonomy":
+            continue
+        submitted = _parse_ts(cmd.get("submitted_at"))
+        if submitted is None:
+            continue
+        target = str(cmd.get("target") or "")
+        if target.startswith("anomaly:"):
+            aid = target.split(":", 1)[1]
+            anomaly_ts = earliest_anomaly_ts.get(aid)
+            if anomaly_ts is not None:
+                delta = (submitted - anomaly_ts).total_seconds() * 1000.0
+                if delta >= 0:
+                    det_to_dec.append(delta)
+        in_flight = _parse_ts(cmd.get("in_flight_at"))
+        if in_flight is not None:
+            delta = (in_flight - submitted).total_seconds() * 1000.0
+            if delta >= 0:
+                dec_to_dispatch.append(delta)
+
+    return {
+        "anomaly_to_autonomy_decision_ms": det_to_dec,
+        "autonomy_decision_to_mission_dispatch_ms": dec_to_dispatch,
+    }
+
+
 def collect(backend: str, token: str) -> dict[str, Any]:
     commands_payload = _fetch(backend, "/commands?limit=500", token)
     events_payload = _fetch(backend, "/events?limit=500", token)
@@ -113,6 +208,16 @@ def collect(backend: str, token: str) -> dict[str, Any]:
         str(e.get("kind")) for e in auto_events
     )
 
+    samples = _latency_samples(events, commands)
+    latencies = {
+        "anomaly_to_autonomy_decision": _percentiles(
+            samples["anomaly_to_autonomy_decision_ms"]
+        ),
+        "autonomy_decision_to_mission_dispatch": _percentiles(
+            samples["autonomy_decision_to_mission_dispatch_ms"]
+        ),
+    }
+
     return {
         "commands_total": len(commands),
         "auto_commands_total": len(auto_cmds),
@@ -125,6 +230,7 @@ def collect(backend: str, token: str) -> dict[str, Any]:
         "auto_events_total": len(auto_events),
         "events_by_kind": dict(event_kind_counts),
         "auto_events_by_kind": dict(auto_event_kind_counts),
+        "latencies_ms": latencies,
     }
 
 
@@ -180,6 +286,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[scenario_metrics] wrote {out_path}", flush=True)
     print(
         f"[scenario_metrics] auto_decisions.by_rule={payload['auto_decisions']['by_rule']}",
+        flush=True,
+    )
+    det = payload["latencies_ms"]["anomaly_to_autonomy_decision"]
+    disp = payload["latencies_ms"]["autonomy_decision_to_mission_dispatch"]
+    print(
+        f"[scenario_metrics] anomaly→decision p50={det['p50_ms']}ms p95={det['p95_ms']}ms n={det['n']}",
+        flush=True,
+    )
+    print(
+        f"[scenario_metrics] decision→dispatch p50={disp['p50_ms']}ms p95={disp['p95_ms']}ms n={disp['n']}",
         flush=True,
     )
     return 0

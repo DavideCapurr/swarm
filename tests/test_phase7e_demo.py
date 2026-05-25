@@ -23,10 +23,12 @@ Real end-to-end validation is the manual gate in
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -175,3 +177,159 @@ def test_scenario_metrics_artifact_path_isolated_to_docs_bench() -> None:
     path constant in the module to keep that contract explicit."""
     text = (SCRIPTS / "scenario_metrics.py").read_text()
     assert 'ARTIFACT_DIR = REPO_ROOT / "docs" / "bench" / "artifacts"' in text
+
+
+# ── Latency metrics (YC playbook §12.2) ─────────────────────────────────────
+
+def _load_collector_module():
+    """Import scripts/scenario_metrics.py without requiring a `scripts`
+    package marker — matches how `make demo-*` invokes it (direct file)."""
+
+    spec = importlib.util.spec_from_file_location(
+        "scenario_metrics", SCRIPTS / "scenario_metrics.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_percentiles_empty_samples() -> None:
+    sm = _load_collector_module()
+    assert sm._percentiles([]) == {"p50_ms": None, "p95_ms": None, "n": 0}
+
+
+def test_percentiles_single_sample() -> None:
+    sm = _load_collector_module()
+    out = sm._percentiles([123.4])
+    assert out["n"] == 1
+    assert out["p50_ms"] == 123.4
+    assert out["p95_ms"] == 123.4
+
+
+def test_percentiles_sorts_input() -> None:
+    sm = _load_collector_module()
+    out = sm._percentiles([300.0, 100.0, 200.0, 400.0])
+    assert out["n"] == 4
+    # nearest-rank: p50 → index ceil(0.5*4)=2 → 200.0; p95 → index 4 → 400.0.
+    assert out["p50_ms"] == 200.0
+    assert out["p95_ms"] == 400.0
+
+
+def test_parse_ts_handles_z_and_invalid() -> None:
+    sm = _load_collector_module()
+    parsed = sm._parse_ts("2026-05-25T10:30:00Z")
+    assert parsed is not None and parsed.tzinfo is not None
+    assert sm._parse_ts("not-a-date") is None
+    assert sm._parse_ts(None) is None
+
+
+def test_latency_samples_correlates_anomaly_to_decision() -> None:
+    """End-to-end correlation: an anomaly event and its autonomy command
+    (target='anomaly:<id>') produce one detection-to-decision sample,
+    and if the command flipped to in_flight, one decision-to-dispatch
+    sample."""
+
+    sm = _load_collector_module()
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    events = [
+        {
+            "kind": "anomaly",
+            "anomaly_id": "anom-1",
+            "ts": t0.isoformat(),
+            "source": "operator",
+        },
+    ]
+    commands = [
+        {
+            "source": "autonomy",
+            "target": "anomaly:anom-1",
+            "submitted_at": (t0 + timedelta(milliseconds=150)).isoformat(),
+            "in_flight_at": (t0 + timedelta(milliseconds=400)).isoformat(),
+        },
+    ]
+    out = sm._latency_samples(events, commands)
+    assert out["anomaly_to_autonomy_decision_ms"] == [150.0]
+    assert out["autonomy_decision_to_mission_dispatch_ms"] == [250.0]
+
+
+def test_latency_samples_skips_operator_commands() -> None:
+    """Operator-issued commands must not show up in autonomy latency."""
+
+    sm = _load_collector_module()
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    events = [{"kind": "anomaly", "anomaly_id": "a", "ts": t0.isoformat()}]
+    commands = [
+        {
+            "source": "operator",
+            "target": "anomaly:a",
+            "submitted_at": (t0 + timedelta(milliseconds=200)).isoformat(),
+            "in_flight_at": (t0 + timedelta(milliseconds=300)).isoformat(),
+        }
+    ]
+    out = sm._latency_samples(events, commands)
+    assert out["anomaly_to_autonomy_decision_ms"] == []
+    assert out["autonomy_decision_to_mission_dispatch_ms"] == []
+
+
+def test_latency_samples_dismiss_has_no_dispatch_sample() -> None:
+    """R3 DISMISS doesn't spawn a mission, so in_flight_at is null."""
+
+    sm = _load_collector_module()
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    events = [{"kind": "anomaly", "anomaly_id": "a", "ts": t0.isoformat()}]
+    commands = [
+        {
+            "source": "autonomy",
+            "rule": "R3",
+            "target": "anomaly:a",
+            "submitted_at": (t0 + timedelta(milliseconds=120)).isoformat(),
+            "in_flight_at": None,
+        }
+    ]
+    out = sm._latency_samples(events, commands)
+    assert out["anomaly_to_autonomy_decision_ms"] == [120.0]
+    assert out["autonomy_decision_to_mission_dispatch_ms"] == []
+
+
+def test_latency_samples_uses_earliest_anomaly_when_duplicated() -> None:
+    """Wildfire scenario emits SMOKE then FIRE with the same anomaly_id
+    only when the detector re-fires on a re-classified anomaly. The
+    collector must anchor on the earliest detection so the latency
+    isn't artificially shrunk to zero."""
+
+    sm = _load_collector_module()
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    events = [
+        {"kind": "anomaly", "anomaly_id": "a", "ts": (t0 + timedelta(seconds=5)).isoformat()},
+        {"kind": "anomaly", "anomaly_id": "a", "ts": t0.isoformat()},
+    ]
+    commands = [
+        {
+            "source": "autonomy",
+            "target": "anomaly:a",
+            "submitted_at": (t0 + timedelta(milliseconds=200)).isoformat(),
+        }
+    ]
+    out = sm._latency_samples(events, commands)
+    assert out["anomaly_to_autonomy_decision_ms"] == [200.0]
+
+
+def test_collect_includes_latencies_in_artifact_shape() -> None:
+    """The artifact JSON contract carries `latencies_ms` with both
+    well-known buckets — the YC demo line-item depends on this key
+    being present even on empty windows."""
+
+    sm = _load_collector_module()
+    samples = sm._latency_samples([], [])
+    assert "anomaly_to_autonomy_decision_ms" in samples
+    assert "autonomy_decision_to_mission_dispatch_ms" in samples
+
+
+def test_scenario_metrics_module_exports_latency_keys_in_source() -> None:
+    """Guard against accidentally removing the artifact contract."""
+
+    text = (SCRIPTS / "scenario_metrics.py").read_text()
+    assert '"latencies_ms": latencies' in text
+    assert '"anomaly_to_autonomy_decision"' in text
+    assert '"autonomy_decision_to_mission_dispatch"' in text
