@@ -17,6 +17,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -196,6 +197,38 @@ def test_compose_prod_parses_and_pins_digests() -> None:
             f"compose-prod service {name!r} image {img!r} must be "
             f"digest-pinned"
         )
+
+
+@pytest.mark.parametrize(
+    "compose_file",
+    ["docker-compose.yml", "docker-compose.prod.yml"],
+)
+def test_compose_redis_runs_as_non_root_user(compose_file: str) -> None:
+    """Both compose files declare `cap_drop: ALL` on Redis, which strips
+    `CAP_SETUID`/`CAP_SETGID`/`CAP_DAC_OVERRIDE`. The official Redis
+    alpine entrypoint calls `setpriv` to drop root → `redis` and that
+    call fails with `setresuid: Operation not permitted` under those
+    caps. The fix is to start the container as the redis user from the
+    outside (`user: "999:1000"`, matching the UID/GID baked into the
+    image) so the privilege drop is never attempted.
+
+    Regression test for the bug that left a fresh `make demo` boot
+    silently falling back to InMemoryBus on macOS because Redis never
+    came up.
+    """
+
+    compose = yaml.safe_load((REPO_ROOT / compose_file).read_text())
+    redis = compose["services"]["redis"]
+    user = redis.get("user")
+    assert user is not None, (
+        f"{compose_file}: redis service must declare `user:` to skip "
+        f"setpriv (otherwise cap_drop: ALL breaks startup)"
+    )
+    # The image bakes redis:redis as 999:1000. Accept either ordering and
+    # numeric or name forms, but require a non-root identity.
+    assert str(user) not in {"0", "root", "0:0", "root:root"}, (
+        f"{compose_file}: redis service must NOT run as root"
+    )
 
 
 # ── Backup script parity ────────────────────────────────────────────────────
