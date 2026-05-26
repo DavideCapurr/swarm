@@ -116,9 +116,7 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
               </div>
             </div>
 
-            <ActionRail
-              selectedAgentId={verifier?.agent_id ?? null}
-            />
+            <ActionRail />
           </div>
         </div>
       )}

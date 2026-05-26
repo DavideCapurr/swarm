@@ -11,6 +11,7 @@
  */
 
 import type { AnomalyView, AwarenessBreakdown, OperatingMode, RiskState } from "./api";
+import { MODE_COPY } from "./copy";
 
 // ── Clock ──────────────────────────────────────────────────────────────────────
 
@@ -46,18 +47,7 @@ export function fallbackAwareness(now: Date): AwarenessBreakdown {
 // reads exactly like a backend-emitted Event body would.
 
 export function describeMode(mode: OperatingMode): string {
-  switch (mode) {
-    case "rest":
-      return "territory under awareness · system at rest";
-    case "patrol":
-      return "patrol in progress · coverage refreshing";
-    case "verification":
-      return "anomaly verifying · awaiting confidence";
-    case "escalation":
-      return "event verified · operator decision required";
-    case "maintenance":
-      return "unit attention required · routing adjusted";
-  }
+  return MODE_COPY[mode].narrative_en;
 }
 
 // ── Anomaly copy ───────────────────────────────────────────────────────────────

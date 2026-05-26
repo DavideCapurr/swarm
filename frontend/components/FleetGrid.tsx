@@ -7,6 +7,7 @@
  */
 import type { AnomalyView, UnitState } from "@/lib/api";
 import { agentStateToSwarm } from "@/lib/tokens";
+import { UNIT_LABEL_RING } from "@/lib/copy";
 import { Eyebrow } from "./Eyebrow";
 
 type Props = {
@@ -23,10 +24,10 @@ const STATE_DOT_CLASS: Record<string, string> = {
 };
 
 const STATE_LABEL: Record<string, string> = {
-  rest: "REST",
-  connected: "LNK",
-  operational: "OP",
-  attention: "ATT",
+  rest: "docked",
+  connected: "connecting",
+  operational: "patrolling",
+  attention: "attention",
 };
 
 const STATE_TEXT_CLASS: Record<string, string> = {
@@ -40,12 +41,6 @@ function avgLink(units: UnitState[]): number {
   if (!units.length) return 0;
   const sum = units.reduce((s, u) => s + (u.link_quality ?? 1), 0);
   return Math.round((sum / units.length) * 1000) / 10;
-}
-
-function unitLabel(agentId: string): string {
-  const m = agentId.match(/(\d+)/);
-  const n = m ? m[1].padStart(3, "0") : agentId.slice(0, 3).toUpperCase();
-  return `${n} · ring-a`;
 }
 
 export function FleetGrid({ units, anomalies, onSelect }: Props) {
@@ -66,17 +61,17 @@ export function FleetGrid({ units, anomalies, onSelect }: Props) {
           value={`${String(onlineCount).padStart(3, "0")} / ${String(totalCount).padStart(3, "0")}`}
           label="online"
         />
-        <StatRow value={`${link.toFixed(1)} %`} label="link health" />
+        <StatRow value={`${link.toFixed(1)} %`} label="link mean"  />
         {attentionUnit && (
           <StatRow
-            value={`unit ${unitLabel(attentionUnit.agent_id).split(" ·")[0]}`}
+            value={UNIT_LABEL_RING(attentionUnit.agent_id).split(" ·")[0]}
             label="attention"
           />
         )}
         {unverifiedAnomaly && (
           <StatRow
-            value={`c ${unverifiedAnomaly.confidence.toFixed(2)}`}
-            label="anomaly · pending"
+            value={`confidence ${Math.round(unverifiedAnomaly.confidence * 100)} %`}
+            label="anomaly detected"
           />
         )}
       </div>
@@ -98,11 +93,11 @@ export function FleetGrid({ units, anomalies, onSelect }: Props) {
               onClick={() => onSelect?.(u.agent_id)}
               className="flex items-center justify-between py-2 border-b border-gunmetal text-left transition-all duration-press ease-swarm hover:brightness-125 active:scale-[0.99] focus:outline-none focus-visible:bg-graphite/40"
             >
-              <span className="font-mono text-ui text-muted-silver tracking-eyebrow-mono uppercase">
-                {unitLabel(u.agent_id)}
+              <span className="font-mono text-ui text-muted-silver tracking-eyebrow-mono">
+                {UNIT_LABEL_RING(u.agent_id)}
               </span>
               <span
-                className={`flex items-center gap-2 font-mono text-eyebrow tracking-eyebrow uppercase ${STATE_TEXT_CLASS[state]}`}
+                className={`flex items-center gap-2 font-mono text-eyebrow tracking-eyebrow ${STATE_TEXT_CLASS[state]}`}
               >
                 <span className={STATE_DOT_CLASS[state]} />
                 {STATE_LABEL[state]}

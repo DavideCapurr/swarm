@@ -8,6 +8,7 @@
  */
 
 import { useSwarm } from "@/lib/state";
+import { UNIT_LABEL } from "@/lib/copy";
 import { IconLink } from "@/icons";
 import { Eyebrow } from "./Eyebrow";
 
@@ -42,16 +43,16 @@ export function LinkHealth() {
           <span className={`mono-num text-lede ${state}`}>
             {online.length ? `${avgPct.toFixed(1)} %` : "—"}
           </span>
-          <span className="eyebrow-mono">fleet · mean</span>
+          <span className="eyebrow-mono">link mean · fleet</span>
         </div>
       </div>
       {weakest && (
         <div className="grid grid-cols-2 gap-y-1 text-ui">
           <span className="eyebrow-mono">weakest unit</span>
           <span className="text-right mono-num text-platinum">
-            {unitLabel(weakest.agent_id)}
+            {UNIT_LABEL(weakest.agent_id)}
           </span>
-          <span className="eyebrow-mono">weakest · q</span>
+          <span className="eyebrow-mono">weakest · link</span>
           <span className="text-right mono-num text-platinum">
             {(weakest.link_quality * 100).toFixed(0)} %
           </span>
@@ -59,10 +60,4 @@ export function LinkHealth() {
       )}
     </div>
   );
-}
-
-function unitLabel(agentId: string): string {
-  const m = agentId.match(/(\d+)/);
-  const n = m ? m[1].padStart(3, "0") : agentId.slice(0, 3).toUpperCase();
-  return `${n}`;
 }

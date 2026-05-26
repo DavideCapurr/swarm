@@ -1,10 +1,10 @@
 /**
- * Phase 7.C — HeadBar shows the inline `autonomy baseline` chip.
+ * HeadBar — slim head bar surface (post-redesign).
  *
- * Reads `autonomyEnabled` from `useSwarm()`; the chip rides
- * `StatusPill state="connected"` so it inherits the Orbital Blue halo
- * already vetted by the design system. We also assert it's absent
- * when the gate is off, so we don't fail open.
+ * The autonomy chip is gone from the head bar after the redesign; the
+ * baseline-on signal lives as a ghost row inside QuietPanel's Performance
+ * section. The head bar itself shows the wordmark, console nav, session
+ * label, link badge, clock, online ring, and operator badge.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -21,24 +21,18 @@ vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ logout: vi.fn() }),
 }));
 
-// EmergencyStop reads its own auth context; stub the component out so
-// the HeadBar render stays focused on the autonomy chip surface.
-vi.mock("@/components/EmergencyStop", () => ({
-  EmergencyStop: () => null,
-}));
-
 import { useSwarm } from "@/lib/state";
 
 const useSwarmMock = vi.mocked(useSwarm);
 
 describe("HeadBar", () => {
-  it("renders the `autonomy baseline` chip when the gate is on", () => {
+  it("renders the wordmark and online ring", () => {
     useSwarmMock.mockReturnValue(
       makeSwarmState({
         autonomyEnabled: true,
         session: {
           id: "s-1",
-          label: "session 014",
+          label: "vineyard-01-04",
           site_id: "vineyard-01",
           autonomy_enabled: true,
           started_at: new Date(0).toISOString(),
@@ -49,13 +43,12 @@ describe("HeadBar", () => {
 
     render(<HeadBar />);
 
-    const chip = screen.getByTestId("autonomy-chip");
-    expect(chip).toBeInTheDocument();
-    expect(chip).toHaveTextContent("autonomy baseline");
+    expect(screen.getByText("SWARM")).toBeInTheDocument();
+    expect(screen.getByText("/ vineyard-01-04")).toBeInTheDocument();
   });
 
-  it("hides the autonomy chip when the gate is off", () => {
-    useSwarmMock.mockReturnValue(makeSwarmState({ autonomyEnabled: false }));
+  it("does not render the autonomy baseline chip", () => {
+    useSwarmMock.mockReturnValue(makeSwarmState({ autonomyEnabled: true }));
     render(<HeadBar />);
     expect(screen.queryByTestId("autonomy-chip")).not.toBeInTheDocument();
   });

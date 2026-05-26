@@ -12,6 +12,7 @@ import Link from "next/link";
 
 import { useSwarm } from "@/lib/state";
 import { describeMode } from "@/lib/derive";
+import { RISK_STATE_COPY } from "@/lib/copy";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
 
@@ -44,11 +45,13 @@ export function MobileAlertScreen() {
       </header>
 
       <div className="card p-4 flex flex-col gap-3">
-        <Eyebrow mono>Awareness</Eyebrow>
+        <Eyebrow mono>Coverage</Eyebrow>
         <span className="mono-num text-platinum" style={{ fontSize: 64, lineHeight: 1 }}>
           {String(Math.round(awareness.score)).padStart(3, "0")}
         </span>
-        <span className="eyebrow-mono">% · {awareness.risk_state}</span>
+        <span className="eyebrow-mono">
+          coverage % · {RISK_STATE_COPY[awareness.risk_state].label}
+        </span>
         <span className="eyebrow-mono text-ash">{describeMode(mode)}</span>
       </div>
 
@@ -74,7 +77,9 @@ export function MobileAlertScreen() {
       <Eyebrow mono>Anomalies</Eyebrow>
       <div className="flex flex-col gap-2">
         {pending.length === 0 && (
-          <span className="eyebrow-mono text-ash">territory quiet · no pending anomaly</span>
+          <span className="eyebrow-mono text-ash">
+            no anomaly detected. all sectors monitored.
+          </span>
         )}
         {pending.slice(0, 5).map((a) => (
           <Link
