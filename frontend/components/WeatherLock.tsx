@@ -48,7 +48,7 @@ export function WeatherLock() {
       </div>
       {locked && (
         <span className="eyebrow-mono text-launch-amber">
-          dock holding — dispatch deferred
+          weather hold · dispatch deferred
         </span>
       )}
     </div>

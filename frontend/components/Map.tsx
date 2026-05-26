@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import maplibregl, { type Map } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { AnomalyView, UnitState } from "@/lib/api";
 import { agentStateToSwarm } from "@/lib/tokens";
+import { AGENT_STATE_COPY, ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 
 type Props = {
   units: UnitState[];
@@ -36,7 +38,7 @@ const SWARM_STYLE: maplibregl.StyleSpecification = {
   },
   layers: [
     { id: "bg", type: "background", paint: { "background-color": "#030406" } },
-    { id: "osm", type: "raster", source: "osm", paint: { "raster-opacity": 0.45 } },
+    { id: "osm", type: "raster", source: "osm", paint: { "raster-opacity": 0.65 } },
   ],
 };
 
@@ -53,6 +55,7 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
   const droneMarkersRef = useRef<Record<string, maplibregl.Marker>>({});
   const anomalyMarkersRef = useRef<Record<string, maplibregl.Marker>>({});
   const [mapReady, setMapReady] = useState<Map | null>(null);
+  const router = useRouter();
 
   // Map lifecycle.
   useEffect(() => {
@@ -92,6 +95,9 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
       seen.add(u.agent_id);
       const ll: [number, number] = [u.geo.lon, u.geo.lat];
       const swarmState = agentStateToSwarm(u.fsm_state);
+      const verb = AGENT_STATE_COPY[u.fsm_state].verb;
+      const labelText = `${UNIT_LABEL(u.agent_id)} · ${verb}`;
+      const tooltip = `${UNIT_LABEL(u.agent_id)} · ${verb} · battery ${u.battery_pct.toFixed(0)} %`;
       const existing = droneMarkersRef.current[u.agent_id];
       if (existing) {
         existing.setLngLat(ll);
@@ -104,8 +110,9 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         }
         const label = el.querySelector("[data-label]") as HTMLElement | null;
         if (label) {
-          label.textContent = unitLabel(u.agent_id);
+          label.textContent = labelText;
         }
+        el.title = tooltip;
       } else {
         const el = document.createElement("div");
         el.style.position = "relative";
@@ -122,7 +129,7 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
 
         const label = document.createElement("span");
         label.setAttribute("data-label", "");
-        label.textContent = unitLabel(u.agent_id);
+        label.textContent = labelText;
         label.style.fontFamily = '"IBM Plex Mono", monospace';
         label.style.fontSize = "10px";
         label.style.letterSpacing = "0.18em";
@@ -135,7 +142,7 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
 
         el.appendChild(dot);
         el.appendChild(label);
-        el.title = `${u.vendor}/${u.model} · ${u.fsm_state}`;
+        el.title = tooltip;
 
         droneMarkersRef.current[u.agent_id] = new maplibregl.Marker({
           element: el,
@@ -165,6 +172,7 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
     for (const a of live) {
       seen.add(a.id);
       const ll: [number, number] = [a.geo.lon, a.geo.lat];
+      const calloutText = anomalyCallout(a);
       const existing = anomalyMarkersRef.current[a.id];
       if (!existing) {
         const el = document.createElement("div");
@@ -192,14 +200,51 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         ring.style.opacity = "0.6";
         ring.style.animation = "breath 4s cubic-bezier(0.2, 0.7, 0.1, 1) infinite";
 
+        const leader = document.createElement("span");
+        leader.style.position = "absolute";
+        leader.style.left = "10px";
+        leader.style.top = "-1px";
+        leader.style.width = "22px";
+        leader.style.height = "1px";
+        leader.style.background = "#FFB45C";
+        leader.style.opacity = "0.7";
+
+        const callout = document.createElement("button");
+        callout.type = "button";
+        callout.setAttribute("data-callout", "");
+        callout.setAttribute("data-testid", `anomaly-callout-${a.id}`);
+        callout.textContent = calloutText;
+        callout.style.position = "absolute";
+        callout.style.left = "34px";
+        callout.style.top = "-8px";
+        callout.style.fontFamily = '"IBM Plex Mono", monospace';
+        callout.style.fontSize = "9px";
+        callout.style.letterSpacing = "0.22em";
+        callout.style.textTransform = "uppercase";
+        callout.style.color = "#FFB45C";
+        callout.style.background = "rgba(11,14,17,0.85)";
+        callout.style.padding = "3px 6px";
+        callout.style.border = "1px solid #FFB45C";
+        callout.style.borderRadius = "2px";
+        callout.style.whiteSpace = "nowrap";
+        callout.style.cursor = "pointer";
+        callout.addEventListener("click", (e) => {
+          e.stopPropagation();
+          router.push(`/verify/${a.id}`);
+        });
+
         el.appendChild(ring);
         el.appendChild(inner);
-        el.title = `${a.kind} · ${a.band} · c=${a.confidence.toFixed(2)}`;
+        el.appendChild(leader);
+        el.appendChild(callout);
         anomalyMarkersRef.current[a.id] = new maplibregl.Marker({ element: el })
           .setLngLat(ll)
           .addTo(map);
       } else {
         existing.setLngLat(ll);
+        const el = existing.getElement();
+        const callout = el.querySelector("[data-callout]") as HTMLElement | null;
+        if (callout) callout.textContent = calloutText;
       }
     }
     for (const id of Object.keys(anomalyMarkersRef.current)) {
@@ -208,7 +253,7 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         delete anomalyMarkersRef.current[id];
       }
     }
-  }, [anomalies]);
+  }, [anomalies, units, router]);
 
   return (
     <div className="relative w-full h-full">
@@ -227,32 +272,60 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         viewBox="0 0 800 500"
         preserveAspectRatio="xMidYMid slice"
       >
-        <g stroke="#1A2026" strokeWidth="0.6" fill="none">
+        <g stroke="#1A2026" strokeWidth="0.8" fill="none" opacity="0.55">
           <ellipse cx="400" cy="250" rx="340" ry="120" />
           <ellipse cx="400" cy="250" rx="240" ry="84" />
           <ellipse cx="400" cy="250" rx="140" ry="48" />
           <line x1="0" y1="250" x2="800" y2="250" />
           <line x1="400" y1="40" x2="400" y2="460" />
         </g>
-        <g fill="none" stroke="#A8AFB8" strokeWidth="0.6" strokeDasharray="2 4" opacity="0.45">
+        <g fill="none" stroke="#A8AFB8" strokeWidth="0.6" strokeDasharray="2 4" opacity="0.65">
           <circle cx="400" cy="250" r="160" />
         </g>
       </svg>
 
-      {/* Cartographic corner stamps */}
-      <div className="pointer-events-none absolute right-4 top-4 eyebrow-mono mono-num text-right">
-        alt 240m
-      </div>
-      <div className="pointer-events-none absolute right-4 bottom-4 eyebrow-mono mono-num text-right">
-        44.700°N · 8.030°E
-      </div>
+      <CornerStamps units={units} />
     </div>
   );
 }
 
-/** "sim-1" → "001 · RING-A" — units always read as zero-padded numerals. */
-function unitLabel(agentId: string): string {
-  const m = agentId.match(/(\d+)/);
-  const n = m ? m[1].padStart(3, "0") : agentId.slice(0, 3).toUpperCase();
-  return `${n} · ring-a`;
+const VINEYARD_AIRBORNE_STATES = new Set<UnitState["fsm_state"]>([
+  "TAKEOFF",
+  "EN_ROUTE",
+  "ON_STATION",
+  "RTL",
+  "LANDING",
+  "DOCKING",
+]);
+
+function CornerStamps({ units }: { units: UnitState[] }) {
+  const airborne = units.filter((u) => VINEYARD_AIRBORNE_STATES.has(u.fsm_state));
+  const maxAlt = airborne.length
+    ? airborne.reduce((acc, u) => Math.max(acc, u.altitude_agl_m), 0)
+    : null;
+  const lat = VINEYARD_CENTER[1];
+  const lon = VINEYARD_CENTER[0];
+  return (
+    <>
+      <div className="pointer-events-none absolute right-4 top-4 eyebrow-mono mono-num text-right text-ash">
+        {maxAlt != null ? `altitude · ${maxAlt.toFixed(0)} m` : "altitude · —"}
+      </div>
+      <div className="pointer-events-none absolute left-4 bottom-4 eyebrow-mono mono-num text-ash">
+        {lat.toFixed(3)}°N · {lon.toFixed(3)}°E
+      </div>
+    </>
+  );
 }
+
+function anomalyCallout(a: AnomalyView): string {
+  const pct = Math.round(a.confidence * 100);
+  const state = ANOMALY_STATE_COPY[a.state];
+  if (a.state === "verifying" && a.verifying_agent) {
+    return `${UNIT_LABEL(a.verifying_agent)} · ${state}`;
+  }
+  if (a.state === "verified" || a.state === "escalated") {
+    return `anomaly ${state}`;
+  }
+  return `anomaly ${state} · confidence ${String(pct).padStart(3, "0")} %`;
+}
+

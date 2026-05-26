@@ -14,6 +14,7 @@ import maplibregl from "maplibre-gl";
 
 import { useSwarm } from "@/lib/state";
 import type { Sector } from "@/lib/api";
+import { SECTOR_STATE_COPY } from "@/lib/copy";
 
 const SRC_ID = "swarm-sectors";
 const LAYER_LINE = "swarm-sectors-line";
@@ -123,7 +124,7 @@ export function SectorLayer({ map }: Props) {
         existing.setLngLat(ll);
         const el = existing.getElement();
         const lbl = el.querySelector("[data-label]") as HTMLElement | null;
-        if (lbl) lbl.textContent = `${s.label} · ${s.state}`;
+        if (lbl) lbl.textContent = `${s.label} · ${SECTOR_STATE_COPY[s.state]}`;
       } else {
         const el = document.createElement("div");
         el.style.fontFamily = '"IBM Plex Mono", monospace';
@@ -137,7 +138,7 @@ export function SectorLayer({ map }: Props) {
         el.style.borderRadius = "2px";
         const inner = document.createElement("span");
         inner.setAttribute("data-label", "");
-        inner.textContent = `${s.label} · ${s.state}`;
+        inner.textContent = `${s.label} · ${SECTOR_STATE_COPY[s.state]}`;
         el.appendChild(inner);
         labels[s.id] = new maplibregl.Marker({ element: el, anchor: "center" })
           .setLngLat(ll)

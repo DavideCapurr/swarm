@@ -10,6 +10,7 @@
 import type { MissionView, UnitState } from "@/lib/api";
 import { useSwarm } from "@/lib/state";
 import { agentStateToSwarm, type SwarmState } from "@/lib/tokens";
+import { AGENT_STATE_COPY, UNIT_LABEL_RING } from "@/lib/copy";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
 
@@ -17,12 +18,6 @@ type Props = {
   unit: UnitState;
   onClose: () => void;
 };
-
-function unitLabel(agentId: string): string {
-  const m = agentId.match(/(\d+)/);
-  const n = m ? m[1].padStart(3, "0") : agentId.slice(0, 3).toUpperCase();
-  return `${n} · ring-a`;
-}
 
 function fmtDeg(n: number, axis: "lat" | "lon"): string {
   const hemi = axis === "lat" ? (n >= 0 ? "N" : "S") : n >= 0 ? "E" : "W";
@@ -57,14 +52,16 @@ export function UnitDetail({ unit, onClose }: Props) {
       <div className="card p-3">
         <div className="flex items-baseline justify-between">
           <div className="flex flex-col">
-            <span className="font-mono text-ui text-muted-silver tracking-eyebrow-mono uppercase">
-              {unitLabel(unit.agent_id)}
+            <span className="font-mono text-ui text-muted-silver tracking-eyebrow-mono">
+              {UNIT_LABEL_RING(unit.agent_id)}
             </span>
             <span className="eyebrow-mono mt-1">
-              {unit.vendor} · {unit.model}
+              {AGENT_STATE_COPY[unit.fsm_state].verb}
             </span>
           </div>
-          <StatusPill state={state}>{unit.fsm_state}</StatusPill>
+          <StatusPill state={state}>
+            {AGENT_STATE_COPY[unit.fsm_state].verb}
+          </StatusPill>
         </div>
       </div>
 

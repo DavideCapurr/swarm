@@ -12,7 +12,8 @@
  */
 
 import { useSwarm } from "@/lib/state";
-import type { CommandStatus, OperatorCommand } from "@/lib/api";
+import type { CommandStatus } from "@/lib/api";
+import { ACTION_LABELS } from "@/lib/copy";
 import { Eyebrow } from "./Eyebrow";
 
 const STATUS_CLASS: Record<CommandStatus, string> = {
@@ -22,18 +23,6 @@ const STATUS_CLASS: Record<CommandStatus, string> = {
   completed: "text-signal-green",
   rejected: "text-launch-amber",
   timed_out: "text-launch-amber",
-};
-
-const ACTION_LABEL: Record<OperatorCommand["action"], string> = {
-  verify: "Verify",
-  hold_patrol: "Hold patrol",
-  dismiss: "Dismiss",
-  return: "Return unit",
-  increase_scan_freq: "Increase scan",
-  mark_known: "Mark known",
-  escalate: "Escalate",
-  export_report: "Export report",
-  emergency_rtl_all: "Return all units",
 };
 
 export function CommandTimeline({ limit = 5 }: { limit?: number }) {
@@ -71,7 +60,7 @@ export function CommandTimeline({ limit = 5 }: { limit?: number }) {
                 <span aria-hidden="true" />
               )}
               <span className="font-display text-platinum truncate">
-                {ACTION_LABEL[c.action]}
+                {ACTION_LABELS[c.action].label}
               </span>
               <span className="eyebrow-mono truncate">{c.target}</span>
               <span

@@ -37,7 +37,7 @@ export function NextPatrol() {
       </div>
       {dock && (
         <div className="grid grid-cols-2 gap-y-1 text-ui">
-          <span className="eyebrow-mono">slots ready</span>
+          <span className="eyebrow-mono">ready to launch</span>
           <span className="text-right mono-num text-platinum">
             {String(dock.slots_available).padStart(3, "0")} /{" "}
             {String(dock.units_total).padStart(3, "0")}

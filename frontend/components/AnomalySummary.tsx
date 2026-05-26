@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useFocusAnomaly, useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
 import { findActiveAutonomyCommand } from "@/lib/autonomy";
+import { ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 import { IconAnomaly } from "@/icons";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
@@ -33,11 +34,11 @@ export function AnomalySummary() {
             <IconAnomaly size={24} />
           </span>
           <div className="flex flex-col">
-            <span className="font-display text-platinum text-ui">no pending anomaly</span>
+            <span className="font-display text-platinum text-ui">no anomaly detected.</span>
             <span className="eyebrow-mono">
               {dismissed > 0
-                ? `${dismissed} resolved this session`
-                : "territory quiet"}
+                ? `${String(dismissed).padStart(3, "0")} resolved this watch`
+                : "all sectors monitored."}
             </span>
           </div>
         </div>
@@ -82,13 +83,15 @@ export function AnomalySummary() {
         </span>
 
         <span className="eyebrow-mono">state</span>
-        <span className="text-right eyebrow-mono text-launch-amber">{anomaly.state}</span>
+        <span className="text-right eyebrow-mono text-launch-amber">
+          {ANOMALY_STATE_COPY[anomaly.state]}
+        </span>
 
         {verifier && (
           <>
             <span className="eyebrow-mono">verifier</span>
             <span className="text-right eyebrow-mono text-orbital-blue">
-              unit {unitLabel(verifier.agent_id)}
+              {UNIT_LABEL(verifier.agent_id)}
             </span>
           </>
         )}
@@ -102,9 +105,4 @@ export function AnomalySummary() {
       </Link>
     </div>
   );
-}
-
-function unitLabel(agentId: string): string {
-  const m = agentId.match(/(\d+)/);
-  return m ? m[1].padStart(3, "0") : agentId.slice(0, 3).toUpperCase();
 }

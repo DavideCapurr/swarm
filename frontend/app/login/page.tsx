@@ -63,7 +63,7 @@ function LoginInner() {
           <span className="swarm-wordmark text-platinum" style={{ fontSize: 13 }}>
             SWARM
           </span>
-          <span className="eyebrow-mono text-muted-silver">/ console / sign in</span>
+          <span className="eyebrow-mono text-muted-silver">/ sign in</span>
         </div>
         <form onSubmit={onSubmit} className="card p-6 flex flex-col gap-4" noValidate>
           <label className="flex flex-col gap-1">
@@ -97,7 +97,8 @@ function LoginInner() {
           </label>
           <label className="flex flex-col gap-1">
             <span className="eyebrow-mono text-ash">
-              totp code <span className="text-muted-silver">· commander only</span>
+              totp code
+              <span className="text-muted-silver"> · commander only</span>
             </span>
             <input
               type="text"

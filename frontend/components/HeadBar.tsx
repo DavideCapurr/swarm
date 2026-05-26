@@ -1,74 +1,43 @@
 "use client";
 
 /**
- * HeadBar — the canon Control spread head bar (PDF §5.2 / spread 24).
+ * HeadBar — slim head bar.
  *
- * Reads from `useSwarm()` only. No data hops on its own. Tracks the operating
- * mode pill, live link badge, online/total ring, pending count.
+ * Reads from `useSwarm()` only. After the redesign the bar holds the
+ * wordmark + nav + session label + link badge on the left, and clock +
+ * online ring + operator badge on the right. Mode pill, autonomy chip,
+ * pending count, and EmergencyStop moved into QuietPanel / SceneHeader.
  */
 
 import Link from "next/link";
 
 import { useAuth } from "@/lib/auth";
 import { useSwarm } from "@/lib/state";
-import { EmergencyStop } from "./EmergencyStop";
 import { StatusPill } from "./StatusPill";
 
-const MODE_STATE: Record<
-  "rest" | "patrol" | "verification" | "escalation" | "maintenance",
-  "rest" | "connected" | "operational" | "attention"
-> = {
-  rest: "rest",
-  patrol: "operational",
-  verification: "attention",
-  escalation: "attention",
-  maintenance: "attention",
-};
-
 export function HeadBar() {
-  const {
-    session,
-    units,
-    anomalies,
-    link,
-    clock,
-    mode,
-    operatorId,
-    role,
-    autonomyEnabled,
-  } = useSwarm();
+  const { session, units, link, clock, operatorId, role } = useSwarm();
   const { logout } = useAuth();
   const online = units.filter((u) => u.fsm_state !== "OFFLINE").length;
   const total = units.length;
-  const pending = anomalies.filter((a) => a.state === "pending" || a.state === "verifying").length;
 
   const fleetState: "rest" | "connected" | "operational" | "attention" = units.some(
     (u) => u.fsm_state === "ERROR"
   )
     ? "attention"
-    : units.some((u) =>
-          (
-            [
-              "TAKEOFF",
-              "EN_ROUTE",
-              "ON_STATION",
-              "RTL",
-              "LANDING",
-              "DOCKING",
-            ] as const
-          ).includes(u.fsm_state as never)
-        )
+    : online > 0
       ? "operational"
-      : online > 0
-        ? "rest"
-        : "rest";
+      : "rest";
 
   const sessionLabel = session?.label ?? "session 0001";
 
   return (
     <header className="flex items-center justify-between px-4 border-b border-gunmetal bg-absolute-black h-[44px]">
       <div className="flex items-center gap-6 text-muted-silver">
-        <Link href="/" className="flex items-center gap-2 text-platinum focus:outline-none focus-visible:outline-1 focus-visible:outline-orbital-blue">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-platinum focus:outline-none focus-visible:outline-1 focus-visible:outline-orbital-blue"
+        >
           <span className="swarm-ring" style={{ width: 8, height: 8 }} />
           <span className="swarm-wordmark text-platinum" style={{ fontSize: 13 }}>
             SWARM
@@ -81,20 +50,14 @@ export function HeadBar() {
       <div className="flex items-center gap-6">
         <span className="mono-num text-platinum text-ui">{clock.date}</span>
         <span className="mono-num text-platinum text-ui">{clock.time} UTC</span>
-        <span className="flex items-center gap-2">
-          <StatusPill state={MODE_STATE[mode]}>{`mode · ${mode}`}</StatusPill>
-          {autonomyEnabled && (
-            <StatusPill state="connected" data-testid="autonomy-chip">
-              autonomy baseline
-            </StatusPill>
-          )}
-        </span>
         <StatusPill state={fleetState}>
           {`${String(online).padStart(3, "0")} / ${String(total).padStart(3, "0")} online`}
         </StatusPill>
-        {pending > 0 && <StatusPill state="attention">{`${pending} pending`}</StatusPill>}
-        <EmergencyStop />
-        <OperatorBadge operatorId={operatorId} role={role} onLogout={() => void logout()} />
+        <OperatorBadge
+          operatorId={operatorId}
+          role={role}
+          onLogout={() => void logout()}
+        />
       </div>
     </header>
   );
@@ -112,8 +75,8 @@ function OperatorBadge({
   if (!operatorId || !role) return null;
   return (
     <span className="flex items-center gap-2 eyebrow-mono text-platinum">
-      <span className="mono-num">{operatorId}</span>
-      <span className="text-muted-silver">/ {role}</span>
+      <span className="mono-num">{role}</span>
+      <span className="text-muted-silver">· {operatorId}</span>
       <button
         type="button"
         onClick={onLogout}

@@ -19,7 +19,7 @@ export default function SystemPage() {
       <header className="flex items-baseline justify-between">
         <h1 className="font-editorial text-h3 text-platinum">System</h1>
         <span className="eyebrow-mono">
-          {session?.site_id ?? "—"} · awareness {String(Math.round(awareness.score)).padStart(3, "0")} %
+          {session?.site_id ?? "—"} · coverage {String(Math.round(awareness.score)).padStart(3, "0")} %
         </span>
       </header>
 
@@ -37,7 +37,7 @@ export default function SystemPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <Eyebrow mono>Units · {units.length}</Eyebrow>
+        <Eyebrow mono>units · {String(units.length).padStart(3, "0")}</Eyebrow>
         {units.length === 0 ? (
           <span className="eyebrow-mono text-ash">no units online</span>
         ) : (

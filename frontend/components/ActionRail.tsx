@@ -1,46 +1,36 @@
 "use client";
 
 /**
- * ActionRail — operator intents (PDF §5.7).
+ * ActionRail — verify + hold patrol, as an inline row of two buttons.
  *
- * Phase 2 wires four: verify, hold-patrol, dismiss, return. The four advisory
- * intents (increase scan freq, mark known, escalate, export report) are
- * rendered as disabled buttons with an advisory eyebrow until later phases.
- *
- * No manual drone commands. These are intents; SwarmOS decides.
+ * Slimmed from the original card surface: dismiss and return live in
+ * the verify/[id] route and the UnitDetail swap respectively. Voice
+ * pulled from `lib/copy.ts`.
  */
 
 import { useEffect, useState } from "react";
 
 import { useFocusAnomaly, useSwarm } from "@/lib/state";
-import {
-  IconDismiss,
-  IconHold,
-  IconReturn,
-  IconVerify,
-  type IconProps,
-} from "@/icons";
-import { Eyebrow } from "./Eyebrow";
+import { ACTION_LABELS } from "@/lib/copy";
 
-type WiredIntent = "verify" | "hold_patrol" | "dismiss" | "return";
+type WiredIntent = "verify" | "hold_patrol";
 
 type Phase = "idle" | "sending" | "accepted" | "rejected";
 
 type Outcome = { phase: Phase; detail?: string };
 
-export function ActionRail({ selectedAgentId }: { selectedAgentId?: string | null }) {
-  const { dispatch, mode, units } = useSwarm();
+export function ActionRail() {
+  const { dispatch } = useSwarm();
   const focus = useFocusAnomaly();
   const [state, setState] = useState<Record<WiredIntent, Outcome>>({
     verify: { phase: "idle" },
     hold_patrol: { phase: "idle" },
-    dismiss: { phase: "idle" },
-    return: { phase: "idle" },
   });
 
-  // Reset transient outcome after 3 s so the rail breathes.
   useEffect(() => {
-    const dirty = (Object.keys(state) as WiredIntent[]).filter((k) => state[k].phase !== "idle");
+    const dirty = (Object.keys(state) as WiredIntent[]).filter(
+      (k) => state[k].phase !== "idle"
+    );
     if (dirty.length === 0) return;
     const id = setTimeout(() => {
       setState((prev) => {
@@ -52,16 +42,9 @@ export function ActionRail({ selectedAgentId }: { selectedAgentId?: string | nul
     return () => clearTimeout(id);
   }, [state]);
 
-  const focusedUnit =
-    selectedAgentId && units.find((u) => u.agent_id === selectedAgentId)
-      ? selectedAgentId
-      : null;
-
   const targets: Record<WiredIntent, string | null> = {
     verify: focus ? `anomaly:${focus.id}` : null,
     hold_patrol: "session:current",
-    dismiss: focus ? `anomaly:${focus.id}` : null,
-    return: focusedUnit ? `unit:${focusedUnit}` : null,
   };
 
   async function send(intent: WiredIntent) {
@@ -74,116 +57,88 @@ export function ActionRail({ selectedAgentId }: { selectedAgentId?: string | nul
         ...prev,
         [intent]: res.ok
           ? { phase: "accepted", detail: res.body.status }
-          : { phase: "rejected", detail: res.body.rejected_reason ?? `code ${res.status}` },
+          : {
+              phase: "rejected",
+              detail: res.body.rejected_reason ?? `code ${res.status}`,
+            },
       }));
     } catch (e) {
       setState((prev) => ({
         ...prev,
-        [intent]: { phase: "rejected", detail: e instanceof Error ? e.message : "error" },
+        [intent]: {
+          phase: "rejected",
+          detail: e instanceof Error ? e.message : "error",
+        },
       }));
     }
   }
 
   return (
-    <div className="card p-4 flex flex-col gap-3">
-      <div className="flex items-baseline justify-between">
-        <Eyebrow mono>Action rail</Eyebrow>
-        <span className="eyebrow-mono">mode · {mode}</span>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <IntentButton
-          icon={IconVerify}
-          label="Verify"
-          hint="dispatch nearest unit"
-          enabled={!!targets.verify}
-          outcome={state.verify}
-          accent="text-orbital-blue"
-          onPress={() => send("verify")}
-        />
-        <IntentButton
-          icon={IconHold}
-          label="Hold patrol"
-          hint="pause coverage routine"
-          enabled={!!targets.hold_patrol}
-          outcome={state.hold_patrol}
-          accent="text-platinum"
-          onPress={() => send("hold_patrol")}
-        />
-        <IntentButton
-          icon={IconDismiss}
-          label="Dismiss"
-          hint="mark anomaly resolved"
-          enabled={!!targets.dismiss}
-          outcome={state.dismiss}
-          accent="text-muted-silver"
-          onPress={() => send("dismiss")}
-        />
-        <IntentButton
-          icon={IconReturn}
-          label="Return unit"
-          hint={focusedUnit ? "send unit to dock" : "select a unit first"}
-          enabled={!!targets.return}
-          outcome={state.return}
-          accent="text-platinum"
-          onPress={() => send("return")}
-        />
-      </div>
-      <div className="h-px bg-gunmetal" />
-      <span className="eyebrow-mono text-ash">
-        intents only · swarmos decides — increase scan · mark known · escalate · export report arrive in later phases
-      </span>
+    <div className="flex gap-2">
+      <IntentButton
+        label={ACTION_LABELS.verify.label}
+        hint={ACTION_LABELS.verify.hint}
+        enabled={!!targets.verify}
+        outcome={state.verify}
+        variant="primary"
+        onPress={() => send("verify")}
+      />
+      <IntentButton
+        label={ACTION_LABELS.hold_patrol.label}
+        hint={ACTION_LABELS.hold_patrol.hint}
+        enabled={!!targets.hold_patrol}
+        outcome={state.hold_patrol}
+        variant="secondary"
+        onPress={() => send("hold_patrol")}
+      />
     </div>
   );
 }
 
 function IntentButton({
-  icon: Icon,
   label,
   hint,
   enabled,
   outcome,
-  accent,
+  variant,
   onPress,
 }: {
-  icon: (p: IconProps) => React.ReactElement;
   label: string;
   hint: string;
   enabled: boolean;
   outcome: Outcome;
-  accent: string;
+  variant: "primary" | "secondary";
   onPress: () => void;
 }) {
-  const tone =
+  const base =
+    variant === "primary"
+      ? "bg-platinum text-absolute-black"
+      : "bg-absolute-black border border-graphite text-platinum hover:bg-graphite/40";
+  const phaseClass =
     outcome.phase === "accepted"
-      ? "border-signal-green text-signal-green"
+      ? "border border-signal-green text-signal-green bg-absolute-black"
       : outcome.phase === "rejected"
-        ? "border-launch-amber text-launch-amber"
+        ? "border border-launch-amber text-launch-amber bg-absolute-black"
         : outcome.phase === "sending"
-          ? "border-orbital-blue text-orbital-blue"
-          : `border-graphite ${accent}`;
-  const phaseLabel =
+          ? "border border-orbital-blue text-orbital-blue bg-absolute-black"
+          : base;
+  const text =
     outcome.phase === "accepted"
       ? "accepted"
       : outcome.phase === "rejected"
         ? outcome.detail ?? "rejected"
         : outcome.phase === "sending"
           ? "sending"
-          : enabled
-            ? hint
-            : hint;
-
+          : label;
   return (
     <button
       type="button"
       onClick={onPress}
       disabled={!enabled || outcome.phase === "sending"}
-      className={`flex flex-col items-start gap-2 border ${tone} rounded-input p-3 transition-all duration-press ease-swarm bg-absolute-black hover:brightness-110 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed text-left`}
+      title={hint}
+      className={`flex-1 font-display text-ui rounded-input px-3 py-2 transition-all duration-press ease-swarm hover:brightness-105 active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed ${phaseClass}`}
     >
-      <span className="flex items-center gap-2">
-        <Icon size={20} />
-        <span className="font-display text-ui text-platinum">{label}</span>
-      </span>
-      <span className="eyebrow-mono text-ash">{phaseLabel}</span>
+      {text}
     </button>
   );
 }

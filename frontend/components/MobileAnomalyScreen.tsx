@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
 import { findActiveAutonomyCommand } from "@/lib/autonomy";
+import { ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 import { IconBack } from "@/icons";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
@@ -67,7 +68,9 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
           <span className="mono-num text-platinum" style={{ fontSize: 56, lineHeight: 1 }}>
             {String(Math.round(anomaly.confidence * 100)).padStart(3, "0")}
           </span>
-          <span className="eyebrow-mono">% · confidence</span>
+          <span className="eyebrow-mono">
+            confidence {String(Math.round(anomaly.confidence * 100)).padStart(3, "0")} %
+          </span>
 
           <div className="grid grid-cols-2 gap-y-1 text-ui">
             <span className="eyebrow-mono">type</span>
@@ -77,7 +80,7 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
 
             <span className="eyebrow-mono">state</span>
             <span className="text-right eyebrow-mono text-launch-amber">
-              {anomaly.state}
+              {ANOMALY_STATE_COPY[anomaly.state]}
             </span>
 
             <span className="eyebrow-mono">sector</span>
@@ -87,7 +90,7 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
 
             <span className="eyebrow-mono">verifier</span>
             <span className="text-right eyebrow-mono text-orbital-blue">
-              {verifier ? `unit ${unitLabel(verifier.agent_id)}` : "—"}
+              {verifier ? UNIT_LABEL(verifier.agent_id) : "—"}
             </span>
 
             <span className="eyebrow-mono">position</span>
@@ -102,7 +105,7 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
           </div>
 
           <span className="eyebrow-mono text-ash">
-            confirm intent from console — mobile heads-up only
+            confirm intent from console. mobile heads-up only.
           </span>
         </div>
       )}
@@ -115,9 +118,4 @@ function formatTs(ts: string): string {
   if (isNaN(d.getTime())) return "—";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-}
-
-function unitLabel(agentId: string): string {
-  const m = agentId.match(/(\d+)/);
-  return m ? m[1].padStart(3, "0") : agentId.slice(0, 3).toUpperCase();
 }
