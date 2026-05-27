@@ -121,6 +121,8 @@ export function QuietPanel({ onSelectAgent }: Props) {
         <RecentSection
           recentTime={recent?.submitted_at ?? null}
           recentText={recent ? recentLabel(recent.action, recent.status) : null}
+          recentAuto={recent?.source === "autonomy"}
+          recentRule={recent?.rule ?? null}
         />
 
         <Hairline />
@@ -249,9 +251,13 @@ function UnitsSection({
 function RecentSection({
   recentTime,
   recentText,
+  recentAuto,
+  recentRule,
 }: {
   recentTime: string | null;
   recentText: string | null;
+  recentAuto: boolean;
+  recentRule: string | null;
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -260,6 +266,14 @@ function RecentSection({
         <span className="eyebrow-mono text-platinum">
           <span className="mono-num text-platinum">{shortTime(recentTime)}</span>
           {" · "}
+          {recentAuto && (
+            <span
+              className="text-orbital-blue"
+              data-testid="recent-auto-chip"
+            >
+              {recentRule ? `auto · ${recentRule.toLowerCase()} · ` : "auto · "}
+            </span>
+          )}
           {recentText}
         </span>
       ) : (

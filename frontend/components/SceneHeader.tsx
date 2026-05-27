@@ -50,6 +50,14 @@ export function SceneHeader() {
           </span>
         </p>
       </div>
+      {/*
+        Sim badge stays hardcoded `simulation · wildfire scenario` until
+        Phase 8 introduces a `Session.environment` field on the backend.
+        Adding runtime-gating now would require a model change + Alembic
+        migration that is out of scope for Phase 7. The badge must remain
+        always-visible while the only running surface is the sim (playbook
+        §15 claim-discipline rule). Tracked in docs/STATUS.md · Phase 7.F.
+      */}
       <span
         className="eyebrow-mono text-ash border border-gunmetal rounded-chip px-3 py-1 whitespace-nowrap"
         data-testid="sim-badge"

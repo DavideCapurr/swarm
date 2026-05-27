@@ -4,13 +4,15 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import maplibregl, { type Map } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { AnomalyView, UnitState } from "@/lib/api";
+import type { AnomalyView, OperatorCommand, UnitState } from "@/lib/api";
 import { agentStateToSwarm } from "@/lib/tokens";
 import { AGENT_STATE_COPY, ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
+import { findActiveAutonomyCommand } from "@/lib/autonomy";
 
 type Props = {
   units: UnitState[];
   anomalies: AnomalyView[];
+  commands?: OperatorCommand[];
   onMapReady?: (map: Map) => void;
   children?: (map: Map | null) => ReactNode;
 };
@@ -49,7 +51,7 @@ const DOT_STATE_CLASS: Record<string, string> = {
   attention: "dot dot-attention",
 };
 
-export function MapView({ units, anomalies, onMapReady, children }: Props) {
+export function MapView({ units, anomalies, commands, onMapReady, children }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const droneMarkersRef = useRef<Record<string, maplibregl.Marker>>({});
@@ -160,19 +162,25 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
     }
   }, [units]);
 
-  // Anomaly markers — launch-amber concentric rings. Filters out resolved
-  // anomalies (dismissed / marked_known) so the operator only sees live signals.
+  // Anomaly markers — launch-amber concentric rings. When an autonomy
+  // command is in flight for the anomaly we flip the callout to Orbital
+  // Blue and prepend an AUTO eyebrow so the operator (and a YC observer)
+  // sees that SwarmOS itself made the call. Filters out resolved
+  // anomalies (dismissed / marked_known) so only live signals appear.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const live = anomalies.filter(
       (a) => a.state !== "dismissed" && a.state !== "marked_known"
     );
+    const cmds = commands ?? [];
     const seen = new Set<string>();
     for (const a of live) {
       seen.add(a.id);
       const ll: [number, number] = [a.geo.lon, a.geo.lat];
-      const calloutText = anomalyCallout(a);
+      const auto = findActiveAutonomyCommand(cmds, a.id);
+      const calloutText = anomalyCallout(a, auto);
+      const color = auto ? "#7BE7FF" : "#FFB45C";
       const existing = anomalyMarkersRef.current[a.id];
       if (!existing) {
         const el = document.createElement("div");
@@ -201,12 +209,13 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         ring.style.animation = "breath 4s cubic-bezier(0.2, 0.7, 0.1, 1) infinite";
 
         const leader = document.createElement("span");
+        leader.setAttribute("data-leader", "");
         leader.style.position = "absolute";
         leader.style.left = "10px";
         leader.style.top = "-1px";
         leader.style.width = "22px";
         leader.style.height = "1px";
-        leader.style.background = "#FFB45C";
+        leader.style.background = color;
         leader.style.opacity = "0.7";
 
         const callout = document.createElement("button");
@@ -221,13 +230,14 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         callout.style.fontSize = "9px";
         callout.style.letterSpacing = "0.22em";
         callout.style.textTransform = "uppercase";
-        callout.style.color = "#FFB45C";
+        callout.style.color = color;
         callout.style.background = "rgba(11,14,17,0.85)";
         callout.style.padding = "3px 6px";
-        callout.style.border = "1px solid #FFB45C";
+        callout.style.border = `1px solid ${color}`;
         callout.style.borderRadius = "2px";
         callout.style.whiteSpace = "nowrap";
         callout.style.cursor = "pointer";
+        if (auto) callout.setAttribute("data-auto", "");
         callout.addEventListener("click", (e) => {
           e.stopPropagation();
           router.push(`/verify/${a.id}`);
@@ -244,7 +254,15 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         existing.setLngLat(ll);
         const el = existing.getElement();
         const callout = el.querySelector("[data-callout]") as HTMLElement | null;
-        if (callout) callout.textContent = calloutText;
+        const leader = el.querySelector("[data-leader]") as HTMLElement | null;
+        if (callout) {
+          callout.textContent = calloutText;
+          callout.style.color = color;
+          callout.style.border = `1px solid ${color}`;
+          if (auto) callout.setAttribute("data-auto", "");
+          else callout.removeAttribute("data-auto");
+        }
+        if (leader) leader.style.background = color;
       }
     }
     for (const id of Object.keys(anomalyMarkersRef.current)) {
@@ -253,7 +271,7 @@ export function MapView({ units, anomalies, onMapReady, children }: Props) {
         delete anomalyMarkersRef.current[id];
       }
     }
-  }, [anomalies, units, router]);
+  }, [anomalies, units, commands, router]);
 
   return (
     <div className="relative w-full h-full">
@@ -317,15 +335,22 @@ function CornerStamps({ units }: { units: UnitState[] }) {
   );
 }
 
-function anomalyCallout(a: AnomalyView): string {
+function anomalyCallout(
+  a: AnomalyView,
+  auto: OperatorCommand | null
+): string {
   const pct = Math.round(a.confidence * 100);
   const state = ANOMALY_STATE_COPY[a.state];
+  let prefix = "";
+  if (auto) {
+    prefix = auto.rule ? `auto · ${auto.rule.toLowerCase()} · ` : "auto · ";
+  }
   if (a.state === "verifying" && a.verifying_agent) {
-    return `${UNIT_LABEL(a.verifying_agent)} · ${state}`;
+    return `${prefix}${UNIT_LABEL(a.verifying_agent)} · ${state}`;
   }
   if (a.state === "verified" || a.state === "escalated") {
-    return `anomaly ${state}`;
+    return `${prefix}anomaly ${state}`;
   }
-  return `anomaly ${state} · confidence ${String(pct).padStart(3, "0")} %`;
+  return `${prefix}anomaly ${state} · confidence ${String(pct).padStart(3, "0")} %`;
 }
 

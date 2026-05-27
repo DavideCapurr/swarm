@@ -21,7 +21,7 @@ import { SectorLayer } from "./SectorLayer";
 import { UnitDetail } from "./UnitDetail";
 
 export function TerritoryControl() {
-  const { units, anomalies } = useSwarm();
+  const { units, anomalies, commands } = useSwarm();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const selectedUnit = selectedAgentId
     ? units.find((u) => u.agent_id === selectedAgentId) ?? null
@@ -32,7 +32,7 @@ export function TerritoryControl() {
       <SceneHeader />
       <div className="grid grid-cols-[1fr_380px] min-h-0">
         <div className="relative overflow-hidden bg-absolute-black border-r border-gunmetal">
-          <MapView units={units} anomalies={anomalies}>
+          <MapView units={units} anomalies={anomalies} commands={commands}>
             {(m) => (
               <>
                 <SectorLayer map={m} />
