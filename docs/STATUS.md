@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); manual end-to-end gate pending |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **in_progress** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); manual end-to-end gate pending |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,72 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-26: Phase 7.F Console DS Spread 24 + Plain Voice v1 landed on
+`main` via merged PR #72 (commit `19a91ce`) plus a follow-up fix-up on
+`main` that re-surfaces the **AUTO marker on the viewport callout** and
+in the QuietPanel `Recent action` row. The redesign canon (viewport
+not dashboard, one calm right rail, no decorative shadow, 85 %
+monochrome) ships intact; the demo-critical regression — the in-map
+anomaly callout no longer naming SwarmOS as the decider when R1/R2
+fired — is closed. Diff: `frontend/components/Map.tsx` (now takes
+`commands?: OperatorCommand[]`, computes `findActiveAutonomyCommand`
+per anomaly, prepends `auto · r1/r2 · ` to the callout text and flips
+border + leader + colour to Orbital Blue `#7BE7FF` while the autonomy
+command is non-terminal; auto attribute removed cleanly when the
+command completes), `frontend/components/TerritoryControl.tsx` (passes
+`commands` from `useSwarm()` to `MapView`),
+`frontend/components/QuietPanel.tsx` (RecentSection takes
+`recentAuto` + `recentRule` and renders an `auto · r1` prefix in
+Orbital Blue when the latest command is `source === "autonomy"`),
+`frontend/components/SceneHeader.tsx` (doc-comment locking the
+hardcoded `simulation · wildfire scenario` badge until Phase 8 adds
+`Session.environment`; runtime gating is out of scope here because it
+would need an Alembic migration). New test
+`frontend/components/__tests__/QuietPanel.test.tsx` (2 cases —
+auto-source surfaces the eyebrow with rule, operator-source omits
+it). Vitest gate: 54 passed / 54 (was 52, +2 from the new tests).
+`pnpm exec tsc --noEmit` clean. Side fixes folded into the same patch
+to keep `make {lint,test,audit}` all green on `main` (the Phase 7.F
+merge had drifted the brand gate + introduced a WS isolation flake):
+(1) **ruff drift** — `ruff 0.15.13` upgraded `tests/test_phase7e_demo.py`
++ `sim/swarm_sim/world.py` + `sim/swarm_sim/cv/tests/test_detector.py`
++ 3 fixable + 3 hand-fixes for `UP017`/`RUF046`/`N806`/`SIM117` so the
+ruff gate compiles cleanly on the locally-installed minor; no semantic
+change. (2) **brand-audit drift** — the Phase 7.F merge moved
+`autonomy · baseline` from `HeadBar.tsx` to `QuietPanel.tsx` but
+`tests/test_phase7c_brand.py::test_headbar_renders_autonomy_chip_with_connected_state`
+still asserted the old location; renamed to
+`test_quietpanel_renders_autonomy_chip` and re-pointed at the new file
++ `data-testid="autonomy-ghost"`. (3) **WS broadcast isolation bug** —
+`WSHub.broadcast` (`backend/app/ws/telemetry.py`) only caught
+`WebSocketDisconnect`/`RuntimeError`, so an `anyio.ClosedResourceError`
+from a zombie `TestClient` socket lingering on the module-level
+`HUB` singleton crashed the live broadcast mid-loop, taking the
+e2e anomaly-lifecycle test down whenever it ran after a backend WS
+suite. Patch: catch `anyio.ClosedResourceError` +
+`BrokenResourceError` (treat as `WebSocketDisconnect`) and clear
+`HUB._clients` in `tests/e2e/conftest.py::_reset_state` so a fresh
+client list starts every e2e test. (4) **starlette PYSEC-2026-161** —
+`uv lock --upgrade-package starlette` bumped `starlette` from `1.0.0`
+to `1.1.0`; no app-level code change required, `make audit` now green
+(`Found 0 known vulnerabilities` modulo the disputed `PYSEC-2025-183`
+already on the ignore list). Final gate snapshot:
+`make lint` ✅, `make test` ✅ (726 python passed / 19 skipped /
+3 deselected + 54 frontend passed), `make audit` ✅.
+Acceptance gates for the YC demo —
+SMOKE callout at `t≈10 s` with confidence eyebrow, callout flips to
+`auto · r1 · unit … · verifying` at `t≈12 s`, FIRE escalation
+callout at `t≈25 s`, `auto · r2 · …` at `t≈35 s`, QuietPanel
+`time to action` ≠ "—" once R1 is accepted, `cycles done`
+increments after the verify completes — are now reachable from
+the redesigned Control. The hands-on `make demo-wildfire-sim`
+end-to-end gate (browser screenshots at every beat) remains the
+final step before flipping the Phase 7 row to `done`; it lives on
+the local Docker stack and is the user's manual exercise. Out of
+scope per playbook §10: `Session.environment` runtime field
+(Phase 8), per-scenario thresholds (8.B), shadow / A-B (8.B-bis),
+detection-bbox overlay (8.D / 10), autonomy-first default (8.A).
 
 2026-05-25: Phase 7.E `make demo-*` code-complete on branch
 `claude/loving-feynman-yxQqU`. Three one-command targets shipped:
