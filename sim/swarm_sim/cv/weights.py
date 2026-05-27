@@ -213,16 +213,18 @@ def _download(url: str, target: Path) -> None:
     tmp = Path(tmp_name)
     opener = urllib.request.build_opener(_HTTPSOnlyRedirectHandler())
     try:
-        with os.fdopen(fd, "wb") as out:
-            # `opener.open` is restricted to https:// via the redirect handler
-            # above + the up-front prefix check; the manifest schema is the
-            # third defense-in-depth layer.
-            with opener.open(url, timeout=_DOWNLOAD_TIMEOUT_S) as resp:  # nosec B310
-                while True:
-                    chunk = resp.read(_CHUNK_BYTES)
-                    if not chunk:
-                        break
-                    out.write(chunk)
+        # `opener.open` is restricted to https:// via the redirect handler
+        # above + the up-front prefix check; the manifest schema is the
+        # third defense-in-depth layer.
+        with (
+            os.fdopen(fd, "wb") as out,
+            opener.open(url, timeout=_DOWNLOAD_TIMEOUT_S) as resp,  # nosec B310
+        ):
+            while True:
+                chunk = resp.read(_CHUNK_BYTES)
+                if not chunk:
+                    break
+                out.write(chunk)
         tmp.replace(target)
     except BaseException:
         if tmp.exists():

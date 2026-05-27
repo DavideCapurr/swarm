@@ -6,6 +6,7 @@ import asyncio
 import json
 from typing import Any
 
+from anyio import BrokenResourceError, ClosedResourceError
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.app.observability.logging import get_logger
@@ -50,5 +51,16 @@ class WSHub:
         for ws in clients:
             try:
                 await ws.send_text(payload)
-            except (WebSocketDisconnect, RuntimeError):
+            except (
+                WebSocketDisconnect,
+                RuntimeError,
+                # `anyio.ClosedResourceError` / `BrokenResourceError` fire
+                # when a peer's send stream has been torn down (e.g. the
+                # ASGI transport for a TestClient that was closed in a
+                # prior test, or a real socket that was reset). The hub
+                # treats them like `WebSocketDisconnect` so one dead
+                # client cannot break a fleet-wide broadcast.
+                ClosedResourceError,
+                BrokenResourceError,
+            ):
                 await self.disconnect(ws)

@@ -42,12 +42,16 @@ def test_event_feed_renders_auto_kind_in_orbital_blue() -> None:
     assert "uppercase" in text
 
 
-def test_headbar_renders_autonomy_chip_with_connected_state() -> None:
-    text = _read("frontend/components/HeadBar.tsx")
-    assert "autonomy baseline" in text
-    # The chip rides the `StatusPill state="connected"` variant (Orbital
-    # Blue halo) so we get the design-system halo for free.
-    assert 'state="connected"' in text
+def test_quietpanel_renders_autonomy_chip() -> None:
+    # Phase 7.F (DS Spread 24 redesign — PR #72): the autonomy chip moved
+    # from HeadBar into QuietPanel's PerformanceSection ghost row so the
+    # viewport's right rail owns all "what is SwarmOS doing" signal in a
+    # single calm column. The chip is the `autonomy-ghost` test-id and the
+    # visible string is "autonomy · baseline" (PDF §5.2 — eyebrow-mono +
+    # text-ash, accent-free, hairline-separated).
+    text = _read("frontend/components/QuietPanel.tsx")
+    assert "autonomy · baseline" in text
+    assert 'data-testid="autonomy-ghost"' in text
 
 
 def test_anomaly_summary_auto_chip_is_orbital_blue() -> None:

@@ -28,7 +28,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -231,7 +231,7 @@ def test_latency_samples_correlates_anomaly_to_decision() -> None:
     sample."""
 
     sm = _load_collector_module()
-    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC)
     events = [
         {
             "kind": "anomaly",
@@ -257,7 +257,7 @@ def test_latency_samples_skips_operator_commands() -> None:
     """Operator-issued commands must not show up in autonomy latency."""
 
     sm = _load_collector_module()
-    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC)
     events = [{"kind": "anomaly", "anomaly_id": "a", "ts": t0.isoformat()}]
     commands = [
         {
@@ -276,7 +276,7 @@ def test_latency_samples_dismiss_has_no_dispatch_sample() -> None:
     """R3 DISMISS doesn't spawn a mission, so in_flight_at is null."""
 
     sm = _load_collector_module()
-    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC)
     events = [{"kind": "anomaly", "anomaly_id": "a", "ts": t0.isoformat()}]
     commands = [
         {
@@ -299,7 +299,7 @@ def test_latency_samples_uses_earliest_anomaly_when_duplicated() -> None:
     isn't artificially shrunk to zero."""
 
     sm = _load_collector_module()
-    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC)
     events = [
         {"kind": "anomaly", "anomaly_id": "a", "ts": (t0 + timedelta(seconds=5)).isoformat()},
         {"kind": "anomaly", "anomaly_id": "a", "ts": t0.isoformat()},

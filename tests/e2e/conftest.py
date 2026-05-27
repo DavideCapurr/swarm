@@ -35,6 +35,7 @@ from backend.app.api.routes import public_router as public_api_router
 from backend.app.api.routes import router as api_router
 from backend.app.bus_consumer import BusConsumer
 from backend.app.db import Repository, set_repository
+from backend.app.hub import HUB
 from backend.app.ws.telemetry import WSHub
 
 # Re-export the JWT/operator-store fixtures from the backend test suite so
@@ -90,6 +91,12 @@ def _reset_state() -> None:
     COORDINATOR.events.__init__()  # type: ignore[misc]
     _limiter._buckets.clear()  # type: ignore[attr-defined]
     _emergency_limiter._buckets.clear()  # type: ignore[attr-defined]
+    # Drop any zombie WebSocket clients that earlier (non-e2e) test
+    # modules registered on the singleton hub. `actions.verify` and
+    # friends broadcast through `backend.app.hub.HUB` (module-level
+    # singleton), so a closed `TestClient` socket from a prior test
+    # would otherwise raise `anyio.ClosedResourceError` mid-broadcast.
+    HUB._clients.clear()  # type: ignore[attr-defined]
 
 
 @pytest_asyncio.fixture

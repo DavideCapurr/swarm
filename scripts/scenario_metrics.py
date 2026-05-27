@@ -33,7 +33,7 @@ import json
 import sys
 import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +47,7 @@ DEFAULT_PASSWORD = "swarm-dev"
 
 
 def _utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _login(backend: str, user: str, password: str) -> str:
@@ -121,7 +121,7 @@ def _percentiles(samples_ms: list[float]) -> dict[str, Any]:
         # Nearest-rank percentile. Same convention used by the load driver.
         if n == 1:
             return ordered[0]
-        rank = max(1, min(n, int(round(p / 100.0 * n))))
+        rank = max(1, min(n, round(p / 100.0 * n)))
         return ordered[rank - 1]
 
     return {
@@ -236,7 +236,7 @@ def collect(backend: str, token: str) -> dict[str, Any]:
 
 def write_artifact(scenario: str, payload: dict[str, Any]) -> Path:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out_path = ARTIFACT_DIR / f"phase-7e-{scenario}-{ts}.json"
     out_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return out_path
