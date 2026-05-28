@@ -11,14 +11,16 @@
 #     deploys must use TLS_MODE=letsencrypt with a real DNS A record
 #     pointing at this host.
 #
-# On a SIGHUP we re-symlink (cert renewal) and `nginx -s reload`. The
-# certbot sidecar fires SIGHUP after a successful renew.
+# Certbot renewal requests arrive through a sentinel file on the shared
+# /var/run/nginx volume. The reload itself stays inside this container's
+# namespace.
 set -eu
 
 TLS_MODE="${TLS_MODE:-letsencrypt}"
 TLS_SERVER_NAME="${TLS_SERVER_NAME:-}"
 LE_LIVE_DIR="/etc/letsencrypt/live/${TLS_SERVER_NAME}"
 NGINX_SSL_DIR="/etc/nginx/ssl"
+RELOAD_SENTINEL="/var/run/nginx/reload.request"
 
 mkdir -p "${NGINX_SSL_DIR}" /var/run/nginx
 
@@ -67,11 +69,28 @@ case "${TLS_MODE}" in
         ;;
 esac
 
-# On SIGHUP, refresh the symlinks then reload nginx (certbot renew hook).
-trap 'echo "[entrypoint] SIGHUP — reloading"; link_cert 2>/dev/null || true; nginx -s reload' HUP
+watch_reload_requests() {
+    last_seen=""
+    while :; do
+        sleep 5
+        if [ ! -s "${RELOAD_SENTINEL}" ]; then
+            continue
+        fi
+        current="$(cat "${RELOAD_SENTINEL}" 2>/dev/null || true)"
+        if [ -z "${current}" ] || [ "${current}" = "${last_seen}" ]; then
+            continue
+        fi
+        last_seen="${current}"
+        echo "[entrypoint] cert reload requested"
+        link_cert 2>/dev/null || true
+        nginx -s reload || echo "[entrypoint] nginx reload failed" >&2
+    done
+}
 
 # Syntax check first so a config typo fails fast.
 nginx -t
+
+watch_reload_requests &
 
 echo "[entrypoint] starting nginx"
 exec nginx -g "daemon off;"

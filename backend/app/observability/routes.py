@@ -22,6 +22,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import text
+from swarm_core.runtime import env_flag
 
 from backend.app.auth.deps import (
     AuthError,
@@ -185,7 +186,7 @@ async def _check_redis() -> bool:
 def _check_auth() -> bool:
     """JWT service + operator store both loaded."""
 
-    if os.getenv("SWARM_AUTH_DISABLED") == "1":
+    if env_flag("SWARM_AUTH_DISABLED"):
         return True
     try:
         get_jwt_service()

@@ -9,6 +9,7 @@ operator store at boot.
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -141,6 +142,14 @@ def test_ws_accepts_subprotocol_bearer(
         subprotocols=["bearer", token],
     ) as ws:
         ws.close()
+
+
+def test_main_ws_route_has_no_auth_disabled_bypass() -> None:
+    """Regression guard: WS auth cannot be disabled by an env toggle."""
+
+    import backend.app.main as main_mod
+
+    assert "SWARM_AUTH_DISABLED" not in inspect.getsource(main_mod.ws_telemetry)
 
 
 # Silence unused-import noise.

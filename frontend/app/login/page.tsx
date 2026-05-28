@@ -14,11 +14,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 
 import { useAuth, type LoginError } from "@/lib/auth";
+import { safeInternalRedirect } from "@/lib/redirect";
 
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/";
+  const next = safeInternalRedirect(params.get("next"));
   const { state, login } = useAuth();
   const [operatorId, setOperatorId] = useState("");
   const [password, setPassword] = useState("");

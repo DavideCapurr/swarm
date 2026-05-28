@@ -8,10 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-if [ ! -f .env ]; then
-  cp .env.example .env
-  echo "[dev_up] created .env from .env.example"
-fi
+./scripts/bootstrap_dev_env.sh
 
 # One-shot migration: port 8000 collides with other local dev servers, so we
 # moved the backend to 8765. Rewrite stale .env values in place.
@@ -40,7 +37,7 @@ docker compose up -d postgres redis
 
 # Wait for redis to accept connections.
 for i in $(seq 1 20); do
-  if docker compose exec -T redis redis-cli ping > /dev/null 2>&1; then
+  if docker compose exec -T redis redis-cli -a "${REDIS_PASSWORD}" ping > /dev/null 2>&1; then
     break
   fi
   sleep 0.5

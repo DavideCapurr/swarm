@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 from typing import TYPE_CHECKING
 
@@ -39,6 +38,7 @@ from orchestrator.swarm_orchestrator.bus import (
     InMemoryBus,
     InsecureBusConfiguration,
     RedisBus,
+    redis_url_from_env,
     secure_bus_required,
 )
 from swarm_os import COORDINATOR
@@ -69,7 +69,7 @@ class BusConsumer:
         self._persisted_autonomy_ids: set[str] = set()
 
     async def start(self) -> None:
-        redis_url = os.getenv("REDIS_URL")
+        redis_url = redis_url_from_env()
         if redis_url:
             try:
                 self._bus = RedisBus(redis_url)
@@ -88,7 +88,8 @@ class BusConsumer:
         else:
             if secure_bus_required():
                 raise InsecureBusConfiguration(
-                    "secure bus required: REDIS_URL must be set and use rediss://"
+                    "secure bus required: configure REDIS_URL=rediss://... or "
+                    "REDIS_HOST/REDIS_PASSWORD with Redis TLS env vars"
                 )
             self._bus = InMemoryBus()
             await self._bus.connect()

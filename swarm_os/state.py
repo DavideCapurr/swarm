@@ -24,6 +24,7 @@ from swarm_core.messages import (
     Session,
     UnitState,
 )
+from swarm_core.runtime import env_flag
 from swarm_core.streams import StreamDescriptor
 
 from swarm_os.policy import PolicyEngine
@@ -39,11 +40,10 @@ SITE_ID_ENV = "SWARM_SITE_ID"  # Phase 6.B — boot-time site selector
 # at SwarmState construction so the env path and the scenario path produce
 # the same Session.autonomy_enabled value the Console reads.
 AUTONOMY_ENV = "SWARM_AUTONOMY_BASELINE"
-_AUTONOMY_TRUTHY = frozenset({"1", "true", "yes"})
 
 
 def _env_autonomy_enabled() -> bool:
-    return os.getenv(AUTONOMY_ENV, "").lower() in _AUTONOMY_TRUTHY
+    return env_flag(AUTONOMY_ENV)
 
 
 def _default_policy() -> PolicyEngine:

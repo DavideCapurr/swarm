@@ -1,14 +1,16 @@
 """Async engine + sessionmaker for Phase 4 persistence.
 
 Two modes:
-  - **disabled** — `DATABASE_URL` is empty. `get_sessionmaker()` returns None
-    and the repository becomes a no-op. Tests and the demo can run without a
-    Postgres daemon.
-  - **enabled** — `DATABASE_URL` is set. The engine connects with
-    `pool_pre_ping=True` and (in non-dev) requires SSL.
+  - **disabled** — no `DATABASE_URL` or complete discrete Postgres env is set.
+    `get_sessionmaker()` returns None and the repository becomes a no-op.
+    Tests and the demo can run without a Postgres daemon.
+  - **enabled** — `DATABASE_URL` is set, or `POSTGRES_HOST` / user /
+    password / database are set. The engine connects with `pool_pre_ping=True`
+    and (in non-dev) requires SSL.
 
 Security:
-  - DB credentials never appear in code; only `DATABASE_URL` is read from env.
+  - DB credentials never appear in code; env provides either `DATABASE_URL` or
+    discrete Postgres fields rendered through SQLAlchemy's URL builder.
   - When `SWARM_ENV != "dev"` and the URL is Postgres, we force `ssl=true`
     via `connect_args` so a misconfigured URL can't downgrade to plaintext.
   - The engine is constructed lazily on first call to `init_persistence()`.
@@ -26,15 +28,64 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from swarm_core.runtime import is_dev_like_env
 
 
 def _database_url() -> str:
-    """Read `DATABASE_URL` from env. Empty string means persistence disabled."""
-    return (os.getenv("DATABASE_URL") or "").strip()
+    """Return the configured database URL, building it safely when needed.
+
+    `DATABASE_URL` remains the Kubernetes/Helm interface. Compose can provide
+    discrete Postgres fields instead; this function renders those with
+    SQLAlchemy's URL builder so reserved characters in passwords cannot alter
+    the host, database, or query string.
+    """
+
+    explicit = (os.getenv("DATABASE_URL") or "").strip()
+    if explicit:
+        return explicit
+    return _postgres_url_from_env() or ""
+
+
+def _postgres_url_from_env() -> str | None:
+    """Build a Postgres URL from discrete env vars, or None when absent."""
+
+    host = (os.getenv("POSTGRES_HOST") or "").strip()
+    user = (os.getenv("POSTGRES_USER") or "").strip()
+    password = os.getenv("POSTGRES_PASSWORD")
+    database = (os.getenv("POSTGRES_DB") or "").strip()
+    port_raw = (os.getenv("POSTGRES_PORT") or "5432").strip()
+
+    provided = {
+        "POSTGRES_HOST": host,
+        "POSTGRES_USER": user,
+        "POSTGRES_PASSWORD": password,
+        "POSTGRES_DB": database,
+    }
+    if not any(value for value in provided.values()):
+        return None
+    missing = [name for name, value in provided.items() if not value]
+    if missing:
+        raise RuntimeError(
+            "incomplete Postgres configuration: missing " + ", ".join(missing)
+        )
+    password_value = password or ""
+    try:
+        port = int(port_raw)
+    except ValueError as exc:
+        raise RuntimeError("POSTGRES_PORT must be an integer") from exc
+    url = URL.create(
+        "postgresql+asyncpg",
+        username=user,
+        password=password_value,
+        host=host,
+        port=port,
+        database=database,
+    )
+    return url.render_as_string(hide_password=False)
 
 
 def _is_dev() -> bool:
-    return os.getenv("SWARM_ENV", "dev").lower() == "dev"
+    return is_dev_like_env()
 
 
 def _engine_kwargs(url_str: str) -> dict[str, Any]:
@@ -60,7 +111,7 @@ def make_engine(url: str | None = None) -> AsyncEngine:
     url_str = url if url is not None else _database_url()
     if not url_str:
         raise RuntimeError(
-            "DATABASE_URL is not set. Persistence is disabled — "
+            "database URL is not set. Persistence is disabled — "
             "call is_persistence_enabled() before make_engine()."
         )
     return create_async_engine(url_str, **_engine_kwargs(url_str))

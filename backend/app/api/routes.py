@@ -25,6 +25,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from swarm_core.messages import EventKind
+from swarm_core.runtime import is_prod_like_env
 
 from backend.app.auth.deps import Principal, require_viewer
 from backend.app.db import get_repository
@@ -42,6 +43,8 @@ public_router = APIRouter()
 
 @public_router.get("/health")
 async def health() -> dict[str, Any]:
+    if is_prod_like_env():
+        return {"status": "ok"}
     return {
         "status": "ok",
         "fleet_size": len(STATE.fleet),

@@ -199,6 +199,57 @@ def test_compose_prod_parses_and_pins_digests() -> None:
         )
 
 
+def test_compose_prod_uses_structured_secret_env_not_interpolated_urls() -> None:
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.prod.yml").read_text())
+    backend_env = compose["services"]["backend"]["environment"]
+    backup_env = compose["services"]["backup"]["environment"]
+
+    assert "DATABASE_URL" not in backend_env
+    assert "DATABASE_URL" not in backup_env
+    assert backend_env["POSTGRES_HOST"] == "postgres"
+    assert backup_env["POSTGRES_HOST"] == "postgres"
+    assert "REDIS_URL" not in backend_env
+    assert backend_env["REDIS_HOST"] == "redis"
+
+
+def test_compose_prod_redis_is_tls_and_certbot_does_not_share_pid_namespace() -> None:
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.prod.yml").read_text())
+    redis = compose["services"]["redis"]
+    backend_env = compose["services"]["backend"]["environment"]
+    certbot = compose["services"]["certbot"]
+
+    command = " ".join(redis["command"])
+    assert "--tls-port" in command
+    assert "--tls-auth-clients yes" in command
+    assert backend_env["REDIS_TLS_CA_CERTS"] == "/run/secrets/redis/ca.crt"
+    assert "pid" not in certbot
+
+
+def test_dev_compose_binds_datastores_to_loopback_and_requires_passwords() -> None:
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text())
+    postgres = compose["services"]["postgres"]
+    redis = compose["services"]["redis"]
+
+    assert postgres["ports"] == ["127.0.0.1:5432:5432"]
+    assert redis["ports"] == ["127.0.0.1:6379:6379"]
+    assert "${POSTGRES_PASSWORD:?" in postgres["environment"]["POSTGRES_PASSWORD"]
+    assert any("${REDIS_PASSWORD:?" in part for part in redis["command"])
+
+
+def test_env_example_has_no_default_infra_passwords_and_declares_cors() -> None:
+    env_text = (REPO_ROOT / ".env.example").read_text()
+    assert "POSTGRES_PASSWORD=swarm" not in env_text
+    assert "REDIS_PASSWORD=swarm" not in env_text
+    assert "SWARM_ALLOWED_ORIGINS=http://localhost:3000" in env_text
+
+
+def test_dev_env_bootstrap_url_encodes_generated_connection_urls() -> None:
+    script = (REPO_ROOT / "scripts" / "bootstrap_dev_env.sh").read_text()
+    assert "urllib.parse.quote" in script
+    assert "${postgres_password_url}" in script
+    assert "${redis_password_url}" in script
+
+
 @pytest.mark.parametrize(
     "compose_file",
     ["docker-compose.yml", "docker-compose.prod.yml"],

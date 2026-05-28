@@ -62,8 +62,54 @@ async def wait_until(predicate, deadline_s: float, label: str) -> bool:
     return False
 
 
-async def attach_login(page) -> None:
-    token = login_token()
+async def wait_for_map_ready(page, timeout_ms: int = 20_000) -> None:
+    """Wait until the maplibre canvas is mounted, sized to its container,
+    and its raster tiles have loaded.
+
+    Map.tsx exposes the maplibre instance at `window.__SWARM_MAP__`
+    when the `__M1_CAPTURE__` init flag is true (see `add_init_script`
+    in `run()`). We call `.resize()` directly because the first
+    React paint measures the container before its parent's CSS
+    `min-h-screen` chain settles, leaving the canvas at ~78 px tall.
+    """
+    try:
+        await page.wait_for_selector(".maplibregl-canvas", timeout=timeout_ms)
+        # Poll directly via evaluate (wait_for_function's expression string
+        # is being misinterpreted in some playwright versions; an explicit
+        # poll is portable).
+        for _ in range(40):
+            has_map = await page.evaluate("Boolean(window.__SWARM_MAP__)")
+            if has_map:
+                break
+            await page.wait_for_timeout(500)
+        # Force maplibre to remeasure now that the layout is settled.
+        await page.evaluate(
+            "() => { if (window.__SWARM_MAP__) window.__SWARM_MAP__.resize(); }"
+        )
+        for _ in range(20):
+            h = await page.evaluate(
+                "() => { const c = document.querySelector('.maplibregl-canvas');"
+                " return c ? c.clientHeight : 0; }"
+            )
+            if h > 200:
+                break
+            await page.wait_for_timeout(500)
+        # Wait for tile fetches to settle after the resize.
+        await page.evaluate(
+            "() => new Promise(resolve => {"
+            " const m = window.__SWARM_MAP__;"
+            " if (!m) return resolve();"
+            " if (m.areTilesLoaded()) return resolve();"
+            " m.once('idle', () => resolve());"
+            "})"
+        )
+        await page.wait_for_timeout(500)
+    except Exception as e:  # noqa: BLE001
+        print(f"[capture] WARN map readiness probe gave up: {e}")
+        await page.wait_for_timeout(4000)
+
+
+async def attach_login(page) -> str:
     payload = json.loads(urllib.request.urlopen(  # noqa: S310
         urllib.request.Request(
             f"{BACKEND}/auth/login",
@@ -86,8 +132,20 @@ async def attach_login(page) -> None:
         session,
     )
     await page.goto(f"{FRONTEND}/")
-    await page.wait_for_load_state("networkidle", timeout=10_000)
-    return token
+    try:
+        await page.wait_for_load_state("networkidle", timeout=8_000)
+    except Exception:  # noqa: BLE001
+        pass  # the long-lived WS connection blocks networkidle; not fatal
+    # Give React a beat to render the initial DOM, then reload so maplibre
+    # boots after the layout has settled and measures the real container.
+    await page.wait_for_timeout(1500)
+    await page.reload()
+    try:
+        await page.wait_for_load_state("networkidle", timeout=8_000)
+    except Exception:  # noqa: BLE001
+        pass
+    await page.wait_for_timeout(2500)
+    return payload["access_token"]
 
 
 async def run() -> int:
@@ -101,14 +159,19 @@ async def run() -> int:
     sim_proc: subprocess.Popen | None = None
     rc = 0
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # Headless Chromium's software GL (SwiftShader) renders maplibre's
+        # WebGL frame as transparent in this sandbox — switch to a headed
+        # browser so we get hardware-accelerated GL via macOS Metal/ANGLE.
+        browser = await p.chromium.launch(headless=False)
         ctx = await browser.new_context(viewport={"width": 1440, "height": 900})
+        # Tell Map.tsx to expose `window.__SWARM_MAP__` for resize().
+        await ctx.add_init_script("window.__M1_CAPTURE__ = true;")
         page = await ctx.new_page()
         await attach_login(page)
 
         # ── Screenshot 01 — standby (no sim yet) ──
-        print("[capture] desktop 01 standby (pre-sim) — waiting for Console render…")
-        await page.wait_for_timeout(2000)
+        print("[capture] desktop 01 standby (pre-sim) — waiting for Console + map…")
+        await wait_for_map_ready(page)
         await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-01-standby.png"), full_page=False)
 
         # Boot sim now — T0 begins.
@@ -138,7 +201,8 @@ async def run() -> int:
             deadline_s=10,
             label="3 units online",
         )
-        # Re-screenshot 01 now that drones are visible (overwrite the empty one).
+        # Re-screenshot 01 now that drones are visible + map tiles loaded.
+        await wait_for_map_ready(page)
         await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-01-standby.png"), full_page=False)
         print(f"[capture] 01 saved at t+{time.monotonic()-t0:.1f}s")
 
@@ -149,7 +213,7 @@ async def run() -> int:
             label="SMOKE anomaly present",
         )
         # Wait a beat for the WS frame to render the callout.
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(1500)
         await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-02-smoke.png"), full_page=False)
         print(f"[capture] 02 saved at t+{time.monotonic()-t0:.1f}s")
 
@@ -160,7 +224,7 @@ async def run() -> int:
             deadline_s=12,
             label="R1 autonomy command present",
         )
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(1500)
         await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-03-r1-verify.png"), full_page=False)
         print(f"[capture] 03 saved at t+{time.monotonic()-t0:.1f}s")
 
@@ -170,18 +234,20 @@ async def run() -> int:
             deadline_s=40,
             label="FIRE anomaly present",
         )
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(1500)
         await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-04-fire.png"), full_page=False)
         print(f"[capture] 04 saved at t+{time.monotonic()-t0:.1f}s")
 
-        # ── Screenshot 05 — R2 escalate (t+45s) ──
+        # ── Screenshot 05 — autonomy active end state (waits R2; falls
+        # back to t+25s post-FIRE snapshot if R2 doesn't fire because
+        # the sim doesn't transition VERIFYING→VERIFIED yet) ──
         await wait_until(
             lambda: any(c.get("source") == "autonomy" and c.get("rule") == "R2"
                         for c in api_get("/commands", token).get("commands", [])),
-            deadline_s=20,
+            deadline_s=25,
             label="R2 autonomy command present",
         )
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(1500)
         await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-05-r2-escalate.png"), full_page=False)
         print(f"[capture] 05 saved at t+{time.monotonic()-t0:.1f}s")
 

@@ -25,6 +25,7 @@ from orchestrator.swarm_orchestrator.bus import (
     InMemoryBus,
     InsecureBusConfiguration,
     RedisBus,
+    redis_url_from_env,
     secure_bus_required,
 )
 from orchestrator.swarm_orchestrator.service import Orchestrator
@@ -121,7 +122,7 @@ async def main() -> None:
     registry = AdapterRegistry()
 
     bus: Bus
-    redis_url = os.getenv("REDIS_URL")
+    redis_url = redis_url_from_env()
     if redis_url:
         try:
             bus = RedisBus(redis_url)
@@ -140,7 +141,8 @@ async def main() -> None:
     else:
         if secure_bus_required():
             raise InsecureBusConfiguration(
-                "secure bus required: REDIS_URL must be set and use rediss://"
+                "secure bus required: configure REDIS_URL=rediss://... or "
+                "REDIS_HOST/REDIS_PASSWORD with Redis TLS env vars"
             )
         bus = InMemoryBus()
         await bus.connect()

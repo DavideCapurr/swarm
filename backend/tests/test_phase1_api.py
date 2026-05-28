@@ -5,6 +5,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Callable
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from swarm_core.messages import AgentState, Geo, UnitState
@@ -66,6 +67,18 @@ def test_health_endpoint_remains_public() -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
+
+
+def test_health_endpoint_is_minimal_in_prod_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prod-like liveness must not expose fleet or persistence internals."""
+
+    monkeypatch.setenv("SWARM_ENV", "staging")
+    client = _client()
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
 
 
 def test_session_endpoint_requires_auth() -> None:

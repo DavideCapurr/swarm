@@ -57,6 +57,8 @@ docs/bench/artifacts
 infra/config/operators.yaml
 infra/config/operators.*.yaml
 !infra/config/operators.example.yaml
+infra/config/redis/*.crt
+infra/config/redis/*.key
 
 # Dev-only / runtime configs that don't belong inside the runtime image
 docker-compose*.yml

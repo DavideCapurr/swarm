@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo demo-wildfire-sim demo-intrusion-sim demo-search-sim audit audit-python audit-frontend audit-bandit audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
+.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo demo-wildfire-sim demo-intrusion-sim demo-search-sim audit audit-python audit-frontend audit-bandit audit-config audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-dev-env bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
 
 PY := python3
 VENV := .venv
@@ -58,7 +58,7 @@ test-cv:
 	$(VENV)/bin/pytest sim/swarm_sim/cv/tests -q -m "cv_baseline or cv_baseline_realistic"
 
 # ── run ─────────────────────────────────────────────────────────────────────
-infra:
+infra: bootstrap-dev-env
 	docker compose up -d postgres redis
 
 backend: infra db-migrate
@@ -102,7 +102,7 @@ demo-search-sim:
 # `make audit` is the one-stop check before pushing. It mirrors what CI runs
 # under .github/workflows/sast.yml + secret-scanning.yml + image-scan.yml +
 # dependency-review.yml. Locally we skip image-scan (needs Docker daemon).
-audit: audit-python audit-frontend audit-bandit audit-pymavlink-integrity audit-cv-integrity
+audit: audit-python audit-frontend audit-bandit audit-config audit-pymavlink-integrity audit-cv-integrity
 
 audit-python:
 	# PYSEC-2025-183 (pyjwt 2.12.1, "weak encryption"): disputed by supplier,
@@ -119,6 +119,14 @@ audit-bandit:
 	$(VENV)/bin/bandit -r core adapters orchestrator sim backend swarm_os \
 		--severity-level medium \
 		--skip B101,B311
+
+audit-config:
+	$(VENV)/bin/pytest -q \
+		tests/test_phase6e_deploy.py \
+		backend/tests/test_db_session.py \
+		backend/tests/test_bus_consumer_security.py \
+		backend/tests/test_runtime_guards.py \
+		backend/tests/test_ws_auth.py::test_main_ws_route_has_no_auth_disabled_bypass
 
 audit-pymavlink-integrity:
 	$(PYTHON) scripts/verify_pymavlink_integrity.py
@@ -150,6 +158,9 @@ phase5-sitl-gate:
 # documents the real provisioning flow.
 bootstrap-auth-dev:
 	@./scripts/bootstrap_auth_dev.sh
+
+bootstrap-dev-env:
+	@./scripts/bootstrap_dev_env.sh
 
 # ── deploy / images (Phase 6.E) ─────────────────────────────────────────────
 # Local image builds — the same Dockerfiles CI uses. Tags are `:dev` for

@@ -117,6 +117,22 @@ def test_security_headers_attached() -> None:
     assert r.headers["x-content-type-options"] == "nosniff"
 
 
+def test_security_headers_include_hsts_in_prod_like_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SWARM_ENV", "staging")
+    app = FastAPI()
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    @app.get("/ping")
+    def _ping() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    client = TestClient(app)
+    r = client.get("/ping")
+    assert "strict-transport-security" in r.headers
+
+
 def test_security_headers_on_cors_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
     """CORS preflight responses must also carry the security headers.
 

@@ -31,10 +31,7 @@ OPS_FILE="${SWARM_OPERATORS_CONFIG:-infra/config/operators.yaml}"
 TOTP_DUMP="${OPS_FILE}.commander-totp.txt"
 DEV_PASSWORD="${SWARM_DEV_PASSWORD:-swarm-dev}"
 
-if [ ! -f "$ENV_FILE" ]; then
-  cp .env.example "$ENV_FILE"
-  echo "[bootstrap-auth] created .env from .env.example"
-fi
+"${ROOT}/scripts/bootstrap_dev_env.sh"
 
 # 1) JWT secret — generate iff blank.
 if grep -qE '^SWARM_JWT_SECRET=\s*$' "$ENV_FILE" || ! grep -q '^SWARM_JWT_SECRET=' "$ENV_FILE"; then

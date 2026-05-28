@@ -59,14 +59,16 @@ cd swarm
 cp .env.example .env
 
 make setup               # python venv + deps + pnpm install
-make bootstrap-auth-dev  # JWT secret + 3 local operators (Phase 6.C)
+make bootstrap-auth-dev  # local DB/Redis passwords + JWT + 3 operators
 make infra               # postgres + redis via docker compose
 make demo                # boots sim + orchestrator + backend + frontend
                          # opens http://localhost:3000 — log in via /login
 ```
 
-`make bootstrap-auth-dev` is idempotent: it generates a random
-`SWARM_JWT_SECRET` if `.env` doesn't already carry one, and writes
+`make bootstrap-auth-dev` is idempotent: it first runs
+`make bootstrap-dev-env` to generate local-only Postgres/Redis passwords,
+then generates a random `SWARM_JWT_SECRET` if `.env` doesn't already carry
+one, and writes
 `infra/config/operators.yaml` with three local accounts (all share the
 password `swarm-dev`):
 

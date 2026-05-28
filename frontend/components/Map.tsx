@@ -62,6 +62,11 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
   // Map lifecycle.
   useEffect(() => {
     if (!containerRef.current) return;
+    // Phase 7.G — preserveDrawingBuffer is required for the M1 screenshot
+    // harness (Playwright captures the WebGL frame *after* Chrome has
+    // already cleared the default drawing buffer). Production paths skip
+    // this flag because it costs ~5–10 % render perf.
+    const isCapture = typeof window !== "undefined" && (window as unknown as { __M1_CAPTURE__?: boolean }).__M1_CAPTURE__;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: SWARM_STYLE,
@@ -69,17 +74,41 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
       zoom: 14.5,
       attributionControl: { compact: true },
       pitch: 0,
+      preserveDrawingBuffer: isCapture,
     });
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
     mapRef.current = map;
+    // Phase 7.G — expose the map instance to the M1 screenshot harness
+    // (`scripts/m1_capture_screenshots.py`) so it can force a `resize()`
+    // after the React tree settles. Guarded by the `__M1_CAPTURE__` flag
+    // so production builds don't leak the reference.
+    if (typeof window !== "undefined" && (window as unknown as { __M1_CAPTURE__?: boolean }).__M1_CAPTURE__) {
+      (window as unknown as { __SWARM_MAP__: Map }).__SWARM_MAP__ = map;
+    }
     const ready = () => {
       setMapReady(map);
       onMapReady?.(map);
     };
     if (map.isStyleLoaded()) ready();
     else map.once("load", ready);
+    // Keep maplibre's internal viewport in sync with the container — the
+    // initial measurement can land before the parent flex/grid chain
+    // settles, leaving the canvas at the first-paint height. We observe
+    // the *parent* because maplibre locks an inline height on its own
+    // container, so a ResizeObserver attached to it would never fire.
+    const parentEl = containerRef.current.parentElement ?? containerRef.current;
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(parentEl);
+    // Belt-and-suspenders: nudge maplibre to remeasure on a couple of
+    // animation frames after first paint. ResizeObserver alone misses
+    // the case where the parent's height is already final at first
+    // measurement and so RO fires with no further changes.
+    requestAnimationFrame(() => map.resize());
+    setTimeout(() => map.resize(), 250);
+    setTimeout(() => map.resize(), 1000);
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
       setMapReady(null);
@@ -275,8 +304,13 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
 
   return (
     <div className="relative w-full h-full">
-      {/* Map container */}
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* Map container — inline style beats maplibre-gl.css's
+          `.maplibregl-map { position: relative; }` rule that otherwise
+          overrides Tailwind's `absolute` class (equal specificity, but
+          maplibre is loaded later in the cascade). Without this the
+          canvas collapses to ~78 px and tiles only render in a thin
+          strip at the top of the map. */}
+      <div ref={containerRef} className="absolute inset-0" style={{ position: "absolute", inset: 0 }} />
 
       {/* Map-overlay children (Sector + Route layers). Rendered as no-DOM
           children that hook into the maplibre instance. */}

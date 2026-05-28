@@ -32,6 +32,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
+from swarm_core.runtime import is_prod_like_env
 
 # ── CORS / Origin allowlist ────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ def _csp_directive() -> str:
 
 
 def _is_prod() -> bool:
-    return os.getenv("SWARM_ENV", "dev").lower() == "prod"
+    return is_prod_like_env()
 
 
 def security_headers() -> dict[str, str]:

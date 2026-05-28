@@ -8,6 +8,10 @@
 #   BACKUP_RETENTION_DAYS=30 \
 #   scripts/backup_postgres.sh
 #
+# Or, to avoid URL interpolation in compose-prod:
+#   POSTGRES_HOST=postgres POSTGRES_PORT=5432 POSTGRES_USER=swarm \
+#   POSTGRES_PASSWORD=... POSTGRES_DB=swarm scripts/backup_postgres.sh
+#
 # Pipeline:
 #   pg_dump → gpg --encrypt → /backups/swarm-YYYYMMDD-HHMMSSZ.sql.gpg
 # Followed by retention pruning (files older than RETENTION_DAYS rm'd).
@@ -30,7 +34,33 @@ set -eu
 BACKUP_DIR="${BACKUP_DIR:?BACKUP_DIR must be set}"
 BACKUP_GPG_RECIPIENT="${BACKUP_GPG_RECIPIENT:?BACKUP_GPG_RECIPIENT must be set}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
-DATABASE_URL="${DATABASE_URL:?DATABASE_URL must be set}"
+
+run_pg_dump() {
+    if [ -n "${DATABASE_URL:-}" ]; then
+        pg_dump \
+            --format=custom \
+            --no-owner \
+            --no-acl \
+            --serializable-deferrable \
+            "${DATABASE_URL}"
+        return 0
+    fi
+    : "${POSTGRES_HOST:?POSTGRES_HOST must be set when DATABASE_URL is unset}"
+    : "${POSTGRES_PORT:=5432}"
+    : "${POSTGRES_USER:?POSTGRES_USER must be set when DATABASE_URL is unset}"
+    : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set when DATABASE_URL is unset}"
+    : "${POSTGRES_DB:?POSTGRES_DB must be set when DATABASE_URL is unset}"
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
+    pg_dump \
+        --format=custom \
+        --no-owner \
+        --no-acl \
+        --serializable-deferrable \
+        -h "${POSTGRES_HOST}" \
+        -p "${POSTGRES_PORT}" \
+        -U "${POSTGRES_USER}" \
+        -d "${POSTGRES_DB}"
+}
 
 # Use a sortable, timezone-stable timestamp. UTC + ISO basic format.
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -49,12 +79,7 @@ echo "[backup] starting pg_dump → ${out}"
 # `pg_dump -Fc` (custom format) is compact and supports parallel restore.
 # We pipe straight into gpg so no plaintext SQL ever hits disk.
 umask 077
-pg_dump \
-    --format=custom \
-    --no-owner \
-    --no-acl \
-    --serializable-deferrable \
-    "${DATABASE_URL}" \
+run_pg_dump \
   | gpg --batch --yes --trust-model always \
         --recipient "${BACKUP_GPG_RECIPIENT}" \
         --encrypt --output "${tmp}"

@@ -33,6 +33,8 @@ out/
 infra/config/operators.yaml
 infra/config/operators/*.yaml
 infra/config/operators.yaml.commander-totp.txt
+infra/config/redis/*.crt
+infra/config/redis/*.key
 
 # Editor
 .vscode/

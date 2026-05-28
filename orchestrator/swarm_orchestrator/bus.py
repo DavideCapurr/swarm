@@ -20,7 +20,9 @@ from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
+
+from swarm_core.runtime import env_flag, is_prod_like_env
 
 
 class Bus(Protocol):
@@ -35,9 +37,6 @@ class Bus(Protocol):
         ...
 
 
-_TRUTHY = {"1", "true", "yes", "on"}
-
-
 class InsecureBusConfiguration(ValueError):
     """Raised when production/out-of-process transport is not fail-closed."""
 
@@ -46,15 +45,34 @@ def secure_bus_required() -> bool:
     """Whether Redis transport must use authenticated TLS/mTLS.
 
     Phase 5 dev/demo can still use local plaintext Redis or the in-memory
-    fallback. Phase 6/prod, and any bench that opts into
+    fallback. Prod-like environments, and any run that opts into
     `SWARM_REQUIRE_SECURE_BUS=1`, must prove a secure bus before adapters are
     allowed to communicate out-of-process.
     """
 
-    env = os.getenv("SWARM_ENV", "dev").strip().lower()
-    if env in {"prod", "production"}:
+    if is_prod_like_env():
         return True
-    return os.getenv("SWARM_REQUIRE_SECURE_BUS", "").strip().lower() in _TRUTHY
+    return env_flag("SWARM_REQUIRE_SECURE_BUS")
+
+
+def redis_url_from_env(default: str | None = None) -> str | None:
+    """Read REDIS_URL or build one safely from discrete Redis env vars."""
+
+    explicit = (os.getenv("REDIS_URL") or "").strip()
+    if explicit:
+        return explicit
+
+    host = (os.getenv("REDIS_HOST") or "").strip()
+    port = (os.getenv("REDIS_PORT") or "6379").strip()
+    db = (os.getenv("REDIS_DB") or "0").strip()
+    password = os.getenv("REDIS_PASSWORD")
+    if not any((host, os.getenv("REDIS_PORT"), os.getenv("REDIS_DB"), password)):
+        return default
+    if not host:
+        raise InsecureBusConfiguration("REDIS_HOST must be set when REDIS_URL is unset")
+    scheme = "rediss" if secure_bus_required() else "redis"
+    auth = f":{quote(password, safe='')}@" if password else ""
+    return f"{scheme}://{auth}{host}:{port}/{db}"
 
 
 @dataclass(frozen=True)
@@ -246,5 +264,6 @@ __all__ = (
     "InsecureBusConfiguration",
     "RedisBus",
     "RedisBusSecurity",
+    "redis_url_from_env",
     "secure_bus_required",
 )

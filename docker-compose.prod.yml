@@ -10,7 +10,9 @@
 #     for a dev bench)
 #   - secrets mounted: SWARM_JWT_SECRET, POSTGRES_PASSWORD, REDIS_PASSWORD,
 #     SWARM_ADMIN_TOKEN, BACKUP_GPG_RECIPIENT (gpg key imported into the
-#     backup container via mount), optional weather provider key.
+#     backup container via mount), Redis TLS certs under
+#     infra/config/redis/ (ca.crt, server.crt/key, client.crt/key),
+#     optional weather provider key.
 #
 # Production deploy steps live in docs/ops/deploy.md.
 #
@@ -54,18 +56,47 @@ services:
     # `setresuid failed: Operation not permitted`.
     user: "999:1000"
     restart: unless-stopped
-    # `--requirepass` forces auth on the bus channel. The backend reads
-    # REDIS_URL with the password embedded; rotate via .env + restart.
+    # `--requirepass` plus mTLS force authenticated encrypted bus traffic.
+    # The backend builds its rediss:// URL from discrete env vars so the
+    # password never changes URL structure.
     command:
       - "redis-server"
+      - "--port"
+      - "0"
+      - "--tls-port"
+      - "6379"
+      - "--tls-cert-file"
+      - "/run/secrets/redis/server.crt"
+      - "--tls-key-file"
+      - "/run/secrets/redis/server.key"
+      - "--tls-ca-cert-file"
+      - "/run/secrets/redis/ca.crt"
+      - "--tls-auth-clients"
+      - "yes"
       - "--requirepass"
       - "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"
       - "--save"
       - ""
       - "--appendonly"
       - "no"
+    volumes:
+      - ./infra/config/redis:/run/secrets/redis:ro
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "--tls",
+          "--cacert",
+          "/run/secrets/redis/ca.crt",
+          "--cert",
+          "/run/secrets/redis/client.crt",
+          "--key",
+          "/run/secrets/redis/client.key",
+          "-a",
+          "${REDIS_PASSWORD}",
+          "ping"
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -93,9 +124,19 @@ services:
       SWARM_SITE_ID: ${SWARM_SITE_ID:-vineyard-01}
       SWARM_SITES_DIR: /etc/swarmos/sites
       # Persistence
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-swarm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-swarm}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-swarm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-swarm}
       # Bus
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      REDIS_TLS_CA_CERTS: /run/secrets/redis/ca.crt
+      REDIS_TLS_CERTFILE: /run/secrets/redis/client.crt
+      REDIS_TLS_KEYFILE: /run/secrets/redis/client.key
       # CORS — the only origin the prod Console will use is the TLS hostname
       SWARM_ALLOWED_ORIGINS: https://${TLS_SERVER_NAME}
       # Auth (Phase 6.C)
@@ -111,6 +152,7 @@ services:
       # Operator YAML lives outside git. Mount the real one here; the
       # entrypoint refuses to start if it's missing in prod mode.
       - ./infra/config/operators.yaml:/etc/swarmos/operators.yaml:ro
+      - ./infra/config/redis:/run/secrets/redis:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]
       interval: 15s
@@ -196,11 +238,9 @@ services:
     restart: unless-stopped
     depends_on:
       proxy: { condition: service_started }
-    # Share `proxy`'s pid namespace so the renew script can send SIGHUP
-    # to nginx without mounting the docker socket. The cert files are
-    # written via the shared volume; the reload signal flows over the
-    # shared pid namespace.
-    pid: "service:proxy"
+    # Certs are written through the shared volume. Renewals request an nginx
+    # reload by touching a sentinel file in /var/run/nginx; the proxy's own
+    # entrypoint performs the reload from inside the nginx namespace.
     environment:
       TLS_SERVER_NAME: ${TLS_SERVER_NAME:-}
       TLS_EMAIL: ${TLS_EMAIL:-}
@@ -209,7 +249,7 @@ services:
       - ./infra/proxy/certbot/renew.sh:/usr/local/bin/swarmos-renew:ro
       - swarm_le_certs:/etc/letsencrypt
       - swarm_le_webroot:/var/www/certbot
-      - swarm_nginx_pid:/var/run/nginx:ro
+      - swarm_nginx_pid:/var/run/nginx
     entrypoint: ["/bin/sh", "/usr/local/bin/swarmos-renew"]
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
@@ -226,7 +266,11 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-swarm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-swarm}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-swarm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-swarm}
       BACKUP_DIR: /backups
       BACKUP_GPG_RECIPIENT: ${BACKUP_GPG_RECIPIENT:?BACKUP_GPG_RECIPIENT must be set in .env}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}

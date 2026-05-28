@@ -13,7 +13,8 @@ This module wires together:
 
 from __future__ import annotations
 
-import os
+import asyncio
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -23,6 +24,7 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.websockets import WebSocketDisconnect
+from swarm_core.runtime import env_flag, is_dev_like_env, is_prod_like_env
 
 from backend.app.api.actions import router as actions_router
 from backend.app.api.admin import router as admin_router
@@ -83,29 +85,34 @@ def _init_auth() -> None:
     """Phase 6.C — wire the JWT service, operator store, and revocation list.
 
     Failure modes:
-      - SWARM_AUTH_DISABLED=1: skip entirely (dev-only escape hatch). The
+      - SWARM_AUTH_DISABLED=1: skip entirely (dev/test-only escape hatch). The
         rest of the app then refuses any request that needs auth with
         503 ``auth_not_configured`` — operationally equivalent to "I'm
-        not ready to serve" so a misconfigured prod deploy still fails
-        closed without crashing the process.
-      - prod (SWARM_ENV=prod) with no secret / missing operator config:
+        not ready to serve". Prod-like deployments reject this setting at
+        boot so staging/bench cannot silently run without auth.
+      - prod-like with no secret / missing operator config:
         hard crash via ``RuntimeError`` so the orchestrator restarts.
       - dev with no secret: log a warning and skip; the rest of the app
         will respond 503 on protected endpoints. This keeps test
         bootstraps that don't exercise auth from breaking.
     """
 
-    if os.getenv("SWARM_AUTH_DISABLED") == "1":
+    if env_flag("SWARM_AUTH_DISABLED"):
+        if is_prod_like_env():
+            raise RuntimeError(
+                "refusing to boot: SWARM_AUTH_DISABLED is not allowed when "
+                "SWARM_ENV is prod-like"
+            )
         logger.warning(
             "SWARM_AUTH_DISABLED=1 — auth surface OFF (development only)"
         )
         return
-    is_prod = os.getenv("SWARM_ENV", "dev").lower() == "prod"
+    prod_like = is_prod_like_env()
     try:
         service = JWTService.from_env()
         set_jwt_service(service)
     except JWTConfigError as exc:
-        if is_prod:
+        if prod_like:
             raise RuntimeError(f"refusing to boot: {exc}") from exc
         logger.warning("JWT service not initialised: %s", exc)
         return
@@ -113,12 +120,26 @@ def _init_auth() -> None:
         store = load_operator_store()
         set_operator_store(store)
     except OperatorStoreError as exc:
-        if is_prod:
+        if prod_like:
             raise RuntimeError(f"refusing to boot: {exc}") from exc
         logger.warning("operator store not loaded: %s", exc)
         return
     set_revocation_store(RevocationStore())
     logger.info("auth ready: %d operator(s) loaded", len(store))
+
+
+def _apply_autonomy_baseline_from_env() -> None:
+    """Apply the demo-only autonomy baseline flag, failing closed elsewhere."""
+
+    if not env_flag("SWARM_AUTONOMY_BASELINE"):
+        return
+    if not is_dev_like_env():
+        raise RuntimeError(
+            "refusing to boot: SWARM_AUTONOMY_BASELINE is only allowed when "
+            "SWARM_ENV is dev or test"
+        )
+    COORDINATOR.state.set_autonomy_enabled(True)
+    logger.info("autonomy baseline enabled via SWARM_AUTONOMY_BASELINE")
 
 
 @asynccontextmanager
@@ -169,9 +190,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # autonomy_baseline: true, but `make demo` runs runner + backend in
     # separate processes, so the backend needs an explicit env override.
     # Phase 8.C will add a runtime admin endpoint for this toggle.
-    if os.getenv("SWARM_AUTONOMY_BASELINE", "").lower() in {"1", "true", "yes"}:
-        COORDINATOR.state.set_autonomy_enabled(True)
-        logger.info("autonomy baseline enabled via SWARM_AUTONOMY_BASELINE")
+    _apply_autonomy_baseline_from_env()
 
     logger.info("backend ready")
     try:
@@ -249,21 +268,30 @@ async def ws_telemetry(websocket: WebSocket) -> None:
     # Phase 6.C: every WS upgrade carries a valid access token (viewer or
     # above) or it's refused. We do not echo failure reasons — the client
     # already knows whether it sent a token.
-    auth_disabled = os.getenv("SWARM_AUTH_DISABLED") == "1"
-    accepted_subprotocol: str | None = None
-    if not auth_disabled:
-        auth = await authenticate_websocket(websocket)
-        if auth is None:
-            await websocket.close(code=1008)
-            return
-        accepted_subprotocol = auth.accepted_subprotocol
+    auth = await authenticate_websocket(websocket)
+    if auth is None:
+        await websocket.close(code=1008)
+        return
+    principal = auth.principal
+    websocket.state.principal = principal
+    accepted_subprotocol = auth.accepted_subprotocol
     await HUB.connect(websocket, subprotocol=accepted_subprotocol)
     try:
         while True:
+            seconds_until_expiry = principal.expires_at - int(time.time())
+            if seconds_until_expiry <= 0:
+                await websocket.close(code=1008)
+                return
             # No inbound payloads expected yet. Keep the socket alive; ignore
             # client text (and bound it via the body-size middleware on HTTP
             # — WS itself has its own per-frame size from Starlette).
-            await websocket.receive_text()
+            try:
+                await asyncio.wait_for(
+                    websocket.receive_text(), timeout=seconds_until_expiry
+                )
+            except TimeoutError:
+                await websocket.close(code=1008)
+                return
     except WebSocketDisconnect:
         pass
     except Exception:

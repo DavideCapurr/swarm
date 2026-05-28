@@ -5,12 +5,9 @@
 #   1. On first boot, request a cert via HTTP-01 webroot challenge if one
 #      is not already present.
 #   2. Every 12 h, run `certbot renew` (no-op when nothing is near expiry).
-#   3. After a successful renew, signal nginx (the sibling container) to
-#      pick up the new fullchain via SIGHUP. The sidecar shares the
-#      docker network with nginx; we use docker's own DNS by sending
-#      SIGHUP via the shared /var/run/nginx.pid sentinel file rather
-#      than the docker socket (which we deliberately do not mount —
-#      threat model §S2).
+#   3. After a successful renew, request nginx reload by updating a sentinel
+#      file on the shared /var/run/nginx volume. The proxy container watches
+#      that file and reloads nginx from inside its own PID namespace.
 #
 # Required env:
 #   - TLS_SERVER_NAME: e.g. swarmos.example.com (cert subject + ACME order)
@@ -49,18 +46,9 @@ issue_or_skip() {
         ${STAGING_FLAG}
 }
 
-reload_nginx() {
-    # The nginx container runs an entrypoint that traps SIGHUP and re-links
-    # the cert + reloads itself. We send SIGHUP via the nginx-pid shared
-    # volume (no docker socket exposed to the certbot container).
-    if [ -s "/var/run/nginx/nginx.pid" ]; then
-        nginx_pid=$(cat /var/run/nginx/nginx.pid)
-        # `kill` exists in the alpine-based certbot image; busybox provides it.
-        kill -HUP "${nginx_pid}" 2>/dev/null || \
-            echo "[certbot] could not signal nginx pid ${nginx_pid} — manual reload required"
-    else
-        echo "[certbot] /var/run/nginx/nginx.pid missing — skip reload (will pick up on next nginx start)"
-    fi
+request_nginx_reload() {
+    date -u +%Y%m%dT%H%M%SZ > /var/run/nginx/reload.request
+    echo "[certbot] requested nginx reload"
 }
 
 # Initial issue (idempotent).
@@ -72,7 +60,7 @@ while :; do
     sleep 43200  # 12 h
     echo "[certbot] running renew"
     if certbot renew --quiet --webroot --webroot-path "${WEBROOT}"; then
-        reload_nginx
+        request_nginx_reload
     else
         echo "[certbot] renew failed; will retry next cycle" >&2
     fi

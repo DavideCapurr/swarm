@@ -224,6 +224,12 @@ cp .env.example .env
 #   REDIS_PASSWORD=$(openssl rand -hex 24)
 #   SWARM_JWT_SECRET=$(openssl rand -hex 32)
 #   BACKUP_GPG_RECIPIENT=<your-key-fingerprint>
+#   Redis TLS files:
+#     infra/config/redis/ca.crt
+#     infra/config/redis/server.crt
+#     infra/config/redis/server.key
+#     infra/config/redis/client.crt
+#     infra/config/redis/client.key
 
 docker compose -f docker-compose.prod.yml --profile letsencrypt --profile backup up -d
 ```
@@ -241,6 +247,12 @@ curl -k https://localhost/ready
 The same image digests built by `image-build.yml` work here — set
 `SWARMOS_BACKEND_IMAGE` / `SWARMOS_FRONTEND_IMAGE` in `.env` to pull
 from GHCR instead of building locally.
+
+Keep `infra/config/sites`, `infra/config/operators.yaml`, and
+`infra/config/redis` owned by the deploy user, not writable by the app
+containers, and backed by your normal secret/config-management workflow.
+Compose mounts them read-only into backend/Redis; host-side write access is
+the deployment control plane.
 
 ---
 
