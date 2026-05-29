@@ -17,6 +17,7 @@ from collections import deque
 from datetime import UTC, datetime
 from typing import Any
 
+from swarm_core.geometry import haversine_m
 from swarm_core.messages import (
     AgentState,
     Anomaly,
@@ -176,6 +177,16 @@ class SwarmCoordinator:
                 ts=progress.ts,
             )
             self.state.missions[mission.id] = mission
+            # Phase 7 (WS1a): a *completed* VERIFY mission is what promotes the
+            # anomaly it was verifying VERIFYING → VERIFIED. The executed
+            # mission arrives from the orchestrator under its own uuid with no
+            # OperatorCommand link (the `cmd-*` bookkeeping mission never runs
+            # live), so we resolve the target by VERIFYING state, not mission
+            # id. Promotion happens *before* `_refresh` so the same refresh's
+            # autonomy tick observes the freshly-VERIFIED anomaly — though R2
+            # only fires a later tick once the idle floor elapses (ts=now).
+            if phase is MissionPhase.DONE and mission.kind == "VERIFY":
+                self._promote_verified_anomaly(mission, now)
             new_events, autonomy_cmds = await self._refresh_async(now)
             frames = self._frames("mission", mission)
             frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
@@ -359,6 +370,70 @@ class SwarmCoordinator:
                 ts=now,
             )
             self.state.safety_actions.append(action)
+
+    def _promote_verified_anomaly(self, mission: MissionView, now: datetime) -> None:
+        """Promote the anomaly a completed VERIFY mission was verifying.
+
+        Phase 7 (WS1a) closes the live verify-loop: R1 moves an anomaly
+        PENDING → VERIFYING, the orchestrator runs the VERIFY mission, and
+        *this* is where its `DONE` flips the anomaly VERIFYING → VERIFIED so
+        R2 can later auto-ESCALATE.
+
+        Guards (every state mutation must be honest — CLAUDE.md):
+          * promote **only** from VERIFYING. A DISMISSED / ESCALATED /
+            PENDING / already-VERIFIED anomaly is never clobbered, so a late
+            or duplicate mission completion can't resurrect an anomaly the
+            operator (or R3) already resolved.
+          * stamp ``ts=now`` so R2's ``AUTO_ESCALATE_IDLE_S`` clock starts
+            clean from the instant of verification (see ``autonomy._aged``).
+
+        FAILED missions are handled by the caller (only ``DONE`` reaches
+        here), leaving the anomaly in VERIFYING — never bounced back to
+        PENDING, which would loop R1.
+        """
+
+        anomaly_id = self._anomaly_for_verify_mission(mission)
+        if anomaly_id is None:
+            return
+        anomaly = self.state.anomalies[anomaly_id]
+        if anomaly.state is not AnomalyState.VERIFYING:
+            return
+        self.state.anomalies[anomaly_id] = anomaly.model_copy(
+            update={"state": AnomalyState.VERIFIED, "ts": now}
+        )
+
+    def _anomaly_for_verify_mission(self, mission: MissionView) -> str | None:
+        """Resolve which anomaly a completed VERIFY mission verified.
+
+        The executed mission (orchestrator uuid) carries no command link and,
+        on the live path, no sector or waypoint metadata — so VERIFYING state
+        is the primary key. When the mission *does* know its sector or station
+        waypoint (e.g. a sector-targeted VERIFY, or the `cmd-*` bookkeeping
+        mission the tests drive), narrow by sector first, then nearest geo, so
+        concurrent verifications can't cross-promote. With no geo to
+        disambiguate, the longest-waiting VERIFYING anomaly is the one whose
+        in-flight mission completes first.
+        """
+
+        candidates = [
+            (aid, anomaly)
+            for aid, anomaly in self.state.anomalies.items()
+            if anomaly.state is AnomalyState.VERIFYING
+        ]
+        if not candidates:
+            return None
+        if mission.sector_id is not None:
+            in_sector = [
+                pair for pair in candidates if pair[1].sector_id == mission.sector_id
+            ]
+            if in_sector:
+                candidates = in_sector
+        if mission.waypoints:
+            target = mission.waypoints[-1]
+            candidates.sort(key=lambda pair: haversine_m(pair[1].geo, target))
+        else:
+            candidates.sort(key=lambda pair: pair[1].ts)
+        return candidates[0][0]
 
     async def _refresh_async(
         self, now: datetime

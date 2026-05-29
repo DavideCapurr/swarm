@@ -10,7 +10,7 @@ import Link from "next/link";
 
 import { useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
-import { findActiveAutonomyCommand } from "@/lib/autonomy";
+import { findLatestAutonomyCommand } from "@/lib/autonomy";
 import { ActionRail } from "@/components/ActionRail";
 import { Eyebrow } from "@/components/Eyebrow";
 import { IconBack } from "@/icons";
@@ -24,7 +24,7 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
   const stream = verifier ? streams[verifier.agent_id] ?? null : null;
   const streamAvailable = !!(stream && stream.available && stream.url);
   const autonomyCommand = anomaly
-    ? findActiveAutonomyCommand(commands, anomaly.id)
+    ? findLatestAutonomyCommand(commands, anomaly.id)
     : null;
 
   return (

@@ -7,7 +7,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { AnomalyView, OperatorCommand, UnitState } from "@/lib/api";
 import { agentStateToSwarm } from "@/lib/tokens";
 import { AGENT_STATE_COPY, ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
-import { findActiveAutonomyCommand } from "@/lib/autonomy";
+import { findLatestAutonomyCommand } from "@/lib/autonomy";
 
 type Props = {
   units: UnitState[];
@@ -210,7 +210,7 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
     for (const a of live) {
       seen.add(a.id);
       const ll: [number, number] = [a.geo.lon, a.geo.lat];
-      const auto = findActiveAutonomyCommand(cmds, a.id);
+      const auto = findLatestAutonomyCommand(cmds, a.id);
       const calloutText = anomalyCallout(a, auto);
       const color = auto ? "#7BE7FF" : "#FFB45C";
       const existing = anomalyMarkersRef.current[a.id];

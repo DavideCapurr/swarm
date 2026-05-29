@@ -12,7 +12,7 @@ import Link from "next/link";
 
 import { useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
-import { findActiveAutonomyCommand } from "@/lib/autonomy";
+import { findLatestAutonomyCommand } from "@/lib/autonomy";
 import { ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 import { IconBack } from "@/icons";
 import { Eyebrow } from "./Eyebrow";
@@ -22,7 +22,7 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
   const { anomalies, verifier, commands } = useSwarm();
   const anomaly = anomalies.find((a) => a.id === anomalyId);
   const autonomyCommand = anomaly
-    ? findActiveAutonomyCommand(commands, anomaly.id)
+    ? findLatestAutonomyCommand(commands, anomaly.id)
     : null;
 
   return (

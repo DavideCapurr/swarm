@@ -21,11 +21,12 @@ input."
 auto-verifies. The AUTO chip on the callout shows the decision is
 machine-source, not operator-source."
 
-**[22–40 s · FIRE + R2 auto-ESCALATE]**
+**[22–40 s · FIRE detected → auto-VERIFY → R2 auto-ESCALATE]**
 
-"Twelve seconds later, the smoke ignites. Confidence climbs to 88%.
-R2 auto-escalates. Unit 001 is dispatched. No operator clicked anything.
-Console supervises. SwarmOS decides."
+"About twelve seconds later, a second, higher-confidence fire signature is
+detected — a separate anomaly at 88%. SwarmOS auto-verifies it, then
+auto-escalates the verified hotspot once it has held. No operator clicked
+anything. Console supervises. SwarmOS decides."
 
 **[40–55 s · close]**
 
@@ -48,12 +49,20 @@ imagery."
 
 ## Beat timing reference
 
-| t (s) | What's on screen | VO segment |
-|-------|------------------|------------|
-| 0     | Standby — 3 IDLE drones, no anomaly | standby |
-| 10    | SMOKE callout amber 62% | SMOKE intro |
-| 12    | AUTO chip `r1 · unit … · verifying` Orbital Blue | R1 line |
-| 25    | FIRE callout 88% | FIRE intro |
-| 35    | AUTO chip `r2 · …` | R2 line |
-| 40-55 | Hold on final state | close |
-| 55-60 | Brand sign-off | brand |
+| t (s)  | What's on screen | VO segment |
+|--------|------------------|------------|
+| 0      | Standby — 3 IDLE drones, no anomaly | standby |
+| 10     | SMOKE callout amber 62% | SMOKE intro |
+| 12     | SMOKE AUTO chip `r1 · unit … · verifying` Orbital Blue | R1 line |
+| —      | SMOKE reaches `verified` and holds — 62% is below the 0.80 R2 floor, so it never auto-escalates | — |
+| 25     | FIRE callout 88% — a *second* anomaly, not a confidence bump on the smoke marker | FIRE intro |
+| ~27    | FIRE AUTO chip `r1 · … · verifying` (auto-VERIFY) | FIRE line |
+| 37–40  | FIRE reads `verified`, then AUTO chip `r2 · … · escalated` Orbital Blue | R2 line |
+| 40-55  | Hold on final state | close |
+| 55-60  | Brand sign-off | brand |
+
+> The FIRE verify→escalate gap is the real `AUTO_ESCALATE_IDLE_S` floor (10 s)
+> plus the executed VERIFY mission's flight time, so R2 lands at ≈t37–40.
+> Confirm the exact beat against the live run + the metrics artifact
+> (`docs/bench/artifacts/phase-7e-wildfire_owner_land-*.json`, `by_rule.R2 == 1`)
+> before the final cut.
