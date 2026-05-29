@@ -15,6 +15,14 @@ describe("safeInternalRedirect", () => {
     expect(safeInternalRedirect("//evil.example")).toBe("/");
   });
 
+  it("falls back for backslash host tricks", () => {
+    // The URL parser normalizes "\" to "/" for special schemes, so these
+    // would resolve to an external origin if the origin check were skipped.
+    expect(safeInternalRedirect("/\\evil.example")).toBe("/");
+    expect(safeInternalRedirect("/\\/evil.example")).toBe("/");
+    expect(safeInternalRedirect("/\\\\evil.example")).toBe("/");
+  });
+
   it("falls back for empty input", () => {
     expect(safeInternalRedirect(null)).toBe("/");
     expect(safeInternalRedirect("")).toBe("/");
