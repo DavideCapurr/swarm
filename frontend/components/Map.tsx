@@ -65,7 +65,10 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
     // Phase 7.G — preserveDrawingBuffer is required for the M1 screenshot
     // harness (Playwright captures the WebGL frame *after* Chrome has
     // already cleared the default drawing buffer). Production paths skip
-    // this flag because it costs ~5–10 % render perf.
+    // this flag because it costs ~5–10 % render perf. maplibre-gl v5 moved
+    // the WebGL context flags out of the top-level options into
+    // `canvasContextAttributes`, so passing it at the top level is silently
+    // dropped (and rejected by tsc).
     const isCapture = typeof window !== "undefined" && (window as unknown as { __M1_CAPTURE__?: boolean }).__M1_CAPTURE__;
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -74,7 +77,7 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
       zoom: 14.5,
       attributionControl: { compact: true },
       pitch: 0,
-      preserveDrawingBuffer: isCapture,
+      canvasContextAttributes: { preserveDrawingBuffer: isCapture },
     });
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
