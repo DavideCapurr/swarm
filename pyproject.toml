@@ -111,6 +111,14 @@ ignore = [
     "UP042",  # `(str, Enum)` is more portable than `StrEnum` across linters / pydantic tooling
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# The M1 (Phase 7.G) demo capture/debug utilities are one-shot scripts run
+# manually via `python scripts/m1_*.py` — not part of the async server runtime
+# the ASYNC rules protect. They intentionally do a blocking urllib login +
+# local file writes inside the Playwright async entrypoint, and wrap non-fatal
+# readiness probes in best-effort try/except.
+"scripts/m1_*.py" = ["ASYNC210", "ASYNC220", "ASYNC230", "SIM105"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

@@ -12,7 +12,7 @@ from playwright.async_api import async_playwright
 
 
 async def main() -> None:
-    r = urllib.request.urlopen(  # noqa: S310
+    r = urllib.request.urlopen(
         urllib.request.Request(
             "http://localhost:8765/auth/login",
             method="POST",
