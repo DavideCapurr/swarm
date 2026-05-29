@@ -238,9 +238,12 @@ async def run() -> int:
         await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-04-fire.png"), full_page=False)
         print(f"[capture] 04 saved at t+{time.monotonic()-t0:.1f}s")
 
-        # ── Screenshot 05 — autonomy active end state (waits R2; falls
-        # back to t+25s post-FIRE snapshot if R2 doesn't fire because
-        # the sim doesn't transition VERIFYING→VERIFIED yet) ──
+        # ── Screenshot 05 — autonomy R2 ESCALATE end state. The 0.88 FIRE
+        # reaches VERIFIED via confirm-by-observation (a dispatched drone
+        # dwells on-station over the hotspot), then R2 auto-ESCALATEs after
+        # its idle window (~t+38-42s, inside the wait below). The wait_until
+        # returns False rather than raising, so the run still captures a
+        # frame if the bus is slow, but R2 now fires in the live sim. ──
         await wait_until(
             lambda: any(c.get("source") == "autonomy" and c.get("rule") == "R2"
                         for c in api_get("/commands", token).get("commands", [])),

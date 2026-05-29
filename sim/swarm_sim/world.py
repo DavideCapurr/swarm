@@ -62,3 +62,10 @@ class World:
         self.t_s += dt
         for d in self.drones:
             d.step(dt)
+        # Phase 7.B — confirm-by-observation. Once a drone is physically
+        # on-station over an emitted anomaly, perception re-emits it with
+        # verified=True via its on_anomaly hook (the runner publishes it to
+        # the bus exactly like the original detection). World stays
+        # bus-agnostic; it just drives the observation clock.
+        if self.perception is not None:
+            self.perception.observe(self.drones, dt)

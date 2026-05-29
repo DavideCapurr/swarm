@@ -31,7 +31,10 @@ from swarm_core.messages import (
 )
 from swarm_core.voice import has_forbidden
 
+from sim.swarm_sim.drone import Drone
+from sim.swarm_sim.perception import MockPerception
 from sim.swarm_sim.scenario import load_scenario
+from sim.swarm_sim.world import World
 from swarm_os.command_bus import AUTONOMY_OPERATOR_ID
 from swarm_os.coordinator import SwarmCoordinator
 from swarm_os.state import SwarmState
@@ -148,53 +151,76 @@ async def test_scenario_autonomy_verify_fires(
 
 @pytest.mark.asyncio
 async def test_wildfire_reaches_escalated_via_autonomy_only() -> None:
-    """Wildfire's high-confidence FIRE follow-up triggers auto-ESCALATE."""
+    """Wildfire's high-confidence FIRE reaches ESCALATED purely via autonomy.
+
+    Drives the *real* confirm-by-observation path end to end: a sim drone
+    dwells over the co-located SMOKE (0.62) + FIRE (0.88) hotspot, perception
+    re-emits both with `verified=True`, the coordinator flips them to VERIFIED,
+    and R2 escalates only the FIRE (≥ 0.80 floor). No faked `state=VERIFIED`,
+    no operator command — the verification truth comes from the simulator.
+    """
 
     coordinator, _ = await _bootstrap_state("wildfire_owner_land")
     state = coordinator.state
 
-    # First: surface the 0.62 SMOKE -> R1 fires.
-    smoke = Anomaly(
-        id="a-fire",
-        kind=AnomalyKind.SMOKE,
-        geo=Geo(lat=44.7001, lon=8.0301),
-        confidence=0.62,
-        source_agent="sim-1",
+    # The honest source of confirmation: a real World + drone + perception.
+    # The drone is parked on-station over the hotspot (the orchestrator's
+    # dispatch is exercised elsewhere; here we isolate the autonomy contract).
+    dock = Geo(lat=44.7000, lon=8.0300, alt_m=0.0)
+    hotspot = Geo(lat=44.7001, lon=8.0301, alt_m=30.0)
+    emissions: list[Anomaly] = []
+    perception = MockPerception(
+        territory_center=dock,
+        confirm_dwell_s=2.5,
+        on_anomaly=emissions.append,
     )
+    drone = Drone(agent_id="sim-1", dock=dock)
+    drone.geo = Geo(lat=hotspot.lat, lon=hotspot.lon, alt_m=30.0)
+    drone._mode = "HOVER"  # airborne, on-station over the hotspot
+    world = World(dock=dock, drones=[drone], perception=perception)
+
+    # Scripted detections: co-located SMOKE (0.62) + FIRE (0.88), each a
+    # distinct anomaly — exactly what MockPerception emits at t+10 / t+25.
+    smoke = perception.emit_anomaly(AnomalyKind.SMOKE, hotspot, 0.62)
+    fire = perception.emit_anomaly(AnomalyKind.FIRE, hotspot, 0.88)
+
+    # Surface both unverified detections (PENDING), backdate past the R1
+    # debounce window, then tick — R1 auto-VERIFY fires on each (-> VERIFYING).
     await coordinator.apply_anomaly(smoke)
-    state.anomalies["a-fire"] = state.anomalies["a-fire"].model_copy(
-        update={"ts": datetime.now(UTC) - timedelta(seconds=5.0)}
-    )
-    await coordinator.apply_telemetry(
-        Telemetry(
-            agent_id="sim-1",
-            geo=Geo(lat=44.7001, lon=8.0301),
-            battery_pct=85.0,
-            link_quality=0.95,
+    await coordinator.apply_anomaly(fire)
+    for det in (smoke, fire):
+        state.anomalies[det.id] = state.anomalies[det.id].model_copy(
+            update={"ts": datetime.now(UTC) - timedelta(seconds=5.0)}
         )
+    await coordinator.apply_telemetry(
+        Telemetry(agent_id="sim-1", geo=hotspot, battery_pct=85.0, link_quality=0.95)
     )
-    assert state.anomalies["a-fire"].state is AnomalyState.VERIFYING
+    assert state.anomalies[smoke.id].state is AnomalyState.VERIFYING
+    assert state.anomalies[fire.id].state is AnomalyState.VERIFYING
 
-    # The VERIFY mission completes through normal mission progress, which
-    # would normally flip the anomaly to VERIFIED. For the test we directly
-    # mark the anomaly VERIFIED with the higher confidence (mirrors the
-    # 0.88 FIRE follow-up emitted by MockPerception at t=25 s).
-    state.anomalies["a-fire"] = state.anomalies["a-fire"].model_copy(
-        update={
-            "state": AnomalyState.VERIFIED,
-            "confidence": 0.88,
-            "ts": datetime.now(UTC) - timedelta(seconds=15.0),  # past idle window
-        }
+    # The drone dwells on-station — perception re-emits BOTH with verified=True.
+    for _ in range(30):  # 3.0 s ≥ confirm_dwell_s
+        world.step(0.1)
+    confirmed = [a for a in emissions if a.verified]
+    assert {a.id for a in confirmed} == {smoke.id, fire.id}, (
+        f"expected both co-located anomalies confirmed, got {confirmed}"
     )
 
-    # Drive another refresh — R2 should now fire.
-    await coordinator.apply_telemetry(
-        Telemetry(
-            agent_id="sim-1",
-            geo=Geo(lat=44.7001, lon=8.0301),
-            battery_pct=85.0,
-            link_quality=0.95,
+    # Feed the confirmed re-emissions back through the same apply path the bus
+    # round-trip uses in the live runner (verified=True -> VERIFIED).
+    for a in confirmed:
+        await coordinator.apply_anomaly(a)
+    assert state.anomalies[fire.id].state is AnomalyState.VERIFIED
+    assert state.anomalies[smoke.id].state is AnomalyState.VERIFIED
+
+    # Backdate the VERIFIED timestamps past the R2 idle window, then tick —
+    # R2 should now fire on the FIRE only.
+    for a in confirmed:
+        state.anomalies[a.id] = state.anomalies[a.id].model_copy(
+            update={"ts": datetime.now(UTC) - timedelta(seconds=15.0)}
         )
+    await coordinator.apply_telemetry(
+        Telemetry(agent_id="sim-1", geo=hotspot, battery_pct=85.0, link_quality=0.95)
     )
 
     escalate_cmds = [
@@ -203,8 +229,11 @@ async def test_wildfire_reaches_escalated_via_autonomy_only() -> None:
     assert len(escalate_cmds) == 1, (
         f"expected exactly 1 autonomy ESCALATE, got {escalate_cmds}"
     )
+    assert escalate_cmds[0].target == f"anomaly:{fire.id}"  # only the 0.88 FIRE
     assert escalate_cmds[0].operator_id == AUTONOMY_OPERATOR_ID
-    assert state.anomalies["a-fire"].state is AnomalyState.ESCALATED  # type: ignore[comparison-overlap]
+    assert state.anomalies[fire.id].state is AnomalyState.ESCALATED
+    # The co-located 0.62 SMOKE reached VERIFIED but stays below the floor.
+    assert state.anomalies[smoke.id].state is AnomalyState.VERIFIED
 
     # No operator-issued command in the audit log — escalation was 100% autonomy.
     operator_cmds = [c for c in state.commands.values() if c.source == "operator"]

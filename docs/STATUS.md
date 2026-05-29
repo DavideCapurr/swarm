@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **done** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); 7.G manual end-to-end gate green on Python 3.13 (lint/test/audit clean: 726 passed/19 skipped; demo wildfire boot evidence + 5 desktop + 2 mobile screenshots in `docs/yc/screenshots/`; a11y sweep report in `docs/yc/m1-a11y-report.md`; pitch VO script in `docs/yc/m1-vo-script.md`) |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **done** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in; R2 auto-ESCALATE wired end-to-end in the live sim via confirm-by-observation, 2026-05-29); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); 7.G manual end-to-end gate green on Python 3.13 (lint/test/audit clean: 726 passed/19 skipped; demo wildfire boot evidence + 5 desktop + 2 mobile screenshots in `docs/yc/screenshots/`; a11y sweep report in `docs/yc/m1-a11y-report.md`; pitch VO script in `docs/yc/m1-vo-script.md`) |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,32 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-29: Phase 7.B R2 auto-ESCALATE now fires end-to-end in the live
+sim via **confirm-by-observation**. Root cause closed: nothing ever
+emitted `Anomaly(verified=True)`, so anomalies were stuck in `VERIFYING`
+and R2 (which requires `VERIFIED`) never fired — the M1 capture script
+(`scripts/m1_capture_screenshots.py`) and a11y report
+(`docs/yc/m1-a11y-report.md`) both carried a fallback/caveat for it. Fix:
+a dispatched drone that dwells on-station over an anomaly's geo makes the
+sim re-emit that *same* anomaly with `verified=True` (the sim's own
+perception number, not a kernel-side value), which flows through the
+existing `apply_anomaly` path to `VERIFIED`; R2's 0.80 floor then
+escalates the 0.88 FIRE while the co-located 0.62 SMOKE stays VERIFIED.
+Diff: `sim/swarm_sim/perception.py` + `cv/perception_cv.py`
+(`observe(drones, dt)` + `confirm_dwell_s`), `sim/swarm_sim/world.py`
+(`step` drives `observe`), `swarm_os/coordinator.py`
+(`_propagate_verifier_to_anomalies` no longer bumps `ts`, so verifier
+flapping can't reset R2's idle clock). Tests: new
+`sim/swarm_sim/tests/test_observation.py` (6 cases) +
+`test_wildfire_reaches_escalated_via_autonomy_only` rewritten to drive a
+real `World`+drone+`observe()` with the faked `state=VERIFIED` block
+deleted; `.venv/bin/pytest sim/swarm_sim swarm_os -p no:cov` → 157 passed.
+Pre-existing, unrelated: two failures in
+`sim/swarm_sim/cv/tests/test_default_unchanged.py` (`wildfire_owner_land`
+parametrization) assert `cv_enabled is True`, but that YAML was
+intentionally set false for the M1 gate — they fail identically with this
+change stashed.
 
 2026-05-26: Phase 7.F Console DS Spread 24 + Plain Voice v1 landed on
 `main` via merged PR #72 (commit `19a91ce`) plus a follow-up fix-up on

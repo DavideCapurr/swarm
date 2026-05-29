@@ -19,15 +19,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from swarm_core.geometry import haversine_m
 from swarm_core.messages import Anomaly, AnomalyKind, Geo
 
 from sim.swarm_sim.cv.detector import YOLODetector
 from sim.swarm_sim.cv.weights import CVAssetError, list_fixtures
-from sim.swarm_sim.perception import IgnitionEvent
+from sim.swarm_sim.perception import _CONFIRM_RADIUS_M, IgnitionEvent
+
+if TYPE_CHECKING:  # pragma: no cover
+    from sim.swarm_sim.drone import Drone
 
 logger = logging.getLogger("sim.cv.perception")
 
@@ -61,6 +66,11 @@ class CVPerception:
     rng: random.Random = field(default_factory=random.Random)
     scenario_id: str = "unknown"
     detector: YOLODetector | None = None
+    # Phase 7.B — confirm-by-observation, identical contract to MockPerception.
+    confirm_dwell_s: float = 2.5
+    _emitted: dict[str, Anomaly] = field(default_factory=dict)
+    _dwell_s: dict[str, float] = field(default_factory=dict)
+    _confirmed: set[str] = field(default_factory=set)
 
     def _pick_fixture(self, kind: AnomalyKind, after_s: float) -> Path:
         bucket = _KIND_TO_FIXTURE_DIR.get(kind, "fire")
@@ -99,6 +109,7 @@ class CVPerception:
             self.scenario_id, ev.kind.value, frame.name, det.label, det.confidence,
         )
         anomaly = Anomaly(kind=ev.kind, geo=ev.geo, confidence=det.confidence)
+        self._emitted[anomaly.id] = anomaly
         if self.on_anomaly:
             self.on_anomaly(anomaly)
         return anomaly
@@ -108,6 +119,29 @@ class CVPerception:
     # the same Anomaly as MockPerception with the scripted confidence.
     def emit_anomaly(self, kind: AnomalyKind, geo: Geo, confidence: float) -> Anomaly:
         a = Anomaly(kind=kind, geo=geo, confidence=confidence)
+        self._emitted[a.id] = a
         if self.on_anomaly:
             self.on_anomaly(a)
         return a
+
+    def observe(self, drones: Sequence[Drone], dt: float) -> None:
+        """Confirm anomalies a drone is on-station over — parity with
+        `MockPerception.observe`. Re-emits the same anomaly with
+        `verified=True` after `confirm_dwell_s` of continuous dwell."""
+
+        for aid, anomaly in self._emitted.items():
+            if aid in self._confirmed:
+                continue
+            on_station = any(
+                d.is_airborne and haversine_m(d.geo, anomaly.geo) < _CONFIRM_RADIUS_M
+                for d in drones
+            )
+            if not on_station:
+                self._dwell_s[aid] = 0.0
+                continue
+            self._dwell_s[aid] = self._dwell_s.get(aid, 0.0) + dt
+            if self._dwell_s[aid] >= self.confirm_dwell_s:
+                self._confirmed.add(aid)
+                confirmed = anomaly.model_copy(update={"verified": True})
+                if self.on_anomaly:
+                    self.on_anomaly(confirmed)

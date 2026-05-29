@@ -103,8 +103,10 @@ HEAD as of the screenshot run (commit will be on `phase-7g-m1-gate`).
   chip rendering are all observable in
   `docs/yc/screenshots/wildfire-{01..05}.png` and
   `docs/yc/screenshots/mobile-{01,02}.png`.
-- Out-of-scope observation (filed as a separate follow-up task): the
-  wildfire sim's VERIFY missions complete in the orchestrator
-  (`phase=done, prog=100`) but the linked anomaly does not transition
-  from `verifying` to `verified`. This blocks autonomy R2 from firing
-  in the demo; M2 (Phase 8.A) owns the fix.
+- Resolved (Phase 7.B confirm-by-observation): the wildfire anomaly now
+  transitions `verifying → verified` when the dispatched drone dwells
+  on-station over the hotspot, so autonomy R2 auto-ESCALATEs the 0.88
+  FIRE live in the demo — `wildfire-05` shows the R2 AUTO chip, not R1.
+  The confirmed confidence stays the sim's own perception score (no
+  kernel-side fabrication), keeping the "SwarmOS decides, never invents"
+  rule intact.
