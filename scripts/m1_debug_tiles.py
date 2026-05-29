@@ -14,7 +14,7 @@ FRONTEND = "http://localhost:3000"
 
 
 async def main() -> None:
-    r = urllib.request.urlopen(  # noqa: S310
+    r = urllib.request.urlopen(
         urllib.request.Request(
             f"{BACKEND}/auth/login",
             method="POST",

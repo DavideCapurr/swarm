@@ -55,7 +55,7 @@ async def wait_until(predicate, deadline_s: float, label: str) -> bool:
             if predicate():
                 print(f"[capture] {label} reached")
                 return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"[capture] {label} probe error: {e}")
         await asyncio.sleep(0.5)
     print(f"[capture] WARN {label} deadline {deadline_s}s exhausted")
@@ -104,13 +104,13 @@ async def wait_for_map_ready(page, timeout_ms: int = 20_000) -> None:
             "})"
         )
         await page.wait_for_timeout(500)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[capture] WARN map readiness probe gave up: {e}")
         await page.wait_for_timeout(4000)
 
 
 async def attach_login(page) -> str:
-    payload = json.loads(urllib.request.urlopen(  # noqa: S310
+    payload = json.loads(urllib.request.urlopen(
         urllib.request.Request(
             f"{BACKEND}/auth/login",
             method="POST",
@@ -134,7 +134,7 @@ async def attach_login(page) -> str:
     await page.goto(f"{FRONTEND}/")
     try:
         await page.wait_for_load_state("networkidle", timeout=8_000)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass  # the long-lived WS connection blocks networkidle; not fatal
     # Give React a beat to render the initial DOM, then reload so maplibre
     # boots after the layout has settled and measures the real container.
@@ -142,7 +142,7 @@ async def attach_login(page) -> str:
     await page.reload()
     try:
         await page.wait_for_load_state("networkidle", timeout=8_000)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     await page.wait_for_timeout(2500)
     return payload["access_token"]
@@ -152,7 +152,7 @@ async def run() -> int:
     # Pre-flight: backend must be reachable.
     try:
         token = login_token()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[capture] FATAL backend login failed: {e}", file=sys.stderr)
         return 2
 
@@ -257,7 +257,7 @@ async def run() -> int:
         await page.wait_for_load_state("networkidle", timeout=5_000)
         await page.wait_for_timeout(800)
         await page.screenshot(path=str(SCREENSHOT_DIR / "mobile-01-list.png"), full_page=False)
-        print(f"[capture] mobile 01 saved")
+        print("[capture] mobile 01 saved")
 
         # Mobile detail — click first anomaly link.
         first_anom = api_get("/anomalies", token).get("anomalies", [])
@@ -267,7 +267,7 @@ async def run() -> int:
             await page.wait_for_load_state("networkidle", timeout=5_000)
             await page.wait_for_timeout(800)
             await page.screenshot(path=str(SCREENSHOT_DIR / "mobile-02-detail.png"), full_page=False)
-            print(f"[capture] mobile 02 saved")
+            print("[capture] mobile 02 saved")
         else:
             print("[capture] WARN no anomaly to navigate for mobile-02")
             rc = 1

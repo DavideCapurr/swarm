@@ -7,10 +7,11 @@ regression silently inverted the opt-in.
 
 Specifically:
 
-1. The three committed YAML scenarios now declare
-   `perception.cv_enabled: true`, but `cv_enabled` is *only* a
-   build_world() branch — without the `[cv]` extra the import inside
-   `build_world()` raises and the loader sees no side effect on parse.
+1. The committed YAML scenarios declare `perception.cv_enabled` per the
+   7.D/7.G intent (intrusion + search: true; wildfire: false — flipped in
+   7.G for the M1 demo). `cv_enabled` is *only* a build_world() branch —
+   without the `[cv]` extra the import inside `build_world()` raises and
+   the loader sees no side effect on parse.
 2. A YAML without `cv_enabled` keeps the field default `False` —
    guarantees existing scenario YAMLs (Phase 7.A) keep instantiating a
    `MockPerception` byte-identical to the pre-7.D run.
@@ -36,11 +37,24 @@ def _scenario_path(name: str) -> Path:
     return SCENARIO_DIR / f"{name}.yaml"
 
 
-@pytest.mark.parametrize("name", SCENARIO_NAMES)
-def test_scenario_opts_into_cv_baseline(name: str) -> None:
-    """Phase 7.D — every owner-land scenario enables the CV baseline."""
+# Phase 7.D set all three owner-land scenarios to cv_enabled: true. Phase 7.G
+# then deliberately flipped wildfire_owner_land back to false for the M1 demo
+# (the YOLOv8 weights hang in the sandbox, so the scripted 0.62/0.88
+# confidences drive the deterministic R1→R2 path M1 verifies). Real CV is
+# re-validated by `make test-cv` under the [cv] extra. The contract is
+# therefore per-scenario, not "all on".
+CV_BASELINE_EXPECTED = {
+    "wildfire_owner_land": False,
+    "intrusion_owner_land": True,
+    "search_owner_land": True,
+}
+
+
+@pytest.mark.parametrize("name, expected", list(CV_BASELINE_EXPECTED.items()))
+def test_scenario_cv_baseline_matches_committed(name: str, expected: bool) -> None:
+    """Each owner-land scenario declares the cv_enabled value 7.D/7.G intends."""
     scenario = load_scenario(_scenario_path(name))
-    assert scenario.perception.cv_enabled is True
+    assert scenario.perception.cv_enabled is expected
 
 
 def test_legacy_yaml_without_cv_enabled_keeps_mock(tmp_path: Path) -> None:
@@ -81,7 +95,9 @@ def test_loader_determinism_preserved(name: str) -> None:
     assert a.id == b.id
     assert a.fleet == b.fleet
     assert a.anomalies == b.anomalies
-    assert a.perception.cv_enabled == b.perception.cv_enabled is True
+    # Determinism only — the value itself is asserted per-scenario in
+    # test_scenario_cv_baseline_matches_committed.
+    assert a.perception.cv_enabled == b.perception.cv_enabled
 
 
 def test_existing_7a_scenarios_count_matches() -> None:
