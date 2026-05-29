@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **done** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); 7.G manual end-to-end gate green on Python 3.13 (lint/test/audit clean: 726 passed/19 skipped; demo wildfire boot evidence + 5 desktop + 2 mobile screenshots in `docs/yc/screenshots/`; a11y sweep report in `docs/yc/m1-a11y-report.md`; pitch VO script in `docs/yc/m1-vo-script.md`) |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **done** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); 7.G manual end-to-end gate green on Python 3.13 (lint/test/audit clean: 726 passed/19 skipped; demo wildfire boot evidence + 5 desktop + 2 mobile screenshots in `docs/yc/screenshots/`; a11y sweep report in `docs/yc/m1-a11y-report.md`; pitch VO script in `docs/yc/m1-vo-script.md`); **WS1 (2026-05-29) closed the live verify-loop** — `apply_mission_progress(DONE)` promotes VERIFYING→VERIFIED so R2 auto-ESCALATE fires on the wildfire FIRE follow-up (`by_rule.R2==1`), and AUTO attribution persists past command completion (`findLatestAutonomyCommand`); `make lint/test/audit` green (751 py / 61 fe). Only the `.mov` screen-recording (plan §1f) remains a manual local step. |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,82 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-29: **Phase 7 WS1 — live verify-loop fix + AUTO attribution
+persistence** on branch `claude/dazzling-shannon-CDca7` (plan
+`docs/plan/pre-yc-build-plan.md` §Workstream 1). Closes the load-bearing
+demo defect: R2 auto-ESCALATE never fired on a live run because nothing
+promoted an anomaly VERIFYING→VERIFIED when the *executed* VERIFY mission
+completed (the `cmd-*` bookkeeping mission never runs; the orchestrator
+runs its own uuid mission and publishes that `MissionProgress`). CI was
+green only because the integration test manually forced `state=VERIFIED`.
+
+- **1a** `swarm_os/coordinator.py` — `apply_mission_progress` now promotes
+  VERIFYING→VERIFIED (ts=now) on a `phase==DONE` + `kind=="VERIFY"`
+  mission, resolving the target by VERIFYING state (+ sector/geo when the
+  mission carries them) via new `_promote_verified_anomaly` /
+  `_anomaly_for_verify_mission`. Guards: promote only from VERIFYING (never
+  clobber DISMISSED/ESCALATED/PENDING/already-VERIFIED, so a late or
+  duplicate completion can't resurrect a resolved anomaly); a FAILED
+  mission leaves it VERIFYING (no PENDING bounce → no R1 loop). Promotion
+  runs *before* `_refresh`, so R2 observes the fresh VERIFIED on a *later*
+  tick once the 10 s idle floor elapses — never same-tick.
+- **1b** `docs/yc/m1-vo-script.md` — climax reworded to the honest
+  two-detection arc (FIRE is a *separate* 0.88 anomaly that auto-verifies
+  then auto-escalates after the idle floor; not a rising single marker).
+  Forbidden-word grep clean.
+- **1c** `swarm_os/tests/test_phase7b_integration.py` — removed both manual
+  `state=VERIFIED` forcings; drive `apply_mission_progress(DONE)` through
+  the production path instead. New:
+  `test_verify_mission_done_promotes_anomaly_then_r2_escalates_end_to_end`
+  (the test that would have caught the bug — pins the tick-ordering
+  contract), `test_failed_verify_mission_leaves_anomaly_verifying`,
+  `test_done_verify_mission_does_not_resurrect_dismissed_anomaly`.
+- **1d** `frontend/lib/autonomy.ts` — added `findLatestAutonomyCommand`
+  (most-recent autonomy command regardless of terminal status; reads a real
+  audit record, not DERIVED fabrication). Switched `AnomalySummary.tsx`,
+  `MobileAnomalyScreen.tsx`, `app/(console)/verify/[id]/page.tsx`, and
+  `Map.tsx` from `findActiveAutonomyCommand` → `findLatestAutonomyCommand`
+  so the AUTO chip persists on the terminal ESCALATED callout (the money
+  shot the VO points at). `findActiveAutonomyCommand` kept + tested.
+- **1e** Demo timing verified: `sim/scenarios/wildfire_owner_land.yaml`
+  already has FIRE at `after_s: 25` (the plan's recommended value) and the
+  collector `--duration` default (60 s) spans R2 at ≈t37-40. No change.
+
+Evidence (commands run from a fresh `make setup` venv on this branch):
+- `make lint` ✅ — ruff clean, mypy clean (181 source files), `tsc
+  --noEmit` clean.
+- `make test` ✅ — **751 python passed / 19 skipped / 3 deselected**,
+  coverage **88.75 %** (≥80 gate); **61 frontend passed** (autonomy.ts
+  100 % covered).
+- `make audit` ✅ — pip-audit "No known vulnerabilities found", pnpm audit
+  2 moderate (below the `--audit-level=high` fail threshold), bandit 0
+  medium/high, audit-config 42 passed, pymavlink + cv-asset integrity PASS.
+- **by_rule.R2 == 1 confirmed.** An in-process run of the *real*
+  `SwarmCoordinator` + autonomy + command-bus through the wildfire
+  two-detection arc yields `auto_decisions.by_rule == {R1: 2, R2: 1}`
+  (computed identically to `scripts/scenario_metrics.py`), with
+  `a-smoke=verified` (stays — below the 0.80 R2 floor) and
+  `a-fire=escalated`. Artifact:
+  `docs/bench/artifacts/phase-7-ws1-verifyloop-inprocess.json`
+  (provenance-tagged `source: in-process … no backend/Docker`). The same
+  arc is asserted continuously by the new end-to-end regression test.
+
+Pre-existing branch-gate fixes folded in so the gates are runnable (this
+branch predates `main`'s #73/#75 and was red on `make lint`/`make test`
+before WS1): `frontend/components/Map.tsx` maplibre-gl v5
+`canvasContextAttributes` nesting (fixes tsc TS2353 + a silently-dropped
+M1-capture flag); `pyproject.toml` scoped ruff per-file-ignore for the
+`scripts/m1_*.py` capture/debug utilities + dead-`noqa`/f-string cleanups;
+`sim/swarm_sim/cv/tests/test_default_unchanged.py` aligned to 7.G's
+wildfire `cv_enabled: false`. All identical to the validated fixes already
+on `main`.
+
+Still manual (plan §1f — NOT a code gate; needs a local Docker stack +
+screen recorder, unavailable in this remote container): the live
+`make demo-wildfire-sim` HTTP-backend `phase-7e-*` artifact and the
+`docs/yc/videos/demo-01-sim-wildfire.mov` recording. WS2
+(breadth/metrics) intentionally NOT started this session.
 
 2026-05-26: Phase 7.F Console DS Spread 24 + Plain Voice v1 landed on
 `main` via merged PR #72 (commit `19a91ce`) plus a follow-up fix-up on

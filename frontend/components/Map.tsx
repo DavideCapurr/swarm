@@ -7,7 +7,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { AnomalyView, OperatorCommand, UnitState } from "@/lib/api";
 import { agentStateToSwarm } from "@/lib/tokens";
 import { AGENT_STATE_COPY, ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
-import { findActiveAutonomyCommand } from "@/lib/autonomy";
+import { findLatestAutonomyCommand } from "@/lib/autonomy";
 
 type Props = {
   units: UnitState[];
@@ -65,7 +65,10 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
     // Phase 7.G — preserveDrawingBuffer is required for the M1 screenshot
     // harness (Playwright captures the WebGL frame *after* Chrome has
     // already cleared the default drawing buffer). Production paths skip
-    // this flag because it costs ~5–10 % render perf.
+    // this flag because it costs ~5–10 % render perf. maplibre-gl v5 moved
+    // the WebGL context flags out of the top-level options into
+    // `canvasContextAttributes`, so passing it at the top level is silently
+    // dropped (and rejected by tsc).
     const isCapture = typeof window !== "undefined" && (window as unknown as { __M1_CAPTURE__?: boolean }).__M1_CAPTURE__;
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -74,7 +77,7 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
       zoom: 14.5,
       attributionControl: { compact: true },
       pitch: 0,
-      preserveDrawingBuffer: isCapture,
+      canvasContextAttributes: { preserveDrawingBuffer: isCapture },
     });
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
@@ -207,7 +210,7 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
     for (const a of live) {
       seen.add(a.id);
       const ll: [number, number] = [a.geo.lon, a.geo.lat];
-      const auto = findActiveAutonomyCommand(cmds, a.id);
+      const auto = findLatestAutonomyCommand(cmds, a.id);
       const calloutText = anomalyCallout(a, auto);
       const color = auto ? "#7BE7FF" : "#FFB45C";
       const existing = anomalyMarkersRef.current[a.id];

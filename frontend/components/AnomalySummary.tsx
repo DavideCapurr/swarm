@@ -11,7 +11,7 @@ import Link from "next/link";
 
 import { useFocusAnomaly, useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
-import { findActiveAutonomyCommand } from "@/lib/autonomy";
+import { findLatestAutonomyCommand } from "@/lib/autonomy";
 import { ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 import { IconAnomaly } from "@/icons";
 import { Eyebrow } from "./Eyebrow";
@@ -21,7 +21,7 @@ export function AnomalySummary() {
   const anomaly = useFocusAnomaly();
   const { verifier, anomalies, commands } = useSwarm();
   const autonomyCommand = anomaly
-    ? findActiveAutonomyCommand(commands, anomaly.id)
+    ? findLatestAutonomyCommand(commands, anomaly.id)
     : null;
 
   if (!anomaly) {

@@ -1,10 +1,10 @@
 /**
  * Phase 7.C — AnomalySummary renders the AUTO chip when autonomy in flight.
  *
- * The chip says `AUTO · verify` (or `· escalate`/`· dismiss`) while a
- * non-terminal autonomy command targets the focus anomaly. As soon as
- * the command terminates (completed/rejected/timed_out) the chip
- * disappears.
+ * The chip says `AUTO · verify` (or `· escalate`/`· dismiss`) whenever the
+ * latest autonomy command targets the focus anomaly — and (Phase 7 WS1d) it
+ * *persists* after that command terminates, because the attribution
+ * ("SwarmOS decided this") is exactly what matters once the decision lands.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -52,15 +52,15 @@ describe("AnomalySummary", () => {
     expect(chip.className).toMatch(/text-orbital-blue/);
   });
 
-  it("hides the AUTO chip when the autonomy command has completed", () => {
-    const anomaly = makeAnomaly({ id: "a-1" });
+  it("keeps the AUTO chip after the autonomy command terminates (attribution persists)", () => {
+    const anomaly = makeAnomaly({ id: "a-1", state: "escalated", band: "verified" });
     const completed = makeCommand({
       id: "cmd-auto-done",
       source: "autonomy",
-      action: "verify",
+      action: "escalate",
       target: "anomaly:a-1",
       status: "completed",
-      rule: "R1",
+      rule: "R2",
     });
     useFocusMock.mockReturnValue(anomaly);
     useSwarmMock.mockReturnValue(
@@ -69,6 +69,8 @@ describe("AnomalySummary", () => {
 
     render(<AnomalySummary />);
 
-    expect(screen.queryByTestId("anomaly-auto-chip")).not.toBeInTheDocument();
+    const chip = screen.getByTestId("anomaly-auto-chip");
+    expect(chip).toHaveTextContent("AUTO · escalate");
+    expect(chip.className).toMatch(/text-orbital-blue/);
   });
 });

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from swarm_core.messages import (
@@ -32,6 +33,7 @@ from swarm_core.messages import (
 from swarm_core.voice import has_forbidden
 
 from sim.swarm_sim.scenario import load_scenario
+from swarm_os.autonomy import AUTO_ESCALATE_IDLE_S
 from swarm_os.command_bus import AUTONOMY_OPERATOR_ID
 from swarm_os.coordinator import SwarmCoordinator
 from swarm_os.state import SwarmState
@@ -81,6 +83,74 @@ def _autonomy_commands(state: SwarmState) -> list[OperatorCommand]:
     """Return all OperatorCommands recorded by the autonomy source."""
 
     return [c for c in state.commands.values() if c.source == "autonomy"]
+
+
+async def _tick(coordinator: SwarmCoordinator) -> list[dict[str, Any]]:
+    """Drive one coordinator refresh via a telemetry heartbeat at anchor geo."""
+
+    return await coordinator.apply_telemetry(
+        Telemetry(
+            agent_id="sim-1",
+            geo=Geo(lat=44.7001, lon=8.0301),
+            battery_pct=85.0,
+            link_quality=0.95,
+        )
+    )
+
+
+async def _complete_executed_verify(
+    coordinator: SwarmCoordinator, *, mission_id: str, phase: str = "DONE"
+) -> list[dict[str, Any]]:
+    """Simulate the orchestrator's *executed* VERIFY mission publishing a
+    terminal ``MissionProgress`` under its own uuid.
+
+    This is the live promotion path (WS1a): the orchestrator opens its own
+    VERIFY mission with a random uuid and no ``OperatorCommand`` link — the
+    ``cmd-*`` bookkeeping mission spawned by R1 never runs. Passing a
+    never-registered ``mission_id`` here faithfully reproduces that: the
+    coordinator has no prior MissionView for it, so the only signal linking
+    the completion to its anomaly is the VERIFYING state.
+    """
+
+    return await coordinator.apply_mission_progress(
+        MissionProgress(
+            mission_id=mission_id,
+            phase=phase,
+            progress_pct=100.0 if phase == "DONE" else 0.0,
+        )
+    )
+
+
+async def _drive_to_verifying(
+    coordinator: SwarmCoordinator,
+    *,
+    anomaly_id: str,
+    kind: AnomalyKind,
+    confidence: float,
+) -> None:
+    """PENDING → R1 auto-VERIFY → VERIFYING through production code.
+
+    Back-dates ``ts`` only to clear the R1 debounce floor — never forces the
+    anomaly state by hand.
+    """
+
+    state = coordinator.state
+    await coordinator.apply_anomaly(
+        Anomaly(
+            id=anomaly_id,
+            kind=kind,
+            geo=Geo(lat=44.7001, lon=8.0301),
+            confidence=confidence,
+            source_agent="sim-1",
+        )
+    )
+    state.anomalies[anomaly_id] = state.anomalies[anomaly_id].model_copy(
+        update={"ts": datetime.now(UTC) - timedelta(seconds=5.0)}
+    )
+    await _tick(coordinator)
+    assert state.anomalies[anomaly_id].state is AnomalyState.VERIFYING, (
+        f"R1 should have moved {anomaly_id} PENDING → VERIFYING"
+    )
 
 
 # ── R1 fires on every scripted scenario ─────────────────────────────────────
@@ -148,54 +218,42 @@ async def test_scenario_autonomy_verify_fires(
 
 @pytest.mark.asyncio
 async def test_wildfire_reaches_escalated_via_autonomy_only() -> None:
-    """Wildfire's high-confidence FIRE follow-up triggers auto-ESCALATE."""
+    """The wildfire arc reaches ESCALATED with zero operator input.
+
+    Honest two-detection arc (CLAUDE.md — every state transition comes from
+    SwarmOS, nothing fabricated):
+      * SMOKE 0.62 → R1 auto-VERIFY → executed VERIFY DONE → VERIFIED, and
+        *stays* VERIFIED (0.62 is below the 0.80 R2 floor).
+      * FIRE 0.88 — a *separate* anomaly, not a confidence bump on the smoke
+        marker — → R1 → executed VERIFY DONE → VERIFIED → after the idle
+        floor → R2 auto-ESCALATE.
+
+    Every transition runs through production code; the only test affordance
+    is back-dating ``ts`` to fast-forward the debounce / idle floors.
+    """
 
     coordinator, _ = await _bootstrap_state("wildfire_owner_land")
     state = coordinator.state
 
-    # First: surface the 0.62 SMOKE -> R1 fires.
-    smoke = Anomaly(
-        id="a-fire",
-        kind=AnomalyKind.SMOKE,
-        geo=Geo(lat=44.7001, lon=8.0301),
-        confidence=0.62,
-        source_agent="sim-1",
+    # Detection 1 — SMOKE verifies but never escalates (below the R2 floor).
+    await _drive_to_verifying(
+        coordinator, anomaly_id="a-smoke", kind=AnomalyKind.SMOKE, confidence=0.62
     )
-    await coordinator.apply_anomaly(smoke)
-    state.anomalies["a-fire"] = state.anomalies["a-fire"].model_copy(
-        update={"ts": datetime.now(UTC) - timedelta(seconds=5.0)}
-    )
-    await coordinator.apply_telemetry(
-        Telemetry(
-            agent_id="sim-1",
-            geo=Geo(lat=44.7001, lon=8.0301),
-            battery_pct=85.0,
-            link_quality=0.95,
-        )
-    )
-    assert state.anomalies["a-fire"].state is AnomalyState.VERIFYING
+    await _complete_executed_verify(coordinator, mission_id="orch-verify-smoke")
+    assert state.anomalies["a-smoke"].state is AnomalyState.VERIFIED
 
-    # The VERIFY mission completes through normal mission progress, which
-    # would normally flip the anomaly to VERIFIED. For the test we directly
-    # mark the anomaly VERIFIED with the higher confidence (mirrors the
-    # 0.88 FIRE follow-up emitted by MockPerception at t=25 s).
-    state.anomalies["a-fire"] = state.anomalies["a-fire"].model_copy(
-        update={
-            "state": AnomalyState.VERIFIED,
-            "confidence": 0.88,
-            "ts": datetime.now(UTC) - timedelta(seconds=15.0),  # past idle window
-        }
+    # Detection 2 — FIRE verifies, then auto-escalates after the idle floor.
+    await _drive_to_verifying(
+        coordinator, anomaly_id="a-fire", kind=AnomalyKind.FIRE, confidence=0.88
     )
+    await _complete_executed_verify(coordinator, mission_id="orch-verify-fire")
+    assert state.anomalies["a-fire"].state is AnomalyState.VERIFIED
 
-    # Drive another refresh — R2 should now fire.
-    await coordinator.apply_telemetry(
-        Telemetry(
-            agent_id="sim-1",
-            geo=Geo(lat=44.7001, lon=8.0301),
-            battery_pct=85.0,
-            link_quality=0.95,
-        )
+    # Fast-forward past the R2 idle floor, then drive one more refresh.
+    state.anomalies["a-fire"] = state.anomalies["a-fire"].model_copy(
+        update={"ts": datetime.now(UTC) - timedelta(seconds=AUTO_ESCALATE_IDLE_S + 5.0)}
     )
+    await _tick(coordinator)
 
     escalate_cmds = [
         c for c in _autonomy_commands(state) if c.action == OperatorAction.ESCALATE
@@ -204,11 +262,138 @@ async def test_wildfire_reaches_escalated_via_autonomy_only() -> None:
         f"expected exactly 1 autonomy ESCALATE, got {escalate_cmds}"
     )
     assert escalate_cmds[0].operator_id == AUTONOMY_OPERATOR_ID
+    assert escalate_cmds[0].rule == "R2"
+    # mypy narrows the indexed `.state` expr to VERIFIED from the earlier
+    # assert and doesn't clear it on the model_copy reassignment — the
+    # runtime value is ESCALATED (the test passes).
     assert state.anomalies["a-fire"].state is AnomalyState.ESCALATED  # type: ignore[comparison-overlap]
-
+    # SMOKE stayed verified — only the high-confidence FIRE escalated.
+    assert state.anomalies["a-smoke"].state is AnomalyState.VERIFIED
     # No operator-issued command in the audit log — escalation was 100% autonomy.
     operator_cmds = [c for c in state.commands.values() if c.source == "operator"]
     assert operator_cmds == []
+
+
+# ── WS1a: the live verify-loop + its guard rails ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_verify_mission_done_promotes_anomaly_then_r2_escalates_end_to_end() -> None:
+    """The live verify-loop, end to end through production code.
+
+    This is the test that would have caught the demo bug: before WS1a nothing
+    promoted VERIFYING → VERIFIED when the *executed* VERIFY mission
+    completed, so R2 never fired on a live run. It drives the full arc and
+    pins the tick-ordering contract:
+
+        PENDING(0.88) → R1 auto-VERIFY → VERIFYING
+        → executed VERIFY mission DONE → VERIFIED (fresh ts)
+        → R2 does NOT fire on the promotion tick (idle ≈ 0)
+        → advance past AUTO_ESCALATE_IDLE_S + one more refresh
+        → R2 auto-ESCALATE.
+    """
+
+    coordinator, _ = await _bootstrap_state("wildfire_owner_land")
+    state = coordinator.state
+
+    await _drive_to_verifying(
+        coordinator, anomaly_id="a-e2e", kind=AnomalyKind.FIRE, confidence=0.88
+    )
+
+    # The executed VERIFY mission (orchestrator uuid, no OperatorCommand link)
+    # completes → WS1a promotes VERIFYING → VERIFIED with a fresh ts.
+    before = datetime.now(UTC)
+    await _complete_executed_verify(coordinator, mission_id="orch-verify-e2e")
+    promoted = state.anomalies["a-e2e"]
+    assert promoted.state is AnomalyState.VERIFIED
+    assert promoted.ts >= before, "promotion must stamp a fresh ts for the R2 idle clock"
+
+    # Tick-ordering contract: R2 must NOT fire on the promotion tick because
+    # the VERIFIED idle age is ~0 (< AUTO_ESCALATE_IDLE_S). The autonomy tick
+    # runs before the command tick in `_refresh`, so R2 only sees a freshly
+    # VERIFIED anomaly on a *later* refresh.
+    assert [
+        c for c in _autonomy_commands(state) if c.action == OperatorAction.ESCALATE
+    ] == [], "R2 must not fire on the same tick as the promotion"
+
+    # Advance past the idle floor + drive one more refresh → R2 fires.
+    state.anomalies["a-e2e"] = state.anomalies["a-e2e"].model_copy(
+        update={"ts": datetime.now(UTC) - timedelta(seconds=AUTO_ESCALATE_IDLE_S + 2.0)}
+    )
+    await _tick(coordinator)
+
+    escalate_cmds = [
+        c for c in _autonomy_commands(state) if c.action == OperatorAction.ESCALATE
+    ]
+    assert len(escalate_cmds) == 1, (
+        f"expected exactly 1 autonomy ESCALATE end-to-end, got {escalate_cmds}"
+    )
+    assert escalate_cmds[0].rule == "R2"
+    assert escalate_cmds[0].operator_id == AUTONOMY_OPERATOR_ID
+    assert state.anomalies["a-e2e"].state is AnomalyState.ESCALATED
+
+
+@pytest.mark.asyncio
+async def test_failed_verify_mission_leaves_anomaly_verifying() -> None:
+    """A FAILED VERIFY mission must not promote — and must not bounce the
+    anomaly back to PENDING (which would re-trigger R1 in a loop). It stays
+    VERIFYING until a real completion arrives, and R2 never fires off it."""
+
+    coordinator, _ = await _bootstrap_state("wildfire_owner_land")
+    state = coordinator.state
+
+    await _drive_to_verifying(
+        coordinator, anomaly_id="a-failed", kind=AnomalyKind.FIRE, confidence=0.88
+    )
+
+    await _complete_executed_verify(
+        coordinator, mission_id="orch-verify-failed", phase="FAILED"
+    )
+    assert state.anomalies["a-failed"].state is AnomalyState.VERIFYING
+
+    # Even with abundant idle time, a VERIFYING (not VERIFIED) anomaly is
+    # never escalated by R2.
+    state.anomalies["a-failed"] = state.anomalies["a-failed"].model_copy(
+        update={"ts": datetime.now(UTC) - timedelta(seconds=AUTO_ESCALATE_IDLE_S + 5.0)}
+    )
+    await _tick(coordinator)
+
+    escalate_cmds = [
+        c for c in _autonomy_commands(state) if c.action == OperatorAction.ESCALATE
+    ]
+    assert escalate_cmds == [], f"FAILED verify must not escalate — got {escalate_cmds}"
+    assert state.anomalies["a-failed"].state is AnomalyState.VERIFYING
+
+
+@pytest.mark.asyncio
+async def test_done_verify_mission_does_not_resurrect_dismissed_anomaly() -> None:
+    """A late VERIFY-mission DONE must never clobber a terminal state.
+
+    If the operator DISMISSES an anomaly mid-verification, a now-stale
+    executed VERIFY mission completing afterward must be a no-op — it cannot
+    resurrect the anomaly to VERIFIED (which would re-arm R2).
+    """
+
+    coordinator, _ = await _bootstrap_state("wildfire_owner_land")
+    state = coordinator.state
+
+    await _drive_to_verifying(
+        coordinator, anomaly_id="a-dismissed", kind=AnomalyKind.SMOKE, confidence=0.62
+    )
+
+    # Operator dismisses it while the verify mission is still in flight.
+    await coordinator.apply_command(
+        OperatorCommand(
+            action=OperatorAction.DISMISS,
+            target="anomaly:a-dismissed",
+            operator_id="op-alice01",
+        )
+    )
+    assert state.anomalies["a-dismissed"].state is AnomalyState.DISMISSED
+
+    # The stale executed VERIFY mission completes — must NOT resurrect it.
+    await _complete_executed_verify(coordinator, mission_id="orch-verify-dismissed")
+    assert state.anomalies["a-dismissed"].state is AnomalyState.DISMISSED
 
 
 # ── Intrusion + search: R1 fires, R2 does NOT ───────────────────────────────
@@ -254,22 +439,20 @@ async def test_intrusion_search_stay_below_escalate_floor(
     assert any(c.action == OperatorAction.VERIFY for c in autonomy_cmds)
     assert state.anomalies[anomaly.id].state == AnomalyState.VERIFYING
 
-    # Now advance the mission to DONE so the anomaly flips to VERIFIED, then
-    # let plenty of time pass — R2 still must NOT fire because the confidence
-    # stays below 0.80.
+    # Drive the executed VERIFY mission to DONE: WS1a promotes the anomaly
+    # VERIFYING → VERIFIED through the production path (no manual forcing).
     mission_id = autonomy_cmds[0].mission_id
     assert mission_id is not None
     await coordinator.apply_mission_progress(
         MissionProgress(mission_id=mission_id, phase="DONE", progress_pct=100.0)
     )
-    # Mark verified manually + backdate; mission progress flips phase but not
-    # anomaly state in this code path. The intent of this assertion is that
-    # autonomy doesn't escalate even with abundant idle time.
+    assert state.anomalies[anomaly.id].state == AnomalyState.VERIFIED
+
+    # Back-date well past the R2 idle floor: R2 must STILL NOT fire because
+    # the confidence stays below the 0.80 escalate floor (the negative
+    # control — operator owns escalation for these scenarios).
     state.anomalies[anomaly.id] = state.anomalies[anomaly.id].model_copy(
-        update={
-            "state": AnomalyState.VERIFIED,
-            "ts": datetime.now(UTC) - timedelta(seconds=60.0),  # well past idle
-        }
+        update={"ts": datetime.now(UTC) - timedelta(seconds=60.0)}  # well past idle
     )
     await coordinator.apply_telemetry(
         Telemetry(
