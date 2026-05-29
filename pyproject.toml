@@ -65,7 +65,7 @@ otel = [
 # legal review (e.g. Ultralytics Enterprise license); see
 # `docs/security/threat-model.md` §Supply chain.
 cv = [
-    "ultralytics>=8.3,<8.4",
+    "ultralytics>=8.3,<8.5",
     "torch>=2.4,<2.6",
     "torchvision>=0.19,<0.21",
     "opencv-python-headless>=4.10,<4.11",
