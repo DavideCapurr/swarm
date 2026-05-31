@@ -23,6 +23,7 @@ import {
 } from "@/lib/copy";
 import type { UnitState } from "@/lib/api";
 import { EmergencyStop } from "./EmergencyStop";
+import { AutonomyMetrics } from "./AutonomyMetrics";
 
 type Props = {
   onSelectAgent: (agentId: string) => void;
@@ -111,6 +112,15 @@ export function QuietPanel({ onSelectAgent }: Props) {
           weather={weather}
           autonomyEnabled={autonomyEnabled}
         />
+
+        {/* WS2 — honest autonomy latency readout (sim). Self-gated on
+            autonomyEnabled so non-autonomy sites render zero diff. */}
+        {autonomyEnabled && (
+          <>
+            <Hairline />
+            <AutonomyMetrics />
+          </>
+        )}
 
         <Hairline />
 
@@ -339,7 +349,9 @@ function CommanderGhost() {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+// Exported so AutonomyMetrics reuses the exact eyebrow idiom (DS Spread 24)
+// rather than re-creating it.
+export function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="eyebrow-mono text-ash">— {children}</div>;
 }
 

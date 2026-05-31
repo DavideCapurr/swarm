@@ -1,17 +1,32 @@
-"""Phase 7.G (M1) — capture the 5 desktop + 2 mobile demo beats.
+"""Phase 7.G (M1) / WS2 — capture the per-scenario demo beats.
 
-Drives a headless Chromium against localhost:3000 (frontend already
+Drives a headed Chromium against localhost:3000 (frontend already
 running). Authenticates by writing the JWT into localStorage, then
-boots the wildfire sim as a subprocess so beat timing is deterministic.
+boots the chosen scenario sim as a subprocess so beat timing is
+deterministic.
 
-Polls /anomalies + /operator-commands?operator_id=op-autonomy0001 for
-state transitions and takes a screenshot at each beat.
+Parametrized by ``--scenario {wildfire,intrusion,search}``:
 
-Output: docs/yc/screenshots/{wildfire-0[1-5].png, mobile-0[1-2].png}
+  * wildfire = 5 beats: standby / SMOKE+R1 verify / FIRE / R2 escalate
+    (the full autonomous-escalation arc).
+  * intrusion / search = 3 beats: standby / <kind>+R1 verify / VERIFIED
+    (the human-on-the-loop arc — confidence stays under the R2 floor, so
+    the anomaly stops at VERIFIED and the operator owns escalation; no R2
+    wait).
+
+Polls /anomalies + /commands for state transitions and takes a
+screenshot at each beat. Mobile beats are captured for wildfire only.
+
+Output: docs/yc/screenshots/{<scenario>-0X-*.png, mobile-0[1-2].png}
+
+Founder-machine step (run by hand): needs a headed browser for real
+WebGL and the full Docker stack — same constraint as the WS1 `.mov`.
+Cannot run in CI / the sandbox.
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
@@ -20,6 +35,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 from playwright.async_api import async_playwright
@@ -29,6 +45,78 @@ FRONTEND = "http://localhost:3000"
 ROOT = Path(__file__).resolve().parent.parent
 SCREENSHOT_DIR = ROOT / "docs" / "yc" / "screenshots"
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ── Scenario beat config ─────────────────────────────────────────────────────
+# Per-scenario YAML + post-standby beat list. The standby beat (01) is captured
+# by the shared scaffolding in run(); these are the beats that follow sim boot.
+SCENARIO_YAML = {
+    "wildfire": "sim/scenarios/wildfire_owner_land.yaml",
+    "intrusion": "sim/scenarios/intrusion_owner_land.yaml",
+    "search": "sim/scenarios/search_owner_land.yaml",
+}
+
+# Anomaly kind per non-wildfire scenario (used for the beat-02 filename slug).
+SCENARIO_KIND = {"intrusion": "INTRUSION", "search": "HEAT_SPOT"}
+
+# Fleet size per scenario YAML (fleet.n_drones) — the standby beat waits for
+# the full fleet so the map shows every drone before capture.
+SCENARIO_FLEET = {"wildfire": 3, "intrusion": 2, "search": 3}
+
+
+@dataclass
+class Beat:
+    """One screenshot beat: wait for ``probe`` to fire, settle, then capture."""
+
+    filename: str  # under SCREENSHOT_DIR
+    label: str  # wait_until log label
+    deadline_s: float
+    probe: str  # "anomaly_kind" | "auto_rule" | "verified"
+    arg: str = ""  # "SMOKE"/"FIRE" for anomaly_kind, "R1"/"R2" for auto_rule
+    settle_ms: int = 1500
+
+
+def desktop_beats(scenario: str) -> list[Beat]:
+    """The post-standby desktop beats for a scenario.
+
+    Wildfire keeps its 5-beat autonomous-escalation arc (R1 → FIRE → R2).
+    Intrusion / search are 3 beats — R1 verify then VERIFIED — because
+    their confidence (0.71 / 0.55) stays under the R2 ESCALATE floor (0.80),
+    so the operator owns escalation. No R2 wait.
+    """
+
+    if scenario == "wildfire":
+        return [
+            Beat("wildfire-02-smoke.png", "SMOKE anomaly present", 15, "anomaly_kind", "SMOKE"),
+            Beat("wildfire-03-r1-verify.png", "R1 autonomy command present", 12, "auto_rule", "R1"),
+            Beat("wildfire-04-fire.png", "FIRE anomaly present", 40, "anomaly_kind", "FIRE"),
+            Beat("wildfire-05-r2-escalate.png", "R2 autonomy command present", 25, "auto_rule", "R2"),
+        ]
+    slug = SCENARIO_KIND[scenario].lower()
+    return [
+        Beat(f"{scenario}-02-{slug}-r1-verify.png", "R1 autonomy command present", 30, "auto_rule", "R1"),
+        Beat(f"{scenario}-03-verified.png", "anomaly reached verified", 30, "verified"),
+    ]
+
+
+def build_predicate(beat: Beat, token: str):
+    """Build the polling predicate for a beat (closes over its own ``beat``)."""
+
+    if beat.probe == "anomaly_kind":
+        return lambda: any(
+            a.get("kind") == beat.arg
+            for a in api_get("/anomalies", token).get("anomalies", [])
+        )
+    if beat.probe == "auto_rule":
+        return lambda: any(
+            c.get("source") == "autonomy" and c.get("rule") == beat.arg
+            for c in api_get("/commands", token).get("commands", [])
+        )
+    if beat.probe == "verified":
+        return lambda: any(
+            a.get("state") == "verified"
+            for a in api_get("/anomalies", token).get("anomalies", [])
+        )
+    raise ValueError(f"unknown beat probe: {beat.probe}")
 
 
 def login_token() -> str:
@@ -148,7 +236,10 @@ async def attach_login(page) -> str:
     return payload["access_token"]
 
 
-async def run() -> int:
+async def run(scenario: str) -> int:
+    scenario_yaml = SCENARIO_YAML[scenario]
+    standby_path = SCREENSHOT_DIR / f"{scenario}-01-standby.png"
+
     # Pre-flight: backend must be reachable.
     try:
         token = login_token()
@@ -169,13 +260,13 @@ async def run() -> int:
         page = await ctx.new_page()
         await attach_login(page)
 
-        # ── Screenshot 01 — standby (no sim yet) ──
-        print("[capture] desktop 01 standby (pre-sim) — waiting for Console + map…")
+        # ── Beat 01 — standby (no sim yet) ──
+        print(f"[capture] {scenario} 01 standby (pre-sim) — waiting for Console + map…")
         await wait_for_map_ready(page)
-        await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-01-standby.png"), full_page=False)
+        await page.screenshot(path=str(standby_path), full_page=False)
 
         # Boot sim now — T0 begins.
-        env = {**os.environ, "SIM_SCENARIO": "sim/scenarios/wildfire_owner_land.yaml", "SWARM_AUTONOMY_BASELINE": "true"}
+        env = {**os.environ, "SIM_SCENARIO": scenario_yaml, "SWARM_AUTONOMY_BASELINE": "true"}
         # Source .env vars (POSTGRES, REDIS, JWT, etc.).
         env_path = ROOT / ".env"
         if env_path.exists():
@@ -185,7 +276,7 @@ async def run() -> int:
                     continue
                 k, _, v = line.partition("=")
                 env.setdefault(k, v)
-        print("[capture] booting sim…")
+        print(f"[capture] booting sim ({scenario_yaml})…")
         sim_proc = subprocess.Popen(
             [str(ROOT / ".venv/bin/python"), "-m", "sim.swarm_sim.runner"],
             cwd=str(ROOT),
@@ -195,82 +286,47 @@ async def run() -> int:
         )
         t0 = time.monotonic()
 
-        # Wait for 3 units to appear so the first standby with units is reliable.
+        # Wait for the full fleet to appear so the standby beat is reliable.
+        fleet_n = SCENARIO_FLEET[scenario]
         await wait_until(
-            lambda: len(api_get("/units", token).get("units", [])) >= 3,
+            lambda: len(api_get("/units", token).get("units", [])) >= fleet_n,
             deadline_s=10,
-            label="3 units online",
+            label=f"{fleet_n} units online",
         )
         # Re-screenshot 01 now that drones are visible + map tiles loaded.
         await wait_for_map_ready(page)
-        await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-01-standby.png"), full_page=False)
+        await page.screenshot(path=str(standby_path), full_page=False)
         print(f"[capture] 01 saved at t+{time.monotonic()-t0:.1f}s")
 
-        # ── Screenshot 02 — SMOKE callout (t+10s) ──
-        await wait_until(
-            lambda: any(a["kind"] == "SMOKE" for a in api_get("/anomalies", token).get("anomalies", [])),
-            deadline_s=15,
-            label="SMOKE anomaly present",
-        )
-        # Wait a beat for the WS frame to render the callout.
-        await page.wait_for_timeout(1500)
-        await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-02-smoke.png"), full_page=False)
-        print(f"[capture] 02 saved at t+{time.monotonic()-t0:.1f}s")
+        # ── Per-scenario beats (data-driven) ──
+        for beat in desktop_beats(scenario):
+            await wait_until(build_predicate(beat, token), beat.deadline_s, beat.label)
+            # Wait a beat for the WS frame to render the callout / chip.
+            await page.wait_for_timeout(beat.settle_ms)
+            await page.screenshot(path=str(SCREENSHOT_DIR / beat.filename), full_page=False)
+            print(f"[capture] {beat.filename} saved at t+{time.monotonic()-t0:.1f}s")
 
-        # ── Screenshot 03 — R1 AUTO chip (t+12s) ──
-        await wait_until(
-            lambda: any(c.get("source") == "autonomy" and c.get("rule") == "R1"
-                        for c in api_get("/commands", token).get("commands", [])),
-            deadline_s=12,
-            label="R1 autonomy command present",
-        )
-        await page.wait_for_timeout(1500)
-        await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-03-r1-verify.png"), full_page=False)
-        print(f"[capture] 03 saved at t+{time.monotonic()-t0:.1f}s")
-
-        # ── Screenshot 04 — FIRE callout (t+35s) ──
-        await wait_until(
-            lambda: any(a["kind"] == "FIRE" for a in api_get("/anomalies", token).get("anomalies", [])),
-            deadline_s=40,
-            label="FIRE anomaly present",
-        )
-        await page.wait_for_timeout(1500)
-        await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-04-fire.png"), full_page=False)
-        print(f"[capture] 04 saved at t+{time.monotonic()-t0:.1f}s")
-
-        # ── Screenshot 05 — autonomy active end state (waits R2; falls
-        # back to t+25s post-FIRE snapshot if R2 doesn't fire because
-        # the sim doesn't transition VERIFYING→VERIFIED yet) ──
-        await wait_until(
-            lambda: any(c.get("source") == "autonomy" and c.get("rule") == "R2"
-                        for c in api_get("/commands", token).get("commands", [])),
-            deadline_s=25,
-            label="R2 autonomy command present",
-        )
-        await page.wait_for_timeout(1500)
-        await page.screenshot(path=str(SCREENSHOT_DIR / "wildfire-05-r2-escalate.png"), full_page=False)
-        print(f"[capture] 05 saved at t+{time.monotonic()-t0:.1f}s")
-
-        # ── Mobile 390x844 ──
-        await ctx.set_viewport_size({"width": 390, "height": 844})
-        await page.goto(f"{FRONTEND}/m")
-        await page.wait_for_load_state("networkidle", timeout=5_000)
-        await page.wait_for_timeout(800)
-        await page.screenshot(path=str(SCREENSHOT_DIR / "mobile-01-list.png"), full_page=False)
-        print("[capture] mobile 01 saved")
-
-        # Mobile detail — click first anomaly link.
-        first_anom = api_get("/anomalies", token).get("anomalies", [])
-        if first_anom:
-            aid = first_anom[0]["id"]
-            await page.goto(f"{FRONTEND}/m/{aid}")
+        # ── Mobile 390x844 (wildfire only — the canonical M1 pair) ──
+        if scenario == "wildfire":
+            await ctx.set_viewport_size({"width": 390, "height": 844})
+            await page.goto(f"{FRONTEND}/m")
             await page.wait_for_load_state("networkidle", timeout=5_000)
             await page.wait_for_timeout(800)
-            await page.screenshot(path=str(SCREENSHOT_DIR / "mobile-02-detail.png"), full_page=False)
-            print("[capture] mobile 02 saved")
-        else:
-            print("[capture] WARN no anomaly to navigate for mobile-02")
-            rc = 1
+            await page.screenshot(path=str(SCREENSHOT_DIR / "mobile-01-list.png"), full_page=False)
+            print("[capture] mobile 01 saved")
+
+            # Mobile detail — click first anomaly link.
+            first_anom = api_get("/anomalies", token).get("anomalies", [])
+            if first_anom:
+                aid = first_anom[0]["id"]
+                await page.goto(f"{FRONTEND}/m/{aid}")
+                await page.wait_for_load_state("networkidle", timeout=5_000)
+                await page.wait_for_timeout(800)
+                await page.screenshot(path=str(SCREENSHOT_DIR / "mobile-02-detail.png"), full_page=False)
+                print("[capture] mobile 02 saved")
+            else:
+                print("[capture] WARN no anomaly to navigate for mobile-02")
+                rc = 1
 
         await browser.close()
 
@@ -285,5 +341,17 @@ async def run() -> int:
     return rc
 
 
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="M1 / WS2 demo beat capture")
+    parser.add_argument(
+        "--scenario",
+        choices=sorted(SCENARIO_YAML),
+        default="wildfire",
+        help="which scenario arc to capture (default: wildfire)",
+    )
+    args = parser.parse_args(argv)
+    return asyncio.run(run(args.scenario))
+
+
 if __name__ == "__main__":
-    sys.exit(asyncio.run(run()))
+    sys.exit(main())

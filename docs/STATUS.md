@@ -15,7 +15,7 @@ of every phase.
 | 4     | Persistence (Timescale + Alembic + audit)             | **done** |
 | 5     | Real Adapter (MAVLink/PX4 via pymavlink)              | **CI-ready; SITL attempted/not validated; hardware pending** |
 | 6     | Production OS (policy, geofence, auth, SBOM, ops)     | **done** — 6.A/6.B/6.C/6.D/6.E/6.F/6.G/6.H/6.I/6.J all complete |
-| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **done** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); 7.G manual end-to-end gate green on Python 3.13 (lint/test/audit clean: 726 passed/19 skipped; demo wildfire boot evidence + 5 desktop + 2 mobile screenshots in `docs/yc/screenshots/`; a11y sweep report in `docs/yc/m1-a11y-report.md`; pitch VO script in `docs/yc/m1-vo-script.md`); **WS1 (2026-05-29) closed the live verify-loop** — `apply_mission_progress(DONE)` promotes VERIFYING→VERIFIED so R2 auto-ESCALATE fires on the wildfire FIRE follow-up (`by_rule.R2==1`), and AUTO attribution persists past command completion (`findLatestAutonomyCommand`); `make lint/test/audit` green (751 py / 61 fe). Only the `.mov` screen-recording (plan §1f) remains a manual local step. |
+| 7     | Software MVP base in simulazione (3 scenari + autonomy baseline + CV) | **done** — 7.A done (scenarios + loader); 7.B done (autonomy baseline kernel + scenario opt-in); 7.C done (Console AUTO eyebrow + autonomy chip + persistence); 7.D done (CV baseline opt-in via `sim/swarm_sim/cv/` + manifest + fixtures + integrity gate); 7.E code-complete (`make demo-{wildfire,intrusion,search}-sim` + baseline metrics collector); 7.F code-complete (DS Spread 24 + Plain Voice v1 + AUTO marker on viewport callout + RecentSection); 7.G manual end-to-end gate green on Python 3.13 (lint/test/audit clean: 726 passed/19 skipped; demo wildfire boot evidence + 5 desktop + 2 mobile screenshots in `docs/yc/screenshots/`; a11y sweep report in `docs/yc/m1-a11y-report.md`; pitch VO script in `docs/yc/m1-vo-script.md`); **WS1 (2026-05-29) closed the live verify-loop** — `apply_mission_progress(DONE)` promotes VERIFYING→VERIFIED so R2 auto-ESCALATE fires on the wildfire FIRE follow-up (`by_rule.R2==1`), and AUTO attribution persists past command completion (`findLatestAutonomyCommand`); `make lint/test/audit` green (751 py / 61 fe). **WS2 (2026-05-31)** added the honest in-Console autonomy metrics surface (`frontend/lib/metrics.ts` mirroring `scripts/scenario_metrics.py` + `AutonomyMetrics.tsx` in QuietPanel, CSS/SVG-only, every readout `(sim)`, no red) and parametrized `scripts/m1_capture_screenshots.py` by `--scenario {wildfire,intrusion,search}` (intrusion/search = standby/R1-verify/VERIFIED, operator-owns-escalation); `pnpm test` 86 fe passed (metrics.ts 100% lines). The 3-scenario live capture + `phase-7e-{intrusion,search}` metrics artifacts and the `.mov` screen-recording (plan §1f) remain the same manual founder-machine step. |
 
 ## Phase 0 — completed checklist
 
@@ -1054,6 +1054,57 @@ Phase 7 is unblocked. Hardware-day and external-asset items
 remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
+
+2026-05-31: **Phase 7 WS2 — demo breadth: honest autonomy metrics +
+3-scenario capture tool** on branch `claude/loving-wozniak-5i7QC` (plan
+`docs/plan/ws2-demo-breadth.md`, parent §Workstream 2). Surfaces the
+*same* numbers the Phase 7.E bench collector records, live in the Console,
+computed client-side from audit frames already in `useSwarm()` — every
+value traces to a real audit record (no DERIVED, no new backend endpoint).
+
+- **2b** `frontend/lib/metrics.ts` (new, pure) mirrors
+  `scripts/scenario_metrics.py`: anomaly→decision + decision→dispatch
+  p50/p95 via **nearest-rank with banker's rounding** (`roundHalfToEven`,
+  NOT `Math.round` — the n=5/p50 `2.5→2` parity gotcha), plus
+  `by_rule`/`by_status`/totals. `frontend/components/AutonomyMetrics.tsx`
+  (new, CSS/SVG-only — no chart lib) reuses QuietPanel's `SectionLabel`
+  idiom + tokens, self-gates on `autonomyEnabled`, labels every readout
+  `(sim)`, renders an honest empty state (`— awaiting autonomy`, never
+  `0 ms`), accents limited to orbital-blue/ash/platinum (no red). Mounted
+  after `PerformanceSection` in `QuietPanel.tsx` (gated so non-autonomy
+  sites render zero diff). `lib/metrics.ts` added to
+  `vitest.config.ts` `coverage.include`.
+- **2a** `scripts/m1_capture_screenshots.py` parametrized by
+  `--scenario {wildfire,intrusion,search}` with a data-driven per-scenario
+  beat list. Wildfire keeps its 5-beat arc (filenames unchanged);
+  intrusion/search get 3 beats — `01-standby`, `02-<kind>-r1-verify`,
+  `03-verified` — the human-on-the-loop arc (confidence 0.71/0.55 stays
+  under the R2 0.80 floor, so the operator owns escalation; no R2 wait).
+  Reuses the existing `wait_until` + login/map scaffolding. **No
+  scenario/threshold edits** (per-scenario thresholds are Phase 8.B).
+
+Evidence (in-container, fresh `make setup` venv on this branch):
+- `pnpm test` ✅ — **86 frontend passed / 1 todo** (15 files); new
+  `lib/metrics.test.ts` (20) proves percentile parity incl. the n=5/p50
+  half-to-even case + `not.toBe(Math.round)`, by_rule null→`unspecified`,
+  both latency deltas, negative-delta drop, empty→`{null,null,0}`,
+  earliest-event vs `detected_at` fallback agreement;
+  `components/__tests__/AutonomyMetrics.test.tsx` (5) asserts rendered
+  values, `(sim)` labels, the `awaiting` empty state, null when disabled,
+  and no `/red/` class. `lib/metrics.ts` 100 % lines / 88.9 % branch.
+- `make lint` ✅ — ruff clean (incl. the parametrized capture script),
+  mypy clean, `tsc --noEmit` clean.
+- Expected artifact `by_rule` once 2a is captured: wildfire
+  `{R1, R2}`; intrusion/search `{R1}` only (no R2) — the negative control.
+
+Still manual (founder machine — needs a headed browser for real WebGL +
+the Docker stack, same constraint as WS1's `.mov`): the live 3-scenario
+capture (`make demo-{intrusion,search}-sim` + the tool `--scenario …`),
+the `phase-7e-{intrusion,search}-*.json` metrics artifacts, and the
+cross-check that the live `Autonomy (sim)` panel matches each artifact's
+`latencies_ms` (the 2b parity test makes this true). The
+`docs/yc/m1-a11y-report.md:84-89` mobile AUTO-chip note stays tracked
+until the new captures confirm it (else Phase 8.A).
 
 2026-05-29: **Phase 7 WS1 — live verify-loop fix + AUTO attribution
 persistence** on branch `claude/dazzling-shannon-CDca7` (plan
