@@ -276,7 +276,7 @@ class SwarmCoordinator:
         # reflected before the awareness frame snapshot.
         self.state.mode = compute_mode(self.state)
         self._refresh_verifier()
-        self._propagate_verifier_to_anomalies(now)
+        self._propagate_verifier_to_anomalies()
         self.state.awareness = calculate_awareness(
             sectors=self.state.sectors,
             units=self.state.units,
@@ -473,8 +473,19 @@ class SwarmCoordinator:
             # frame correctly reports None.
             self.state.verifier_id = None
 
-    def _propagate_verifier_to_anomalies(self, now: datetime) -> None:
-        """Stamp every active anomaly with the current canonical verifier."""
+    def _propagate_verifier_to_anomalies(self) -> None:
+        """Stamp every active anomaly with the current canonical verifier.
+
+        Deliberately does **not** touch `ts` (which is why it takes no `now`).
+        `autonomy._aged` measures `now - ts` as "time since the last *state*
+        transition" to gate R2's idle window (`AUTO_ESCALATE_IDLE_S`) and R1's
+        debounce. Reassigning the canonical verifier — which happens whenever
+        the pinned unit drops out (RTL / offline) and `_refresh_verifier`
+        re-pins the next max-battery unit — is **not** a state transition, so
+        bumping `ts` here would silently reset that clock on a VERIFIED anomaly
+        and delay R2 auto-ESCALATE. The verifier id is metadata; only real
+        VERIFYING→VERIFIED→ESCALATED transitions advance `ts`.
+        """
 
         verifier = self.state.verifier_id
         for aid, anomaly in list(self.state.anomalies.items()):
@@ -487,7 +498,7 @@ class SwarmCoordinator:
             if anomaly.verifying_agent == verifier:
                 continue
             self.state.anomalies[aid] = anomaly.model_copy(
-                update={"verifying_agent": verifier, "ts": now}
+                update={"verifying_agent": verifier}
             )
 
     def _frames(self, kind: str, model: object) -> list[dict[str, Any]]:
