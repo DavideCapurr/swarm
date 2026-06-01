@@ -43,6 +43,7 @@ export default defineConfig({
         "lib/api.ts",
         "lib/ws.ts",
         "lib/autonomy.ts",
+        "lib/metrics.ts",
         "components/EmergencyStop.tsx",
         "components/AuthGate.tsx",
       ],
