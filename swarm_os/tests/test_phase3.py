@@ -74,6 +74,47 @@ async def test_awareness_frame_carries_mode_and_verifier() -> None:
     assert state.anomalies[anomaly.id].verifying_agent == "sim-1"
 
 
+def test_verifier_reassignment_does_not_reset_anomaly_idle_clock() -> None:
+    """Re-pinning the canonical verifier must not advance an anomaly's `ts`.
+
+    `autonomy._aged` reads `now - anomaly.ts` as "time since the last *state*
+    transition" to gate R2 auto-ESCALATE (`AUTO_ESCALATE_IDLE_S`). The
+    verifier id flips whenever the pinned unit drops out (RTL / offline) and
+    `_refresh_verifier` re-pins the next max-battery unit — that is metadata,
+    not a state transition. If `_propagate_verifier_to_anomalies` bumped `ts`
+    on the reassignment it would silently restart R2's idle window and delay
+    (or, under repeated flapping, starve) the auto-ESCALATE. This pins the
+    contract: only the `verifying_agent` field changes; `ts` is preserved.
+    """
+    state = SwarmState.vineyard()
+    coordinator = SwarmCoordinator(state)
+
+    # A VERIFIED, high-confidence anomaly that is already most of the way
+    # through R2's idle window, currently attributed to the first verifier.
+    old_ts = datetime.now(UTC) - timedelta(seconds=8.0)
+    state.anomalies["a-fire"] = AnomalyView(
+        id="a-fire",
+        kind=AnomalyKind.FIRE,
+        geo=VINEYARD_CENTER,
+        sector_id=None,
+        confidence=0.88,
+        band=ConfidenceBand.ELEVATED,
+        state=AnomalyState.VERIFIED,
+        detected_at=old_ts,
+        detected_by="sim-1",
+        verifying_agent="sim-1",
+        ts=old_ts,
+    )
+
+    # The canonical verifier has been re-pinned to a different unit.
+    state.verifier_id = "sim-2"
+    coordinator._propagate_verifier_to_anomalies()
+
+    updated = state.anomalies["a-fire"]
+    assert updated.verifying_agent == "sim-2"  # attribution still propagates
+    assert updated.ts == old_ts  # …but the idle clock is untouched
+
+
 @pytest.mark.asyncio
 async def test_primary_dock_flag_is_server_set() -> None:
     state = SwarmState.vineyard()
