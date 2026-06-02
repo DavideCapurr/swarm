@@ -2,6 +2,10 @@ allowBuilds:
   # Keep install scripts blocked by default. `sharp` is optional for this app
   # and must not run its fallback build path during local setup.
   sharp: false
+  # esbuild arrives via vite 7 (pulled by vitest). Its prebuilt binary is
+  # provided by the platform-specific optional dep, so the postinstall stays
+  # blocked — no install-time script execution.
+  esbuild: false
   # Native resolver used by the Next/ESLint toolchain. This is the only
   # approved frontend postinstall in Phase 2.
   unrs-resolver: true
