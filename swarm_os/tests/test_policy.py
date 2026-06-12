@@ -191,10 +191,23 @@ def test_evaluate_safety_actions_battery_precedes_link(engine: PolicyEngine) -> 
 
 
 def test_evaluate_safety_actions_skips_docked_units(engine: PolicyEngine) -> None:
-    docked = _airborne_unit(battery_pct=5.0)
-    docked_dict = docked.model_copy(update={"dock_id": "dock-langhe-01"})
-    actions = engine.evaluate_safety_actions({docked.agent_id: docked_dict})
+    docked = _airborne_unit(battery_pct=5.0).model_copy(
+        update={"fsm_state": AgentState.DOCKED, "dock_id": "dock-langhe-01"}
+    )
+    actions = engine.evaluate_safety_actions({docked.agent_id: docked})
     assert actions == []
+
+
+def test_evaluate_safety_actions_uses_fsm_not_dock_id(engine: PolicyEngine) -> None:
+    """The telemetry projection stamps a home dock on every unit, so a
+    populated dock_id must not exempt an airborne unit from auto-RTL."""
+
+    flying = _airborne_unit(battery_pct=5.0).model_copy(
+        update={"dock_id": "dock-langhe-01"}
+    )
+    actions = engine.evaluate_safety_actions({flying.agent_id: flying})
+    assert len(actions) == 1
+    assert actions[0].reason is RejectedReason.BATTERY_TOO_LOW
 
 
 def test_evaluate_safety_actions_skips_healthy_unit(engine: PolicyEngine) -> None:

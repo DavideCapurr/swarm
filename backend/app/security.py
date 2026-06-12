@@ -266,11 +266,23 @@ class RateLimiter:
 
     In-memory means single-process. For multi-replica deployment this is
     replaced by a Redis-backed implementation in Phase 4.
+
+    Bucket count is capped at `max_buckets`: once the cap is hit, fully
+    refilled buckets (which carry no rate-limit state) are evicted, and
+    if every bucket is still mid-window the *new* key is denied — failing
+    closed under a key-spray (IP-cycling) attack instead of growing the
+    heap without bound.
     """
 
-    def __init__(self, capacity: int = 30, refill_per_s: float = 0.5) -> None:
+    def __init__(
+        self,
+        capacity: int = 30,
+        refill_per_s: float = 0.5,
+        max_buckets: int = 10_000,
+    ) -> None:
         self.capacity = capacity
         self.refill_per_s = refill_per_s
+        self.max_buckets = max_buckets
         self._buckets: dict[str, _Bucket] = defaultdict(self._new_bucket)
         self._lock = asyncio.Lock()
 
@@ -281,11 +293,26 @@ class RateLimiter:
             tokens=float(self.capacity),
         )
 
+    def _evict_idle_locked(self, now: float) -> None:
+        idle = [
+            key
+            for key, b in self._buckets.items()
+            if b.tokens + (now - b.last_refill) * b.refill_per_s >= b.capacity
+        ]
+        for key in idle:
+            del self._buckets[key]
+
     async def allow(self, key: str) -> bool:
         async with self._lock:
-            b = self._buckets[key]
             now = time.monotonic()
-            elapsed = now - b.last_refill
+            if key not in self._buckets and len(self._buckets) >= self.max_buckets:
+                self._evict_idle_locked(now)
+                if len(self._buckets) >= self.max_buckets:
+                    return False
+            b = self._buckets[key]
+            # A bucket created on this call stamps last_refill *after* `now`
+            # was read — clamp so a new bucket never starts in deficit.
+            elapsed = max(0.0, now - b.last_refill)
             b.tokens = min(b.capacity, b.tokens + elapsed * b.refill_per_s)
             b.last_refill = now
             if b.tokens >= 1.0:

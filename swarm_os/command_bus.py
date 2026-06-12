@@ -421,8 +421,19 @@ def _tentative_mission(
 
     target_kind, target_id = command.target.split(":", 1)
     if command.action == OperatorAction.VERIFY:
-        sector = state.sectors.get(target_id) if target_kind == "sector" else None
-        waypoints = [sector.centroid] if sector is not None else []
+        # Geofence surface for the policy gate: sector targets contribute
+        # their centroid, anomaly targets contribute the detection geo —
+        # without it an anomaly VERIFY would carry no waypoints and slip
+        # past the geofence check entirely.
+        waypoints = []
+        if target_kind == "sector":
+            sector = state.sectors.get(target_id)
+            if sector is not None:
+                waypoints = [sector.centroid]
+        elif target_kind == "anomaly":
+            anomaly = state.anomalies.get(target_id)
+            if anomaly is not None:
+                waypoints = [anomaly.geo]
         priority = (
             AUTONOMY_PRIORITY
             if command.source == "autonomy"

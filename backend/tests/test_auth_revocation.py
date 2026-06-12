@@ -58,6 +58,17 @@ def test_gc_sweep_runs_periodically() -> None:
     assert len(store) == 0
 
 
+def test_gc_sweeps_on_read_path() -> None:
+    """A backend that stops issuing new revocations must still shed
+    expired JTIs — reads trigger the periodic sweep too."""
+
+    store = RevocationStore(gc_interval_s=0.0)
+    # Inject directly: revoke() would sweep the expired entry on write.
+    store._jtis["long-dead"] = time.time() - 60.0
+    assert store.is_revoked("some-other-jti") is False
+    assert len(store) == 0
+
+
 def test_module_singleton_default_install() -> None:
     """`get_revocation_store()` lazily installs an in-memory store if none
     has been set explicitly."""

@@ -228,6 +228,32 @@ async def test_rate_limiter_refills_over_time() -> None:
     assert await rl.allow("ip-a") is True
 
 
+@pytest.mark.asyncio
+async def test_rate_limiter_evicts_idle_buckets_at_cap() -> None:
+    """Hitting the bucket cap with fully-refilled (idle) buckets must
+    evict them instead of denying the new key — a key-spray attacker
+    can't grow the dict, but legitimate new callers still get through."""
+
+    rl = RateLimiter(capacity=1, refill_per_s=100.0, max_buckets=3)
+    for key in ("ip-a", "ip-b", "ip-c"):
+        assert await rl.allow(key) is True
+    await asyncio.sleep(0.05)  # every bucket fully refills → evictable
+    assert await rl.allow("ip-d") is True
+    assert len(rl._buckets) <= 3
+
+
+@pytest.mark.asyncio
+async def test_rate_limiter_fails_closed_when_every_bucket_is_active() -> None:
+    rl = RateLimiter(capacity=2, refill_per_s=0.0, max_buckets=2)
+    assert await rl.allow("ip-a") is True
+    assert await rl.allow("ip-b") is True
+    # No bucket can refill (refill 0) → nothing is evictable; the new
+    # key is denied rather than growing the dict past the cap.
+    assert await rl.allow("ip-c") is False
+    # Established keys keep their own budget.
+    assert await rl.allow("ip-a") is True
+
+
 # ── WebSocket origin check ────────────────────────────────────────────────────
 
 

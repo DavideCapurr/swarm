@@ -36,6 +36,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
+import itertools
 import logging
 import math
 import time
@@ -44,6 +45,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pymavlink import mavutil
+from swarm_core.geometry import haversine_m
 from swarm_core.messages import (
     Attitude,
     CaptureResult,
@@ -104,6 +106,15 @@ class RejectedMission(MAVLinkAdapterError):
 #: Heartbeat watchdog threshold. PX4/ArduPilot both publish HEARTBEAT at 1 Hz,
 #: so 3 s with nothing means the radio is gone (or the autopilot has crashed).
 HEARTBEAT_TIMEOUT_S: float = 3.0
+
+#: Floor for the waypoint-mission completion deadline. The actual deadline
+#: scales with path length and cruise speed (see `_mission_deadline_s`);
+#: missions may also pin an explicit `timeout_s` param.
+MIN_MISSION_TIMEOUT_S: float = 30.0
+
+#: Conservative cruise fraction of the declared max speed used when sizing
+#: the mission deadline — wind, climbs, and corner slow-downs eat margin.
+CRUISE_SPEED_FRACTION: float = 0.5
 
 
 @dataclass
@@ -402,6 +413,27 @@ class MAVLinkAdapter:
                     f"waypoint ({wp.geo.lat:.5f}, {wp.geo.lon:.5f}) outside geofence"
                 )
 
+    def _mission_deadline_s(
+        self, mission: MissionTask, waypoints: list[Waypoint]
+    ) -> float:
+        """Completion deadline for a waypoint mission.
+
+        A mission may pin an explicit ``timeout_s`` param; otherwise the
+        deadline scales with the summed leg distances at a conservative
+        cruise speed, floored at MIN_MISSION_TIMEOUT_S. A fixed deadline
+        would fail-RTL any patrol longer than the constant allows.
+        """
+        explicit = mission.params.get("timeout_s")
+        if explicit is not None:
+            return max(float(explicit), MIN_MISSION_TIMEOUT_S)
+        path_m = sum(
+            haversine_m(a.geo, b.geo) for a, b in itertools.pairwise(waypoints)
+        )
+        cruise_mps = max(
+            self.capabilities.max_speed_mps * CRUISE_SPEED_FRACTION, 1.0
+        )
+        return MIN_MISSION_TIMEOUT_S + path_m / cruise_mps
+
     async def _fly_waypoints(self, mission: MissionTask) -> AsyncIterator[MissionProgress]:
         assert self._mav is not None
         waypoints = mission_waypoints(mission)
@@ -413,6 +445,7 @@ class MAVLinkAdapter:
         default_alt = float(mission.params.get("altitude_m", 60.0))
         # Defense in depth: pre-upload geofence + altitude check.
         self._validate_waypoints_against_safety(waypoints, default_alt)
+        timeout_s = self._mission_deadline_s(mission, waypoints)
 
         # Send MISSION_COUNT, then stream MISSION_ITEM_INT in response to
         # MISSION_REQUEST_INT.
@@ -427,7 +460,7 @@ class MAVLinkAdapter:
         yield MissionProgress(mission_id=mission.id, phase="EN_ROUTE", progress_pct=5.0)
 
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + 30.0
+        deadline = loop.time() + timeout_s
         last_emitted = -1
         while loop.time() < deadline:
             if self._cancelled:
@@ -436,6 +469,13 @@ class MAVLinkAdapter:
                     mission_id=mission.id, phase="FAILED", progress_pct=0.0, error="cancelled"
                 )
                 return
+            if self._paused:
+                # Holding position (autopilot got DO_PAUSE_CONTINUE). Freeze
+                # the completion clock so a long operator hold can't trip the
+                # deadline and fail-RTL a healthy mission.
+                deadline += 0.05
+                await asyncio.sleep(0.05)
+                continue
             if self._mission_current != last_emitted:
                 last_emitted = self._mission_current
                 pct = (self._mission_current + 1) / max(self._mission_total, 1) * 90.0
@@ -590,6 +630,8 @@ class MAVLinkAdapter:
         step = 0.5
         while elapsed < duration_s and not self._cancelled:
             await asyncio.sleep(min(step, duration_s - elapsed))
+            if self._paused:
+                continue  # holding — relay time on station does not accrue
             elapsed += step
         await self._send_command_long(mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH)
         if self._cancelled:
@@ -600,9 +642,23 @@ class MAVLinkAdapter:
             yield MissionProgress(mission_id=mission.id, phase="DONE", progress_pct=100.0)
 
     async def pause_mission(self) -> None:
+        """Hold in place: `MAV_CMD_DO_PAUSE_CONTINUE(param1=0)` + ACK.
+
+        The flag is set only after the autopilot acknowledges, so a lost
+        command can't leave the loop convinced the vehicle is holding
+        while it keeps flying the mission.
+        """
+        if self._connected and self._mav is not None:
+            await self._send_command_long(
+                mavutil.mavlink.MAV_CMD_DO_PAUSE_CONTINUE, param1=0.0
+            )
         self._paused = True
 
     async def resume_mission(self) -> None:
+        if self._connected and self._mav is not None:
+            await self._send_command_long(
+                mavutil.mavlink.MAV_CMD_DO_PAUSE_CONTINUE, param1=1.0
+            )
         self._paused = False
 
     async def cancel_mission(self) -> None:

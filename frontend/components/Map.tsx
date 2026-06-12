@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import maplibregl, { type Map } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { AnomalyView, OperatorCommand, UnitState } from "@/lib/api";
-import { agentStateToSwarm } from "@/lib/tokens";
+import { agentStateToSwarm, tokens } from "@/lib/tokens";
 import { AGENT_STATE_COPY, ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 import { findLatestAutonomyCommand } from "@/lib/autonomy";
 
@@ -114,6 +114,8 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
       ro.disconnect();
       map.remove();
       mapRef.current = null;
+      droneMarkersRef.current = {};
+      anomalyMarkersRef.current = {};
       setMapReady(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,10 +170,10 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
         label.style.fontSize = "10px";
         label.style.letterSpacing = "0.18em";
         label.style.textTransform = "uppercase";
-        label.style.color = "#A8AFB8";
+        label.style.color = tokens.color.mutedSilver;
         label.style.background = "rgba(11,14,17,0.7)";
         label.style.padding = "2px 6px";
-        label.style.border = "1px solid #1A2026";
+        label.style.border = tokens.border.hairline;
         label.style.borderRadius = "2px";
 
         el.appendChild(dot);
@@ -212,7 +214,7 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
       const ll: [number, number] = [a.geo.lon, a.geo.lat];
       const auto = findLatestAutonomyCommand(cmds, a.id);
       const calloutText = anomalyCallout(a, auto);
-      const color = auto ? "#7BE7FF" : "#FFB45C";
+      const color = auto ? tokens.color.orbitalBlue : tokens.color.launchAmber;
       const existing = anomalyMarkersRef.current[a.id];
       if (!existing) {
         const el = document.createElement("div");
@@ -227,7 +229,7 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
         inner.style.width = "6px";
         inner.style.height = "6px";
         inner.style.borderRadius = "50%";
-        inner.style.background = "#FFB45C";
+        inner.style.background = tokens.color.launchAmber;
 
         const ring = document.createElement("span");
         ring.style.position = "absolute";
@@ -236,7 +238,7 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
         ring.style.width = "24px";
         ring.style.height = "24px";
         ring.style.borderRadius = "50%";
-        ring.style.border = "1px solid #FFB45C";
+        ring.style.border = `1px solid ${tokens.color.launchAmber}`;
         ring.style.opacity = "0.6";
         ring.style.animation = "breath 4s cubic-bezier(0.2, 0.7, 0.1, 1) infinite";
 

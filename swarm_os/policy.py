@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 
 from swarm_core.geometry import path_within_polygon
 from swarm_core.messages import (
+    AgentState,
     DockState,
     MissionView,
     RejectedReason,
@@ -212,17 +213,21 @@ class PolicyEngine:
     ) -> list[SafetyAction]:
         """For each airborne unit, decide whether to queue an auto-RTL.
 
-        Docked units (`unit.dock_id is not None`) are skipped — they have
-        already returned. Per-unit checks short-circuit: a battery
-        violation suppresses the link check for the same unit so the
-        audit log only shows the most pressing reason.
+        Grounded units (DOCKED / OFFLINE / ERROR by FSM state) are skipped —
+        they have already returned or cannot act on an RTL. `dock_id` is
+        deliberately not used here: the telemetry projection stamps a home
+        dock on every unit, so it does not indicate "currently docked".
+        Per-unit checks short-circuit: a battery violation suppresses the
+        link check for the same unit so the audit log only shows the most
+        pressing reason.
         """
 
         actions: list[SafetyAction] = []
         rtl_battery = self.site.thresholds.battery.rtl_force_below_pct
         rtl_link = self.site.thresholds.link.rtl_below_quality
+        grounded = {AgentState.DOCKED, AgentState.OFFLINE, AgentState.ERROR}
         for unit in units.values():
-            if unit.dock_id is not None:
+            if unit.fsm_state in grounded:
                 continue
             if unit.battery_pct < rtl_battery:
                 actions.append(

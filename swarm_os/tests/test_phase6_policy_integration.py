@@ -13,7 +13,10 @@ from datetime import UTC, datetime
 import pytest
 from swarm_core.messages import (
     AgentState,
+    AnomalyKind,
+    AnomalyView,
     CommandStatus,
+    ConfidenceBand,
     Geo,
     MissionView,
     OperatorAction,
@@ -303,6 +306,40 @@ async def test_apply_command_rejects_verify_outside_geofence_sector() -> None:
     operator_frames = [f for f in frames if f["kind"] == "operator"]
     assert operator_frames, "expected operator frame in apply_command result"
     assert operator_frames[0]["data"]["status"] == CommandStatus.REJECTED.value
+
+
+async def test_apply_command_rejects_verify_outside_geofence_anomaly() -> None:
+    """Anomaly targets must carry their geo into the policy gate.
+
+    Without it the tentative VERIFY mission has no waypoints and the
+    geofence check never fires for anomaly targets."""
+
+    state = SwarmState.vineyard()
+    state.anomalies["a-rogue"] = AnomalyView(
+        id="a-rogue",
+        kind=AnomalyKind.SMOKE,
+        geo=OUTSIDE_GEOFENCE,
+        confidence=0.7,
+        band=ConfidenceBand.ELEVATED,
+    )
+    state.verifier_id = "sim-1"
+    state.units["sim-1"] = UnitState(
+        agent_id="sim-1",
+        vendor="simulated",
+        model="sim-x500",
+        fsm_state=AgentState.EN_ROUTE,
+        battery_pct=90.0,
+        geo=VINEYARD_CENTER,
+        link_quality=0.9,
+    )
+    cmd = OperatorCommand(
+        operator_id="op-test",
+        action=OperatorAction.VERIFY,
+        target="anomaly:a-rogue",
+    )
+    result = await submit(state, cmd)
+    assert result.status is CommandStatus.REJECTED
+    assert result.rejected_reason is RejectedReason.OUTSIDE_GEOFENCE
 
 
 # ── do-no-harm: existing scheduler test still passes through the new path ──

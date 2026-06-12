@@ -102,6 +102,31 @@ class AdapterConformanceTests:
         assert phases[-1] in ("DONE", "FAILED")
 
     @pytest.mark.asyncio
+    async def test_pause_and_resume_mission(self) -> None:
+        """Pause must actually take effect, and resume must let the
+        mission run to a terminal phase — a no-op pause flag is a
+        contract breach the operator would discover mid-flight."""
+        self._skip_if_stub()
+        a = self._make()
+        await a.connect()
+        mission = VERIFY(geo=Geo(lat=45.001, lon=10.001), hover_s=0.5)
+        phases: list[str] = []
+
+        async def run() -> None:
+            async for p in a.execute_mission(mission):
+                phases.append(p.phase)
+
+        task = asyncio.create_task(run())
+        await asyncio.sleep(0.2)
+        await a.pause_mission()
+        await asyncio.sleep(0.3)
+        await a.resume_mission()
+        await asyncio.wait_for(task, timeout=30.0)
+        await a.disconnect()
+        assert phases, "no progress emitted"
+        assert phases[-1] == "DONE", f"mission did not complete after resume: {phases}"
+
+    @pytest.mark.asyncio
     async def test_capabilities_match_declared(self) -> None:
         a = self._make()
         # Sensors set must be non-trivial — at least RGB.

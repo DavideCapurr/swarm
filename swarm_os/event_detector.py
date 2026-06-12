@@ -88,7 +88,36 @@ class EventDetector:
         events.extend(self._diff_units(state))
         events.extend(self._diff_docks(state))
         events.extend(self._diff_commands(state))
+        self._prune(state)
         return events
+
+    def _prune(self, state: SwarmState) -> None:
+        """Drop diff entries for entities no longer present in the state.
+
+        Long sessions with churn (auto-mission ids, anomaly ids, command
+        ids) would otherwise grow these caches without bound. An entity
+        that is removed and later re-appears under the same id is treated
+        as new — its first transition emits an event again, which is the
+        honest reading of a re-detected entity.
+        """
+
+        self._anomaly_state = {
+            k: v for k, v in self._anomaly_state.items() if k in state.anomalies
+        }
+        self._mission_phase = {
+            k: v for k, v in self._mission_phase.items() if k in state.missions
+        }
+        self._sector_visitor = {
+            k: v for k, v in self._sector_visitor.items() if k in state.sectors
+        }
+        self._unit_battery_low &= set(state.units)
+        self._unit_link_low &= set(state.units)
+        self._dock_weather = {
+            k: v for k, v in self._dock_weather.items() if k in state.docks
+        }
+        self._command_status = {
+            k: v for k, v in self._command_status.items() if k in state.commands
+        }
 
     # ── Anomalies ───────────────────────────────────────────────────────────
 
