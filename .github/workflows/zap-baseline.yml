@@ -110,6 +110,13 @@ jobs:
         # `--network host` lets the container reach 127.0.0.1:8765.
         run: |
           mkdir -p artifacts
+          # The ZAP image runs as the unprivileged `zap` user (uid 1000),
+          # which differs from the runner user that owns ./artifacts. Make
+          # the bind mount world-writable so ZAP can emit zap-report.json /
+          # .html — otherwise the reports never land and the HIGH-gate step
+          # below exits non-zero on a missing file (a CI plumbing failure,
+          # not a real finding).
+          chmod 777 artifacts
           docker run --rm \
             --network host \
             -v "$PWD/artifacts:/zap/wrk:rw" \
