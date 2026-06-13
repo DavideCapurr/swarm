@@ -26,7 +26,7 @@ dependencies = [
     "alembic>=1.13,<2",
     "httpx>=0.27,<1",
     "anyio>=4.3,<5",
-    "structlog>=24.1,<26",
+    "structlog>=24.1,<27",
     "shapely>=2.0,<3",
     "pyproj>=3.6,<4",
     # Phase 6.A: site policy config is YAML on disk. Pinned explicitly so
