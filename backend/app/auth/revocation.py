@@ -43,6 +43,10 @@ class RevocationStore:
             return False
         wall = float(now if now is not None else time.time())
         with self._lock:
+            # GC on the read path too — a long-running backend that stops
+            # issuing new revocations would otherwise hold expired JTIs
+            # forever (writes are the only other sweep trigger).
+            self._maybe_gc_locked()
             exp = self._jtis.get(jti)
             if exp is None:
                 return False

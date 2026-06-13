@@ -517,6 +517,35 @@ async def test_phase3_event_bodies_contain_no_forbidden_words() -> None:
         assert has_forbidden(event.body) is None, event.body
 
 
+def test_event_detector_prunes_removed_entities() -> None:
+    """Diff caches must shed entities that left the state, or a long
+    session with churn grows them without bound."""
+
+    state = SwarmState.vineyard()
+    state.anomalies["a-1"] = _anomaly(state, "a-1", AnomalyState.PENDING)
+    state.missions["m-1"] = MissionView(
+        id="m-1",
+        kind="PATROL",
+        sector_id="center-b",
+        phase=MissionPhase.PENDING,
+    )
+    detector = EventDetector()
+    detector.update(state)
+    assert "a-1" in detector._anomaly_state
+    assert "m-1" in detector._mission_phase
+
+    del state.anomalies["a-1"]
+    del state.missions["m-1"]
+    detector.update(state)
+    assert "a-1" not in detector._anomaly_state
+    assert "m-1" not in detector._mission_phase
+
+    # A re-detected entity under the same id emits its transition again.
+    state.anomalies["a-1"] = _anomaly(state, "a-1", AnomalyState.PENDING)
+    events = detector.update(state)
+    assert any(e.anomaly_id == "a-1" for e in events)
+
+
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 

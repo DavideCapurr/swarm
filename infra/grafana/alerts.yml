@@ -115,6 +115,22 @@ groups:
             timing.
           runbook: docs/observability/overview.md#runbook-rest-latency
 
+      - alert: SwarmDbWritesDropping
+        expr: sum(rate(swarm_db_failures_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: persistence
+        annotations:
+          summary: "Best-effort DB operations failing for 5m"
+          description: |
+            The repository is swallowing persistence failures — the audit
+            trail (operator commands, events) may be dropping rows while
+            the live Console keeps rendering from the bus. Inspect
+            `swarm_db_failures_total` by `operation` label, then check
+            Postgres health and the connection pool.
+          runbook: docs/observability/overview.md#runbook-readiness
+
       - alert: SwarmReadinessProbeFailing
         # The /ready endpoint returns 503 when DB, Redis, or auth singletons
         # are down. Prometheus blackbox-exporter can scrape it; this rule

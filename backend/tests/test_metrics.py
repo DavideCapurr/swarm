@@ -136,6 +136,20 @@ def test_metrics_actions_counter_increments(
     assert 'swarm_actions_total{action="verify",outcome="accepted"} 1.0' in resp.text
 
 
+def test_db_failure_records_metric() -> None:
+    """A swallowed repository failure must surface on the counter —
+    the audit trail dropping rows can't stay invisible to ops."""
+
+    from backend.app.db.repository import _record_failure
+    from backend.app.observability.metrics import get_metrics
+
+    _record_failure("write_events")
+    value = get_metrics().registry.get_sample_value(
+        "swarm_db_failures_total", {"operation": "write_events"}
+    )
+    assert value == 1.0
+
+
 def test_mission_duration_histogram_observes_on_terminal_phase() -> None:
     """A mission seen first as non-terminal then DONE feeds the histogram.
 

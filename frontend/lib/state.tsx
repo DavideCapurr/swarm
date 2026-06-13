@@ -166,6 +166,23 @@ export function SwarmStateProvider({
     };
   }, [isAuthed]);
 
+  // Drop all server data on logout so a later login (possibly a different
+  // operator) starts from a clean slate instead of the previous session's
+  // frames.
+  useEffect(() => {
+    if (isAuthed) return;
+    setSession(null);
+    setUnits([]);
+    setDocks([]);
+    setSectors([]);
+    setMissions([]);
+    setAnomalies([]);
+    setEvents([]);
+    setCommands([]);
+    setStreams({});
+    setAwareness(fallbackAwareness(new Date()));
+  }, [isAuthed]);
+
   // Boot WS subscription only when authenticated; the backend refuses
   // upgrades without an access token.
   useEffect(() => {
@@ -173,9 +190,14 @@ export function SwarmStateProvider({
       setLink("lost");
       return;
     }
-    const sock = new SwarmSocket(() =>
-      authState.status === "authenticated" ? authState.session.accessToken : null
-    );
+    const sock = new SwarmSocket(() => {
+      if (authState.status !== "authenticated") return null;
+      // A token this close to expiry would die server-side right after
+      // the upgrade; report none and let the socket's retry loop pick up
+      // the refreshed token instead.
+      if (authState.session.expiresAt - Date.now() < 30_000) return null;
+      return authState.session.accessToken;
+    });
     sock.connect();
     setLink("connecting");
     let lastFrame = 0;
@@ -242,7 +264,6 @@ export function SwarmStateProvider({
 
   // Dispatch — operator identity rides on the JWT, so the action signatures
   // don't need an operatorId argument anymore.
-  const dispatchRef = useRef<Dispatch | null>(null);
   const dispatch: Dispatch = useCallback(
     async (intent, target) => {
       const route =
@@ -258,7 +279,6 @@ export function SwarmStateProvider({
     },
     []
   );
-  dispatchRef.current = dispatch;
 
   // Truth selectors — every one of these reads a field the server has
   // already populated. No client-side heuristics.

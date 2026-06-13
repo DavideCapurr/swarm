@@ -100,12 +100,21 @@ export class SwarmSocket {
       this.retry = 0;
     };
     this.ws.onmessage = (ev) => {
+      let msg: WSMessage;
       try {
-        const msg = JSON.parse(ev.data) as WSMessage;
-        this.handlers.forEach((h) => h(msg));
+        msg = JSON.parse(ev.data) as WSMessage;
       } catch {
-        /* ignore malformed frames */
+        return; /* ignore malformed frames */
       }
+      // Guard each handler so one bad frame/handler can't silently stop
+      // the others (the socket would still look "connected").
+      this.handlers.forEach((h) => {
+        try {
+          h(msg);
+        } catch (err) {
+          console.error("ws message handler failed", err);
+        }
+      });
     };
     this.ws.onclose = () => {
       if (this.closed) return;

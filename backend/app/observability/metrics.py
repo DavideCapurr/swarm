@@ -13,6 +13,8 @@ Exposed shape mirrors the roadmap §6.D bullets:
   - ``swarm_ws_clients``                   Gauge
   - ``swarm_mission_duration_seconds``     Histogram
   - ``swarm_http_request_duration_seconds`` Histogram (route + method + code)
+  - ``swarm_db_failures_total{operation}``  Counter (swallowed best-effort
+    repository failures — the audit trail dropping rows must be visible)
 
 The ``MetricsRegistry`` is intentionally a thin container: the HTTP
 middleware, action endpoint, and WS hub call helpers on it rather than
@@ -64,6 +66,7 @@ class MetricsRegistry:
     mission_duration_seconds: Histogram
     http_request_duration_seconds: Histogram
     auth_failures_total: Counter
+    db_failures_total: Counter
 
     @classmethod
     def build(cls) -> MetricsRegistry:
@@ -108,6 +111,13 @@ class MetricsRegistry:
                 "swarm_auth_failures_total",
                 "Authentication / authorization failures by reason.",
                 labelnames=("reason",),
+                registry=registry,
+            ),
+            db_failures_total=Counter(
+                "swarm_db_failures_total",
+                "Best-effort repository operations that failed and were "
+                "swallowed, by operation.",
+                labelnames=("operation",),
                 registry=registry,
             ),
         )

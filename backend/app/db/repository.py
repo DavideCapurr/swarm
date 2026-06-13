@@ -49,6 +49,23 @@ logger = logging.getLogger("backend.db.repo")
 MAX_QUERY_LIMIT = 1000
 
 
+def _record_failure(operation: str) -> None:
+    """Log + count a swallowed best-effort DB failure.
+
+    Writes are best-effort by design (a Postgres hiccup must not take the
+    live Console down), but the audit trail silently dropping rows has to
+    be visible to ops — hence the ``swarm_db_failures_total`` counter.
+    """
+
+    logger.exception("%s failed", operation)
+    try:
+        from backend.app.observability.metrics import get_metrics
+
+        get_metrics().db_failures_total.labels(operation=operation).inc()
+    except Exception:  # pragma: no cover — metrics must never mask the log
+        pass
+
+
 class Repository:
     """Persistence operations. Safe to instantiate with `sessionmaker=None`."""
 
@@ -91,7 +108,7 @@ class Repository:
                 )
                 await db.commit()
         except Exception:  # pragma: no cover — defensive
-            logger.exception("write_session failed")
+            _record_failure("write_session")
 
     async def write_telemetry(self, telemetry: Telemetry) -> None:
         if not self.enabled:
@@ -112,7 +129,7 @@ class Repository:
                 await self._upsert(db, TelemetryRow, [row], pk_cols=("agent_id", "ts"))
                 await db.commit()
         except Exception:  # pragma: no cover
-            logger.exception("write_telemetry failed")
+            _record_failure("write_telemetry")
 
     async def write_anomaly(self, anomaly: AnomalyView) -> None:
         if not self.enabled:
@@ -137,7 +154,7 @@ class Repository:
                 await self._upsert(db, AnomalyRow, [row], pk_cols=("id",))
                 await db.commit()
         except Exception:  # pragma: no cover
-            logger.exception("write_anomaly failed")
+            _record_failure("write_anomaly")
 
     async def write_mission(self, mission: MissionView) -> None:
         if not self.enabled:
@@ -158,7 +175,7 @@ class Repository:
                 await self._upsert(db, MissionRow, [row], pk_cols=("id",))
                 await db.commit()
         except Exception:  # pragma: no cover
-            logger.exception("write_mission failed")
+            _record_failure("write_mission")
 
     async def write_operator_command(self, command: OperatorCommand) -> None:
         if not self.enabled:
@@ -188,7 +205,7 @@ class Repository:
                 await self._upsert(db, OperatorCommandRow, [row], pk_cols=("id",))
                 await db.commit()
         except Exception:  # pragma: no cover
-            logger.exception("write_operator_command failed")
+            _record_failure("write_operator_command")
 
     async def write_events(self, events: Iterable[Event]) -> None:
         if not self.enabled:
@@ -219,7 +236,7 @@ class Repository:
                 await self._upsert(db, EventRow, rows, pk_cols=("id", "ts"))
                 await db.commit()
         except Exception:  # pragma: no cover
-            logger.exception("write_events failed")
+            _record_failure("write_events")
 
     async def write_sector_visit(
         self, sector_id: str, agent_id: str, visited_at: datetime, confidence: float
@@ -238,7 +255,7 @@ class Repository:
                 )
                 await db.commit()
         except Exception:  # pragma: no cover
-            logger.exception("write_sector_visit failed")
+            _record_failure("write_sector_visit")
 
     # ── Reads ────────────────────────────────────────────────────────────────
 
@@ -276,7 +293,7 @@ class Repository:
                 # Reverse to chronological order — matches the in-memory deque.
                 return [_row_to_event(r) for r in reversed(rows)]
         except Exception:  # pragma: no cover
-            logger.exception("list_events failed")
+            _record_failure("list_events")
             return []
 
     async def list_operator_commands(
@@ -301,7 +318,7 @@ class Repository:
                 rows = result.scalars().all()
                 return [_row_to_command(r) for r in reversed(rows)]
         except Exception:  # pragma: no cover
-            logger.exception("list_operator_commands failed")
+            _record_failure("list_operator_commands")
             return []
 
     async def mission_history(self, mission_id: str, limit: int = 200) -> list[Event]:
@@ -359,7 +376,7 @@ class Repository:
                 events = [_event_row_to_dict(r) for r in ev_rows]
             return {"operator_commands": commands, "events": events}
         except Exception:  # pragma: no cover — defensive
-            logger.exception("export_operator failed")
+            _record_failure("export_operator")
             return {"operator_commands": [], "events": []}
 
     async def anonymize_operator(self, operator_id: str, pseudonym: str) -> int:
@@ -391,7 +408,7 @@ class Repository:
                 rowcount = int(getattr(result, "rowcount", 0) or 0)
                 return max(rowcount, 0)
         except Exception:  # pragma: no cover — defensive
-            logger.exception("anonymize_operator failed")
+            _record_failure("anonymize_operator")
             return 0
 
     async def prune_old_rows(
@@ -431,7 +448,7 @@ class Repository:
                 await db.commit()
                 return deleted
         except Exception:  # pragma: no cover — defensive
-            logger.exception("prune_old_rows failed")
+            _record_failure("prune_old_rows")
             return {"sessions": 0, "sector_visits": 0}
 
     # ── Helpers ──────────────────────────────────────────────────────────────
