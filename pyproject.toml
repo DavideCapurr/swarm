@@ -17,7 +17,7 @@ dependencies = [
     "fastapi>=0.110,<1",
     "uvicorn[standard]>=0.27,<1",
     "websockets>=12,<17",
-    "redis>=5.0,<8",
+    "redis>=5.0,<9",
     # `[asyncio]` extra pulls greenlet, which SQLAlchemy needs for the async
     # session/engine path (PEP 555 emulation). Declared explicitly so a
     # future SA pin can't quietly drop the transitive dep.
