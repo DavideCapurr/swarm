@@ -11,7 +11,7 @@
 import Link from "next/link";
 
 import { useSwarm } from "@/lib/state";
-import { describeAnomalyKind, describeBand } from "@/lib/derive";
+import { describeAnomalyKind, describeBand, describeSource } from "@/lib/derive";
 import { findLatestAutonomyCommand } from "@/lib/autonomy";
 import { ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 import { IconBack } from "@/icons";
@@ -71,6 +71,15 @@ export function MobileAnomalyScreen({ anomalyId }: { anomalyId: string }) {
           <span className="eyebrow-mono">
             confidence {String(Math.round(anomaly.confidence * 100)).padStart(3, "0")} %
           </span>
+
+          {anomaly.evidence && (
+            <span
+              className="text-platinum text-ui"
+              data-testid="mobile-evidence-reason"
+            >
+              {describeSource(anomaly.evidence.source)}: {anomaly.evidence.headline}
+            </span>
+          )}
 
           <div className="grid grid-cols-2 gap-y-1 text-ui">
             <span className="eyebrow-mono">type</span>

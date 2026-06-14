@@ -1063,6 +1063,47 @@ remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
 
+2026-06-14: **Phase 7 extension — Anomaly Evidence Layer** on branch
+`feature/anomaly-evidence-layer`. Each anomaly now carries its **provenance**
+(`AnomalySource`: drone CV / thermal satellite / fire detector) and the
+**triggering signal** (`AnomalyEvidence`: metric / value / baseline / unit +
+a server-built `headline`), modelled honestly in the sim and flagged
+`simulated: true` — SwarmOS decides, the Console only renders it.
+
+- **Contract** (`core/swarm_core/messages.py`): `AnomalySource` enum +
+  strict `AnomalyEvidence` model; nullable `evidence` on `Anomaly` (permissive)
+  and `AnomalyView` (strict). `voice.evidence_headline()` builds the
+  confidence-bound one-liner server-side (FORBIDDEN_WORDS-clean; unit-tested).
+- **Honest sim** (`sim/swarm_sim/`): `ScriptedAnomalyCfg` gains `source` +
+  `signal` (new `SignalCfg`); `IgnitionEvent` threads `source` +
+  `EvidenceSignal`; `perception.build_evidence()` fills evidence on both the
+  Mock (thermal/fire-detector scripted values) and CV (real YOLO label+score
+  → `object_score`) paths. Coordinator projects `evidence` onto `AnomalyView`
+  (one line). Scenarios declare provenance: wildfire SMOKE→drone_cv,
+  FIRE→thermal_sat (47 °C vs 18 °C baseline); intrusion/search → drone_cv.
+- **Persistence** (`backend/app/db/`): additive nullable `anomalies.evidence`
+  JSON column + Alembic `0005_anomaly_evidence` (up/down round-trip tested on
+  sqlite); `repository.write_anomaly` serialises it.
+- **Console** (`frontend/`): `AnomalySource`/`AnomalyEvidence` types + 3 named
+  inline SVG source glyphs (`IconThermalSat`/`IconFireDetector`/`IconDroneCv`);
+  `describeSource`/`formatEvidence`/`anomalyCallout` in `derive.ts`; map
+  per-source marker glyph + evidence-led callout
+  (`THERMAL SAT · +29°C OVER BASELINE · DETECTED`); amber low-opacity
+  `HeatOverlay` for `temperature_c` anomalies (state cue, no red/glass);
+  shared `EvidenceBlock` on the verify detail + Control summary; mobile
+  plain-voice reason line.
+- **Gates**: `make lint` green (ruff + mypy 184 files + tsc); `make test`
+  green (Python **778 passed / 23 skipped**; frontend **105 passed**, incl.
+  new evidence/headline/callout/EvidenceBlock/HeatOverlay tests). Live
+  end-to-end on the wildfire scenario: backend serves both anomalies with
+  evidence; Console renders per-source callouts + glyphs, the verify
+  `EVIDENCE` block (SOURCE/SENSOR/MEASUREMENT/READING), and the mobile reason
+  line. **Caveat**: the amber `HeatOverlay` (and every maplibre overlay,
+  incl. the pre-existing `SectorLayer`) could not be visually confirmed in
+  the sandbox because the map `load` event doesn't complete without glyph-CDN
+  egress; `HeatOverlay` is a structural twin of the proven `SectorLayer` and
+  its selection logic is unit-tested.
+
 2026-05-31: **Phase 7 WS2 — demo breadth: honest autonomy metrics +
 3-scenario capture tool** on branch `claude/loving-wozniak-5i7QC` (plan
 `docs/plan/ws2-demo-breadth.md`, parent §Workstream 2). Surfaces the

@@ -80,6 +80,44 @@ class SensorKind(str, Enum):
     LIDAR = "LIDAR"
 
 
+class AnomalySource(str, Enum):
+    """Where the triggering signal for an anomaly came from.
+
+    Evidence-layer provenance. SwarmOS (or the honest simulator) owns this —
+    the Console only renders it. Today every value is sim-modelled and flagged
+    ``AnomalyEvidence.simulated = True``; real satellite/IoT feeds are a later
+    phase (anti-overreach).
+    """
+
+    DRONE_CV = "drone_cv"  # onboard RGB camera + CV (YOLOv8)
+    THERMAL_SAT = "thermal_sat"  # satellite thermal pass
+    FIRE_DETECTOR = "fire_detector"  # fixed IoT smoke/heat detector
+    UNKNOWN = "unknown"
+
+
+class AnomalyEvidence(BaseModel):
+    """The *why* behind an anomaly: provenance + the triggering signal.
+
+    Strict (``extra="forbid"``) so the Console can never smuggle an invented
+    field past the validator. ``headline`` is built server-side by
+    ``swarm_core.voice.evidence_headline`` (and FORBIDDEN_WORDS-checked there)
+    so the Console renders operational truth, never composes it. ``simulated``
+    stays ``True`` for the whole evidence layer until real feeds land.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: AnomalySource
+    sensor: SensorKind
+    label: str | None = None  # CV class, e.g. "fire" / "person"
+    metric: str | None = None  # "temperature_c" | "object_score" | "heat_index"
+    value: float | None = None
+    baseline: float | None = None  # the "normal" reference
+    unit: str | None = None  # "°C" | "score" | "%"
+    headline: str = ""  # confidence-bound copy, generated server-side
+    simulated: bool = True  # honest: sim-modelled
+
+
 # ── Messages ───────────────────────────────────────────────────────────────────
 
 
@@ -107,6 +145,9 @@ class Anomaly(BaseModel):
     source_agent: str | None = None
     ts: datetime = Field(default_factory=_now)
     verified: bool = False
+    # Evidence layer: provenance + triggering signal. Nullable so every
+    # existing emitter (and test) stays valid; perception fills it in.
+    evidence: AnomalyEvidence | None = None
 
 
 class MissionTask(BaseModel):
@@ -450,6 +491,9 @@ class AnomalyView(BaseModel):
     detected_at: datetime = Field(default_factory=_now)
     detected_by: str | None = None
     verifying_agent: str | None = None
+    # Evidence layer: the *why* — source + triggering signal + server-built
+    # headline. Nullable so every existing constructor/test stays valid.
+    evidence: AnomalyEvidence | None = None
     ts: datetime = Field(default_factory=_now)
 
 

@@ -12,7 +12,9 @@ import pytest
 
 from swarm_core import voice
 from swarm_core.messages import (
+    AnomalyEvidence,
     AnomalyKind,
+    AnomalySource,
     AnomalyState,
     AnomalyView,
     ConfidenceBand,
@@ -21,6 +23,7 @@ from swarm_core.messages import (
     RiskBand,
     Sector,
     SectorState,
+    SensorKind,
 )
 
 
@@ -99,6 +102,68 @@ def test_describe_sector_per_state() -> None:
         copy = voice.describe_sector(s)
         assert voice.has_forbidden(copy) is None, f"forbidden in: {copy!r}"
         assert "north-a" in copy
+
+
+def test_evidence_headline_thermal_sat_delta() -> None:
+    ev = AnomalyEvidence(
+        source=AnomalySource.THERMAL_SAT,
+        sensor=SensorKind.THERMAL,
+        metric="temperature_c",
+        value=47.0,
+        baseline=18.0,
+        unit="°C",
+    )
+    assert voice.evidence_headline(ev) == "thermal · +29°C over baseline"
+
+
+def test_evidence_headline_drone_cv_label_and_score() -> None:
+    ev = AnomalyEvidence(
+        source=AnomalySource.DRONE_CV,
+        sensor=SensorKind.RGB,
+        label="fire",
+        metric="object_score",
+        value=0.88,
+        unit="score",
+    )
+    assert voice.evidence_headline(ev) == "drone cv · fire · 088%"
+
+
+def test_evidence_headline_fire_detector() -> None:
+    ev = AnomalyEvidence(
+        source=AnomalySource.FIRE_DETECTOR,
+        sensor=SensorKind.THERMAL,
+    )
+    assert voice.evidence_headline(ev) == "fire detector · heat trip"
+
+
+def test_evidence_headline_handles_missing_signal() -> None:
+    """No value/baseline must not raise — falls back to a clean phrase."""
+    thermal = AnomalyEvidence(
+        source=AnomalySource.THERMAL_SAT, sensor=SensorKind.THERMAL
+    )
+    cv = AnomalyEvidence(source=AnomalySource.DRONE_CV, sensor=SensorKind.RGB)
+    unknown = AnomalyEvidence(source=AnomalySource.UNKNOWN, sensor=SensorKind.RGB)
+    for ev in (thermal, cv, unknown):
+        out = voice.evidence_headline(ev)
+        assert out
+        assert voice.has_forbidden(out) is None
+
+
+def test_evidence_headline_voice_audit_full_cartesian() -> None:
+    """No headline may contain a FORBIDDEN_WORDS token, across source x sensor."""
+    for source in AnomalySource:
+        for sensor in SensorKind:
+            ev = AnomalyEvidence(
+                source=source,
+                sensor=sensor,
+                label="person",
+                metric="temperature_c" if source == AnomalySource.THERMAL_SAT else "object_score",
+                value=47.0 if source == AnomalySource.THERMAL_SAT else 0.91,
+                baseline=18.0 if source == AnomalySource.THERMAL_SAT else None,
+                unit="°C" if source == AnomalySource.THERMAL_SAT else "score",
+            )
+            out = voice.evidence_headline(ev)
+            assert voice.has_forbidden(out) is None, f"forbidden in: {out!r}"
 
 
 def test_describe_mode_covers_all_modes() -> None:

@@ -138,6 +138,10 @@ class AnomalyRow(Base):
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     detected_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     verifying_agent: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Evidence layer (additive): provenance + triggering signal as JSON.
+    # `anomalies` is not a hypertable, so there is no Timescale PK constraint
+    # to satisfy. JSON works on both Postgres and SQLite.
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
 

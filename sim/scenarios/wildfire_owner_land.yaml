@@ -35,11 +35,18 @@ perception:
   # re-validated by `make test-cv` under the [cv] extra.
   cv_enabled: false
 anomalies:
+  # Evidence layer: onboard drone CV spots smoke first (low confidence), then
+  # a satellite thermal pass confirms a hot fire (+29 °C over the 18 °C
+  # baseline) — the signal that drives the amber heat overlay on the map.
+  # Every value is sim-modelled (`simulated: true` on the evidence).
   - after_s: 10.0
     kind: SMOKE
     position: { mode: offset_m, east: 40.0, north: 25.0 }
     confidence: 0.62
+    source: drone_cv
   - after_s: 25.0
     kind: FIRE
     position: { mode: offset_m, east: 40.0, north: 25.0 }
     confidence: 0.88
+    source: thermal_sat
+    signal: { metric: temperature_c, value: 47.0, baseline: 18.0, unit: "°C" }

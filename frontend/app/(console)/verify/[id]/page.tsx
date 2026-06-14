@@ -12,6 +12,7 @@ import { useSwarm } from "@/lib/state";
 import { describeAnomalyKind, describeBand } from "@/lib/derive";
 import { findLatestAutonomyCommand } from "@/lib/autonomy";
 import { ActionRail } from "@/components/ActionRail";
+import { EvidenceBlock } from "@/components/EvidenceBlock";
 import { Eyebrow } from "@/components/Eyebrow";
 import { IconBack } from "@/icons";
 import { LiveFeedFrame } from "@/components/LiveFeedFrame";
@@ -115,6 +116,8 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
                 </span>
               </div>
             </div>
+
+            <EvidenceBlock anomaly={anomaly} />
 
             <ActionRail />
           </div>
