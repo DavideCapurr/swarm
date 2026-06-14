@@ -46,8 +46,10 @@ def test_phase7c_migration_round_trip(
     assert "source" in events_columns, "events.source missing after upgrade"
     assert "rule" in ops_columns, "operator_commands.rule missing after upgrade"
 
-    # Step back one migration; both new columns should disappear.
-    command.downgrade(cfg, "-1")
+    # Step back to before 0004; both new columns should disappear. Target the
+    # revision explicitly (not relative "-1") so this stays correct as later
+    # head migrations are added on top of 0004.
+    command.downgrade(cfg, "0003_phase7b_command_source")
     db = sqlite3.connect(db_path)
     try:
         events_columns = {

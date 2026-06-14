@@ -56,6 +56,30 @@ export type AgentState =
 
 export type AnomalyKind = "SMOKE" | "FIRE" | "HEAT_SPOT" | "INTRUSION" | "UNKNOWN";
 
+// Evidence layer — provenance of the triggering signal. Mirrors
+// core/swarm_core/messages.py::AnomalySource.
+export type AnomalySource =
+  | "drone_cv"
+  | "thermal_sat"
+  | "fire_detector"
+  | "unknown";
+
+export type SensorKind = "RGB" | "THERMAL" | "MULTISPECTRAL" | "LIDAR";
+
+// The *why* behind an anomaly. `headline` is the server-built, confidence-bound
+// one-liner — the Console renders it; it never composes operational truth.
+export type AnomalyEvidence = {
+  source: AnomalySource;
+  sensor: SensorKind;
+  label: string | null;
+  metric: string | null;
+  value: number | null;
+  baseline: number | null;
+  unit: string | null;
+  headline: string;
+  simulated: boolean;
+};
+
 export type OperatingMode =
   | "rest"
   | "patrol"
@@ -224,6 +248,9 @@ export type AnomalyView = {
   detected_at: string;
   detected_by: string | null;
   verifying_agent: string | null;
+  // Evidence layer — the *why* (source + triggering signal + server headline).
+  // Nullable: pre-evidence anomalies and existing fixtures leave it undefined.
+  evidence?: AnomalyEvidence | null;
   ts: string;
 };
 

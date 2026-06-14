@@ -27,7 +27,7 @@ from swarm_core.messages import Anomaly, AnomalyKind, Geo
 
 from sim.swarm_sim.cv.detector import YOLODetector
 from sim.swarm_sim.cv.weights import CVAssetError, list_fixtures
-from sim.swarm_sim.perception import IgnitionEvent
+from sim.swarm_sim.perception import IgnitionEvent, build_evidence
 
 logger = logging.getLogger("sim.cv.perception")
 
@@ -98,7 +98,15 @@ class CVPerception:
             "cv: scenario=%s kind=%s frame=%s label=%r conf=%.3f",
             self.scenario_id, ev.kind.value, frame.name, det.label, det.confidence,
         )
-        anomaly = Anomaly(kind=ev.kind, geo=ev.geo, confidence=det.confidence)
+        # Evidence carries the real YOLO label + score (object_score). The
+        # geo + kind stay scripted; only confidence is the model output.
+        evidence = build_evidence(ev, label=det.label, score=det.confidence)
+        anomaly = Anomaly(
+            kind=ev.kind,
+            geo=ev.geo,
+            confidence=det.confidence,
+            evidence=evidence,
+        )
         if self.on_anomaly:
             self.on_anomaly(anomaly)
         return anomaly

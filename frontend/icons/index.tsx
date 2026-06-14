@@ -97,6 +97,42 @@ export const IconAnomaly = (p: IconProps) => (
   </Svg>
 );
 
+// ── Evidence sources (provenance glyphs) ─────────────────────────────────────────
+// One named 24px glyph per AnomalySource. Stroke 1.5, round caps — no kit.
+
+// Thermal satellite pass — orbiting body over a horizon with a downward beam.
+export const IconThermalSat = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 20h18" />
+    <circle cx="12" cy="7" r="3" />
+    <path d="M12 10v4" />
+    <path d="M9.5 16.5 12 14l2.5 2.5" />
+    <path d="M5 7h1M18 7h1M12 2v1" />
+  </Svg>
+);
+
+// Fixed fire detector — a ceiling sensor disc emitting two sensing arcs.
+export const IconFireDetector = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 5h16" />
+    <circle cx="12" cy="11" r="3" />
+    <path d="M12 5v3" />
+    <path d="M7.5 16a6 6 0 0 1 9 0" />
+  </Svg>
+);
+
+// Onboard drone camera + CV — a quad airframe with a centred lens.
+export const IconDroneCv = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="2.5" />
+    <path d="M9.5 9.5 6 6M14.5 9.5 18 6M9.5 14.5 6 18M14.5 14.5 18 18" />
+    <circle cx="5" cy="5" r="1.5" />
+    <circle cx="19" cy="5" r="1.5" />
+    <circle cx="5" cy="19" r="1.5" />
+    <circle cx="19" cy="19" r="1.5" />
+  </Svg>
+);
+
 // ── Map / system ───────────────────────────────────────────────────────────────
 
 export const IconSector = (p: IconProps) => (

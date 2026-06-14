@@ -13,6 +13,7 @@
 import { useState } from "react";
 
 import { useSwarm } from "@/lib/state";
+import { HeatOverlay } from "./HeatOverlay";
 import { MapView } from "./Map";
 import { QuietPanel } from "./QuietPanel";
 import { RouteLayer } from "./RouteLayer";
@@ -35,6 +36,8 @@ export function TerritoryControl() {
           <MapView units={units} anomalies={anomalies} commands={commands}>
             {(m) => (
               <>
+                {/* Heat mist sits under sectors/routes so the hairlines stay crisp. */}
+                <HeatOverlay map={m} />
                 <SectorLayer map={m} />
                 <RouteLayer map={m} />
               </>

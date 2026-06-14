@@ -17,6 +17,8 @@ from __future__ import annotations
 import re
 
 from swarm_core.messages import (
+    AnomalyEvidence,
+    AnomalySource,
     AnomalyView,
     ConfidenceBand,
     OperatingMode,
@@ -72,6 +74,36 @@ def describe_sector(s: Sector) -> str:
     if s.state == SectorState.COVERED:
         return f"sector {s.label} covered · confidence {confidence_pct:03d}%"
     return f"sector {s.label} idle · confidence {confidence_pct:03d}%"
+
+
+def evidence_headline(ev: AnomalyEvidence) -> str:
+    """Confidence-bound one-liner describing *why* an anomaly was raised.
+
+    Built here, server-side, so the Console renders operational truth instead
+    of composing it. The output is asserted FORBIDDEN_WORDS-clean by the voice
+    audit test — "fire", "smoke", "thermal", "person", "detector" are all
+    allowed; panic words are not.
+
+      THERMAL_SAT   → "thermal · +29°C over baseline" (delta = value - baseline)
+      DRONE_CV      → "drone cv · fire · 088%"        (label + score)
+      FIRE_DETECTOR → "fire detector · heat trip"
+    """
+    if ev.source == AnomalySource.THERMAL_SAT:
+        if ev.value is not None and ev.baseline is not None:
+            delta = ev.value - ev.baseline
+            unit = ev.unit or "°C"
+            sign = "+" if delta >= 0 else "-"
+            return f"thermal · {sign}{abs(delta):.0f}{unit} over baseline"
+        return "thermal · elevated over baseline"
+    if ev.source == AnomalySource.DRONE_CV:
+        label = (ev.label or "signal").strip().lower() or "signal"
+        if ev.value is not None:
+            pct = round(ev.value * 100)
+            return f"drone cv · {label} · {pct:03d}%"
+        return f"drone cv · {label}"
+    if ev.source == AnomalySource.FIRE_DETECTOR:
+        return "fire detector · heat trip"
+    return "signal · awaiting provenance"
 
 
 def describe_mode(mode: OperatingMode) -> str:

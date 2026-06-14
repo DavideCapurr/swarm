@@ -30,7 +30,10 @@ perception:
   # by the real model score.
   cv_enabled: true
 anomalies:
+  # Evidence layer: onboard drone CV (RGB) raises this with a real YOLO
+  # label + score on the CV path (`cv_enabled: true`).
   - after_s: 20.0
     kind: HEAT_SPOT
     position: { mode: offset_m, east: 120.0, north: 60.0 }
     confidence: 0.55
+    source: drone_cv

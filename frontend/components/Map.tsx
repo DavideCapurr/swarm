@@ -1,13 +1,37 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { useRouter } from "next/navigation";
 import maplibregl, { type Map } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { AnomalyView, OperatorCommand, UnitState } from "@/lib/api";
+import type { AnomalySource, AnomalyView, OperatorCommand, UnitState } from "@/lib/api";
 import { agentStateToSwarm, tokens } from "@/lib/tokens";
-import { AGENT_STATE_COPY, ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
+import { AGENT_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
+import { anomalyCallout } from "@/lib/derive";
+import {
+  IconAnomaly,
+  IconDroneCv,
+  IconFireDetector,
+  IconThermalSat,
+  type IconProps,
+} from "@/icons";
 import { findLatestAutonomyCommand } from "@/lib/autonomy";
+
+// Per-source provenance glyph, rendered into the imperative marker via
+// `renderToStaticMarkup` so the icon set in `icons/index.tsx` stays the single
+// source of truth (no duplicated SVG paths here).
+const SOURCE_ICON: Record<AnomalySource, (p: IconProps) => React.ReactElement> = {
+  thermal_sat: IconThermalSat,
+  fire_detector: IconFireDetector,
+  drone_cv: IconDroneCv,
+  unknown: IconAnomaly,
+};
+
+function sourceGlyphMarkup(source: AnomalySource): string {
+  const Icon = SOURCE_ICON[source] ?? IconAnomaly;
+  return renderToStaticMarkup(<Icon size={12} />);
+}
 
 type Props = {
   units: UnitState[];
@@ -256,10 +280,12 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
         callout.type = "button";
         callout.setAttribute("data-callout", "");
         callout.setAttribute("data-testid", `anomaly-callout-${a.id}`);
-        callout.textContent = calloutText;
         callout.style.position = "absolute";
         callout.style.left = "34px";
         callout.style.top = "-8px";
+        callout.style.display = "inline-flex";
+        callout.style.alignItems = "center";
+        callout.style.gap = "5px";
         callout.style.fontFamily = '"IBM Plex Mono", monospace';
         callout.style.fontSize = "9px";
         callout.style.letterSpacing = "0.22em";
@@ -272,6 +298,21 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
         callout.style.whiteSpace = "nowrap";
         callout.style.cursor = "pointer";
         if (auto) callout.setAttribute("data-auto", "");
+
+        // Per-source provenance glyph — inherits the callout color via
+        // `currentColor`. Empty when the anomaly carries no evidence yet.
+        const glyph = document.createElement("span");
+        glyph.setAttribute("data-glyph", "");
+        glyph.style.display = "inline-flex";
+        glyph.style.flex = "0 0 auto";
+        glyph.innerHTML = a.evidence ? sourceGlyphMarkup(a.evidence.source) : "";
+
+        const calloutTextSpan = document.createElement("span");
+        calloutTextSpan.setAttribute("data-callout-text", "");
+        calloutTextSpan.textContent = calloutText;
+
+        callout.appendChild(glyph);
+        callout.appendChild(calloutTextSpan);
         callout.addEventListener("click", (e) => {
           e.stopPropagation();
           router.push(`/verify/${a.id}`);
@@ -288,9 +329,16 @@ export function MapView({ units, anomalies, commands, onMapReady, children }: Pr
         existing.setLngLat(ll);
         const el = existing.getElement();
         const callout = el.querySelector("[data-callout]") as HTMLElement | null;
+        const calloutTextSpan = el.querySelector(
+          "[data-callout-text]"
+        ) as HTMLElement | null;
+        const glyph = el.querySelector("[data-glyph]") as HTMLElement | null;
         const leader = el.querySelector("[data-leader]") as HTMLElement | null;
+        if (calloutTextSpan) calloutTextSpan.textContent = calloutText;
+        if (glyph) {
+          glyph.innerHTML = a.evidence ? sourceGlyphMarkup(a.evidence.source) : "";
+        }
         if (callout) {
-          callout.textContent = calloutText;
           callout.style.color = color;
           callout.style.border = `1px solid ${color}`;
           if (auto) callout.setAttribute("data-auto", "");
@@ -372,24 +420,5 @@ function CornerStamps({ units }: { units: UnitState[] }) {
       </div>
     </>
   );
-}
-
-function anomalyCallout(
-  a: AnomalyView,
-  auto: OperatorCommand | null
-): string {
-  const pct = Math.round(a.confidence * 100);
-  const state = ANOMALY_STATE_COPY[a.state];
-  let prefix = "";
-  if (auto) {
-    prefix = auto.rule ? `auto · ${auto.rule.toLowerCase()} · ` : "auto · ";
-  }
-  if (a.state === "verifying" && a.verifying_agent) {
-    return `${prefix}${UNIT_LABEL(a.verifying_agent)} · ${state}`;
-  }
-  if (a.state === "verified" || a.state === "escalated") {
-    return `${prefix}anomaly ${state}`;
-  }
-  return `${prefix}anomaly ${state} · confidence ${String(pct).padStart(3, "0")} %`;
 }
 
