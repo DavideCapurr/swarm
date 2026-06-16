@@ -87,6 +87,19 @@ invariants:
 - Rate limit + body size limit + request timeout on all routes.
 - No stack traces in HTTP responses.
 
+### Root-cause discipline
+
+Fix problems at the root. Never silence, suppress, or work around an error
+to make a gate pass:
+- Banned to get-to-green: `|| true`, `|| echo …`, `--no-verify`,
+  `try/except: pass`, blanket `# noqa` / `# type: ignore`, skipped/`xfail`
+  tests, or audit `--ignore` / allowlist entries.
+- A failing test, lint finding, audit CVE, or red CI check is a real
+  signal. Fix the underlying cause — bump the vulnerable dependency,
+  correct the code, fix the type — do not mask it.
+- A genuine false positive is the rare exception: document *why* inline
+  with evidence next to the suppression. Suppression is never the default.
+
 ### Anti-overreach (PDF §10)
 
 - No Timescale before Phase 4.
