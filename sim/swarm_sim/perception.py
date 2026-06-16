@@ -14,7 +14,40 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from swarm_core.messages import Anomaly, AnomalyKind, Geo
+from swarm_core.messages import (
+    Anomaly,
+    AnomalyEvidence,
+    AnomalyKind,
+    AnomalySource,
+    Geo,
+    SensorKind,
+)
+from swarm_core.voice import evidence_headline
+
+# Evidence-layer label per kind for the drone-CV provenance on the Mock path
+# (the CV path uses the real YOLO label instead). Honest sim mapping.
+_KIND_TO_CV_LABEL: dict[AnomalyKind, str] = {
+    AnomalyKind.FIRE: "fire",
+    AnomalyKind.SMOKE: "smoke",
+    AnomalyKind.HEAT_SPOT: "person",
+    AnomalyKind.INTRUSION: "person",
+    AnomalyKind.UNKNOWN: "signal",
+}
+
+
+@dataclass
+class EvidenceSignal:
+    """The scripted triggering signal behind an anomaly (honest sim values).
+
+    Runtime carrier mirroring the scenario YAML ``SignalCfg``. Lives here, not
+    in ``scenario.py``, so ``perception`` owns its own runtime types and the
+    ``scenario → perception`` import stays one-directional (no cycle).
+    """
+
+    metric: str
+    value: float | None = None
+    baseline: float | None = None
+    unit: str | None = None
 
 
 @dataclass
@@ -25,6 +58,46 @@ class IgnitionEvent:
     geo: Geo
     kind: AnomalyKind = AnomalyKind.SMOKE
     confidence: float = 0.78
+    # Evidence layer: where the signal came from + the triggering measurement.
+    # Defaults to drone-CV so legacy ignitions stay valid.
+    source: AnomalySource = AnomalySource.DRONE_CV
+    signal: EvidenceSignal | None = None
+
+
+def build_evidence(
+    ev: IgnitionEvent,
+    *,
+    label: str | None = None,
+    score: float | None = None,
+) -> AnomalyEvidence:
+    """Compose the honest ``AnomalyEvidence`` for a scripted ignition.
+
+    Every value is sim-modelled (``simulated=True``). The CV path passes the
+    real YOLO ``label`` + ``score``; the thermal / fire-detector path reads the
+    scripted ``signal`` block. ``headline`` is built server-side by
+    ``voice.evidence_headline`` so the Console renders truth, never composes it.
+    """
+
+    if ev.source == AnomalySource.DRONE_CV:
+        evidence = AnomalyEvidence(
+            source=AnomalySource.DRONE_CV,
+            sensor=SensorKind.RGB,
+            label=label if label is not None else _KIND_TO_CV_LABEL.get(ev.kind),
+            metric="object_score",
+            value=score if score is not None else ev.confidence,
+            unit="score",
+        )
+    else:
+        sig = ev.signal
+        evidence = AnomalyEvidence(
+            source=ev.source,
+            sensor=SensorKind.THERMAL,
+            metric=sig.metric if sig else None,
+            value=sig.value if sig else None,
+            baseline=sig.baseline if sig else None,
+            unit=sig.unit if sig else None,
+        )
+    return evidence.model_copy(update={"headline": evidence_headline(evidence)})
 
 
 @dataclass
@@ -44,7 +117,19 @@ class MockPerception:
         # Sort by after_s and emit each on time.
         for ev in sorted(self.ignitions, key=lambda e: e.after_s):
             await asyncio.sleep(ev.after_s)
-            self.emit_anomaly(ev.kind, ev.geo, ev.confidence)
+            self.emit_for_event(ev)
+
+    def emit_for_event(self, ev: IgnitionEvent) -> Anomaly:
+        """Emit an anomaly carrying its evidence (provenance + signal)."""
+        a = Anomaly(
+            kind=ev.kind,
+            geo=ev.geo,
+            confidence=ev.confidence,
+            evidence=build_evidence(ev),
+        )
+        if self.on_anomaly:
+            self.on_anomaly(a)
+        return a
 
     def emit_anomaly(self, kind: AnomalyKind, geo: Geo, confidence: float) -> Anomaly:
         a = Anomaly(kind=kind, geo=geo, confidence=confidence)

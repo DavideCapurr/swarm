@@ -187,6 +187,71 @@ async def test_write_anomaly_view(memory_repository: Repository) -> None:
     await memory_repository.write_anomaly(updated)
 
 
+async def test_write_anomaly_view_round_trips_evidence(
+    memory_repository: Repository,
+) -> None:
+    """Evidence layer: the JSON `evidence` column persists the full payload."""
+    from sqlalchemy import select
+    from swarm_core.messages import AnomalyEvidence, AnomalySource, SensorKind
+
+    from backend.app.db.models import AnomalyRow
+
+    view = AnomalyView(
+        id="anom-ev-1",
+        kind=AnomalyKind.FIRE,
+        geo=Geo(lat=44.7, lon=8.03, alt_m=0.0),
+        sector_id="s-1",
+        confidence=0.88,
+        band=ConfidenceBand.VERIFIED,
+        state=AnomalyState.PENDING,
+        evidence=AnomalyEvidence(
+            source=AnomalySource.THERMAL_SAT,
+            sensor=SensorKind.THERMAL,
+            metric="temperature_c",
+            value=47.0,
+            baseline=18.0,
+            unit="°C",
+            headline="thermal · +29°C over baseline",
+        ),
+    )
+    await memory_repository.write_anomaly(view)
+
+    async with memory_repository._session() as db:
+        row = (
+            await db.execute(select(AnomalyRow).where(AnomalyRow.id == "anom-ev-1"))
+        ).scalar_one()
+    assert row.evidence is not None
+    assert row.evidence["source"] == "thermal_sat"
+    assert row.evidence["value"] == 47.0
+    assert row.evidence["baseline"] == 18.0
+    assert row.evidence["headline"] == "thermal · +29°C over baseline"
+    assert row.evidence["simulated"] is True
+
+
+async def test_write_anomaly_view_without_evidence_is_null(
+    memory_repository: Repository,
+) -> None:
+    """An evidence-less anomaly persists `evidence = NULL` (backward-compat)."""
+    from sqlalchemy import select
+
+    from backend.app.db.models import AnomalyRow
+
+    view = AnomalyView(
+        id="anom-ev-none",
+        kind=AnomalyKind.SMOKE,
+        geo=Geo(lat=44.7, lon=8.03, alt_m=0.0),
+        confidence=0.4,
+        band=ConfidenceBand.LOW_CONFIDENCE,
+        state=AnomalyState.PENDING,
+    )
+    await memory_repository.write_anomaly(view)
+    async with memory_repository._session() as db:
+        row = (
+            await db.execute(select(AnomalyRow).where(AnomalyRow.id == "anom-ev-none"))
+        ).scalar_one()
+    assert row.evidence is None
+
+
 async def test_write_mission_view(memory_repository: Repository) -> None:
     mission = MissionView(
         id="m-1",

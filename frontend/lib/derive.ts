@@ -10,8 +10,16 @@
  * `state.tsx` exposes plain values now.
  */
 
-import type { AnomalyView, AwarenessBreakdown, OperatingMode, RiskState } from "./api";
-import { MODE_COPY } from "./copy";
+import type {
+  AnomalyEvidence,
+  AnomalySource,
+  AnomalyView,
+  AwarenessBreakdown,
+  OperatingMode,
+  OperatorCommand,
+  RiskState,
+} from "./api";
+import { ANOMALY_STATE_COPY, MODE_COPY, UNIT_LABEL } from "./copy";
 
 // ── Clock ──────────────────────────────────────────────────────────────────────
 
@@ -79,4 +87,81 @@ export function describeBand(band: AnomalyView["band"]): string {
     case "low-confidence":
       return "low-confidence anomaly";
   }
+}
+
+// ── Evidence layer ─────────────────────────────────────────────────────────────
+// Display-only formatters for the *why* behind an anomaly. The values
+// (source, label, value, baseline, …) all come from SwarmOS / the honest
+// simulator; these helpers format units + labels only. The server-authored
+// `evidence.headline` remains the canonical one-liner in the contract.
+
+export function describeSource(source: AnomalySource): string {
+  switch (source) {
+    case "thermal_sat":
+      return "thermal sat";
+    case "fire_detector":
+      return "fire detector";
+    case "drone_cv":
+      return "onboard cv";
+    case "unknown":
+    default:
+      return "signal";
+  }
+}
+
+/**
+ * Format the triggering measurement for display — units/labels only.
+ *   temperature_c  → "+29°C over baseline" (Δ = value − baseline)
+ *   object_score   → "fire · 088%"         (label + score)
+ *   fire detector  → "heat trip"
+ * Falls back to the server headline when the shape is unrecognised.
+ */
+export function formatEvidence(ev: AnomalyEvidence): string {
+  if (ev.metric === "temperature_c" && ev.value != null && ev.baseline != null) {
+    const delta = ev.value - ev.baseline;
+    const unit = ev.unit ?? "°C";
+    const sign = delta >= 0 ? "+" : "-";
+    return `${sign}${Math.abs(Math.round(delta))}${unit} over baseline`;
+  }
+  if (ev.metric === "object_score" && ev.value != null) {
+    const pct = String(Math.round(ev.value * 100)).padStart(3, "0");
+    return ev.label ? `${ev.label} · ${pct}%` : `${pct}%`;
+  }
+  if (ev.source === "fire_detector") {
+    return "heat trip";
+  }
+  return ev.headline ?? "";
+}
+
+/**
+ * Build the amber anomaly callout shown on the map. When evidence is present
+ * it leads with provenance + the triggering signal, e.g.
+ * "thermal sat · +29°C over baseline · verified" (the CSS uppercases it).
+ * Falls back to the state/confidence callout for evidence-less anomalies.
+ * `auto` (the in-flight autonomy command) prepends an `auto · <rule>` eyebrow.
+ */
+export function anomalyCallout(
+  a: AnomalyView,
+  auto: OperatorCommand | null
+): string {
+  const pct = Math.round(a.confidence * 100);
+  const state = ANOMALY_STATE_COPY[a.state];
+  let prefix = "";
+  if (auto) {
+    prefix = auto.rule ? `auto · ${auto.rule.toLowerCase()} · ` : "auto · ";
+  }
+  if (a.evidence) {
+    const lead = `${describeSource(a.evidence.source)} · ${formatEvidence(a.evidence)}`;
+    if (a.state === "verifying" && a.verifying_agent) {
+      return `${prefix}${lead} · ${UNIT_LABEL(a.verifying_agent)} ${state}`;
+    }
+    return `${prefix}${lead} · ${state}`;
+  }
+  if (a.state === "verifying" && a.verifying_agent) {
+    return `${prefix}${UNIT_LABEL(a.verifying_agent)} · ${state}`;
+  }
+  if (a.state === "verified" || a.state === "escalated") {
+    return `${prefix}anomaly ${state}`;
+  }
+  return `${prefix}anomaly ${state} · confidence ${String(pct).padStart(3, "0")} %`;
 }

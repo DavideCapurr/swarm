@@ -20,10 +20,10 @@ from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
-from swarm_core.messages import AnomalyKind, Geo
+from swarm_core.messages import AnomalyKind, AnomalySource, Geo
 
 from sim.swarm_sim.drone import Drone
-from sim.swarm_sim.perception import IgnitionEvent, MockPerception
+from sim.swarm_sim.perception import EvidenceSignal, IgnitionEvent, MockPerception
 from sim.swarm_sim.world import World
 
 _STRICT = ConfigDict(extra="forbid", frozen=True)
@@ -78,12 +78,31 @@ class AnomalyPositionCfg(BaseModel):
     lon: float | None = None
 
 
+class SignalCfg(BaseModel):
+    """The honest triggering signal behind a scripted anomaly.
+
+    For ``drone_cv`` the ``value`` is omitted in the YAML and filled from the
+    real YOLO object-score at perception time; for ``thermal_sat`` /
+    ``fire_detector`` it carries sim-modelled measurement values.
+    """
+
+    model_config = _STRICT
+    metric: str
+    value: float | None = None
+    baseline: float | None = None
+    unit: str | None = None
+
+
 class ScriptedAnomalyCfg(BaseModel):
     model_config = _STRICT
     after_s: float = Field(..., ge=0.0)
     kind: AnomalyKind
     position: AnomalyPositionCfg
     confidence: float = Field(..., ge=0.0, le=1.0)
+    # Evidence layer: provenance + triggering signal. Defaults to drone-CV so
+    # legacy scenarios without the fields stay valid.
+    source: AnomalySource = AnomalySource.DRONE_CV
+    signal: SignalCfg | None = None
 
 
 class Scenario(BaseModel):
@@ -129,6 +148,17 @@ class Scenario(BaseModel):
                 geo=self.resolve_geo(a.position),
                 kind=a.kind,
                 confidence=a.confidence,
+                source=a.source,
+                signal=(
+                    EvidenceSignal(
+                        metric=a.signal.metric,
+                        value=a.signal.value,
+                        baseline=a.signal.baseline,
+                        unit=a.signal.unit,
+                    )
+                    if a.signal is not None
+                    else None
+                ),
             )
             for a in self.anomalies
         ]

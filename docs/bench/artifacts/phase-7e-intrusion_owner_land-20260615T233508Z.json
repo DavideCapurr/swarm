@@ -1,0 +1,37 @@
+{
+  "auto_commands_total": 0,
+  "auto_decisions": {
+    "by_rule": {},
+    "by_status": {}
+  },
+  "auto_events_by_kind": {
+    "operator": 5
+  },
+  "auto_events_total": 5,
+  "backend": "http://localhost:8765",
+  "commands_total": 0,
+  "duration_s": 45.0,
+  "events_by_kind": {
+    "anomaly": 13,
+    "operator": 8,
+    "sector": 159,
+    "system": 24
+  },
+  "events_total": 204,
+  "latencies_ms": {
+    "anomaly_to_autonomy_decision": {
+      "n": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    "autonomy_decision_to_mission_dispatch": {
+      "n": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    }
+  },
+  "operator_commands_total": 0,
+  "scenario": "intrusion_owner_land",
+  "snapshot_at": "2026-06-15T23:35:08+00:00",
+  "started_at": "2026-06-15T23:34:21+00:00"
+}

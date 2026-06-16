@@ -17,6 +17,7 @@ import type { Sector } from "@/lib/api";
 import { SECTOR_STATE_COPY } from "@/lib/copy";
 
 const SRC_ID = "swarm-sectors";
+const LAYER_FILL = "swarm-sectors-fill";
 const LAYER_LINE = "swarm-sectors-line";
 const LAYER_LABEL = "swarm-sectors-label";
 
@@ -34,6 +35,25 @@ const STATE_OPACITY: Record<Sector["state"], number> = {
   anomaly: 0.95,
 };
 
+// Zone tint — kept dark (very low opacity over absolute-black) so sectors read
+// as coverage areas, not just outlines, without breaking the dark surface.
+// Accent only where something is active; quiet sectors stay monochrome.
+const STATE_FILL: Record<Sector["state"], string> = {
+  idle: "#1A2026", // gunmetal
+  covered: "#B8FF66", // signal-green — freshly scanned
+  stale: "#2A3138", // graphite — needs refresh
+  blind: "#1A2026", // gunmetal — uncovered, quiet
+  anomaly: "#FFB45C", // launch-amber — verifying
+};
+
+const STATE_FILL_OPACITY: Record<Sector["state"], number> = {
+  idle: 0.04,
+  covered: 0.07,
+  stale: 0.05,
+  blind: 0.03,
+  anomaly: 0.1,
+};
+
 type Props = {
   map: MaplibreMap | null;
 };
@@ -49,6 +69,17 @@ export function SectorLayer({ map }: Props) {
         map.addSource(SRC_ID, {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
+        });
+      }
+      if (!map.getLayer(LAYER_FILL)) {
+        map.addLayer({
+          id: LAYER_FILL,
+          source: SRC_ID,
+          type: "fill",
+          paint: {
+            "fill-color": ["get", "fill"],
+            "fill-opacity": ["get", "fillOpacity"],
+          },
         });
       }
       if (!map.getLayer(LAYER_LINE)) {
@@ -73,6 +104,7 @@ export function SectorLayer({ map }: Props) {
     return () => {
       try {
         if (map.getLayer(LAYER_LINE)) map.removeLayer(LAYER_LINE);
+        if (map.getLayer(LAYER_FILL)) map.removeLayer(LAYER_FILL);
         if (map.getLayer(LAYER_LABEL)) map.removeLayer(LAYER_LABEL);
         if (map.getSource(SRC_ID)) map.removeSource(SRC_ID);
       } catch {
@@ -92,6 +124,8 @@ export function SectorLayer({ map }: Props) {
         state: s.state,
         stroke: BAND_COLOR[s.risk_band],
         opacity: STATE_OPACITY[s.state],
+        fill: STATE_FILL[s.state],
+        fillOpacity: STATE_FILL_OPACITY[s.state],
       },
       geometry: {
         type: "Polygon" as const,

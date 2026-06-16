@@ -123,6 +123,7 @@ export function makeAnomaly(
     detected_at: overrides.detected_at ?? NOW_ISO,
     detected_by: overrides.detected_by ?? null,
     verifying_agent: overrides.verifying_agent ?? null,
+    evidence: overrides.evidence ?? null,
     ts: overrides.ts ?? NOW_ISO,
   };
 }

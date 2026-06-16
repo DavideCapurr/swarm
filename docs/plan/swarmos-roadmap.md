@@ -3,8 +3,8 @@
 Phase 0–6 = PDF roadmap originale (fondazione tecnica, in larga parte
 fatta).
 Phase 7–10 = **evidence sprint**: founder solo + AI tools costruiscono
-una prova leggibile prima dell'inizio di BIEF Bocconi, senza aspettare
-che tutto il prodotto finale sia scritto.
+una prova leggibile di SWARM Patrol Cell prima dell'inizio di BIEF
+Bocconi, senza aspettare che tutto il prodotto finale sia scritto.
 Phase 11–14 = **pilot + capital sprint**: prova fisica supervisionata,
 pilot candidate, application per batch YC futuri/acceleratori coerenti,
 advisor e struttura societaria minima solo quando serve.
@@ -14,9 +14,12 @@ Phase 23–30 = **scale execution**: capitale, team, compliance e
 operations per deploy ripetibili.
 
 Decisioni aggiornate 2026-05-22:
-1. Il wedge davanti resta **wildfire early detection + verification**
-   per territori privati ad alto valore. La North Star resta una rete
-   autonoma di risposta e resilienza territoriale.
+1. Il prodotto davanti diventa **SWARM Patrol Cell**: pattuglia mobile,
+   verifica, evidence packet ed escalation per territori privati ad alto
+   valore, senza richiedere sensori fissi proprietari nel MVP. Wildfire
+   resta il primo beachhead/proof path, ma non il confine del prodotto.
+   La North Star resta una rete autonoma di risposta e resilienza
+   territoriale.
 2. La maturita 2026 e l'avvio di **BIEF Bocconi a settembre 2026** sono
    vincoli di calendario. YC Summer 2026 non e il target operativo:
    eventuale candidatura YC usa un batch successivo / Early Decision.
@@ -28,9 +31,11 @@ Decisioni aggiornate 2026-05-22:
 5. Ogni affermazione esterna distingue `sim`, `SITL`, `bench`,
    `supervised field`, `pilot` e `commercial production`.
 
-Casi dopo il wedge: protezione territori, search/verification,
-infrastructure sensing e public-safety handoff. Non vanno presentati
-come MVP simultanei.
+Casi supportabili dallo stesso loop: wildfire-risk cue, intrusione,
+persona/veicolo ignoto, search/verification in sito delimitato, danni
+post-evento, asset anomaly, richiesta manuale e settore stale. Non vanno
+presentati come prodotti separati simultanei: entrano solo se riusano il
+loop Patrol Cell di pattuglia, verifica, evidenza e supervisione.
 
 ## Context
 

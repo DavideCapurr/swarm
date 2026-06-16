@@ -14,9 +14,22 @@ The drones are replaceable. The coordination layer is the product.
 Initial market: **private high-value territories** — villas, vineyards, resorts,
 agricultural land, isolated luxury properties. Subscription-first.
 
-Initial use case: **wildfire early-detection and response coordination**. SWARM
-does not initially replace firefighters — it reduces the time between ignition and
-response.
+Initial product shape: **SWARM Patrol Cell** — mobile patrol and verification for
+private territories without requiring SWARM-owned fixed cameras, thermal towers,
+or proprietary ground sensors in the MVP.
+
+Initial beachhead: **wildfire-risk patrol, verification and response
+coordination**. Wildfire is the first proof path, not the product boundary.
+The same Patrol Cell loop can support private-territory incidents such as
+intrusion, unknown person/vehicle, missing-person search inside a bounded site,
+post-storm damage checks, asset anomalies, manual verification requests and
+stale-sector checks when they reuse the same patrol, evidence and supervised
+decision path.
+
+SWARM does not initially replace firefighters or first responders and does not
+promise continuous 24/7 detection without enough drones, docks and regulatory
+clearance. It reduces the time between a suspicious cue and an operator-visible
+evidence packet.
 
 The wedge is wildfire because it is:
 - economically urgent
@@ -24,6 +37,12 @@ The wedge is wildfire because it is:
 - operationally measurable
 - socially accepted
 - technically coherent with the long-term architecture
+
+The MVP input model is deliberately lightweight: weather and fire-risk feeds,
+public satellite or hotspot signals where available, human reports, guard/owner
+call-ins, previous drone patrol observations, and stale-sector routines. These
+inputs are cues, not truth; SWARM turns them into patrol priorities,
+verification missions and auditable decisions.
 
 ## Long-term vision
 
@@ -40,6 +59,8 @@ intelligence, infrastructure sensing, autonomous operational systems.
   and adaptive patrol routes.
 - **Orchestration** — multi-drone cooperation (relay + scan, rotational coverage,
   battery-aware swap).
+- **Mobile coverage** — drones act as movable sensors and response units, so the
+  first wedge can start without a fixed sensor buildout.
 
 Hardware commoditizes. The network becomes the product.
 
@@ -47,9 +68,14 @@ Hardware commoditizes. The network becomes the product.
 
 - Replace firefighters or first responders.
 - Build proprietary drones.
+- Install a proprietary fixed sensor network as a prerequisite for the MVP.
+- Promise continuous detection before the hardware, staffing and regulatory
+  envelope make it true.
 - Operate in dense urban / highly occluded environments.
 - Government contracts (Phase 5+).
-- Crime / security adjacencies (focus discipline).
+- Broad crime/public-safety/security marketplaces. Private-territory
+  intrusion can be a supported event class only when it reuses the same
+  Patrol Cell workflow.
 
 ## Phased roadmap
 

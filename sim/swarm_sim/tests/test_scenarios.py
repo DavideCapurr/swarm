@@ -12,7 +12,9 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+from swarm_core.messages import AnomalySource, SensorKind
 
+from sim.swarm_sim.perception import MockPerception, build_evidence
 from sim.swarm_sim.scenario import Scenario, load_scenario
 
 SCENARIO_DIR = Path(__file__).resolve().parents[2] / "scenarios"
@@ -151,6 +153,82 @@ def test_scenario_is_deterministic(name: str) -> None:
     a_ev = [(e.after_s, e.geo, e.kind, e.confidence) for e in a.perception.ignitions]
     b_ev = [(e.after_s, e.geo, e.kind, e.confidence) for e in b.perception.ignitions]
     assert a_ev == b_ev
+
+
+def test_scenario_parses_source_and_signal() -> None:
+    """Evidence layer: wildfire declares per-anomaly provenance + signal."""
+    scenario = load_scenario(_scenario_path("wildfire_owner_land"))
+    by_kind = {a.kind.value: a for a in scenario.anomalies}
+    assert by_kind["SMOKE"].source == AnomalySource.DRONE_CV
+    assert by_kind["SMOKE"].signal is None
+    fire = by_kind["FIRE"]
+    assert fire.source == AnomalySource.THERMAL_SAT
+    assert fire.signal is not None
+    assert fire.signal.metric == "temperature_c"
+    assert fire.signal.value == 47.0
+    assert fire.signal.baseline == 18.0
+    assert fire.signal.unit == "°C"
+
+
+def test_scenario_source_defaults_to_drone_cv(tmp_path: Path) -> None:
+    """Legacy YAML without a `source` field stays drone_cv (backward-compat)."""
+    yaml_text = (
+        "id: x\nname: x\ndescription: x\ntick_hz: 10\n"
+        "anchor: { lat: 0, lon: 0 }\n"
+        "plot: { shape: rectangle, width_m: 10, height_m: 10 }\n"
+        "fleet: { n_drones: 1 }\n"
+        "perception: { territory_radius_m: 10 }\n"
+        "anomalies:\n"
+        "  - after_s: 1\n"
+        "    kind: SMOKE\n"
+        "    position: { mode: offset_m, east: 0, north: 0 }\n"
+        "    confidence: 0.5\n"
+    )
+    p = tmp_path / "legacy.yaml"
+    p.write_text(yaml_text)
+    scenario = load_scenario(p)
+    assert scenario.anomalies[0].source == AnomalySource.DRONE_CV
+    assert scenario.anomalies[0].signal is None
+
+
+def test_mock_perception_emits_evidence() -> None:
+    """MockPerception attaches honest evidence (provenance + signal + headline)."""
+    scenario = load_scenario(_scenario_path("wildfire_owner_land"))
+    world = scenario.build_world()
+    assert isinstance(world.perception, MockPerception)
+    emitted = [world.perception.emit_for_event(ig) for ig in world.perception.ignitions]
+    for a in emitted:
+        assert a.evidence is not None
+    by_source = {a.evidence.source: a for a in emitted if a.evidence is not None}
+
+    thermal = by_source[AnomalySource.THERMAL_SAT]
+    assert thermal.evidence is not None
+    assert thermal.evidence.sensor == SensorKind.THERMAL
+    assert thermal.evidence.metric == "temperature_c"
+    assert thermal.evidence.value == 47.0
+    assert thermal.evidence.baseline == 18.0
+    assert thermal.evidence.simulated is True
+    assert thermal.evidence.headline == "thermal · +29°C over baseline"
+
+    cv = by_source[AnomalySource.DRONE_CV]
+    assert cv.evidence is not None
+    assert cv.evidence.sensor == SensorKind.RGB
+    assert cv.evidence.metric == "object_score"
+    assert cv.evidence.value == cv.confidence  # scripted confidence on the mock path
+
+
+def test_build_evidence_cv_path_uses_real_label_and_score() -> None:
+    """The CV path passes the model label + score through to object_score."""
+    scenario = load_scenario(_scenario_path("intrusion_owner_land"))
+    perception = scenario.build_world().perception
+    assert perception is not None
+    ig = perception.ignitions[0]
+    ev = build_evidence(ig, label="person", score=0.91)
+    assert ev.source == AnomalySource.DRONE_CV
+    assert ev.sensor == SensorKind.RGB
+    assert ev.label == "person"
+    assert ev.value == 0.91
+    assert ev.headline == "drone cv · person · 091%"
 
 
 def test_resolve_geo_offset_m_matches_manual_calc() -> None:

@@ -14,6 +14,7 @@ import { describeAnomalyKind, describeBand } from "@/lib/derive";
 import { findLatestAutonomyCommand } from "@/lib/autonomy";
 import { ANOMALY_STATE_COPY, UNIT_LABEL } from "@/lib/copy";
 import { IconAnomaly } from "@/icons";
+import { EvidenceBlock } from "./EvidenceBlock";
 import { Eyebrow } from "./Eyebrow";
 import { StatusPill } from "./StatusPill";
 
@@ -50,6 +51,7 @@ export function AnomalySummary() {
   const pillState = anomaly.band === "verified" ? "operational" : "attention";
 
   return (
+    <div className="flex flex-col gap-3">
     <div className="card p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <Eyebrow mono>Anomaly · {anomaly.id.slice(0, 4)}</Eyebrow>
@@ -103,6 +105,9 @@ export function AnomalySummary() {
       >
         — open verification
       </Link>
+    </div>
+
+    <EvidenceBlock anomaly={anomaly} />
     </div>
   );
 }

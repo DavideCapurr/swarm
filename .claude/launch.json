@@ -4,8 +4,9 @@
     {
       "name": "swarmos-console",
       "runtimeExecutable": "corepack",
-      "runtimeArgs": ["pnpm", "--dir", "frontend", "dev"],
-      "port": 3000
+      "runtimeArgs": ["pnpm", "--dir", "frontend", "dev", "--port", "3001"],
+      "port": 3001,
+      "autoPort": false
     }
   ]
 }

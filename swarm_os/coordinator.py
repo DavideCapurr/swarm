@@ -143,6 +143,7 @@ class SwarmCoordinator:
                 detected_at=anomaly.ts,
                 detected_by=anomaly.source_agent,
                 verifying_agent=self.state.verifier_id,
+                evidence=anomaly.evidence,
                 ts=now,
             )
             self.state.anomalies[view.id] = view

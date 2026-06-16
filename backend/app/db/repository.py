@@ -149,6 +149,11 @@ class Repository:
                     "detected_at": anomaly.detected_at,
                     "detected_by": anomaly.detected_by,
                     "verifying_agent": anomaly.verifying_agent,
+                    "evidence": (
+                        anomaly.evidence.model_dump(mode="json")
+                        if anomaly.evidence is not None
+                        else None
+                    ),
                     "ts": anomaly.ts,
                 }
                 await self._upsert(db, AnomalyRow, [row], pk_cols=("id",))
