@@ -49,23 +49,37 @@ for this window.
 
 ## Pending / not yet tracked
 
-- Live 3-scenario demo artifacts (2026-06-15) and the in-flight Console
-  redesign (`TacticalBasemap`) are **uncommitted** on `main`'s working
-  tree — to be committed on a feature branch when the redesign milestone
-  (M0) starts.
-- Demo `.mov` screen recording (`docs/yc/videos/` empty) and refreshed YC
-  screenshots remain manual founder-machine steps.
+- M0 (Console redesign close) is on branch
+  `feature/m0-console-redesign-close`. The `TacticalBasemap` redesign +
+  live 3-scenario demo artifacts already shipped in `0d34891`; this
+  milestone adds the missing test coverage (basemap geometry, tactical↔
+  satellite toggle + persistence, per-state marker colours, CSP tile-host
+  invariant — +24 frontend tests) and a live preview verification (CARTO
+  tiles 200, toggle switches, zero CSP violations).
+- Refreshed YC screenshots + the demo `.mov` (`docs/yc/videos/` empty)
+  remain manual founder-machine steps — they need the full sim+backend
+  WebGL capture harness driven through the scripted scenario states, not a
+  backend-less render.
 
 ## Last verified gates
 
-`make test` on 2026-06-16 (Python 3.13): **776 passed / 23 skipped**
-(backend) + **105 passed / 1 todo** (frontend), exit 0.
+`make lint` + `make test` on 2026-06-16 (Python 3.13): ruff + mypy (184
+files) + tsc clean; **776 passed / 23 skipped** (backend, 88.91% cov) +
+**129 passed / 1 todo** (frontend), exit 0.
 
 ## Most recent changes
 
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-16 — M0 (three-month plan) Console redesign close: added the
+  missing test coverage for the shipped `TacticalBasemap` redesign —
+  procedural geometry, tactical↔satellite basemap toggle + localStorage
+  persistence, per-state marker colours (no-red guard), and a CSP↔basemap
+  tile-host invariant (+24 frontend tests → 129). Exported the basemap
+  helpers from `Map.tsx` for testability (no behaviour change) and
+  live-verified the basemap + CSP in the preview server (CARTO tiles 200,
+  toggle works, no console/CSP errors).
 - 2026-06-14 — Phase 7 anomaly evidence layer (provenance + triggering
   signal per anomaly, honest sim, additive persistence, Console callouts);
   merged to `main`.
