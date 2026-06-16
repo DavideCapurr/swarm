@@ -23,6 +23,7 @@ import {
 } from "@/lib/copy";
 import type { UnitState } from "@/lib/api";
 import { EmergencyStop } from "./EmergencyStop";
+import { AutonomyDecision } from "./AutonomyDecision";
 import { AutonomyMetrics } from "./AutonomyMetrics";
 
 type Props = {
@@ -96,6 +97,17 @@ export function QuietPanel({ onSelectAgent }: Props) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-col gap-5 p-4 flex-1 overflow-y-auto">
+        {/* Phase 8.A inversion — when the autonomy baseline is on, SwarmOS's
+            decision leads the rail and the operator intents are demoted to
+            overrides inside this block. The bottom InlineActions only renders
+            on the manual (autonomy-off) path. */}
+        {autonomyEnabled && (
+          <>
+            <AutonomyDecision />
+            <Hairline />
+          </>
+        )}
+
         <FleetSection
           onlineCount={online.length}
           totalCount={total}
@@ -135,9 +147,12 @@ export function QuietPanel({ onSelectAgent }: Props) {
           recentRule={recent?.rule ?? null}
         />
 
-        <Hairline />
-
-        <InlineActions dispatch={dispatch} />
+        {!autonomyEnabled && (
+          <>
+            <Hairline />
+            <InlineActions dispatch={dispatch} />
+          </>
+        )}
       </div>
 
       <CommanderGhost />

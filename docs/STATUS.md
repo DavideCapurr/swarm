@@ -49,8 +49,9 @@ for this window.
 
 Window progress: **M0** (Console redesign close) merged (`#103`); **8.B**
 (autonomy engine — full `VERIFY|DISMISS|ESCALATE|WAIT` decision set +
-per-scenario YAML thresholds) **done** on `feature/phase8b-autonomy`.
-Next milestone: **8.A** (Console default inversion → observatory).
+per-scenario YAML thresholds) merged (`#104`); **8.A** (Console default
+inversion → observatory) **done** on `feature/phase8a-console-observatory`.
+Next milestone: **8.B-bis** (mandatory shadow mode + divergence report).
 
 ## Pending / not yet tracked
 
@@ -62,15 +63,29 @@ Next milestone: **8.A** (Console default inversion → observatory).
 ## Last verified gates
 
 `make lint` + `make test` + `make audit` on 2026-06-16 (Python 3.13):
-ruff + mypy (186 files) + tsc clean; **803 passed / 23 skipped** (backend)
-+ **129 passed / 1 todo** (frontend); audit exit 0 (pip-audit + pnpm audit
-+ bandit + integrity checks — no known vulnerabilities).
+ruff + mypy (186 files) + tsc clean; **800 passed / 23 skipped / 3
+deselected** (backend) + **141 passed / 1 todo** (frontend); audit exit 0
+(pip-audit + pnpm audit + bandit 0 high/med + integrity checks — no known
+vulnerabilities).
 
 ## Most recent changes
 
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-16 — 8.A (three-month plan) Console default inversion →
+  observatory: the viewport rail now leads with *what SwarmOS decided*.
+  New `autonomyStance()` selector (`frontend/lib/autonomy.ts`) collapses
+  the focus anomaly + autonomy commands into `decided | holding | clear |
+  manual`; new `AutonomyDecision` component renders the verdict (verb +
+  `AUTO · R*` Orbital-Blue chip + status sub-line) and demotes the four
+  operator intents to ghost override buttons under an `— override`
+  eyebrow. `QuietPanel` leads with the decision block when
+  `autonomy_enabled`; the legacy operator-led `InlineActions` only renders
+  on the autonomy-off path (zero regression for non-autonomy sites).
+  `ActionRail` (verify route) gains the same `— override` framing. Voice-
+  clean copy in `lib/copy.ts`; no red (decision accent is Orbital Blue).
+  +12 frontend tests (→ 141). Console-only; no backend change.
 - 2026-06-16 — 8.B (three-month plan) autonomy engine complete: the
   deterministic engine now returns an explicit `VERIFY|DISMISS|ESCALATE|
   WAIT` verdict on **every** anomaly (`autonomy.decide_all`) and the four
