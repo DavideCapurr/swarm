@@ -7,9 +7,15 @@ SWARM OS is the software layer that turns a heterogeneous fleet of off-the-shelf
 (DJI, MAVLink/PX4, Autel, Parrot, Skydio) into a single coordinated system. The drones
 remain replaceable. The coordination layer is the product.
 
-The initial wedge is **wildfire early-detection on private high-value territories**
-(villas, vineyards, resorts, agricultural land). The architecture generalizes to any
-territorial-resilience use case.
+The initial product shape is **SWARM Patrol Cell** for private high-value
+territories (villas, vineyards, resorts, agricultural land): mobile drone
+patrol, verification, evidence and escalation without requiring SWARM-owned
+fixed cameras, thermal towers or proprietary ground sensors in the MVP.
+Wildfire-risk patrol is the first beachhead, but the same loop can support
+intrusion, unknown person/vehicle, missing-person search inside a bounded
+site, post-storm damage checks, asset anomalies, manual verification requests
+and stale-sector checks. The architecture generalizes to any
+territorial-resilience use case that reuses this loop.
 
 ## What SWARM OS actually does
 
@@ -25,6 +31,12 @@ mission. SWARM OS operates one layer above:
 When SWARM dispatches `VERIFY(geo=g, sensor=THERMAL, hover=20s)`, the vendor autopilot
 flies *how*; SWARM decides *who*, *when*, and *why*, and can re-task mid-flight if a
 more critical anomaly arrives.
+
+For the first product shape, SWARM treats weather/fire-risk feeds, public
+satellite or hotspot signals, human reports, guard/owner call-ins, previous
+drone patrol observations and stale-sector routines as cues. Drones act as
+mobile sensors and response units: they patrol priority sectors, verify cues
+from useful vantage points and create an auditable evidence packet.
 
 ## Repo map
 
@@ -153,6 +165,7 @@ https://github.com/DavideCapurr/swarm/security/advisories/new
 ## Documentation map
 
 - Architecture overview: [`docs/architecture/overview.md`](docs/architecture/overview.md)
+- Product wedge: [`docs/product/patrol-cell.md`](docs/product/patrol-cell.md)
 - REST API snapshot: [`docs/api/openapi.yaml`](docs/api/openapi.yaml)
 - WebSocket contract: [`docs/api/ws-contract.md`](docs/api/ws-contract.md)
 - Operator guide: [`docs/operator/manual.md`](docs/operator/manual.md)
@@ -186,7 +199,9 @@ contracts. Key decisions are recorded as ADRs in [`docs/adr/`](docs/adr/).
 - **Phase 0-6** — technical foundation already tracked in
   [`docs/STATUS.md`](docs/STATUS.md); Phase 5 PX4/SITL and hardware
   evidence are still explicit de-risk items.
-- **Phase 7** — finish the repeatable wildfire simulation proof now.
+- **Phase 7** — finish the repeatable Patrol Cell simulation proof now,
+  with wildfire-risk as the first front door and intrusion/search as
+  extension demos.
 - **Phase 8-10** — evidence sprint: customer discovery, flight-path/bench
   proof, future-batch application pack and the BIEF founder decision gate.
 - **Phase 11+** — supervised field proof, pilot path, capital and the later

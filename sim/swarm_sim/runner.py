@@ -155,7 +155,22 @@ async def main() -> None:
         registry.register(a)
         adapters.append(a)
 
-    orchestrator = Orchestrator(bus=bus, registry=registry, world_drones=world.drones)
+    # Continuous patrol keeps every unit sweeping its own wedge of the
+    # territory so the Console map is alive and Unit 003 doesn't sit docked.
+    # On by default for the demo; SIM_CONTINUOUS_PATROL=0 restores the
+    # single-shot (anomaly-only) behaviour.
+    continuous_patrol = os.getenv("SIM_CONTINUOUS_PATROL", "1") != "0"
+    patrol_radius_m = float(os.getenv("SIM_PATROL_RADIUS_M", "130"))
+    orchestrator = Orchestrator(
+        bus=bus,
+        registry=registry,
+        world_drones=world.drones,
+        continuous_patrol=continuous_patrol,
+        patrol_origin=world.dock,
+        patrol_radius_m=patrol_radius_m,
+    )
+    if continuous_patrol:
+        logger.info("continuous patrol enabled (radius %.0f m)", patrol_radius_m)
 
     stop = asyncio.Event()
 

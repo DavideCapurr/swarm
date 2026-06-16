@@ -1,0 +1,44 @@
+{
+  "auto_commands_total": 3,
+  "auto_decisions": {
+    "by_rule": {
+      "R1": 2,
+      "R2": 1
+    },
+    "by_status": {
+      "accepted": 1,
+      "completed": 1,
+      "timed_out": 1
+    }
+  },
+  "auto_events_by_kind": {
+    "operator": 4
+  },
+  "auto_events_total": 4,
+  "backend": "http://localhost:8765",
+  "commands_total": 3,
+  "duration_s": 65.0,
+  "events_by_kind": {
+    "anomaly": 13,
+    "operator": 7,
+    "sector": 172,
+    "system": 23
+  },
+  "events_total": 215,
+  "latencies_ms": {
+    "anomaly_to_autonomy_decision": {
+      "n": 3,
+      "p50_ms": 2039.1,
+      "p95_ms": 17351.3
+    },
+    "autonomy_decision_to_mission_dispatch": {
+      "n": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    }
+  },
+  "operator_commands_total": 0,
+  "scenario": "wildfire_owner_land",
+  "snapshot_at": "2026-06-15T23:34:00+00:00",
+  "started_at": "2026-06-15T23:32:53+00:00"
+}

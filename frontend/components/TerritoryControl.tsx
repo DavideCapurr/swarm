@@ -14,11 +14,12 @@ import { useState } from "react";
 
 import { useSwarm } from "@/lib/state";
 import { HeatOverlay } from "./HeatOverlay";
-import { MapView } from "./Map";
+import { MapView, VINEYARD_CENTER } from "./Map";
 import { QuietPanel } from "./QuietPanel";
 import { RouteLayer } from "./RouteLayer";
 import { SceneHeader } from "./SceneHeader";
 import { SectorLayer } from "./SectorLayer";
+import { TacticalBasemap } from "./TacticalBasemap";
 import { UnitDetail } from "./UnitDetail";
 
 export function TerritoryControl() {
@@ -33,9 +34,17 @@ export function TerritoryControl() {
       <SceneHeader />
       <div className="grid grid-cols-[1fr_380px] min-h-0">
         <div className="relative overflow-hidden bg-absolute-black border-r border-gunmetal">
-          <MapView units={units} anomalies={anomalies} commands={commands}>
+          <MapView
+            units={units}
+            anomalies={anomalies}
+            commands={commands}
+            selectedAgentId={selectedAgentId}
+            onSelectUnit={setSelectedAgentId}
+          >
             {(m) => (
               <>
+                {/* Tactical basemap first → lowest layers (dark grid + rings). */}
+                <TacticalBasemap map={m} center={VINEYARD_CENTER} />
                 {/* Heat mist sits under sectors/routes so the hairlines stay crisp. */}
                 <HeatOverlay map={m} />
                 <SectorLayer map={m} />

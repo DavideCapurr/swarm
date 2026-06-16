@@ -1,6 +1,6 @@
 # SWARM roadmap - evidence to scale
 
-Updated on 2026-05-22. This is the execution roadmap from the current
+Updated on 2026-06-16. This is the execution roadmap from the current
 Phase 7 state onward. The Phase 0-6 technical plan remains in
 [`swarmos-roadmap.md`](swarmos-roadmap.md); the older Phase 7-30 draft in
 that file is retained as historical context only.
@@ -9,8 +9,11 @@ that file is retained as historical context only.
 
 1. SWARM keeps the big destination: autonomous coordination
    infrastructure for time-critical territorial events.
-2. The first attack stays narrow: wildfire patrol, detection,
-   verification and escalation for private high-value territories.
+2. The first attack stays narrow: SWARM Patrol Cell for private
+   high-value territories. Wildfire-risk patrol is the first beachhead,
+   not the product boundary. The product is mobile patrol, verification,
+   evidence and escalation across supported territorial event classes,
+   not a fixed sensor network.
 3. The roadmap must earn the later platform. Market learning, the flight
    path and pilot evidence move before city-scale software, citizen apps,
    payload logic and geographic expansion.
@@ -23,6 +26,12 @@ that file is retained as historical context only.
    explicitly changes that.
 6. UAE, HAX, B4i and similar programs are options to validate, not
    automatic pivots, applications or relocation decisions.
+7. The MVP does not require SWARM-owned fixed cameras, fixed thermal
+   towers or proprietary ground sensors. It uses drones as mobile
+   sensors plus lightweight cues: weather/fire-risk feeds, public
+   satellite or hotspot signals where available, human reports,
+   guard/owner call-ins, previous drone patrol observations and
+   stale-sector routines.
 
 ## Founder calendar
 
@@ -46,7 +55,7 @@ done when only code moved.
 
 | Lane | Question it answers |
 |---|---|
-| Product and autonomy | Can SWARM show the wildfire loop clearly and repeatedly? |
+| Product and autonomy | Can SWARM show mobile patrol, stale-sector coverage, verification and evidence clearly and repeatedly? |
 | Real-world de-risk | Does the sim path survive SITL, bench and supervised hardware reality? |
 | Market validation | Who has the urgent problem, who buys, and what pilot would they accept? |
 | Capital and ecosystem | Which program, investor, advisor or geography accelerates evidence rather than distracts from it? |
@@ -62,8 +71,8 @@ done when only code moved.
 | 4 | done | Persistence and audit | History survives |
 | 5 | partial | MAVLink/PX4 adapter path | CI ready; SITL and hardware evidence still needed |
 | 6 | done | Production OS foundations | Policy, auth, ops and security foundations |
-| 7 | current | Investor-readable wildfire sim demo | One-command proof plus metrics |
-| 8 | next | Wedge and customer validation | Learning memo plus pilot candidates |
+| 7 | current | Investor-readable Patrol Cell sim demo | One-command wildfire proof plus coverage/evidence metrics |
+| 8 | next | Patrol Cell wedge and customer validation | Learning memo plus pilot candidates |
 | 9 | next | Flight-path and bench de-risk | SITL proof plus hardware bench plan/evidence |
 | 10 | next | Summer evidence pack and founder decision | Future-batch YC pack plus BIEF mode decision |
 | 11 | planned | Supervised field proof | First honest field bundle |
@@ -87,7 +96,7 @@ done when only code moved.
 | 29 | scale | Expansion inside chosen market | Second deployment repeats with less friction |
 | 30 | scale | Geographic/platform expansion | New market or use case reuses the core |
 
-## Phase 7 - wildfire sim demo
+## Phase 7 - Patrol Cell sim demo
 
 Goal: turn the current simulated software into a proof a customer,
 advisor or accelerator reviewer can understand in under two minutes.
@@ -100,10 +109,17 @@ Current verified status:
 - 7.E one-command demo targets remain the immediate closure item.
 
 Scope:
-- Finish `make demo-wildfire-sim` first. Intrusion and search stay
-  extension demos; wildfire is the front door.
+- Finish `make demo-wildfire-sim` first, reframed as a Patrol Cell
+  proof: mobile drone patrol, coverage freshness, suspicious cue,
+  verification mission, evidence packet and escalation. Intrusion and
+  search remain valid extension demos because Patrol Cell is not limited
+  to wildfire; wildfire-risk patrol is simply the first front door.
 - Capture event-to-detection and detection-to-verification/escalation
   timings, command/event logs, failure cases and replay instructions.
+- Show the no-fixed-sensor input model in the demo language: patrol
+  observation, stale-sector routine, human/guard cue or public-risk cue
+  can all create verification work. Do not imply SWARM installed a fixed
+  camera network.
 - Produce one short demo artifact and a truth table of what is sim,
   SITL, bench and field validated.
 - Keep the Console as an observatory for autonomy decisions, not a
@@ -111,11 +127,11 @@ Scope:
 
 Gate:
 - A clean checkout can run the wildfire demo by documented command.
-- The demo shows patrol, event, detection, verify/escalate decision and
-  operator-visible audit trail.
+- The demo shows sector freshness, patrol, cue/anomaly, verification,
+  evidence, verify/escalate decision and operator-visible audit trail.
 - No external pitch claims field or hardware validation from Phase 7.
 
-## Phase 8 - wedge and customer validation
+## Phase 8 - Patrol Cell wedge and customer validation
 
 Goal: learn whether the first wedge deserves the next technical risk.
 
@@ -126,9 +142,18 @@ Scope:
 - Record problem frequency, current alternative, budget owner, false
   alarm cost, late-response cost, flight/operations objections and
   pilot acceptance criteria.
+- Test the no-fixed-sensor wedge explicitly: would the buyer pay for
+  seasonal mobile patrol coverage and evidence reports without installing
+  cameras, towers or proprietary ground sensors? Which event classes make
+  the service worth using weekly, not only during a wildfire scare?
+- Record the useful patrol interval by buyer type: target coverage
+  freshness, worst-sector staleness they can tolerate, high-risk windows,
+  acceptable operator workload and what evidence would justify escalation.
 - Produce a buyer map, competitor/alternative map and a one-page wedge
-  memo. The memo must say why wildfire is first and which adjacent use
-  cases are explicitly deferred.
+  memo. The memo must say why wildfire-risk coverage is first, why fixed
+  sensors are not a prerequisite for the MVP, which additional event
+  classes reuse the same Patrol Cell loop, and which adjacent use cases are
+  explicitly deferred.
 - Find at least two pilot candidates or two credible introductions to
   pilot decision makers. Interest must be written down honestly; do not
   manufacture LOIs.
@@ -149,8 +174,9 @@ Scope:
 - Close the PX4/SITL evidence missing from Phase 5: mission dispatch,
   telemetry ingest, status/failure visibility and safety path.
 - Write the minimum hardware bench bill of materials and test plan.
-  Prefer the smallest supervised proof that validates the adapter and
-  mission loop.
+  Prefer the smallest supervised Patrol Cell proof that validates the
+  adapter, mobile patrol loop, sector freshness tracking, verification
+  capture and return/abort behavior without fixed sensor infrastructure.
 - Validate bench connectivity, telemetry, mission upload/abort/return
   handling and evidence capture before seeking ambitious field autonomy.
 - Prepare the first supervised field test with an explicit safety and
@@ -194,11 +220,16 @@ Goal: collect the first honest physical evidence without pretending it is
 a commercial pilot.
 
 Scope:
-- Run a small supervised field scenario attached to the wildfire wedge.
+- Run a small supervised field scenario attached to the Patrol Cell wedge:
+  map sectors, patrol them, create a cue manually or from patrol
+  observation, verify it and produce an evidence packet. Wildfire-risk is
+  the preferred first cue; the procedure should not hard-code wildfire as
+  the only possible event class.
 - Capture telemetry, video/images if appropriate, autonomy logs, manual
   interventions, safety events and post-run lessons.
-- Compare sim and field assumptions: detection conditions, battery/time
-  envelope, link quality, observer workload and false-positive sources.
+- Compare sim and field assumptions: coverage freshness, detection
+  conditions, battery/time envelope, link quality, observer workload,
+  false-positive sources and evidence quality.
 
 Gate:
 - A field evidence bundle can be reviewed by an expert.
@@ -212,6 +243,10 @@ Scope:
 - Define pilot site, event classes, responsibilities, success metrics,
   supervision model, data handling, insurance/regulatory path and price
   hypothesis.
+- Define the patrol service level before defining new hardware:
+  priority sectors, target freshness interval, high-risk windows,
+  supported event classes, cue sources, evidence packet format,
+  escalation criteria and reporting cadence.
 - Choose one first geography from evidence and feasibility. Italy/EU,
   UAE or another target is a decision here, not an inherited slogan.
 - Keep public-safety or authority handoffs bounded unless a partner

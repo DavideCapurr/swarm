@@ -12,9 +12,10 @@ import { fileURLToPath } from "node:url";
  *     diagnostics so `make demo` remains interactive.
  *   - style-src 'self' 'unsafe-inline' — Tailwind emits inline style attrs
  *     for hover/transition utilities. Tighten to nonce-based in Phase 6.
- *   - img-src 'self' data: blob: https: — MapLibre raster basemap (CartoDB)
- *     + inline SVG icons. We tighten to specific hostnames when we self-host
- *     tiles.
+ *   - img-src 'self' data: blob: https: — MapLibre raster basemaps (CARTO
+ *     dark + Esri World Imagery satellite) + inline SVG icons. connect-src
+ *     pins the exact tile hosts (MAP_CONNECT_SRC); we tighten img-src to
+ *     specific hostnames when we self-host tiles.
  *   - connect-src allows same-origin plus the Phase 2 SwarmOS backend on
  *     port 8765 for localhost/LAN demos. Production should set explicit
  *     NEXT_PUBLIC_API_URL / NEXT_PUBLIC_WS_URL origins.
@@ -38,9 +39,12 @@ const DEV_CONNECT_SRC =
     ? []
     : ["http://localhost:8765", "http://127.0.0.1:8765", "http://*:8765"];
 const MAP_CONNECT_SRC = [
+  // CARTO dark-matter tactical basemap (default).
   "https://a.basemaps.cartocdn.com",
   "https://b.basemaps.cartocdn.com",
   "https://c.basemaps.cartocdn.com",
+  // Esri World Imagery — operator-selectable real satellite basemap.
+  "https://server.arcgisonline.com",
   "https://demotiles.maplibre.org",
 ];
 const CONNECT_SRC = [

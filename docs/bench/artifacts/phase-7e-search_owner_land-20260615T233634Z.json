@@ -1,0 +1,37 @@
+{
+  "auto_commands_total": 0,
+  "auto_decisions": {
+    "by_rule": {},
+    "by_status": {}
+  },
+  "auto_events_by_kind": {
+    "operator": 5
+  },
+  "auto_events_total": 5,
+  "backend": "http://localhost:8765",
+  "commands_total": 0,
+  "duration_s": 50.0,
+  "events_by_kind": {
+    "anomaly": 13,
+    "operator": 8,
+    "sector": 158,
+    "system": 25
+  },
+  "events_total": 204,
+  "latencies_ms": {
+    "anomaly_to_autonomy_decision": {
+      "n": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    },
+    "autonomy_decision_to_mission_dispatch": {
+      "n": 0,
+      "p50_ms": null,
+      "p95_ms": null
+    }
+  },
+  "operator_commands_total": 0,
+  "scenario": "search_owner_land",
+  "snapshot_at": "2026-06-15T23:36:34+00:00",
+  "started_at": "2026-06-15T23:35:41+00:00"
+}
