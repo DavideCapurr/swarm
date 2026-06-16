@@ -1,0 +1,60 @@
+# Phase 8.B — per-scenario thresholds for the deterministic autonomy engine.
+#
+# Loaded + validated by `swarm_os/autonomy_config.py` at first decision.
+# Mirrors the in-code `_builtin_autonomy_config()` fallback verbatim; the
+# `wildfire` profile and the `default` fallback equal the Phase 7.B
+# constants so the existing autonomy suites stay green.
+#
+# Threshold semantics (per the R1/R2/R3 rules in swarm_os/autonomy.py):
+#   verify_floor / verify_debounce_s   — R1 auto-VERIFY
+#   escalate_floor / escalate_idle_s   — R2 auto-ESCALATE
+#   dismiss_ceil / dismiss_stale_s     — R3 auto-DISMISS
+# Invariant enforced at load: dismiss_ceil <= verify_floor (no ambiguous band).
+
+default:
+  verify_floor: 0.50
+  verify_debounce_s: 2.0
+  escalate_floor: 0.80
+  escalate_idle_s: 10.0
+  dismiss_ceil: 0.30
+  dismiss_stale_s: 30.0
+
+profiles:
+  # Wildfire — escalate readily once verified; matches the Phase 7.B tuning
+  # (SMOKE 0.62 → R1 VERIFY, FIRE 0.88 → R2 ESCALATE).
+  wildfire:
+    verify_floor: 0.50
+    verify_debounce_s: 2.0
+    escalate_floor: 0.80
+    escalate_idle_s: 10.0
+    dismiss_ceil: 0.30
+    dismiss_stale_s: 30.0
+  # Intrusion — verify on a low-confidence perimeter hit, but hold the
+  # escalate bar high (0.85) so the operator owns calling it in; the
+  # scripted 0.71 INTRUSION verifies and deliberately stays below escalate.
+  intrusion:
+    verify_floor: 0.55
+    verify_debounce_s: 3.0
+    escalate_floor: 0.85
+    escalate_idle_s: 15.0
+    dismiss_ceil: 0.30
+    dismiss_stale_s: 30.0
+  # Search — life-safety: verify a faint heat-spot readily (0.45), and keep
+  # a low dismiss ceiling (0.20) + long stale window (45 s) so a possible
+  # person is never auto-dismissed in a hurry.
+  search:
+    verify_floor: 0.45
+    verify_debounce_s: 2.0
+    escalate_floor: 0.80
+    escalate_idle_s: 10.0
+    dismiss_ceil: 0.20
+    dismiss_stale_s: 45.0
+
+# Route each anomaly to its profile by kind — the only scenario signal an
+# anomaly carries at decision time. Unmapped kinds (e.g. UNKNOWN) fall back
+# to `default`.
+kind_to_profile:
+  SMOKE: wildfire
+  FIRE: wildfire
+  HEAT_SPOT: search
+  INTRUSION: intrusion

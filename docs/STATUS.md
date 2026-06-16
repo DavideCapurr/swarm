@@ -47,15 +47,13 @@ Phase 8. Order: Console redesign close → 8.A-8.D autonomy → live CV →
 (evidence-to-scale Phase 8) and PX4/SITL are deferred by founder decision
 for this window.
 
+Window progress: **M0** (Console redesign close) merged (`#103`); **8.B**
+(autonomy engine — full `VERIFY|DISMISS|ESCALATE|WAIT` decision set +
+per-scenario YAML thresholds) **done** on `feature/phase8b-autonomy`.
+Next milestone: **8.A** (Console default inversion → observatory).
+
 ## Pending / not yet tracked
 
-- M0 (Console redesign close) is on branch
-  `feature/m0-console-redesign-close`. The `TacticalBasemap` redesign +
-  live 3-scenario demo artifacts already shipped in `0d34891`; this
-  milestone adds the missing test coverage (basemap geometry, tactical↔
-  satellite toggle + persistence, per-state marker colours, CSP tile-host
-  invariant — +24 frontend tests) and a live preview verification (CARTO
-  tiles 200, toggle switches, zero CSP violations).
 - Refreshed YC screenshots + the demo `.mov` (`docs/yc/videos/` empty)
   remain manual founder-machine steps — they need the full sim+backend
   WebGL capture harness driven through the scripted scenario states, not a
@@ -63,15 +61,26 @@ for this window.
 
 ## Last verified gates
 
-`make lint` + `make test` on 2026-06-16 (Python 3.13): ruff + mypy (184
-files) + tsc clean; **776 passed / 23 skipped** (backend, 88.91% cov) +
-**129 passed / 1 todo** (frontend), exit 0.
+`make lint` + `make test` + `make audit` on 2026-06-16 (Python 3.13):
+ruff + mypy (186 files) + tsc clean; **803 passed / 23 skipped** (backend)
++ **129 passed / 1 todo** (frontend); audit exit 0 (pip-audit + pnpm audit
++ bandit + integrity checks — no known vulnerabilities).
 
 ## Most recent changes
 
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-16 — 8.B (three-month plan) autonomy engine complete: the
+  deterministic engine now returns an explicit `VERIFY|DISMISS|ESCALATE|
+  WAIT` verdict on **every** anomaly (`autonomy.decide_all`) and the four
+  thresholds moved from module constants to per-scenario profiles loaded
+  from `infra/config/autonomy.yaml` (`swarm_os/autonomy_config.py`, routed
+  by `AnomalyKind` — wildfire/intrusion/search + a `default` fallback).
+  `tick()` is now the actionable adapter (gates `autonomy_enabled`, drops
+  WAIT) so the coordinator + Phase 7.B command path are unchanged; the
+  Phase 7.B constants now derive from the `default` profile (single source
+  of truth). +24 backend tests (→ 803). No Console change (that's 8.A).
 - 2026-06-16 — M0 (three-month plan) Console redesign close: added the
   missing test coverage for the shipped `TacticalBasemap` redesign —
   procedural geometry, tactical↔satellite basemap toggle + localStorage
