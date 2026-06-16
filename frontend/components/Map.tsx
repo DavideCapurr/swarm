@@ -60,7 +60,7 @@ type BasemapConfig = {
   opacity: number;
 };
 
-const BASEMAPS: Record<BasemapMode, BasemapConfig> = {
+export const BASEMAPS: Record<BasemapMode, BasemapConfig> = {
   tactical: {
     // `@2x` tiles stay crisp on retina.
     tiles: ["a", "b", "c"].map(
@@ -86,9 +86,9 @@ const BASEMAPS: Record<BasemapMode, BasemapConfig> = {
 
 const BASEMAP_SRC = "swarm-basemap";
 const BASEMAP_LAYER = "swarm-basemap-raster";
-const BASEMAP_STORAGE_KEY = "swarm.basemap";
+export const BASEMAP_STORAGE_KEY = "swarm.basemap";
 
-function readStoredBasemap(): BasemapMode {
+export function readStoredBasemap(): BasemapMode {
   if (typeof window === "undefined") return "tactical";
   const stored = window.localStorage.getItem(BASEMAP_STORAGE_KEY);
   return stored === "satellite" || stored === "tactical" ? stored : "tactical";
@@ -111,7 +111,7 @@ const SWARM_STYLE: maplibregl.StyleSpecification = {
 };
 
 // State → accent. Monochrome platinum at rest; accent only when active.
-const STATE_COLOR: Record<SwarmState, string> = {
+export const STATE_COLOR: Record<SwarmState, string> = {
   rest: tokens.color.platinum,
   connected: tokens.color.orbitalBlue,
   operational: tokens.color.signalGreen,
@@ -657,7 +657,7 @@ function LegendRow({ glyph, label }: { glyph: ReactNode; label: string }) {
 // Basemap selector — lets the operator put the real satellite imagery under
 // the tactical overlay, or keep the dark tactical map. Monochrome chrome;
 // Orbital Blue marks the active mode (accent reserved for state, §5.2).
-function BasemapSwitch({
+export function BasemapSwitch({
   mode,
   onChange,
 }: {
