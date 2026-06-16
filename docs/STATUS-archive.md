@@ -1075,6 +1075,78 @@ remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
 
+2026-06-16: **8.B-bis (three-month code plan) — mandatory shadow mode +
+divergence report** on branch `feature/phase8bbis-shadow` (plan
+`docs/plan/three-month-code-plan.md`, Track A). Builds, once, the harness
+the plan flags as the prerequisite for **both** Phase 10.C (the ML
+anomaly-disposition classifier that *replaces* the 8.B thresholds) and
+10.E (RL): every new decider must `decide + log + compare to a human
+baseline` before it is trusted.
+
+- **The design decision** (the plan's "Two decisions before any code → 1.
+  Baseline oracle", left open until now). In a sim there is no human, so
+  the Phase 8 gate "< 5% divergence from a human decision" needs a
+  *labelled reference policy per scenario*. Three options were weighed:
+  (A) a band-quantised expert policy on the observable signal; (B) a
+  ground-truth-aware oracle that peeks at the sim script; (C) the frozen
+  8.B engine as its own baseline. **A was chosen** because the founder's
+  constraint is "ready for the real world, therefore for simulations": a
+  real deployment has **no ground-truth channel** (rules out B) and a
+  frozen engine validates nothing on 8.B itself (C is vacuous as a
+  self-gate). Only A transfers from sim to reality unchanged.
+- **Baseline oracle** (`swarm_os/shadow_oracle.py` +
+  `infra/config/autonomy_baseline.yaml`): `BaselineOracle.decide_all`
+  decides on the **same observable signal the engine sees** — anomaly
+  kind, confidence, lifecycle state, `hold_patrol` — and nothing else. It
+  differs from the engine only in *representation*: it reasons in the PDF
+  voice confidence **bands** (`voice.py`: low < 0.60 ≤ elevated < 0.85 ≤
+  verified) plus documented per-scenario operator intent. `OracleProfile` /
+  `OracleConfig` mirror `autonomy_config.py` (frozen, `extra=forbid`,
+  file-or-builtin fallback, kind→profile routing); per-scenario profiles:
+  wildfire verifies elevated smoke + escalates a verified hotspot;
+  intrusion verifies but `escalate_delegated=true` (operator owns calling
+  it in); search `verify_band=low-confidence` + low `dismiss_below` (0.15)
+  so a faint heat-spot is verified, never hastily dismissed. A load-time
+  guard forbids a dismiss floor that would swallow the verify band (except
+  the search "verify-everything" regime).
+- **Shadow harness** (`swarm_os/shadow.py`): a `Decider` is just
+  `(state, now) → list[AnomalyDisposition]` — the exact signature
+  `autonomy.decide_all` already satisfies and the one a future ML decider
+  will implement; `engine_decider()` / `oracle_decider()` adapt both.
+  `shadow_step` pairs candidate-vs-baseline verdicts per anomaly (a decider
+  that omits an anomaly is paired against `WAIT`, so the omission counts as
+  a divergence). `ShadowDecisionLog` accumulates the raw `ShadowEntry` rows
+  (both verdicts + both voice-clean reasons + profile — auditable, not just
+  counts) and folds them into a `DivergenceReport` with the `< 5%`
+  `GATE_DIVERGENCE` (strict `<`, so exactly 5% **fails**), a by-profile and
+  a by-transition (`verify→wait` &c.) breakdown. Pure + side-effect-free:
+  nothing here touches `state.commands`, emits a WS frame, or persists —
+  the harness only *observes* deciders; acting stays on the existing
+  audited operator-command path (CLAUDE.md §10). The live backend and the
+  Console are untouched.
+- **Bench / Gate-8 evidence** (`scripts/shadow_divergence.py` + `make
+  shadow-divergence`): runs the **real** 8.B decider (with the committed
+  `autonomy.yaml`) in shadow against the **real** oracle (with
+  `autonomy_baseline.yaml`) over the 3 owner-land scenarios at each
+  decision point — PENDING (verify/dismiss) and, only when the engine
+  verified, VERIFIED (escalate). Deterministic by default (`--jitter-sigma
+  0`); `--jitter-sigma` models the CV confidence variance of the
+  `cv_enabled` scenarios (intrusion/search) with seeded Gaussian noise, so
+  the 100+-run distribution is reproducible without the ~2 GB `[cv]` stack.
+  Results: **0% divergence** over 100 runs deterministic (the engine
+  matches the human baseline on every canonical scripted anomaly →
+  `docs/bench/artifacts/phase-8bbis-shadow-*.json`); ≈0.7% overall at
+  σ=0.05; and at σ=0.10 the per-scenario gate correctly **fails**
+  (intrusion ≈9%, search ≈11%) — the gate has teeth, exit code is
+  non-zero out of gate (no `|| true`).
+- **Gates** (Python 3.13): `make lint` green (ruff + mypy **189 files** +
+  tsc); `make test` green (**829 passed / 23 skipped** backend incl. +26
+  new `test_shadow_8b_bis.py`; **141 passed / 1 todo** frontend); `make
+  audit` exit 0 (pip-audit + pnpm audit "no known vulnerabilities" +
+  bandit no medium/high — bandit already skips B311 random/B101 assert +
+  integrity gates). The new bench's `random` is non-cryptographic CV-jitter
+  modelling only.
+
 2026-06-16: **8.B (three-month code plan) — autonomy engine complete** on
 branch `feature/phase8b-autonomy` (plan
 `docs/plan/three-month-code-plan.md`, Track A). Completes the Phase 7.B
