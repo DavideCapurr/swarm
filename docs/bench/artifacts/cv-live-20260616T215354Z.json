@@ -1,0 +1,73 @@
+{
+  "tool": "cv_live_report",
+  "generated_at": "2026-06-16T21:53:54Z",
+  "min_score_gate": 0.25,
+  "gate_passed": true,
+  "scenarios": [
+    {
+      "scenario_id": "wildfire_owner_land",
+      "cv_enabled": false,
+      "min_cv_score": null,
+      "detections": [
+        {
+          "kind": "SMOKE",
+          "after_s": 10.0,
+          "source": "drone_cv",
+          "cv": false,
+          "confidence": 0.62,
+          "label": null,
+          "fixture": null,
+          "lat": 44.700225225225225,
+          "lon": 8.03036036036036
+        },
+        {
+          "kind": "FIRE",
+          "after_s": 25.0,
+          "source": "thermal_sat",
+          "cv": false,
+          "confidence": 0.88,
+          "label": null,
+          "fixture": null,
+          "lat": 44.700225225225225,
+          "lon": 8.03036036036036
+        }
+      ]
+    },
+    {
+      "scenario_id": "intrusion_owner_land",
+      "cv_enabled": true,
+      "min_cv_score": 0.9463,
+      "detections": [
+        {
+          "kind": "INTRUSION",
+          "after_s": 15.0,
+          "source": "drone_cv",
+          "cv": true,
+          "confidence": 0.9463,
+          "label": "person",
+          "fixture": "fixture_002.jpg",
+          "lat": 44.7,
+          "lon": 8.030675675675676
+        }
+      ]
+    },
+    {
+      "scenario_id": "search_owner_land",
+      "cv_enabled": true,
+      "min_cv_score": 0.8603,
+      "detections": [
+        {
+          "kind": "HEAT_SPOT",
+          "after_s": 20.0,
+          "source": "drone_cv",
+          "cv": true,
+          "confidence": 0.8603,
+          "label": "person",
+          "fixture": "fixture_001.jpg",
+          "lat": 44.700540540540544,
+          "lon": 8.03108108108108
+        }
+      ]
+    }
+  ]
+}

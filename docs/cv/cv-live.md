@@ -1,0 +1,99 @@
+# CV live (three-month plan, Track B)
+
+Status: **done** for the two `person`-class scenarios (intrusion + search);
+the synthetic SIM-labeled drone-POV **video clip** is the last sub-step and
+is tracked separately (needs Blender). Builds on [Phase 7.D](phase-7d.md).
+
+## What CV live does
+
+7.D wired the seam but ran it on 32×32 zero-pixel placeholder fixtures, so
+every "real" score was 0.0 — wired, not live. CV live makes the score
+**real and meaningful**:
+
+| Scenario | `cv_enabled` | Anomaly confidence | Source |
+|----------|--------------|--------------------|--------|
+| `intrusion_owner_land` | true  | **real** YOLOv8 `person` score | committed CC0 fixture |
+| `search_owner_land`    | true  | **real** YOLOv8 `person` score | committed CC0 fixture |
+| `wildfire_owner_land`  | false | scripted (0.62 / 0.88) | fire/smoke-CV deferred to drone-day |
+
+Last `make cv-live` evidence (real COCO yolov8n, conf-floor 0.05,
+`torch.manual_seed(0)`):
+
+```
+intrusion_owner_land   INTRUSION  cv label='person'  score=0.946  (was scripted 0.71)
+search_owner_land      HEAT_SPOT  cv label='person'  score=0.860  (was scripted 0.55)
+wildfire_owner_land    SMOKE/FIRE scripted 0.62/0.88 (cv deferred)
+```
+
+The geo + kind still come from the scenario YAML (the sim has no
+geo-localized frames); only `confidence` is the model output, exactly the
+7.D contract — now on representative imagery.
+
+## Why wildfire stays scripted (fire-CV deferred)
+
+Honest-sim discipline: the COCO yolov8n baseline carries **no fire/smoke
+class**, and the fine-tuned `yolov8n-fire.pt` is still a `drone_day`
+placeholder (zero-pad sha) in [`manifest.json`](../../sim/swarm_sim/cv/manifest.json).
+Running COCO on a smoke frame would emit a meaningless ~0 score — a fake
+value this repo refuses. So wildfire's SMOKE keeps its scripted 0.62 and the
+FIRE follow-up stays `thermal_sat` (a satellite thermal signal, never an
+RGB/CV detection). Those scripted numbers also drive the deterministic
+R1→R2 path and the 0% shadow-divergence gate. Fire-CV lands the day the
+fine-tuned weight is pinned (drone-day).
+
+## Real CC0 fixtures (privacy posture)
+
+`sim/swarm_sim/cv/fixtures/person_aerial/` now holds **real CC0-1.0** frames
+instead of zero-pixel placeholders. Policy (see
+[`fixtures/LICENSES.md`](../../sim/swarm_sim/cv/fixtures/LICENSES.md)): the
+subject must be **non-identifiable** — back-view / distance / silhouette.
+CC0 waives the photographer's copyright; the back-view rule covers the
+depicted person's likeness, so no recognisable face is ever committed. Each
+row records the CC0 landing page + creator + sha + the real person score.
+
+| File | Subject | `person` conf | Source |
+|------|---------|---------------|--------|
+| fixture_001.jpg | man in field, back-view | 0.860 | Image Catalog (Flickr, CC0) |
+| fixture_002.jpg | person in field, back-view | 0.946 | Image Catalog (Flickr, CC0) |
+| fixture_003.jpg | person walking away, beach | 0.901 | annezazu (WP Photo Directory, CC0) |
+| fixture_004.jpg | hiker on trail, back-view | 0.801 | Matt Bango (StockSnap, CC0) |
+
+The `fire/` bucket stays synthetic zero-pixel on purpose (wildfire CV
+deferred; the fixtures only keep `test_detector.py` wired).
+
+## Manifest re-pin (supply-chain fix)
+
+CV live caught a real integrity drift: the pinned `yolov8n.pt` sha
+(`31e20dde…`, 6534387 B) no longer matched the bytes GitHub serves —
+Ultralytics re-published the release asset. Re-verified that the v8.3.0 and
+v8.4.0 URLs serve **byte-identical** files (`f59b3d83…`, 6549796 B) and that
+the model loads + detects `person`; pinned the current verified sha. The
+offline integrity gate (`make audit-cv-integrity`) confirms the chain.
+
+## Running it
+
+```
+make setup-cv     # opt-in [cv] extra (~2 GB wheels, AGPL — never in prod)
+make test-cv      # cv_baseline suite incl. the CV-live e2e contract
+make cv-live      # real-score bench → docs/bench/artifacts/cv-live-*.json
+```
+
+`make cv-live` exits non-zero if any `cv_enabled` anomaly score falls below
+the regression floor (default 0.25) — a real gate that would catch a fixture
+silently degrading back to a 0.0 placeholder. The default `make test`,
+`make lint`, `make audit` all stay green **without** the `[cv]` extra.
+
+Reproducibly verified in an **ephemeral** CV env (`uv run --with`, no
+`.venv`/lockfile mutation — the 2 GB AGPL surface never enters the working
+env), matching the opt-in production posture: CV is a sim/dev module,
+installed only where it's licensed, never in the backend image.
+
+## Not in CV live (next / deferred)
+
+- **Synthetic SIM-labeled drone-POV video clip** — the last sub-step:
+  a Blender render served via `StreamDescriptor`, stamped `SIMULATED FEED`
+  (never a stock clip), feeding both the demo viewport and the CV input.
+  Needs Blender; tracked in [`three-month-code-plan.md`](../plan/three-month-code-plan.md).
+- **bbox overlay** in the Console — the next Track B milestone.
+- Fire/smoke-CV — drone-day (fine-tuned weight pin).
+- 10.C classifier replacing the thresholds — later in the plan.

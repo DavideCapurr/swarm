@@ -68,7 +68,7 @@ def test_fixtures_only_documented_files(tmp_path: Path) -> None:
     fire_files = list_fixtures("fire")
     person_files = list_fixtures("person_aerial")
     assert fire_files, "fire fixtures missing — run `make cv-generate-fixtures`"
-    assert person_files, "person_aerial fixtures missing — run `make cv-generate-fixtures`"
+    assert person_files, "person_aerial fixtures missing — real CC0 frames, see fixtures/LICENSES.md"
     for path in [*fire_files, *person_files]:
         assert path.name in text, f"fixture {path.name} not in LICENSES.md"
 

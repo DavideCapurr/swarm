@@ -28,11 +28,18 @@ perception:
   # fixture frame per ignition; only `confidence` (below) is then replaced
   # by the real model score. The scripted YAML number stays the spec for
   # MockPerception (cv_enabled: false).
-  # Phase 7.G (M1 demo gate): cv_enabled flipped to false because the
-  # `yolov8n-fire.pt` placeholder + the `yolov8n.pt` fallback download
-  # hang in the sandbox; the scripted confidences (0.62/0.88) drive the
-  # deterministic R1/R2 path that M1 verifies. Real CV detection is
-  # re-validated by `make test-cv` under the [cv] extra.
+  # CV live (three-month plan): wildfire stays cv_enabled:false ON PURPOSE —
+  # fire/smoke-CV is deferred to drone-day, NOT a sandbox workaround.
+  # Rationale: the COCO yolov8n baseline carries no fire/smoke class, and the
+  # fine-tuned `yolov8n-fire.pt` is still a drone_day placeholder (zero-pad
+  # sha in manifest.json). Running COCO on a smoke frame would emit a
+  # meaningless ~0 score — a fake value this repo refuses. So the SMOKE
+  # anomaly keeps its honest scripted confidence (0.62) and the FIRE follow-up
+  # is correctly `thermal_sat` (a satellite thermal signal, never an RGB/CV
+  # detection). The deterministic R1→R2 path + the 0% shadow-divergence gate
+  # both ride these scripted numbers. CV live is therefore proven on the two
+  # `person`-class scenarios (intrusion + search), where COCO detection is
+  # real; smoke-CV lands when the fine-tuned weight is pinned (drone-day).
   cv_enabled: false
 anomalies:
   # Evidence layer: onboard drone CV spots smoke first (low confidence), then

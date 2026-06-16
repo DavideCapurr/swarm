@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo demo-wildfire-sim demo-intrusion-sim demo-search-sim shadow-divergence audit audit-python audit-frontend audit-bandit audit-config audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-dev-env bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
+.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv cv-live sim backend frontend demo demo-wildfire-sim demo-intrusion-sim demo-search-sim shadow-divergence audit audit-python audit-frontend audit-bandit audit-config audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-dev-env bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
 
 PY := python3
 VENV := .venv
@@ -56,6 +56,14 @@ test-frontend:
 # spurious failure.
 test-cv:
 	$(VENV)/bin/pytest sim/swarm_sim/cv/tests -q -m "cv_baseline or cv_baseline_realistic"
+
+# CV live (three-month plan) — real-score evidence bench. Requires the
+# opt-in `[cv]` extra (`make setup-cv`). Runs the production CV path over
+# the 3 scenarios and writes the real YOLOv8 person scores to
+# docs/bench/artifacts/cv-live-*.json. Exits non-zero if a cv_enabled
+# scenario's anomaly score falls below the regression floor.
+cv-live:
+	$(VENV)/bin/python scripts/cv_live_report.py $(ARGS)
 
 # ── run ─────────────────────────────────────────────────────────────────────
 infra: bootstrap-dev-env

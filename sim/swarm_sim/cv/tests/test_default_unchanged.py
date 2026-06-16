@@ -37,12 +37,13 @@ def _scenario_path(name: str) -> Path:
     return SCENARIO_DIR / f"{name}.yaml"
 
 
-# Phase 7.D set all three owner-land scenarios to cv_enabled: true. Phase 7.G
-# then deliberately flipped wildfire_owner_land back to false for the M1 demo
-# (the YOLOv8 weights hang in the sandbox, so the scripted 0.62/0.88
-# confidences drive the deterministic R1→R2 path M1 verifies). Real CV is
-# re-validated by `make test-cv` under the [cv] extra. The contract is
-# therefore per-scenario, not "all on".
+# CV live (three-month plan) freezes the per-scenario contract: intrusion +
+# search run real YOLOv8 `person` detection (cv_enabled: true); wildfire stays
+# cv_enabled: false ON PURPOSE — fire/smoke-CV is deferred to drone-day (COCO
+# has no fire class, the fine-tuned weight is a manifest placeholder), so its
+# scripted 0.62/0.88 keep driving the deterministic R1→R2 path + the 0%
+# shadow-divergence gate. Real CV is exercised by `make test-cv` / `make
+# cv-live` under the [cv] extra. The contract is per-scenario, not "all on".
 CV_BASELINE_EXPECTED = {
     "wildfire_owner_land": False,
     "intrusion_owner_land": True,
