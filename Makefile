@@ -1,4 +1,4 @@
-.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo demo-wildfire-sim demo-intrusion-sim demo-search-sim audit audit-python audit-frontend audit-bandit audit-config audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-dev-env bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
+.PHONY: setup setup-python setup-frontend setup-cv lint test test-python test-frontend test-cv sim backend frontend demo demo-wildfire-sim demo-intrusion-sim demo-search-sim shadow-divergence audit audit-python audit-frontend audit-bandit audit-config audit-pymavlink-integrity audit-cv-integrity phase5-sitl-gate bootstrap-dev-env bootstrap-auth-dev clean db-migrate db-revision docker-build docker-build-backend docker-build-frontend docker-build-backup helm-template helm-lint backup-dump-dry backup-drill load-smoke load-soak chaos-redis chaos-backend cv-generate-fixtures
 
 PY := python3
 VENV := .venv
@@ -97,6 +97,14 @@ demo-intrusion-sim:
 
 demo-search-sim:
 	@./scripts/demo_scenario.sh sim/scenarios/search_owner_land.yaml --metrics
+
+# Phase 8.B-bis — shadow-mode divergence bench. Runs the real 8.B decider in
+# shadow against the human-baseline oracle over the 3 scenarios and writes a
+# divergence report to docs/bench/artifacts/. Deterministic by default;
+# `make shadow-divergence ARGS="--jitter-sigma 0.05"` models CV variance.
+# Exits non-zero if the overall divergence is not within the < 5% Phase 8 gate.
+shadow-divergence:
+	@.venv/bin/python scripts/shadow_divergence.py $(ARGS)
 
 # ── security audit ──────────────────────────────────────────────────────────
 # `make audit` is the one-stop check before pushing. It mirrors what CI runs

@@ -1,0 +1,63 @@
+# Phase 8.B-bis — the human-baseline oracle for shadow mode.
+#
+# Loaded + validated by `swarm_os/shadow_oracle.py`. Mirrors the in-code
+# `_builtin_oracle_config()` fallback verbatim so a file-present and a
+# file-absent boot are identical.
+#
+# This is the "labelled reference policy per scenario" the Phase 8 gate
+# ("< 5% divergence from a human decision") depends on. The oracle decides
+# on the SAME observable signal the engine sees — anomaly kind, confidence,
+# lifecycle state — but reasons in the PDF voice confidence BANDS
+# (low-confidence < 0.60 <= elevated < 0.85 <= verified) rather than the
+# engine's tuned floats. It never peeks at the sim's scripted truth, so the
+# same policy transfers to a real deployment that has no ground-truth feed.
+#
+# Profile semantics (see swarm_os/shadow_oracle.py:OracleProfile):
+#   verify_band         — PENDING anomaly at/above this band -> VERIFY
+#   dismiss_below       — PENDING anomaly below this confidence -> DISMISS
+#   escalate_delegated  — true: a VERIFIED anomaly is never auto-escalated
+#                         (the operator owns escalation for this scenario)
+#   escalate_band       — VERIFIED anomaly at/above this band -> ESCALATE
+#                         (only when escalate_delegated is false)
+# Invariant enforced at load: dismiss_below must not reach into the verify
+# band (skipped when verify_band is low-confidence — the "verify everything
+# above the dismiss floor" search regime).
+
+default:
+  verify_band: elevated
+  dismiss_below: 0.30
+  escalate_delegated: false
+  escalate_band: verified
+
+profiles:
+  # Wildfire — a human verifies elevated smoke and escalates a verified
+  # hotspot readily. Agrees with the engine on the scripted arc
+  # (SMOKE 0.62 -> VERIFY, FIRE 0.88 -> ESCALATE).
+  wildfire:
+    verify_band: elevated
+    dismiss_below: 0.30
+    escalate_delegated: false
+    escalate_band: verified
+  # Intrusion — verify an elevated perimeter hit, but reserve escalation for
+  # the operator (the scripted 0.71 verifies and never auto-escalates).
+  intrusion:
+    verify_band: elevated
+    dismiss_below: 0.30
+    escalate_delegated: true
+    escalate_band: verified
+  # Search — life-safety: a human verifies even a faint (low-confidence)
+  # heat-spot and rarely dismisses, because missing a person is the costly
+  # error; escalation again reserved for the operator.
+  search:
+    verify_band: low-confidence
+    dismiss_below: 0.15
+    escalate_delegated: true
+    escalate_band: verified
+
+# Route each anomaly to its profile by kind — the same signal the engine
+# routes on. Unmapped kinds (e.g. UNKNOWN) fall back to `default`.
+kind_to_profile:
+  SMOKE: wildfire
+  FIRE: wildfire
+  HEAT_SPOT: search
+  INTRUSION: intrusion

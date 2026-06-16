@@ -50,8 +50,18 @@ for this window.
 Window progress: **M0** (Console redesign close) merged (`#103`); **8.B**
 (autonomy engine — full `VERIFY|DISMISS|ESCALATE|WAIT` decision set +
 per-scenario YAML thresholds) merged (`#104`); **8.A** (Console default
-inversion → observatory) **done** on `feature/phase8a-console-observatory`.
-Next milestone: **8.B-bis** (mandatory shadow mode + divergence report).
+inversion → observatory) merged (`#105`); **8.B-bis** (mandatory shadow
+mode + divergence report) **done** on `feature/phase8bbis-shadow`. Next
+milestone: **CV live** (real YOLO perception feeding anomalies in the 3
+scenarios).
+
+Baseline-oracle decision (8.B-bis, the plan's "first design decision of
+Track A"): the human-baseline oracle decides on the **same observable
+signal** the engine sees (no ground-truth peeking, so it transfers to a
+real deployment), but reasons in the PDF voice confidence **bands** with
+documented per-scenario operator intent. Divergence = how often the tuned
+float thresholds depart from band-level human judgment. See
+`swarm_os/shadow_oracle.py` + `infra/config/autonomy_baseline.yaml`.
 
 ## Pending / not yet tracked
 
@@ -63,16 +73,38 @@ Next milestone: **8.B-bis** (mandatory shadow mode + divergence report).
 ## Last verified gates
 
 `make lint` + `make test` + `make audit` on 2026-06-16 (Python 3.13):
-ruff + mypy (186 files) + tsc clean; **800 passed / 23 skipped / 3
-deselected** (backend) + **141 passed / 1 todo** (frontend); audit exit 0
+ruff + mypy (189 files) + tsc clean; **829 passed / 23 skipped**
+(backend) + **141 passed / 1 todo** (frontend); audit exit 0
 (pip-audit + pnpm audit + bandit 0 high/med + integrity checks — no known
-vulnerabilities).
+vulnerabilities). Shadow gate: `make shadow-divergence` → **0%** divergence
+over 100 runs of the 3 scenarios (deterministic), within the < 5% Phase 8
+gate (`docs/bench/artifacts/phase-8bbis-shadow-*.json`).
 
 ## Most recent changes
 
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-16 — 8.B-bis (three-month plan) mandatory shadow mode +
+  divergence report: the prerequisite the plan calls out for 10.C/10.E —
+  every new decider must `decide + log + compare to a human baseline`
+  before it is trusted. New `swarm_os/shadow.py` (a pluggable `Decider` =
+  `(state, now) → dispositions`; `ShadowDecisionLog` + `DivergenceReport`
+  with the `< 5%` `GATE_DIVERGENCE`) and `swarm_os/shadow_oracle.py`
+  (`BaselineOracle` — the human-baseline reference, committed in
+  `infra/config/autonomy_baseline.yaml`). **Design decision** (the plan's
+  open item): the oracle decides on the *observable* signal only — kind,
+  confidence, lifecycle state, hold_patrol — in PDF voice **bands**, with
+  per-scenario intent (wildfire escalates a verified hotspot; intrusion/
+  search reserve escalation for the operator; search verifies even faint
+  heat-spots). No ground-truth peeking, so the same policy transfers to a
+  real deployment. New `scripts/shadow_divergence.py` (+ `make
+  shadow-divergence`) runs the real engine in shadow over the 3 scenarios:
+  **0%** divergence deterministic (engine matches the baseline on every
+  canonical decision point); at σ=0.05 CV jitter ≈0.7% overall, and the
+  per-scenario gate correctly *fails* (>5%) under large jitter — the gate
+  has teeth. +26 backend tests (→ 829). Console + live backend path
+  untouched (the harness only observes deciders).
 - 2026-06-16 — 8.A (three-month plan) Console default inversion →
   observatory: the viewport rail now leads with *what SwarmOS decided*.
   New `autonomyStance()` selector (`frontend/lib/autonomy.ts`) collapses
