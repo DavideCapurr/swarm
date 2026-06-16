@@ -7,7 +7,7 @@
  * header, and the mobile alert surface.
  */
 
-import type { OperatorCommand } from "./api";
+import type { AnomalyView, OperatorCommand } from "./api";
 
 const NON_TERMINAL_STATUSES = new Set<OperatorCommand["status"]>([
   "submitted",
@@ -60,4 +60,44 @@ export function findLatestAutonomyCommand(
   if (candidates.length === 0) return null;
   candidates.sort((a, b) => (a.submitted_at < b.submitted_at ? 1 : -1));
   return candidates[0];
+}
+
+/**
+ * Phase 8.A — the observatory stance for the Console default inversion.
+ *
+ * "SwarmOS decides. Console supervises." Instead of leading with the
+ * operator's intents, the rail leads with *what SwarmOS decided*. This
+ * pure selector collapses the focus anomaly + autonomy commands into one
+ * of four stances the rail renders:
+ *
+ *   - `decided` — an autonomy command (R1/R2/R3) is bound to the focus
+ *     anomaly. The rail surfaces the verdict + rule; operator intents
+ *     become overrides.
+ *   - `holding` — autonomy is on and a focus anomaly exists, but no
+ *     autonomy command targets it yet. Mirrors the engine's WAIT verdict
+ *     (the Console observes no command — it never fabricates one).
+ *   - `clear` — autonomy is on with no focus anomaly: observatory rest.
+ *   - `manual` — autonomy baseline off: no inversion, the legacy
+ *     operator-led flow stands.
+ *
+ * Side-effect-free so it is trivially unit-tested without the provider.
+ */
+export type AutonomyStance =
+  | { kind: "decided"; command: OperatorCommand }
+  | { kind: "holding"; anomaly: AnomalyView }
+  | { kind: "clear" }
+  | { kind: "manual" };
+
+export function autonomyStance(
+  autonomyEnabled: boolean,
+  focus: AnomalyView | null,
+  commands: OperatorCommand[]
+): AutonomyStance {
+  if (!autonomyEnabled) return { kind: "manual" };
+  if (focus) {
+    const command = findLatestAutonomyCommand(commands, focus.id);
+    if (command) return { kind: "decided", command };
+    return { kind: "holding", anomaly: focus };
+  }
+  return { kind: "clear" };
 }

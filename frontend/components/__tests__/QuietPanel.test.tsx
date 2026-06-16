@@ -13,9 +13,16 @@ import { render, screen } from "@testing-library/react";
 import { QuietPanel } from "@/components/QuietPanel";
 import { makeCommand, makeSwarmState } from "./_swarmState";
 
-vi.mock("@/lib/state", () => ({
-  useSwarm: vi.fn(),
-}));
+vi.mock("@/lib/state", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/state")>(
+    "@/lib/state"
+  );
+  return {
+    ...actual,
+    useSwarm: vi.fn(),
+    useFocusAnomaly: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/auth", async () => {
   const actual = await vi.importActual<typeof import("@/lib/auth")>("@/lib/auth");
@@ -25,9 +32,10 @@ vi.mock("@/lib/auth", async () => {
   };
 });
 
-import { useSwarm } from "@/lib/state";
+import { useFocusAnomaly, useSwarm } from "@/lib/state";
 
 const useSwarmMock = vi.mocked(useSwarm);
+const useFocusMock = vi.mocked(useFocusAnomaly);
 
 describe("QuietPanel · RecentSection", () => {
   it("renders the auto · r1 eyebrow when the latest command is autonomy", () => {
@@ -62,5 +70,24 @@ describe("QuietPanel · RecentSection", () => {
     render(<QuietPanel onSelectAgent={() => {}} />);
 
     expect(screen.queryByTestId("recent-auto-chip")).not.toBeInTheDocument();
+  });
+});
+
+describe("QuietPanel · Phase 8.A inversion", () => {
+  it("leads with the SwarmOS decision block when the autonomy baseline is on", () => {
+    useFocusMock.mockReturnValue(null);
+    useSwarmMock.mockReturnValue(makeSwarmState({ autonomyEnabled: true }));
+
+    render(<QuietPanel onSelectAgent={() => {}} />);
+
+    expect(screen.getByTestId("autonomy-decision")).toBeInTheDocument();
+  });
+
+  it("keeps the legacy operator-led flow (no inversion) when autonomy is off", () => {
+    useSwarmMock.mockReturnValue(makeSwarmState({ autonomyEnabled: false }));
+
+    render(<QuietPanel onSelectAgent={() => {}} />);
+
+    expect(screen.queryByTestId("autonomy-decision")).not.toBeInTheDocument();
   });
 });

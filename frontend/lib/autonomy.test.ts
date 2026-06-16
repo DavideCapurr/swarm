@@ -5,8 +5,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { findActiveAutonomyCommand, findLatestAutonomyCommand } from "./autonomy";
-import { makeCommand } from "@/components/__tests__/_swarmState";
+import {
+  autonomyStance,
+  findActiveAutonomyCommand,
+  findLatestAutonomyCommand,
+} from "./autonomy";
+import { makeAnomaly, makeCommand } from "@/components/__tests__/_swarmState";
 
 describe("findActiveAutonomyCommand", () => {
   it("returns the in-flight autonomy command targeting the anomaly", () => {
@@ -118,5 +122,64 @@ describe("findLatestAutonomyCommand", () => {
       status: "completed",
     });
     expect(findLatestAutonomyCommand([other], "a-1")).toBeNull();
+  });
+});
+
+describe("autonomyStance", () => {
+  it("is `manual` when the autonomy baseline is off — no inversion", () => {
+    const focus = makeAnomaly({ id: "a-1" });
+    expect(autonomyStance(false, focus, [])).toEqual({ kind: "manual" });
+  });
+
+  it("is `clear` when autonomy is on with no focus anomaly", () => {
+    expect(autonomyStance(true, null, [])).toEqual({ kind: "clear" });
+  });
+
+  it("is `holding` when autonomy is on, a focus exists, but no command targets it", () => {
+    const focus = makeAnomaly({ id: "a-1" });
+    const elsewhere = makeCommand({
+      source: "autonomy",
+      target: "anomaly:b-2",
+      status: "in_flight",
+    });
+    expect(autonomyStance(true, focus, [elsewhere])).toEqual({
+      kind: "holding",
+      anomaly: focus,
+    });
+  });
+
+  it("is `decided` with the bound command when autonomy acted on the focus", () => {
+    const focus = makeAnomaly({ id: "a-1" });
+    const command = makeCommand({
+      source: "autonomy",
+      action: "escalate",
+      target: "anomaly:a-1",
+      status: "completed",
+      rule: "R2",
+    });
+    expect(autonomyStance(true, focus, [command])).toEqual({
+      kind: "decided",
+      command,
+    });
+  });
+
+  it("binds the most recent command when several target the focus", () => {
+    const focus = makeAnomaly({ id: "a-1" });
+    const older = makeCommand({
+      id: "cmd-old",
+      source: "autonomy",
+      target: "anomaly:a-1",
+      status: "completed",
+      submitted_at: "2026-05-20T10:00:00Z",
+    });
+    const newer = makeCommand({
+      id: "cmd-new",
+      source: "autonomy",
+      target: "anomaly:a-1",
+      status: "in_flight",
+      submitted_at: "2026-05-20T12:00:00Z",
+    });
+    const stance = autonomyStance(true, focus, [older, newer]);
+    expect(stance).toEqual({ kind: "decided", command: newer });
   });
 });

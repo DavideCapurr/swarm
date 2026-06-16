@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 
 import { useFocusAnomaly, useSwarm } from "@/lib/state";
-import { ACTION_LABELS } from "@/lib/copy";
+import { ACTION_LABELS, OVERRIDE_LABEL } from "@/lib/copy";
 
 type WiredIntent = "verify" | "hold_patrol";
 
@@ -20,7 +20,7 @@ type Phase = "idle" | "sending" | "accepted" | "rejected";
 type Outcome = { phase: Phase; detail?: string };
 
 export function ActionRail() {
-  const { dispatch } = useSwarm();
+  const { dispatch, autonomyEnabled } = useSwarm();
   const focus = useFocusAnomaly();
   const [state, setState] = useState<Record<WiredIntent, Outcome>>({
     verify: { phase: "idle" },
@@ -74,7 +74,17 @@ export function ActionRail() {
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-col gap-2">
+      {/* Phase 8.A — on autonomy-enabled sites these intents override the
+          SwarmOS decision; frame them as such. Autonomy-off sites keep the
+          bare row. */}
+      {autonomyEnabled && (
+        <span className="eyebrow-mono text-ash" data-testid="override-label">
+          <span className="mr-2">—</span>
+          {OVERRIDE_LABEL}
+        </span>
+      )}
+      <div className="flex gap-2">
       <IntentButton
         label={ACTION_LABELS.verify.label}
         hint={ACTION_LABELS.verify.hint}
@@ -91,6 +101,7 @@ export function ActionRail() {
         variant="secondary"
         onPress={() => send("hold_patrol")}
       />
+      </div>
     </div>
   );
 }
