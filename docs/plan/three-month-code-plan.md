@@ -71,7 +71,7 @@ divergence from the baseline oracle.
 | ID | Scope | Deliverable | Note |
 |----|-------|-------------|------|
 | M0 | Close the **in-flight uncommitted** redesign (TacticalBasemap + tactical↔satellite basemap toggle, per-state markers, `next.config.mjs` CSP for the tile hosts) | Finish, verify live via the preview server, add tests, branch + commit, regenerate the stale YC screenshots | ~80% done; the quick win that cleans the working tree |
-| CV live | Take the 7.D baseline (YOLOv8 fire / VisDrone person, today opt-in with fixtures) to **real live perception in the 3 scenarios** | CV produces real scores that feed anomalies, not scripted values | `[cv]` wheels ~2 GB, AGPL — stays opt-in, out of the prod image |
+| CV live | Take the 7.D baseline (YOLOv8 fire / VisDrone person, today opt-in with fixtures) to **real live perception in the 3 scenarios** | CV produces real scores that feed anomalies, not scripted values. **Last sub-step: synthetic SIM-labeled drone POV clip** (Blender render, CC0 assets) served via `StreamDescriptor` in the Console viewport — stamped `SIMULATED FEED`, never a stock clip; feeds both the demo and the CV fixture pool. | `[cv]` wheels ~2 GB, AGPL — stays opt-in, out of the prod image |
 | bbox overlay | Detection bounding-box overlay on the viewport/verify panel (the item STATUS attributes to "8.D / 10") | Real boxes + scores rendered in Console | depends on CV live |
 
 ## Added scope — federation + real ML

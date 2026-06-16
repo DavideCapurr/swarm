@@ -1,8 +1,12 @@
 # Phase 7.D — CV baseline (sim)
 
-Status: code-complete (`sim/swarm_sim/cv/`); fixtures are SwarmOS-authored
-synthetic CC0 placeholders. Drone-day items (real CC0 frames, fine-tuned
-weight pins, NOTAM/weather sample integration) catalogued in
+Status: code-complete (`sim/swarm_sim/cv/`). **Superseded for live use by
+[CV live](cv-live.md)** (three-month plan), which replaced the synthetic
+zero-pixel `person_aerial/` fixtures with real CC0 frames so intrusion +
+search produce real `person` scores, and re-pinned the `yolov8n.pt` weight.
+The `fire/` fixtures remain SwarmOS-authored synthetic placeholders (wildfire
+CV deferred to drone-day). Drone-day items (fine-tuned weight pins,
+NOTAM/weather sample integration) catalogued in
 [`drone-day-checklist.md`](../ops/drone-day-checklist.md) §2.D — they do
 not block the 7.E demo.
 

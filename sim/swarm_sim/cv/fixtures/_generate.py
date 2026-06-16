@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""Phase 7.D — synthetic CC0 fixture generator.
+"""Synthetic CC0 fixture generator — `fire/` bucket only.
 
-The committed fixtures under `fire/` and `person_aerial/` are SwarmOS-
-authored 32x32 PNGs released to the public domain (CC0). They are NOT
-representative imagery — they exist so the seam tests
-(`test_detector.py`, `test_perception_seam.py`, `test_wildfire_e2e_cv.py`)
-can run end-to-end without redistributing FLAME / D-Fire / VisDrone
-content (research-only licenses; see `manifest.json` and `LICENSES.md`).
+The committed fixtures under `fire/` are SwarmOS-authored 32x32 PNGs
+released to the public domain (CC0). They are NOT representative imagery —
+they exist so the detector smoke test (`test_detector.py`) can run
+end-to-end without redistributing FLAME / D-Fire content (research-only
+licenses; see `manifest.json` and `LICENSES.md`). Wildfire CV is deferred
+to drone-day (COCO has no fire class), so these stay synthetic.
+
+CV live note: the `person_aerial/` bucket is **no longer generated here**.
+It now holds real CC0 frames of non-identifiable people (back-view /
+distance) on which YOLOv8 produces real `person` scores — see
+`fixtures/LICENSES.md`. This generator must never recreate zero-pixel
+`person_aerial/` placeholders, or it would shadow the real frames and the
+integrity audit would fail on the un-rowed files.
 
 Drone-day flow (documented in `docs/cv/phase-7d.md`):
 
@@ -81,16 +88,6 @@ _FIRE_TAGS = (
     "swarm-cv-phase-7d-fire-005",
     "swarm-cv-phase-7d-fire-006",
 )
-_PERSON_TAGS = (
-    "swarm-cv-phase-7d-person-001",
-    "swarm-cv-phase-7d-person-002",
-    "swarm-cv-phase-7d-person-003",
-    "swarm-cv-phase-7d-person-004",
-    "swarm-cv-phase-7d-person-005",
-    "swarm-cv-phase-7d-person-006",
-)
-
-
 def _write_kind(folder: Path, tags: tuple[str, ...]) -> int:
     folder.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -104,9 +101,10 @@ def _write_kind(folder: Path, tags: tuple[str, ...]) -> int:
 
 
 def main() -> int:
+    # fire/ only — person_aerial/ holds real CC0 frames (see module docstring
+    # + fixtures/LICENSES.md) and must never be regenerated as zero-pixel.
     fire = _write_kind(FIXTURES_DIR / "fire", _FIRE_TAGS)
-    person = _write_kind(FIXTURES_DIR / "person_aerial", _PERSON_TAGS)
-    print(f"phase-7d fixtures: fire={fire} person_aerial={person}")
+    print(f"cv fixtures: fire={fire} (person_aerial is real CC0, not generated)")
     return 0
 
 

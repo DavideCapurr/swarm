@@ -51,9 +51,11 @@ Window progress: **M0** (Console redesign close) merged (`#103`); **8.B**
 (autonomy engine — full `VERIFY|DISMISS|ESCALATE|WAIT` decision set +
 per-scenario YAML thresholds) merged (`#104`); **8.A** (Console default
 inversion → observatory) merged (`#105`); **8.B-bis** (mandatory shadow
-mode + divergence report) **done** on `feature/phase8bbis-shadow`. Next
-milestone: **CV live** (real YOLO perception feeding anomalies in the 3
-scenarios).
+mode + divergence report) merged (`#106`); **CV live** (real YOLO `person`
+scores feeding anomalies in intrusion + search; wildfire scripted, fire-CV
+deferred) **done** on `feature/cv-live`. Next milestone: the CV-live
+**video sub-step** (synthetic SIM-labeled drone-POV clip via Blender +
+`StreamDescriptor`) then **bbox overlay**.
 
 Baseline-oracle decision (8.B-bis, the plan's "first design decision of
 Track A"): the human-baseline oracle decides on the **same observable
@@ -72,19 +74,44 @@ float thresholds depart from band-level human judgment. See
 
 ## Last verified gates
 
-`make lint` + `make test` + `make audit` on 2026-06-16 (Python 3.13):
-ruff + mypy (189 files) + tsc clean; **829 passed / 23 skipped**
+`make lint` + `make test` + `make audit` on 2026-06-17 (Python 3.13):
+ruff + mypy (189 files) + tsc clean; **826 passed / 23 skipped**
 (backend) + **141 passed / 1 todo** (frontend); audit exit 0
 (pip-audit + pnpm audit + bandit 0 high/med + integrity checks — no known
 vulnerabilities). Shadow gate: `make shadow-divergence` → **0%** divergence
 over 100 runs of the 3 scenarios (deterministic), within the < 5% Phase 8
-gate (`docs/bench/artifacts/phase-8bbis-shadow-*.json`).
+gate (`docs/bench/artifacts/phase-8bbis-shadow-*.json`). CV-live gate:
+`make cv-live` (opt-in `[cv]`, verified in an ephemeral `uv run --with` env
+so the 2 GB AGPL surface never enters `.venv`) → real `person` scores
+**0.946** (intrusion) / **0.860** (search), ≥ 0.25 floor
+(`docs/bench/artifacts/cv-live-*.json`); `make test-cv` → **10 passed**.
 
 ## Most recent changes
 
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-17 — CV live (three-month plan, Track B) real perception: the
+  `person`-class scenarios now feed **real YOLOv8 scores** to the bus
+  instead of scripted YAML values. Replaced the zero-pixel `person_aerial/`
+  placeholder fixtures (which scored 0.0) with 4 **real CC0-1.0** frames of
+  non-identifiable people (back-view / distance; CC0 covers the
+  photographer's copyright, the back-view rule the subject's likeness) —
+  provenance + real scores recorded in `fixtures/LICENSES.md`. intrusion →
+  `person` **0.946**, search → **0.860** (were scripted 0.71 / 0.55).
+  Wildfire stays `cv_enabled:false` **on purpose** (fire/smoke-CV deferred to
+  drone-day — COCO has no fire class; its scripted 0.62/0.88 keep driving the
+  R1→R2 path + the 0% shadow gate). Caught + fixed a real supply-chain drift:
+  the pinned `yolov8n.pt` sha no longer matched the bytes GitHub serves
+  (Ultralytics re-published the asset) → re-verified + re-pinned
+  (`f59b3d83…`). New `scripts/cv_live_report.py` + `make cv-live` (real-score
+  evidence bench, regression floor gate) and `test_cv_live_e2e.py` (replaces
+  the now-obsolete wildfire e2e cv test). Verified end-to-end on the real
+  repo path in an **ephemeral** CV env (`uv run --with`, no `.venv`/lockfile
+  mutation — matches the opt-in/out-of-prod AGPL posture). Default
+  `make {lint,test,audit}` stay green without the `[cv]` extra. The CV-live
+  **video sub-step** (Blender SIM-feed) is the next, separate step. See
+  [`docs/cv/cv-live.md`](cv/cv-live.md).
 - 2026-06-16 — 8.B-bis (three-month plan) mandatory shadow mode +
   divergence report: the prerequisite the plan calls out for 10.C/10.E —
   every new decider must `decide + log + compare to a human baseline`
