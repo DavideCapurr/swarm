@@ -1075,6 +1075,55 @@ remain catalogued in `docs/ops/drone-day-checklist.md`.
 
 ## Last updated
 
+2026-06-16: **8.B (three-month code plan) — autonomy engine complete** on
+branch `feature/phase8b-autonomy` (plan
+`docs/plan/three-month-code-plan.md`, Track A). Completes the Phase 7.B
+deterministic baseline: a verdict on **every** anomaly plus per-scenario
+thresholds, with zero change to the Phase 7.B command path.
+
+- **Full decision set** (`swarm_os/autonomy.py`): new `AutonomyVerdict`
+  enum (`VERIFY|ESCALATE|DISMISS|WAIT`) and `AnomalyDisposition` record.
+  `decide_all(state, now)` is pure decision logic that returns **one
+  disposition per anomaly** — every non-firing case (the
+  [dismiss_ceil, verify_floor) dead band, the debounce/idle/stale windows,
+  an in-flight command, `hold_patrol`, and every non-actionable state) is
+  now an explicit `WAIT` with a voice-clean `reason`, not a dropped `None`.
+  This is the complete decision surface the Phase 8.B-bis shadow harness
+  will compare against the baseline oracle, so `decide_all` deliberately
+  does **not** gate on `autonomy_enabled`.
+- **Actionable adapter unchanged**: `tick(state, now)` now gates
+  `autonomy_enabled` and filters the non-WAIT dispositions into the same
+  `AutonomyDecision` records as before; `to_command()` and the coordinator
+  `_apply_autonomy_decisions` path are untouched (the command bus, policy
+  gate, audit log and `command.rule` → `AUTO · R*` chip all unchanged).
+- **Per-scenario thresholds** (`swarm_os/autonomy_config.py` +
+  `infra/config/autonomy.yaml`): the four thresholds moved from module
+  constants to named `AutonomyProfile`s in an `AutonomyConfig`, loaded with
+  the same file-or-builtin fallback pattern as `swarm_os/sites.py`. An
+  anomaly is routed to its profile **by `AnomalyKind`** (the only scenario
+  signal it carries in the single-cell kernel): SMOKE/FIRE→`wildfire`,
+  HEAT_SPOT→`search`, INTRUSION→`intrusion`, else `default`. Profiles are
+  tuned per risk: wildfire == the Phase 7.B constants (so the 7.B suites
+  stay green verbatim); intrusion holds a higher escalate floor (0.85) so
+  the operator owns calling it in; search holds a lower dismiss ceiling
+  (0.20) + longer stale window (45 s) so a faint heat-spot that may be a
+  person is not auto-dismissed. The Phase 7.B module constants
+  (`AUTO_VERIFY_FLOOR` &c.) now **derive** from the `default` profile —
+  single source of truth — and `test_autonomy_8b` pins the equality plus
+  the committed-YAML ↔ builtin equality. Schema is `extra=forbid` +
+  `frozen`; load-time guards reject an inverted band
+  (`dismiss_ceil > verify_floor`) and routing to an undefined profile.
+- **Gates** (Python 3.13): `make lint` green (ruff + mypy **186 files** +
+  tsc); `make test` green (**803 passed / 23 skipped** backend incl. +24
+  new `test_autonomy_8b.py`; **129 passed / 1 todo** frontend); `make
+  audit` exit 0 (pip-audit + pnpm audit "no known vulnerabilities" +
+  bandit no medium/high + integrity gates). The Phase 7.B unit +
+  integration suites (`test_autonomy.py`, `test_phase7b_integration.py`,
+  `test_phase7c_rule_propagation.py` — 40 tests) pass unchanged, proving
+  the command path and the three on-disk scenarios are unaffected.
+- **No Console change** — the Console default inversion to observatory is
+  8.A, the next milestone.
+
 2026-06-14: **Phase 7 extension — Anomaly Evidence Layer** on branch
 `feature/anomaly-evidence-layer`. Each anomaly now carries its **provenance**
 (`AnomalySource`: drone CV / thermal satellite / fire detector) and the
