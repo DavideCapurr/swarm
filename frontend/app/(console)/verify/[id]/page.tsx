@@ -23,7 +23,8 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
   const { anomalies, verifier, link, streams, commands } = useSwarm();
   const anomaly = anomalies.find((a) => a.id === id);
   const stream = verifier ? streams[verifier.agent_id] ?? null : null;
-  const streamAvailable = !!(stream && stream.available && stream.url);
+  const streamSimulated = !!(stream && stream.available && stream.simulated && stream.url);
+  const streamLive = !!(stream && stream.available && !stream.simulated && stream.url);
   const autonomyCommand = anomaly
     ? findLatestAutonomyCommand(commands, anomaly.id)
     : null;
@@ -57,9 +58,11 @@ export default function VerifyDetail({ params }: { params: Promise<{ id: string 
               stream={stream}
             />
             <span className="eyebrow-mono text-ash">
-              {streamAvailable
-                ? "live · stream advertised by the adapter"
-                : "feed pending — adapter has not advertised a stream url"}
+              {streamSimulated
+                ? "simulated feed · synthetic SIM-labelled drone POV (no real camera in sim)"
+                : streamLive
+                  ? "live · stream advertised by the adapter"
+                  : "feed pending — adapter has not advertised a stream url"}
             </span>
           </div>
 

@@ -306,6 +306,13 @@ export type StreamProtocol = "rtsps" | "https";
 export type StreamDescriptor = {
   agent_id: string;
   available: boolean;
+  /**
+   * A simulated feed is a synthetic SIM-labeled clip bundled with the
+   * Console (Blender render, CC0). Its `url` is a same-origin `/sim-feed/…`
+   * path and the viewport stamps it `SIMULATED FEED`. Mirrors the
+   * `simulated` field on `core/swarm_core/streams.py`.
+   */
+  simulated: boolean;
   url: string | null;
   protocol: StreamProtocol | null;
   codec: string | null;
@@ -326,6 +333,33 @@ export function isAllowedStreamUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Same-origin prefix a simulated clip must live under (mirrors `SIM_FEED_PREFIX`). */
+export const SIM_FEED_PREFIX = "/sim-feed/";
+
+/**
+ * Client-side mirror of `validate_sim_feed_path` — a simulated feed must be a
+ * same-origin path under `/sim-feed/`, never an absolute/protocol-relative URL
+ * and never a `..` traversal. Defense in depth: the backend is the source of
+ * truth, but the Console refuses to point a `<video>` at anything else.
+ */
+export function isAllowedSimFeedPath(path: string): boolean {
+  if (typeof path !== "string" || path.length === 0) return false;
+  if (/[\r\n\0\\]/.test(path)) return false;
+  // A real URL parses with a protocol/host; a same-origin path does not. Use a
+  // dummy base so a bare path parses, then reject anything that resolved to a
+  // different origin (absolute or protocol-relative URLs do).
+  let resolved: URL;
+  try {
+    resolved = new URL(path, "https://console.invalid");
+  } catch {
+    return false;
+  }
+  if (resolved.origin !== "https://console.invalid") return false;
+  if (!path.startsWith(SIM_FEED_PREFIX)) return false;
+  if (path.split("/").includes("..")) return false;
+  return true;
 }
 
 // ── Auth hooks (installed by lib/auth.tsx) ─────────────────────────────────────

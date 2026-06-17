@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   api,
   EMERGENCY_CONFIRMATION_PHRASE,
+  isAllowedSimFeedPath,
   isAllowedStreamUrl,
 } from "@/lib/api";
 
@@ -39,6 +40,32 @@ describe("isAllowedStreamUrl", () => {
   it("returns false on malformed input", () => {
     expect(isAllowedStreamUrl("not a url")).toBe(false);
     expect(isAllowedStreamUrl("")).toBe(false);
+  });
+});
+
+describe("isAllowedSimFeedPath", () => {
+  it("accepts a same-origin /sim-feed/ path", () => {
+    expect(isAllowedSimFeedPath("/sim-feed/unit-003-pov.mp4")).toBe(true);
+  });
+
+  it("rejects absolute and protocol-relative URLs (no external origin)", () => {
+    expect(isAllowedSimFeedPath("https://evil.example/sim-feed/x.mp4")).toBe(false);
+    expect(isAllowedSimFeedPath("//evil.example/sim-feed/x.mp4")).toBe(false);
+  });
+
+  it("rejects same-origin paths outside the /sim-feed/ prefix", () => {
+    expect(isAllowedSimFeedPath("/api/secret")).toBe(false);
+    expect(isAllowedSimFeedPath("/")).toBe(false);
+  });
+
+  it("rejects traversal and control characters", () => {
+    expect(isAllowedSimFeedPath("/sim-feed/../../etc/passwd")).toBe(false);
+    expect(isAllowedSimFeedPath("/sim-feed/x.mp4\r\nX-Inject: 1")).toBe(false);
+    expect(isAllowedSimFeedPath("/sim-feed/..\\x.mp4")).toBe(false);
+  });
+
+  it("returns false on empty input", () => {
+    expect(isAllowedSimFeedPath("")).toBe(false);
   });
 });
 

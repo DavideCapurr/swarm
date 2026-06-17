@@ -53,9 +53,10 @@ per-scenario YAML thresholds) merged (`#104`); **8.A** (Console default
 inversion → observatory) merged (`#105`); **8.B-bis** (mandatory shadow
 mode + divergence report) merged (`#106`); **CV live** (real YOLO `person`
 scores feeding anomalies in intrusion + search; wildfire scripted, fire-CV
-deferred) **done** on `feature/cv-live`. Next milestone: the CV-live
-**video sub-step** (synthetic SIM-labeled drone-POV clip via Blender +
-`StreamDescriptor`) then **bbox overlay**.
+deferred) merged (`#107`); **CV-live video sub-step** (synthetic SIM-labeled
+Langhe-vineyard drone-POV clip via Blender + `StreamDescriptor` `simulated`
+mode, stamped `SIMULATED FEED`) **done** on `feature/cv-live-sim-feed`. Next
+milestone: **bbox overlay**.
 
 Baseline-oracle decision (8.B-bis, the plan's "first design decision of
 Track A"): the human-baseline oracle decides on the **same observable
@@ -75,10 +76,10 @@ float thresholds depart from band-level human judgment. See
 ## Last verified gates
 
 `make lint` + `make test` + `make audit` on 2026-06-17 (Python 3.13):
-ruff + mypy (189 files) + tsc clean; **826 passed / 23 skipped**
-(backend) + **141 passed / 1 todo** (frontend); audit exit 0
-(pip-audit + pnpm audit + bandit 0 high/med + integrity checks — no known
-vulnerabilities). Shadow gate: `make shadow-divergence` → **0%** divergence
+ruff + mypy (190 files) + tsc clean; **847 passed / 23 skipped**
+(backend) + **151 passed / 1 todo** (frontend); audit exit 0
+(pip-audit + pnpm audit + bandit 0 high/med + integrity checks incl.
+`cv assets integrity: PASS fixtures=14` — no known vulnerabilities). Shadow gate: `make shadow-divergence` → **0%** divergence
 over 100 runs of the 3 scenarios (deterministic), within the < 5% Phase 8
 gate (`docs/bench/artifacts/phase-8bbis-shadow-*.json`). CV-live gate:
 `make cv-live` (opt-in `[cv]`, verified in an ephemeral `uv run --with` env
@@ -91,6 +92,28 @@ so the 2 GB AGPL surface never enters `.venv`) → real `person` scores
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-17 — CV-live **video sub-step** (three-month plan, Track B): the
+  verification viewport now shows a synthetic SIM-labeled drone-POV clip instead
+  of only the `VIEWPORT PENDING` placard. **Setting matches the demo** — a
+  **Langhe vineyard near Alba** (the place `world.py` models), parallel vine
+  rows, subject walking an alley in **back view** (the same non-identifiable
+  privacy rule as the real `person_aerial/` fixtures). Rendered in Blender from
+  **CC0-1.0** Poly Haven assets (`alps_field` HDRI + `aerial_grass_rock`),
+  reproducible via `scripts/render_sim_feed.py` (Blender is an opt-in art tool,
+  not a repo/CI dep — like `[cv]`). New: `StreamDescriptor` gained a third honest
+  state — `simulated=True` carrying a **same-origin** `/sim-feed/…` path (zero
+  SSRF surface; a forged external/`..` url is rejected by the backend
+  re-validation), Console `LiveFeedFrame` renders it stamped **`SIMULATED FEED`**
+  (monochrome, never amber — it's an honesty label, not a state), the sim runner
+  advertises it per unit on `SWARM_SIM_FEED_PATH` (`dev_up.sh` turns it on for
+  the demo when the clip is present), and a `media-src 'self'` CSP pin. Clip +
+  provenance: `frontend/public/sim-feed/`. The clip also **feeds the CV fixture
+  pool** (`sim/swarm_sim/cv/fixtures/sim_drone_pov/`, integrity-gated) but does
+  **not** drive anomaly confidence — the live `person` scores stay on the real
+  CC0 frames (honest-sim: a synthetic figure is never a real detection). +25
+  tests (core/streams, frontend LiveFeedFrame + sim-feed allowlist, sim runner
+  publisher, backend re-broadcast + forged-url drop, fixture-pool). See
+  [`docs/cv/cv-live.md`](cv/cv-live.md).
 - 2026-06-17 — CV live (three-month plan, Track B) real perception: the
   `person`-class scenarios now feed **real YOLOv8 scores** to the bus
   instead of scripted YAML values. Replaced the zero-pixel `person_aerial/`

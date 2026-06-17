@@ -50,6 +50,28 @@ score (conf-floor 0.05, `torch.manual_seed(0)`) captured by
 | fixture_003.jpg | wordpress.org/photos/photo/82865232e6/ · annezazu (WP Photo Directory)         | CC0-1.0   | `52c1684b98d0f887…` | 0.901           |
 | fixture_004.jpg | stocksnap.io/photo/man-hiking-EZZSLOHXVG · Matt Bango (StockSnap)              | CC0-1.0   | `87a5c95834069b26…` | 0.801           |
 
+## sim_drone_pov/
+
+Synthetic SIM-labelled drone-POV frames — a **Langhe vineyard** (the demo
+setting; `sim/swarm_sim/world.py` `DEFAULT_DOCK` 44.70 N / 8.03 E), subject
+walking an alley in **back view / distance** (non-identifiable, same privacy
+rule as `person_aerial/`). These are SwarmOS-authored Blender renders dedicated
+to the public domain (CC0-1.0), the same source as the Console viewport clip
+`frontend/public/sim-feed/drone-pov.mp4` (provenance + reproduction:
+`scripts/render_sim_feed.py`; CC0 Poly Haven `alps_field` HDRI +
+`aerial_grass_rock` texture). They join the CV fixture **pool** so the detector
+can run on them, but they do **not** drive any anomaly confidence — the live
+`person` scores keep coming from the real CC0 frames in `person_aerial/` (the
+honest-sim line: a synthetic figure is not passed off as a real detection).
+Downscaled to 512×384 / JPEG.
+
+| File            | Source (CC0-1.0)                                  | License | sha256 prefix       |
+|-----------------|---------------------------------------------------|---------|---------------------|
+| fixture_001.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `748534974ef1d181…` |
+| fixture_002.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `2e88d67c2b6c4214…` |
+| fixture_003.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `f8fc93aacad7fb7a…` |
+| fixture_004.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `144cdb640461c559…` |
+
 ## fire/ — "SwarmOS synthetic" (still placeholder, on purpose)
 
 The `fire/` set is a 32x32 zero-pixel PNG with a `tEXt` comment chunk that

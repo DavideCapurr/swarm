@@ -1,8 +1,9 @@
 # CV live (three-month plan, Track B)
 
 Status: **done** for the two `person`-class scenarios (intrusion + search);
-the synthetic SIM-labeled drone-POV **video clip** is the last sub-step and
-is tracked separately (needs Blender). Builds on [Phase 7.D](phase-7d.md).
+the synthetic SIM-labeled drone-POV **video clip** sub-step is now **done** too
+(see [Synthetic SIM viewport feed](#synthetic-sim-viewport-feed-video-sub-step)
+below). Builds on [Phase 7.D](phase-7d.md).
 
 ## What CV live does
 
@@ -88,12 +89,37 @@ Reproducibly verified in an **ephemeral** CV env (`uv run --with`, no
 env), matching the opt-in production posture: CV is a sim/dev module,
 installed only where it's licensed, never in the backend image.
 
+## Synthetic SIM viewport feed (video sub-step)
+
+The sim has no real camera, so the verification viewport showed only the honest
+`VIEWPORT PENDING` placard. The video sub-step adds a synthetic SIM-labeled
+drone-POV clip — **never a stock clip** (PDF §5.2): it is our own Blender render,
+stamped `SIMULATED FEED` in the Console, and explicitly not passed off as a real
+camera.
+
+- **Setting matches the demo.** Rendered as a **Langhe vineyard near Alba** —
+  the same place the three scenarios model (`world.py` `DEFAULT_DOCK`
+  44.70 N / 8.03 E). Parallel vine rows, subject walking an alley in
+  **back view / distance** (the same non-identifiable privacy rule as the real
+  `person_aerial/` fixtures).
+- **Assets are CC0-1.0** (Poly Haven `alps_field` HDRI + `aerial_grass_rock`
+  texture); the vine rows / figure / camera path are SwarmOS-authored (CC0-1.0).
+  Reproducible via [`scripts/render_sim_feed.py`](../../scripts/render_sim_feed.py)
+  (`blender --background`); Blender is an opt-in art tool, not a repo/CI dep.
+- **Served via `StreamDescriptor`.** The model gained a third honest state —
+  `simulated=True`, carrying a **same-origin** `/sim-feed/…` path (not an
+  external URL, so zero SSRF surface). The sim runner advertises it per unit
+  when `SWARM_SIM_FEED_PATH` is set; `dev_up.sh` turns it on for the demo when
+  the clip is present. Clip + provenance:
+  [`frontend/public/sim-feed/`](../../frontend/public/sim-feed/LICENSES.md).
+- **Feeds the CV fixture pool.** A few frames live in
+  `sim/swarm_sim/cv/fixtures/sim_drone_pov/` (the detector can run on them), but
+  they **do not** drive anomaly confidence — the live `person` scores stay on
+  the real CC0 `person_aerial/` frames. A synthetic figure is never passed off
+  as a real detection (the same honest-sim line as deferred fire-CV).
+
 ## Not in CV live (next / deferred)
 
-- **Synthetic SIM-labeled drone-POV video clip** — the last sub-step:
-  a Blender render served via `StreamDescriptor`, stamped `SIMULATED FEED`
-  (never a stock clip), feeding both the demo viewport and the CV input.
-  Needs Blender; tracked in [`three-month-code-plan.md`](../plan/three-month-code-plan.md).
 - **bbox overlay** in the Console — the next Track B milestone.
 - Fire/smoke-CV — drone-day (fine-tuned weight pin).
 - 10.C classifier replacing the thresholds — later in the plan.

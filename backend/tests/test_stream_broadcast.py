@@ -117,6 +117,54 @@ async def test_stream_descriptor_https_is_rebroadcast(consumer: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_simulated_stream_descriptor_is_rebroadcast(consumer: Any) -> None:
+    """CV-live video sub-step: a simulated (`/sim-feed/…`) feed survives the
+    backend re-validation and reaches the Console with `simulated=true`."""
+    bc, hub = consumer
+    descriptor = StreamDescriptor.simulated_feed(
+        "sim-003", "/sim-feed/drone-pov.mp4", codec="h264"
+    )
+    await bc.bus.publish("swarm:streams:sim-003", descriptor.model_dump_json())
+
+    async def wait_for_frame() -> dict[str, Any]:
+        while True:
+            for frame in hub.frames:
+                if frame.get("kind") == "stream" and frame["data"]["agent_id"] == "sim-003":
+                    return dict(frame)
+            await asyncio.sleep(0.05)
+
+    frame = await asyncio.wait_for(wait_for_frame(), timeout=2.0)
+    assert frame["data"]["available"] is True
+    assert frame["data"]["simulated"] is True
+    assert frame["data"]["url"] == "/sim-feed/drone-pov.mp4"
+    assert frame["data"]["protocol"] is None
+
+
+@pytest.mark.asyncio
+async def test_forged_simulated_descriptor_with_external_url_is_dropped(
+    consumer: Any,
+) -> None:
+    """Re-validation rejects a `simulated` descriptor whose url is not a
+    same-origin `/sim-feed/` path — a forged external/SSRF target must not be
+    re-broadcast just because it set `simulated=true`."""
+    bc, hub = consumer
+    forged = json.dumps(
+        {
+            "agent_id": "forged-sim",
+            "available": True,
+            "simulated": True,
+            "url": "https://evil.example.com/sim-feed/x.mp4",
+        }
+    )
+    await bc.bus.publish("swarm:streams:forged-sim", forged)
+    await asyncio.sleep(0.2)
+    assert not any(
+        f.get("kind") == "stream" and f["data"]["agent_id"] == "forged-sim"
+        for f in hub.frames
+    )
+
+
+@pytest.mark.asyncio
 async def test_stream_descriptor_malformed_payload_is_dropped(consumer: Any) -> None:
     """Defense in depth: an adapter publishing junk must not poison the WS."""
     bc, hub = consumer

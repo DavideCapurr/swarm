@@ -107,7 +107,11 @@ def _parse_license_rows() -> dict[str, dict[str, str]]:
         stripped = line.strip()
         if stripped.startswith("## "):
             heading = stripped.lstrip("# ").strip().rstrip("/").lower()
-            current_kind = heading if heading in {"fire", "person_aerial"} else None
+            current_kind = (
+                heading
+                if heading in {"fire", "person_aerial", "sim_drone_pov"}
+                else None
+            )
             continue
         if current_kind is None or not stripped.startswith("|"):
             continue
@@ -130,7 +134,7 @@ def verify_fixtures() -> int:
     rows = _parse_license_rows()
     seen_keys: set[str] = set()
     count = 0
-    for kind in ("fire", "person_aerial"):
+    for kind in ("fire", "person_aerial", "sim_drone_pov"):
         folder = FIXTURES_DIR / kind
         if not folder.is_dir():
             continue

@@ -16,6 +16,8 @@ import { fileURLToPath } from "node:url";
  *     dark + Esri World Imagery satellite) + inline SVG icons. connect-src
  *     pins the exact tile hosts (MAP_CONNECT_SRC); we tighten img-src to
  *     specific hostnames when we self-host tiles.
+ *   - media-src 'self' — the CV-live simulated viewport clip is a same-origin
+ *     bundled asset under /sim-feed/. No external video origins.
  *   - connect-src allows same-origin plus the Phase 2 SwarmOS backend on
  *     port 8765 for localhost/LAN demos. Production should set explicit
  *     NEXT_PUBLIC_API_URL / NEXT_PUBLIC_WS_URL origins.
@@ -72,6 +74,9 @@ const CSP = [
   "object-src 'none'",
   `connect-src ${CONNECT_SRC}`,
   "img-src 'self' data: blob: https:",
+  // The CV-live simulated viewport clip is a same-origin bundled asset under
+  // /sim-feed/. Pin media to 'self' — no external video origins are allowed.
+  "media-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   `script-src ${SCRIPT_SRC}`,
   "font-src 'self' data: https://fonts.gstatic.com",

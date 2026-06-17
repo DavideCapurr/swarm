@@ -58,6 +58,29 @@ async def _publish_anomalies(world: World, bus: Bus) -> None:
     await world.perception.run()
 
 
+async def _publish_simulated_streams(
+    world: World, bus: Bus, sim_feed_path: str, *, period_s: float = 5.0
+) -> None:
+    """Advertise the synthetic SIM-labelled drone-POV clip per unit.
+
+    The sim has no real camera, so for the demo viewport we publish a
+    `simulated` `StreamDescriptor` (CV-live video sub-step) for every drone.
+    The Console renders the bundled `/sim-feed/…` clip stamped `SIMULATED FEED`
+    instead of the offline placard. Republished periodically so a Console that
+    connects mid-run still receives it. Off unless `SWARM_SIM_FEED_PATH` is set
+    — without it the Console keeps the honest VIEWPORT PENDING placard.
+    """
+    from swarm_core.streams import StreamDescriptor
+
+    while True:
+        for d in world.drones:
+            desc = StreamDescriptor.simulated_feed(
+                d.agent_id, sim_feed_path, codec="h264"
+            )
+            await bus.publish(f"swarm:streams:{d.agent_id}", desc.model_dump_json())
+        await asyncio.sleep(period_s)
+
+
 async def _publish_fleet_state(world: World, registry: AdapterRegistry, bus: Bus) -> None:
     """Aggregate drone state at 2 Hz and publish on /fleet/state."""
     from swarm_core.messages import AgentState
@@ -191,6 +214,23 @@ async def main() -> None:
         asyncio.create_task(orchestrator.run()),
         *[asyncio.create_task(_stream_telemetry_to_bus(a, bus)) for a in adapters],
     ]
+
+    # CV-live video sub-step: optionally advertise the synthetic SIM-labelled
+    # drone-POV clip on the viewport. Validated up front so a misconfigured
+    # path fails loud (a warning) rather than silently dropping every tick.
+    sim_feed_path = os.getenv("SWARM_SIM_FEED_PATH")
+    if sim_feed_path:
+        from swarm_core.streams import InvalidStreamURL, validate_sim_feed_path
+
+        try:
+            validate_sim_feed_path(sim_feed_path)
+        except InvalidStreamURL as e:
+            logger.warning("ignoring SWARM_SIM_FEED_PATH=%r: %s", sim_feed_path, e)
+        else:
+            tasks.append(
+                asyncio.create_task(_publish_simulated_streams(world, bus, sim_feed_path))
+            )
+            logger.info("simulated viewport feed advertised for all units: %s", sim_feed_path)
 
     logger.info("SWARM OS sim running with %d drones — Ctrl+C to stop", n_drones)
     await stop.wait()

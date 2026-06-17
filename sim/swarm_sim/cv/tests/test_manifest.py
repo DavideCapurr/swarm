@@ -73,6 +73,19 @@ def test_fixtures_only_documented_files(tmp_path: Path) -> None:
         assert path.name in text, f"fixture {path.name} not in LICENSES.md"
 
 
+def test_sim_drone_pov_fixtures_in_pool() -> None:
+    """CV-live video sub-step: the synthetic vineyard drone-POV frames join the
+    fixture pool (the detector can run on them) and every file is documented in
+    LICENSES.md. They deliberately do not drive anomaly confidence — that stays
+    on the real `person_aerial/` frames (honest-sim)."""
+    text = LICENSES.read_text(encoding="utf-8")
+    sim_files = list_fixtures("sim_drone_pov")
+    assert sim_files, "sim_drone_pov fixtures missing — see scripts/render_sim_feed.py"
+    for path in sim_files:
+        assert path.suffix.lower() == ".jpg"
+        assert path.name in text, f"fixture {path.name} not in LICENSES.md"
+
+
 def test_ensure_asset_refuses_placeholder() -> None:
     """drone_day weights still carry zero-pad sha256 → ensure_asset must fail loud."""
     with pytest.raises(AssetPlaceholder):

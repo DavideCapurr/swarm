@@ -66,6 +66,16 @@ SWARM_VENDORS="${SWARM_VENDORS:-simulator}"
 export SWARM_VENDORS
 echo "[dev_up] SWARM_VENDORS=$SWARM_VENDORS"
 
+# CV-live video sub-step: advertise the synthetic SIM-labelled drone-POV clip
+# in the Console viewport, but only when the bundled clip is actually present
+# (served same-origin by Next from frontend/public/sim-feed/). Without it the
+# Console keeps the honest VIEWPORT PENDING placard. Set SWARM_SIM_FEED_PATH
+# explicitly to override.
+if [ -f frontend/public/sim-feed/drone-pov.mp4 ]; then
+  export SWARM_SIM_FEED_PATH="${SWARM_SIM_FEED_PATH:-/sim-feed/drone-pov.mp4}"
+  echo "[dev_up] SWARM_SIM_FEED_PATH=$SWARM_SIM_FEED_PATH (simulated viewport feed)"
+fi
+
 cleanup() {
   echo "[dev_up] stopping background processes…"
   kill $(jobs -p) 2>/dev/null || true
