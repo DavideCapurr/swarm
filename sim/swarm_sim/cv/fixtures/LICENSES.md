@@ -58,8 +58,8 @@ walking an alley in **back view / distance** (non-identifiable, same privacy
 rule as `person_aerial/`). These are SwarmOS-authored Blender renders dedicated
 to the public domain (CC0-1.0), the same source as the Console viewport clip
 `frontend/public/sim-feed/drone-pov.mp4` (provenance + reproduction:
-`scripts/render_sim_feed.py`; CC0 Poly Haven `alps_field` HDRI +
-`aerial_grass_rock` texture). They join the CV fixture **pool** so the detector
+`scripts/render_sim_feed.py`; path-traced in Cycles from a procedural sky + CC0
+Poly Haven `aerial_grass_rock` / `forest_leaves_02` textures). They join the CV fixture **pool** so the detector
 can run on them, but they do **not** drive any anomaly confidence — the live
 `person` scores keep coming from the real CC0 frames in `person_aerial/` (the
 honest-sim line: a synthetic figure is not passed off as a real detection).
@@ -67,10 +67,10 @@ Downscaled to 512×384 / JPEG.
 
 | File            | Source (CC0-1.0)                                  | License | sha256 prefix       |
 |-----------------|---------------------------------------------------|---------|---------------------|
-| fixture_001.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `748534974ef1d181…` |
-| fixture_002.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `2e88d67c2b6c4214…` |
-| fixture_003.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `f8fc93aacad7fb7a…` |
-| fixture_004.jpg | SwarmOS synthetic (Blender; Poly Haven CC0 assets) | CC0-1.0 | `144cdb640461c559…` |
+| fixture_001.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `0e2b92b934640e2d…` |
+| fixture_002.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `777b4f33a94d9269…` |
+| fixture_003.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `98b893df5b888fd4…` |
+| fixture_004.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `0ea1d58a9e497430…` |
 
 ## fire/ — "SwarmOS synthetic" (still placeholder, on purpose)
 

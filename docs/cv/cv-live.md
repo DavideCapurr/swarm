@@ -93,18 +93,18 @@ installed only where it's licensed, never in the backend image.
 
 The sim has no real camera, so the verification viewport showed only the honest
 `VIEWPORT PENDING` placard. The video sub-step adds a synthetic SIM-labeled
-drone-POV clip — **never a stock clip** (PDF §5.2): it is our own Blender render,
-stamped `SIMULATED FEED` in the Console, and explicitly not passed off as a real
-camera.
+drone-POV clip — **never a stock clip** (PDF §5.2): it is our own photorealistic,
+path-traced Blender (Cycles) render, stamped `SIMULATED FEED` in the Console, and
+explicitly not passed off as a real camera.
 
 - **Setting matches the demo.** Rendered as a **Langhe vineyard near Alba** —
   the same place the three scenarios model (`world.py` `DEFAULT_DOCK`
   44.70 N / 8.03 E). Parallel vine rows, subject walking an alley in
   **back view / distance** (the same non-identifiable privacy rule as the real
   `person_aerial/` fixtures).
-- **Assets are CC0-1.0** (Poly Haven `alps_field` HDRI + `aerial_grass_rock`
-  texture); the vine rows / figure / camera path are SwarmOS-authored (CC0-1.0).
-  Reproducible via [`scripts/render_sim_feed.py`](../../scripts/render_sim_feed.py)
+- **Assets are CC0-1.0** (a procedural sky + Poly Haven `aerial_grass_rock` +
+  `forest_leaves_02` textures); the terrain / vine rows / figure / camera path are SwarmOS-authored
+  (CC0-1.0). Reproducible via [`scripts/render_sim_feed.py`](../../scripts/render_sim_feed.py)
   (`blender --background`); Blender is an opt-in art tool, not a repo/CI dep.
 - **Served via `StreamDescriptor`.** The model gained a third honest state —
   `simulated=True`, carrying a **same-origin** `/sim-feed/…` path (not an
