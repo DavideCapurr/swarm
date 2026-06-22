@@ -53,24 +53,27 @@ score (conf-floor 0.05, `torch.manual_seed(0)`) captured by
 ## sim_drone_pov/
 
 Synthetic SIM-labelled drone-POV frames — a **Langhe vineyard** (the demo
-setting; `sim/swarm_sim/world.py` `DEFAULT_DOCK` 44.70 N / 8.03 E), subject
-walking an alley in **back view / distance** (non-identifiable, same privacy
-rule as `person_aerial/`). These are SwarmOS-authored Blender renders dedicated
+setting; `sim/swarm_sim/world.py` `DEFAULT_DOCK` 44.70 N / 8.03 E): the
+down-the-row drone view with **no figure** (nothing identifiable — the calmest
+possible privacy posture). These are SwarmOS-authored Blender renders dedicated
 to the public domain (CC0-1.0), the same source as the Console viewport clip
 `frontend/public/sim-feed/drone-pov.mp4` (provenance + reproduction:
-`scripts/render_sim_feed.py`; path-traced in Cycles from a procedural sky + CC0
-Poly Haven `aerial_grass_rock` / `forest_leaves_02` textures). They join the CV fixture **pool** so the detector
+`scripts/render_sim_feed.py`; path-traced in Cycles under a golden-hour CC0 Poly
+Haven sky HDRI, vine rows built from thousands of instances of a real CC0 Poly
+Haven plant model (`shrub_01`) over a CC0 `aerial_grass_rock` ground, with a
+`island_tree_01` treeline + rolling hills behind). They join the CV
+fixture **pool** so the detector
 can run on them, but they do **not** drive any anomaly confidence — the live
 `person` scores keep coming from the real CC0 frames in `person_aerial/` (the
-honest-sim line: a synthetic figure is not passed off as a real detection).
+honest-sim line: a synthetic frame is not passed off as a real detection).
 Downscaled to 512×384 / JPEG.
 
 | File            | Source (CC0-1.0)                                  | License | sha256 prefix       |
 |-----------------|---------------------------------------------------|---------|---------------------|
-| fixture_001.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `0e2b92b934640e2d…` |
-| fixture_002.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `777b4f33a94d9269…` |
-| fixture_003.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `98b893df5b888fd4…` |
-| fixture_004.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `0ea1d58a9e497430…` |
+| fixture_001.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `87f7d528021c248b…` |
+| fixture_002.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `a25d6a621ff8315e…` |
+| fixture_003.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `76a259dd6dec5722…` |
+| fixture_004.jpg | SwarmOS synthetic (Blender Cycles render) | CC0-1.0 | `237c4c63f4951754…` |
 
 ## fire/ — "SwarmOS synthetic" (still placeholder, on purpose)
 

@@ -92,6 +92,24 @@ so the 2 GB AGPL surface never enters `.venv`) → real `person` scores
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-21 — CV-live video sub-step **photorealism pass**: re-rendered the
+  Langhe-vineyard drone-POV clip (`frontend/public/sim-feed/drone-pov.mp4`) to a
+  genuinely photorealistic, demo-neutral shot. The key change: the vines are now
+  **thousands of instances of a real CC0 Poly Haven plant model** (`shrub_01`,
+  actual leaf geometry with alpha) stacked into rows — real foliage, not faked
+  texture on a box (instancing shares one mesh, so the field stays cheap). A
+  drone holds station over the rows looking down the vineyard, **no figure** (a
+  calm patrol that fits every wildfire-demo phase, nothing identifiable). Full
+  Langhe landscape: tall five-high vine walls with per-plant tint variation, a
+  real CC0 `island_tree_01` treeline + rolling green hills on the horizon, under
+  golden-hour light. Cycles (Metal GPU, 96 spp + OIDN, AgX), lit by a real CC0
+  sky HDRI (`kloofendal_48d_partly_cloudy_puresky` — warm-tinted, image-based
+  light + clouds via a Light-Path mix so the warm low sun still rakes the rows)
+  over a CC0 `aerial_grass_rock` ground. Provenance/reproduction rewritten in
+  `scripts/render_sim_feed.py`; `frontend/public/sim-feed/LICENSES.md`,
+  `sim/swarm_sim/cv/fixtures/LICENSES.md` (sim_drone_pov re-shas) and
+  `docs/cv/cv-live.md` updated. Sim wiring + `StreamDescriptor` contract
+  unchanged.
 - 2026-06-17 — CV-live **video sub-step** (three-month plan, Track B): the
   verification viewport now shows a synthetic SIM-labeled drone-POV clip instead
   of only the `VIEWPORT PENDING` placard. **Setting matches the demo** — a

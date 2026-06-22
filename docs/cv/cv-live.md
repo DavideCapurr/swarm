@@ -99,12 +99,19 @@ explicitly not passed off as a real camera.
 
 - **Setting matches the demo.** Rendered as a **Langhe vineyard near Alba** —
   the same place the three scenarios model (`world.py` `DEFAULT_DOCK`
-  44.70 N / 8.03 E). Parallel vine rows, subject walking an alley in
-  **back view / distance** (the same non-identifiable privacy rule as the real
-  `person_aerial/` fixtures).
-- **Assets are CC0-1.0** (a procedural sky + Poly Haven `aerial_grass_rock` +
-  `forest_leaves_02` textures); the terrain / vine rows / figure / camera path are SwarmOS-authored
-  (CC0-1.0). Reproducible via [`scripts/render_sim_feed.py`](../../scripts/render_sim_feed.py)
+  44.70 N / 8.03 E). A drone holds station over the rows, looking down the
+  vineyard to the horizon, with a treeline + rolling green hills behind under a
+  warm golden-hour sky. **No figure** — a calm vineyard patrol that reads as
+  honest ambient context in **every wildfire-demo phase** (standby → smoke →
+  verify → fire → escalate), with nothing identifiable to raise a privacy concern.
+- **Photoreal from real CC0 assets.** The vines are thousands of *instances* of
+  a real Poly Haven plant model (`shrub_01`, actual leaf geometry with alpha,
+  per-plant tint) — not faked texture on a box; a real `island_tree_01` treeline;
+  lit by a real Poly Haven sky HDRI (`kloofendal_48d_partly_cloudy_puresky`,
+  warm-tinted, image-based light + clouds) over a CC0 `aerial_grass_rock` ground.
+  All CC0-1.0; the terrain / hills / row layout / posts / camera path are
+  SwarmOS-authored (CC0-1.0). Reproducible via
+  [`scripts/render_sim_feed.py`](../../scripts/render_sim_feed.py)
   (`blender --background`); Blender is an opt-in art tool, not a repo/CI dep.
 - **Served via `StreamDescriptor`.** The model gained a third honest state —
   `simulated=True`, carrying a **same-origin** `/sim-feed/…` path (not an
@@ -115,7 +122,7 @@ explicitly not passed off as a real camera.
 - **Feeds the CV fixture pool.** A few frames live in
   `sim/swarm_sim/cv/fixtures/sim_drone_pov/` (the detector can run on them), but
   they **do not** drive anomaly confidence — the live `person` scores stay on
-  the real CC0 `person_aerial/` frames. A synthetic figure is never passed off
+  the real CC0 `person_aerial/` frames. A synthetic frame is never passed off
   as a real detection (the same honest-sim line as deferred fire-CV).
 
 ## Not in CV live (next / deferred)
