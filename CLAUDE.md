@@ -165,7 +165,6 @@ go through `Authorization: Bearer <jwt>` (REST) or `?token=<jwt>` (WS).
 ## Branch + commit
 
 - Develop on the branch named in the system reminder for the session.
-- Never push to `main`.
 - Never amend a previous commit; always create new commits.
 - Commit messages: `phase-N: <short subject>` where N is the phase number.
 - Do not create a PR unless the user asks for one.
