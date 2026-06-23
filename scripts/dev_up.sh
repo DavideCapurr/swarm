@@ -66,14 +66,27 @@ SWARM_VENDORS="${SWARM_VENDORS:-simulator}"
 export SWARM_VENDORS
 echo "[dev_up] SWARM_VENDORS=$SWARM_VENDORS"
 
-# CV-live video sub-step: advertise the synthetic SIM-labelled drone-POV clip
-# in the Console viewport, but only when the bundled clip is actually present
-# (served same-origin by Next from frontend/public/sim-feed/). Without it the
-# Console keeps the honest VIEWPORT PENDING placard. Set SWARM_SIM_FEED_PATH
-# explicitly to override.
-if [ -f frontend/public/sim-feed/drone-pov.mp4 ]; then
-  export SWARM_SIM_FEED_PATH="${SWARM_SIM_FEED_PATH:-/sim-feed/drone-pov.mp4}"
-  echo "[dev_up] SWARM_SIM_FEED_PATH=$SWARM_SIM_FEED_PATH (simulated viewport feed)"
+# CV-live video sub-step: advertise the synthetic SIM-labelled drone-POV clip in
+# the Console viewport. Pick the clip that matches the booted scenario (wildfire
+# / intrusion / search) so the demo viewer sees a photoreal POV that fits what
+# the operator is verifying; fall back to the generic standby patrol otherwise.
+# Only advertise a clip that is actually present (served same-origin by Next from
+# frontend/public/sim-feed/) — without one the Console keeps the honest VIEWPORT
+# PENDING placard. An explicit SWARM_SIM_FEED_PATH in the environment overrides
+# all of this. (The backend re-validates the path and the prefix allowlist still
+# applies, so a new clip name needs no security change.)
+if [ -z "${SWARM_SIM_FEED_PATH:-}" ]; then
+  _feed_dir=frontend/public/sim-feed
+  _clip=drone-pov.mp4  # standby default / fallback
+  case "${SIM_SCENARIO:-}" in
+    *wildfire*)  [ -f "$_feed_dir/wildfire-pov.mp4" ]  && _clip=wildfire-pov.mp4 ;;
+    *intrusion*) [ -f "$_feed_dir/intrusion-pov.mp4" ] && _clip=intrusion-pov.mp4 ;;
+    *search*)    [ -f "$_feed_dir/search-pov.mp4" ]    && _clip=search-pov.mp4 ;;
+  esac
+  if [ -f "$_feed_dir/$_clip" ]; then
+    export SWARM_SIM_FEED_PATH="/sim-feed/$_clip"
+    echo "[dev_up] SWARM_SIM_FEED_PATH=$SWARM_SIM_FEED_PATH (simulated viewport feed)"
+  fi
 fi
 
 cleanup() {

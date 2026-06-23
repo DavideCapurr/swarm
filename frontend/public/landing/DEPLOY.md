@@ -3,8 +3,8 @@
 The landing is a single self-contained static file (`index.html`) — no build,
 no backend. Pick any host below; all are free for this.
 
-**Before you publish:** open `index.html` and replace `[your-contact-email]`
-(two spots: the `mailto:` link + the placeholder note) with your real address.
+**Contact email:** already set to `davidecapurro@icloud.com` in the `mailto:`
+link. Change it in `index.html` if you want a different address before publishing.
 
 ## Option A — Vercel (fastest, recommended)
 

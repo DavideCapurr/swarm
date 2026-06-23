@@ -1,62 +1,80 @@
-# `/sim-feed/` — synthetic SIM-labelled viewport clips
+# `/sim-feed/` — demo viewport clips
 
-These clips are the CV-live **video sub-step**: a synthetic drone-POV feed served
-same-origin to the Console viewport and stamped **`SIMULATED FEED`** (PDF §5.2 —
-never a stock clip; this is our own labelled synthetic asset, not a real camera).
-They are advertised to the Console by the sim runner as a `simulated`
-`StreamDescriptor` (`SWARM_SIM_FEED_PATH`, see `sim/swarm_sim/runner.py`).
+These are the clips the Console verification viewport (`LiveFeedFrame`) plays.
+The Console draws the **`SIMULATED FEED`** stamp *over* the video (a component
+overlay, not burned into the file), so the footage is always presented honestly
+as a simulated viewport — never as a real live camera. The sim runner advertises
+the per-unit `simulated` `StreamDescriptor` (`SWARM_SIM_FEED_PATH`); `dev_up.sh`
+selects the per-scenario clip from the booted `SIM_SCENARIO`.
 
-## Setting
+## What these clips are (demo build)
 
-Rendered to match where the demo is set — a **Langhe vineyard near Alba**
-(Piedmont, Italy), the same place the three scenarios model
-(`sim/swarm_sim/world.py` `DEFAULT_DOCK` = 44.70 N, 8.03 E). A drone holds
-station over the rows, looking down the vineyard to the horizon, with a treeline
-and soft rolling green hills behind under a warm golden-hour sky. **No figure
-appears** — a calm vineyard patrol that fits every phase of the wildfire demo,
-with nothing identifiable to raise a privacy concern.
+For the demos the founder asked for footage that simply **looks real**, at zero
+cost. So the committed clips are **real, free-licensed stock drone footage of
+vineyards** (Mixkit), conformed to the viewport shape. One clip per scenario so
+the viewport fits what the operator is verifying:
 
-## How it was made
+| Clip | Scenario | Source (Mixkit, free license) |
+|------|----------|-------------------------------|
+| `drone-pov.mp4` | standby / default | "Sunset over vineyards" — [mixkit/8204](https://mixkit.co/free-stock-video/sunset-over-vineyards-8204/) |
+| `search-pov.mp4` | search | "Drone flying across a Vineyard" — [mixkit/8292](https://mixkit.co/free-stock-video/drone-flying-across-a-vineyard-8292/) |
+| `intrusion-pov.mp4` | intrusion | "Couple walking through a vineyard field" — [mixkit/29301](https://mixkit.co/free-stock-video/couple-walking-through-a-vineyard-field-29301/) |
+| `wildfire-pov.mp4` | wildfire | **composite:** "Vineyards of Chianti in the afternoon" [mixkit/8296](https://mixkit.co/free-stock-video/vineyards-of-chianti-in-the-afternoon-8296/) + grey-smoke plate [mixkit/45298](https://mixkit.co/free-stock-video/grey-smoke-on-a-black-background-45298/), screen-blended with ffmpeg |
 
-Blender 5.x, **path-traced in Cycles** (Metal GPU, 96 samples + OpenImageDenoise,
-AgX view transform). It is photorealistic because every element is a **real CC0
-photoscanned asset**, not hand-faked geometry:
+## License
 
-- **The vines are a real plant model.** Each vine row is thousands of *instances*
-  of a real CC0 Poly Haven shrub model (`shrub_01`) — actual leaf geometry with
-  alpha cutouts — stacked five-high into tall leafy walls. Instancing shares one
-  mesh, so the whole field renders cheaply; each instance is tinted slightly
-  differently (Object-Info colour) so the rows are not a flat repeat. This is
-  what reads as foliage rather than a textured box.
-- **A Langhe landscape**, not just rows: a treeline of real CC0 tree instances
-  (`island_tree_01`) and soft rolling green hills sit on the horizon behind.
-- **Golden-hour light**: a **real CC0 sky HDRI**, warm-tinted for the camera
-  (golden clouds) but dimmed for lighting via a Light-Path mix so the warm low
-  sun still rakes the rows, over real CC0 ground texture, gently rolling terrain
-  and a depth-of-field drone camera.
+All source footage is **Mixkit License** (free for commercial and personal use,
+**no attribution required**): <https://mixkit.co/license/>. The clips are used as
+in-app demo footage (a permitted use); the IDs above are recorded for
+auditability. The wildfire clip is our own ffmpeg composite of two Mixkit clips.
 
-Reproducible via [`scripts/render_sim_feed.py`](../../../scripts/render_sim_feed.py)
-(`blender --background --python …`) → PNG sequence → ffmpeg h264 (a subtle
-vignette + light sensor grain are added at the ffmpeg stage). Blender is an
-opt-in art tool, not a repo/CI dependency (like the `[cv]` extra). The terrain,
-the row layout, the posts and the camera path are SwarmOS-authored, dedicated to
-the public domain (CC0-1.0). The hills are SwarmOS-authored too.
+## Honesty + design-rule note (read this)
 
-## Assets
+- **Always stamped `SIMULATED FEED`** and shown as a *simulated* viewport — never
+  passed off as the unit's real live camera. The platform logic is real; the
+  camera feed is illustrative.
+- **People**: real people appear only in `intrusion-pov.mp4`, and only as **small,
+  distant, non-identifiable** figures in the rows (no recognisable faces); they
+  are model-released stock, not the CV `person` score (which stays on the
+  committed CC0 `person_aerial/` fixtures). The synthetic figure never feeds CV.
+- **No red**: the wildfire clip shows **grey smoke only**, never a red/orange fire
+  glow (PDF §5.2).
+- **Design-rule tension, on purpose**: CLAUDE.md §Design system says
+  `LiveFeedFrame` must "Never [show] a stock clip." Using stock footage here
+  **deliberately relaxes that rule for demo realism** (founder decision), made
+  safe by the always-on `SIMULATED FEED` label + recorded provenance. The strict
+  alternative still lives in the repo — a CC0, fully-synthetic, reproducible
+  Blender pipeline (next section). Swap back to it for any build that must comply
+  strictly.
 
-| Asset | Type | Source (license) |
-|-------|------|------------------|
-| `kloofendal_48d_partly_cloudy_puresky` | Sky HDRI (lighting + clouds) | https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky · Poly Haven · CC0-1.0 |
-| `aerial_grass_rock` | Texture (terrain) | https://polyhaven.com/a/aerial_grass_rock · Poly Haven · CC0-1.0 |
-| `shrub_01` | 3D model (vine plant, instanced) | https://polyhaven.com/a/shrub_01 · Poly Haven · CC0-1.0 |
-| `island_tree_01` | 3D model (treeline, instanced) | https://polyhaven.com/a/island_tree_01 · Poly Haven · CC0-1.0 |
+## Reproduce / swap a clip
 
-Poly Haven publishes all assets under CC0-1.0 (no attribution required; recorded
-here for auditability). Assets are fetched from the public Poly Haven API at
-render time, so nothing is committed to the repo.
+- **Drop-in any clip**: `scripts/normalize_sim_feed.sh <input> <scenario> [start_s] [duration_s]`
+  conforms any source video to the committed shape (1280×960 4:3, h264/yuv420p,
+  faststart, no audio) and writes `frontend/public/sim-feed/<scenario>-pov.mp4`.
+  The `<video loop>` element loops it, so a few seconds is enough.
+- **Wildfire composite** (real vineyard + real smoke, no fire glow):
+
+  ```
+  ffmpeg -y -i chianti.mp4 -ss 2 -i grey_smoke.mp4 -filter_complex "
+    [0:v]scale=1280:960:force_original_aspect_ratio=increase,crop=1280:960,setsar=1[bg];
+    [1:v]scale=1500:1125,crop=1280:960:110:80,setsar=1,colorchannelmixer=rr=0.9:gg=0.9:bb=0.93[sm];
+    [bg][sm]blend=all_mode=screen:all_opacity=0.82,format=yuv420p[out]" \
+    -map "[out]" -t 6 -an -c:v libx264 -preset slow -crf 22 -movflags +faststart wildfire-pov.mp4
+  ```
+- **Strict CC0 synthetic alternative** (no stock): `scripts/render_sim_feed.py`
+  renders the same four scenarios from CC0 Poly Haven assets in Blender
+  (`SWARM_SIM_FEED_SCENARIO=<scenario> blender --background --python …`). Blender
+  is an opt-in art tool, not a repo/CI dependency. See
+  [`docs/cv/cv-live.md`](../../../docs/cv/cv-live.md).
 
 ## Files
 
-| File | Codec | Geometry | sha256 prefix |
-|------|-------|----------|---------------|
-| `drone-pov.mp4` | h264 / yuv420p, 24 fps, 2.5 s | 1280×960 (4:3) | `bdebe97d4bc0f07a…` |
+All clips: h264 / yuv420p, 1280×960 (4:3), ~6 s, looped by the viewport.
+
+| File | Scenario | sha256 prefix |
+|------|----------|---------------|
+| `drone-pov.mp4` | standby / default | `ec62bfde5aa503cf…` |
+| `search-pov.mp4` | search | `4e3b77230d8fa8ba…` |
+| `intrusion-pov.mp4` | intrusion | `2b2e2187f19c6cb6…` |
+| `wildfire-pov.mp4` | wildfire | `463cae4cd90ed9a0…` |
