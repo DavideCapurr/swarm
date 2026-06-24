@@ -102,8 +102,11 @@ Alternatives to A/B:
 > MFA for the commander role, Timescale-backed audit history, SHA-pinned
 > dependencies + SBOM, CSP/security headers on every response, a committed
 > threat model, and CI gates that fail on overclaiming language. **~850
-> backend + ~150 frontend tests pass.** A MAVLink/PX4 adapter path exists and
-> is CI-ready.
+> backend + ~150 frontend tests pass.** The MAVLink/PX4 adapter is CI-ready and
+> now **PX4 SITL-validated** — a live PX4 v1.14.0 SITL run drives HEARTBEAT
+> connect → telemetry ingest → VERIFY mission dispatch → return-to-launch, with
+> a green probe artifact (`docs/bench/phase9-sitl-validation.md`). Not yet
+> hardware/field proven.
 
 **How long / how much full-time?**
 > *(Fill in honestly.)* Built largely solo over [N months]; full-time during
@@ -257,7 +260,7 @@ PDF §5.2 confidence-bound voice — never the forbidden words.
 | Coverage freshness + patrol scheduling | ✅ | — | — | — |
 | CV person detection (real YOLOv8) | ✅ | — | — | — |
 | Wildfire smoke/fire CV | scripted | — | — | — |
-| MAVLink/PX4 adapter | CI-ready | attempted | — | — |
+| MAVLink/PX4 adapter | CI-ready | ✅ | — | — |
 | Flight / hardware | — | — | — | — |
 
 Nothing ships to an investor as more proven than this table says.

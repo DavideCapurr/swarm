@@ -24,11 +24,11 @@ See [`docs/product/patrol-cell.md`](product/patrol-cell.md).
 | 2 | Console Operating Shell + routing + components | **done** |
 | 3 | Truth Layer (no DERIVED) | **done** |
 | 4 | Persistence (Timescale + Alembic + audit) | **done** |
-| 5 | Real Adapter (MAVLink/PX4) | **CI-ready; SITL attempted/not validated; hardware pending** |
+| 5 | Real Adapter (MAVLink/PX4) | **CI-ready; PX4 SITL-validated 2026-06-24 (`docs/bench/artifacts/phase9-sitl-probe.json` → `status:"pass"`); hardware pending** |
 | 6 | Production OS (policy, geofence, auth, SBOM, ops) | **done** — 6.A→6.J all complete |
 | 7 | Patrol Cell sim demo (3 scenarios + autonomy baseline + CV + anomaly evidence) | **done** — code-complete; live 3-scenario demo run 2026-06-15 (artifacts in `docs/bench/artifacts/`, `by_rule.R2==1`) |
 | 8 | Patrol Cell wedge + customer validation | **next** (market) |
-| 9 | Flight-path + PX4/SITL + hardware bench de-risk | **next** |
+| 9 | Flight-path + PX4/SITL + hardware bench de-risk | **in_progress** — PX4 SITL adapter evidence captured 2026-06-24 (`docs/bench/phase9-sitl-validation.md`); flight-path planner + hardware bench still pending |
 | 10 | Summer evidence pack + BIEF/YC future-batch decision | **planned** |
 
 (Phases 8/9/10 above use the evidence-to-scale numbering.)
@@ -44,8 +44,10 @@ uses the **`swarmos-roadmap.md` sub-phase numbering** (Phase 8 = autonomy
 engine, Phase 9 = federation, Phase 10 = ML) — *not* the evidence-to-scale
 Phase 8. Order: Console redesign close → 8.A-8.D autonomy → live CV →
 10.C classifier → Phase 9 federation → 10.E RL. Market validation
-(evidence-to-scale Phase 8) and PX4/SITL are deferred by founder decision
-for this window.
+(evidence-to-scale Phase 8) is deferred by founder decision for this window.
+PX4/SITL was also deferred, but its first bullet — MAVLink/PX4 adapter
+**SITL evidence** (evidence-to-scale Phase 9) — was executed 2026-06-24 for
+the YC push; see [`bench/phase9-sitl-validation.md`](bench/phase9-sitl-validation.md).
 
 Window progress: **M0** (Console redesign close) merged (`#103`); **8.B**
 (autonomy engine — full `VERIFY|DISMISS|ESCALATE|WAIT` decision set +
