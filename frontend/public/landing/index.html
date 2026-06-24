@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SWARM — Autonomous patrol for high-value land</title>
+<meta name="description" content="SWARM keeps private high-value land observed and verifies threats with autonomous drones — mobile, no fixed cameras or towers. Validated in simulation." />
+<!-- Design system: PDF §5.2. 85% monochrome, accents only as state. No red.
+     Hairline gunmetal borders, no decorative shadow, no glassmorphism, no fake
+     video. Confidence-bound voice. Every claim typed (sim today). -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Geist:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --absolute-black:#030406; --obsidian:#0B0E11; --gunmetal:#1A2026;
+    --graphite:#2A3138; --ash:#6B7480; --muted-silver:#A8AFB8;
+    --bone:#C8CDD3; --platinum:#EEF0F3;
+    --orbital-blue:#7BE7FF; --signal-green:#B8FF66; --launch-amber:#FFB45C;
+    --editorial:'Cormorant Garamond',Georgia,serif;
+    --display:'Geist','Inter',system-ui,sans-serif;
+    --mono:'IBM Plex Mono','SF Mono',ui-monospace,monospace;
+    --grotesk:'Space Grotesk',system-ui,sans-serif;
+    --hairline:1px solid var(--gunmetal);
+    --inset:inset 0 1px 0 rgba(238,240,243,0.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--absolute-black); color:var(--platinum);
+    font-family:var(--display); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; letter-spacing:0;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.22em;
+    text-transform:uppercase; color:var(--ash);
+  }
+  .accent-blue{color:var(--orbital-blue)} .accent-green{color:var(--signal-green)}
+  .accent-amber{color:var(--launch-amber)}
+  .mono{font-family:var(--mono);letter-spacing:0.04em}
+
+  /* ── Top bar ── */
+  header.bar{
+    position:sticky;top:0;z-index:10;background:rgba(3,4,6,0.92);
+    border-bottom:var(--hairline); backdrop-filter:none;
+  }
+  .bar .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+  .wordmark{
+    font-family:var(--editorial); font-size:22px; font-weight:500;
+    letter-spacing:0.36em; text-transform:uppercase; padding-left:0.36em;
+  }
+  .bar nav{display:flex;gap:28px;align-items:center}
+  .bar nav a{font-size:13px;color:var(--muted-silver)}
+  .bar nav a:hover{color:var(--platinum)}
+  .pill{
+    border:var(--hairline); border-radius:999px; padding:6px 14px;
+    font-family:var(--mono); font-size:11px; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--bone);
+  }
+
+  /* ── Hero ── */
+  .hero{padding:120px 0 96px;border-bottom:var(--hairline)}
+  .status-line{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+  .dot{width:7px;height:7px;border-radius:999px;background:var(--signal-green);
+    box-shadow:0 0 8px rgba(184,255,102,0.55)}
+  h1{
+    font-family:var(--editorial); font-weight:500; font-size:84px; line-height:1.04;
+    letter-spacing:-0.015em; max-width:14ch; margin-bottom:28px;
+  }
+  .lede{font-size:19px;line-height:1.55;color:var(--bone);max-width:54ch;margin-bottom:40px}
+  .cta-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;
+    border:1px solid var(--orbital-blue); color:var(--orbital-blue);
+    background:var(--absolute-black); border-radius:4px; padding:13px 22px;
+    font-size:14px; font-weight:500; box-shadow:var(--inset);
+    transition:background 120ms cubic-bezier(0.2,0.7,0.1,1);
+  }
+  .btn:hover{background:rgba(123,231,255,0.06)}
+  .btn.ghost{border-color:var(--graphite);color:var(--bone)}
+  .btn.ghost:hover{background:rgba(238,240,243,0.03)}
+
+  /* ── Section scaffolding ── */
+  section{padding:88px 0;border-bottom:var(--hairline)}
+  .sec-eyebrow{margin-bottom:18px}
+  h2{font-family:var(--editorial);font-weight:500;font-size:44px;line-height:1.12;
+    letter-spacing:-0.01em;max-width:20ch;margin-bottom:20px}
+  .sec-lede{font-size:17px;color:var(--muted-silver);max-width:60ch;margin-bottom:8px}
+
+  /* ── Loop / cards ── */
+  .grid{display:grid;gap:1px;background:var(--gunmetal);border:var(--hairline);
+    border-radius:6px;overflow:hidden;margin-top:40px}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  .grid.cols-4{grid-template-columns:repeat(4,1fr)}
+  .cell{background:var(--obsidian);padding:26px 24px;box-shadow:var(--inset)}
+  .cell .n{font-family:var(--mono);font-size:11px;letter-spacing:0.18em;color:var(--ash);margin-bottom:14px}
+  .cell h3{font-family:var(--display);font-weight:600;font-size:16px;margin-bottom:8px;color:var(--platinum)}
+  .cell p{font-size:14px;color:var(--muted-silver)}
+  .ico{stroke:var(--orbital-blue);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ── Why-now stat strip ── */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--gunmetal);
+    border:var(--hairline);border-radius:6px;overflow:hidden;margin-top:40px}
+  .stat{background:var(--obsidian);padding:30px 26px;box-shadow:var(--inset)}
+  .stat .big{font-family:var(--grotesk);font-size:40px;line-height:1;color:var(--platinum);margin-bottom:10px}
+  .stat .big.amber{color:var(--launch-amber)}
+  .stat p{font-size:13px;color:var(--muted-silver)}
+  .stat cite{display:block;margin-top:10px;font-family:var(--mono);font-size:10px;
+    letter-spacing:0.12em;color:var(--ash);font-style:normal}
+
+  /* ── Honesty / truth ladder ── */
+  .truth{margin-top:36px;border:var(--hairline);border-radius:6px;overflow:hidden}
+  .truth .row{display:grid;grid-template-columns:1.6fr repeat(4,0.6fr);
+    border-top:var(--hairline);background:var(--obsidian)}
+  .truth .row:first-child{border-top:none;background:var(--absolute-black)}
+  .truth .row > div{padding:13px 16px;font-size:13px;border-left:var(--hairline);display:flex;align-items:center}
+  .truth .row > div:first-child{border-left:none;color:var(--bone)}
+  .truth .row.head > div{font-family:var(--mono);font-size:10px;letter-spacing:0.18em;
+    text-transform:uppercase;color:var(--ash)}
+  .yes{color:var(--signal-green)} .partial{color:var(--launch-amber)} .no{color:var(--ash)}
+  .truth-note{margin-top:14px;font-size:13px;color:var(--ash)}
+
+  /* ── Wedge comparison ── */
+  .versus{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--gunmetal);
+    border:var(--hairline);border-radius:6px;overflow:hidden;margin-top:40px}
+  .versus > div{background:var(--obsidian);padding:30px 28px;box-shadow:var(--inset)}
+  .versus h3{font-size:13px;font-family:var(--mono);letter-spacing:0.18em;text-transform:uppercase;margin-bottom:18px}
+  .versus ul{list-style:none;display:flex;flex-direction:column;gap:12px}
+  .versus li{font-size:14px;color:var(--muted-silver);padding-left:22px;position:relative}
+  .versus li::before{content:"";position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:999px}
+  .them li::before{background:var(--gunmetal);border:1px solid var(--graphite)}
+  .us li::before{background:var(--signal-green)}
+  .us h3{color:var(--signal-green)}
+
+  /* ── Console honesty placard (no fake video) ── */
+  .viewport{margin-top:40px;border:var(--hairline);border-radius:6px;background:
+    repeating-linear-gradient(135deg,var(--obsidian),var(--obsidian) 11px,#0c0f13 11px,#0c0f13 22px);
+    aspect-ratio:16/7;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    box-shadow:var(--inset);position:relative}
+  .viewport .stamp{position:absolute;top:14px;left:16px;font-family:var(--mono);font-size:10px;
+    letter-spacing:0.22em;color:var(--muted-silver);border:var(--hairline);padding:5px 10px;border-radius:2px}
+  .viewport .center{text-align:center}
+  .viewport .center .k{font-family:var(--mono);font-size:12px;letter-spacing:0.22em;color:var(--ash)}
+  .viewport .center .v{font-family:var(--editorial);font-size:30px;color:var(--bone);margin-top:8px}
+
+  /* ── CTA ── */
+  .final{padding:96px 0;text-align:center;border-bottom:var(--hairline)}
+  .final h2{margin:0 auto 20px}
+  .final .sec-lede{margin:0 auto 32px}
+
+  footer{padding:40px 0;color:var(--ash);font-size:13px}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px}
+  .placeholder{color:var(--launch-amber)}
+
+  @media (max-width:860px){
+    h1{font-size:54px}
+    h2{font-size:34px}
+    .grid.cols-3,.grid.cols-4,.stats,.versus{grid-template-columns:1fr}
+    .bar nav{display:none}
+    .truth .row{grid-template-columns:1fr;}
+    .truth .row > div{border-left:none;border-top:var(--hairline)}
+    .truth .row.head{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="wordmark">SWARM</div>
+    <nav>
+      <a href="#problem">Problem</a>
+      <a href="#how">How it works</a>
+      <a href="#why">Why now</a>
+      <a href="#honesty">What's proven</a>
+      <a href="#contact" class="pill">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <div class="wrap">
+    <div class="status-line">
+      <span class="dot"></span>
+      <span class="eyebrow">SwarmOS · autonomous coordination · supervised by an operator</span>
+    </div>
+    <h1>Autonomous patrol for high-value land.</h1>
+    <p class="lede">
+      Private estates, vineyards and forestry go unwatched between rare guard
+      rounds — and fixed camera and sensor networks are too costly to install.
+      SWARM keeps the land observed with drones as <strong>mobile</strong>
+      sensors, verifies a risk signal in minutes, and hands a human operator an
+      evidence packet and a verify-or-escalate decision. No fixed cameras, no
+      towers, no capex.
+    </p>
+    <div class="cta-row">
+      <a href="#contact" class="btn">Talk to us
+        <svg width="16" height="16" viewBox="0 0 24 24" class="ico"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <a href="#how" class="btn ghost">See how it works</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Problem ── -->
+<section id="problem">
+  <div class="wrap">
+    <div class="eyebrow sec-eyebrow">The problem</div>
+    <h2>High-value land is unwatched, and watching it is too expensive.</h2>
+    <p class="sec-lede">
+      The Mediterranean is the most wildfire-exposed region in Europe, and the
+      risk is rising every season. Yet a private vineyard or estate can't justify
+      the capex of fixed detection towers or a dense ground-sensor grid — so
+      between rare guard rounds, the land is simply not observed. By the time an
+      uncertain signal becomes a confirmed event, it's late.
+    </p>
+  </div>
+</section>
+
+<!-- ── How it works ── -->
+<section id="how">
+  <div class="wrap">
+    <div class="eyebrow sec-eyebrow">How it works · the patrol loop</div>
+    <h2>SwarmOS decides. The operator supervises.</h2>
+    <p class="sec-lede">
+      SwarmOS is the autonomous layer that decides, plans and coordinates the
+      fleet. Every number an operator sees comes from SwarmOS or an honest
+      simulator — never invented in the interface.
+    </p>
+    <div class="grid cols-4">
+      <div class="cell">
+        <div class="n">01 · OBSERVE</div>
+        <svg width="24" height="24" viewBox="0 0 24 24" class="ico" style="margin-bottom:10px"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/></svg>
+        <h3>Track freshness</h3>
+        <p>Coverage freshness per sector: last seen, confidence, risk, priority.</p>
+      </div>
+      <div class="cell">
+        <div class="n">02 · CUE</div>
+        <svg width="24" height="24" viewBox="0 0 24 24" class="ico" style="margin-bottom:10px"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <h3>Turn a cue into work</h3>
+        <p>A fire-risk feed, a guard call-in, a stale-sector rule — each becomes a verification mission.</p>
+      </div>
+      <div class="cell">
+        <div class="n">03 · VERIFY</div>
+        <svg width="24" height="24" viewBox="0 0 24 24" class="ico" style="margin-bottom:10px"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6Z"/><path d="m9 12 2 2 4-4"/></svg>
+        <h3>Dispatch &amp; verify</h3>
+        <p>The best available drone flies to verify from one or more vantage points.</p>
+      </div>
+      <div class="cell">
+        <div class="n">04 · DECIDE</div>
+        <svg width="24" height="24" viewBox="0 0 24 24" class="ico" style="margin-bottom:10px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>
+        <h3>Evidence &amp; escalate</h3>
+        <p>An evidence packet — coordinates, captures, source, timeline, recommendation — and a verify/dismiss/escalate decision.</p>
+      </div>
+    </div>
+
+    <!-- Honest viewport — no fake video, ever (PDF §5.2) -->
+    <div class="viewport">
+      <div class="stamp">SIMULATED FEED</div>
+      <div class="center">
+        <div class="k">VERIFICATION VIEWPORT</div>
+        <div class="v">SwarmOS · honest by design</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Why now ── -->
+<section id="why">
+  <div class="wrap">
+    <div class="eyebrow sec-eyebrow">Why now</div>
+    <h2>The demand is structural, and it's accelerating.</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="big amber">86%</div>
+        <p>of the EU's total burned area is in the Mediterranean basin — exactly SWARM's first geography.</p>
+        <cite>European State of the Climate · MDPI Fire</cite>
+      </div>
+      <div class="stat">
+        <div class="big amber">~15% → 66–72%</div>
+        <p>projected rise in the share of the region under extreme fire weather (FWI&nbsp;&gt;&nbsp;50), 2025–2049.</p>
+        <cite>Wildfire risk under climate change (MDPI Fire)</cite>
+      </div>
+      <div class="stat">
+        <div class="big">~45,000 ha</div>
+        <p>under vine in Piedmont alone — thousands of mostly small, family-owned estates in the beachhead.</p>
+        <cite>Wine Enthusiast · UNESCO Langhe-Roero-Monferrato</cite>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Wedge ── -->
+<section id="wedge">
+  <div class="wrap">
+    <div class="eyebrow sec-eyebrow">The wedge</div>
+    <h2>Everyone credible is fixed. SWARM is mobile.</h2>
+    <p class="sec-lede">
+      Towers, ground sensors and fixed docking stations all carry capex from
+      tens of thousands of euros up — which locks them to public land, utilities
+      and heavy industry, and leaves private mid-size territory structurally
+      unserved.
+    </p>
+    <div class="versus">
+      <div class="them">
+        <h3>Fixed infrastructure</h3>
+        <ul>
+          <li>Camera towers, ground-sensor grids, fixed docks</li>
+          <li>Capex from tens of thousands per site</li>
+          <li>Tied to one location; detection without response</li>
+          <li>Uneconomic for a single private estate</li>
+        </ul>
+      </div>
+      <div class="us">
+        <h3>SWARM · mobile patrol</h3>
+        <ul>
+          <li>Drones as mobile sensors — no fixed install</li>
+          <li>Capex-free MVP: one drone, an operator, the Console</li>
+          <li>Coverage + verification + evidence + escalation</li>
+          <li>One loop across event classes; the OS is the moat</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Honesty / what's proven ── -->
+<section id="honesty">
+  <div class="wrap">
+    <div class="eyebrow sec-eyebrow">What's proven · typed claims</div>
+    <h2>We say exactly what's validated, and how.</h2>
+    <p class="sec-lede">
+      Every claim carries its evidence level. Today everything is validated in
+      simulation — we don't imply field or hardware proof we haven't earned.
+    </p>
+    <div class="truth">
+      <div class="row head">
+        <div>Capability</div><div>sim</div><div>SITL</div><div>bench</div><div>field</div>
+      </div>
+      <div class="row">
+        <div>Autonomy engine (verify / dismiss / escalate / wait)</div>
+        <div class="yes">✓</div><div class="no">—</div><div class="no">—</div><div class="no">—</div>
+      </div>
+      <div class="row">
+        <div>Shadow-mode safety gate (&lt;5% vs human baseline)</div>
+        <div class="yes">✓</div><div class="no">—</div><div class="no">—</div><div class="no">—</div>
+      </div>
+      <div class="row">
+        <div>Coverage freshness + patrol scheduling</div>
+        <div class="yes">✓</div><div class="no">—</div><div class="no">—</div><div class="no">—</div>
+      </div>
+      <div class="row">
+        <div>Computer-vision person detection (real model)</div>
+        <div class="yes">✓</div><div class="no">—</div><div class="no">—</div><div class="no">—</div>
+      </div>
+      <div class="row">
+        <div>MAVLink / PX4 flight adapter</div>
+        <div class="partial">CI-ready</div><div class="partial">attempted</div><div class="no">—</div><div class="no">—</div>
+      </div>
+    </div>
+    <p class="truth-note">
+      Next on the ladder: a logged PX4/SITL run, then a supervised hardware
+      bench. We move the claim only as far as the evidence moves.
+    </p>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<div class="final" id="contact">
+  <div class="wrap">
+    <h2>Watching the land it grew up on.</h2>
+    <p class="sec-lede">
+      Built in the Langhe, for the territory that needs it first. If you own or
+      manage high-value land, run drone operations, or work in land-risk — we
+      want to hear how you handle this today.
+    </p>
+    <div class="cta-row" style="justify-content:center">
+      <a href="mailto:davidecapurro@icloud.com" class="btn">Get in touch
+        <svg width="16" height="16" viewBox="0 0 24 24" class="ico"><path d="M4 4h16v16H4z"/><path d="m4 6 8 6 8-6"/></svg>
+      </a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="wordmark" style="font-size:16px">SWARM</div>
+    <div class="mono" style="font-size:11px;color:var(--ash)">
+      SwarmOS decides · the operator supervises · validated in simulation
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

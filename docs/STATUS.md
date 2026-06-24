@@ -24,11 +24,11 @@ See [`docs/product/patrol-cell.md`](product/patrol-cell.md).
 | 2 | Console Operating Shell + routing + components | **done** |
 | 3 | Truth Layer (no DERIVED) | **done** |
 | 4 | Persistence (Timescale + Alembic + audit) | **done** |
-| 5 | Real Adapter (MAVLink/PX4) | **CI-ready; SITL attempted/not validated; hardware pending** |
+| 5 | Real Adapter (MAVLink/PX4) | **CI-ready; PX4 SITL-validated 2026-06-24 (`docs/bench/artifacts/phase9-sitl-probe.json` → `status:"pass"`); hardware pending** |
 | 6 | Production OS (policy, geofence, auth, SBOM, ops) | **done** — 6.A→6.J all complete |
 | 7 | Patrol Cell sim demo (3 scenarios + autonomy baseline + CV + anomaly evidence) | **done** — code-complete; live 3-scenario demo run 2026-06-15 (artifacts in `docs/bench/artifacts/`, `by_rule.R2==1`) |
 | 8 | Patrol Cell wedge + customer validation | **next** (market) |
-| 9 | Flight-path + PX4/SITL + hardware bench de-risk | **next** |
+| 9 | Flight-path + PX4/SITL + hardware bench de-risk | **in_progress** — PX4 SITL adapter evidence captured 2026-06-24 (`docs/bench/phase9-sitl-validation.md`); flight-path planner + hardware bench still pending |
 | 10 | Summer evidence pack + BIEF/YC future-batch decision | **planned** |
 
 (Phases 8/9/10 above use the evidence-to-scale numbering.)
@@ -44,8 +44,10 @@ uses the **`swarmos-roadmap.md` sub-phase numbering** (Phase 8 = autonomy
 engine, Phase 9 = federation, Phase 10 = ML) — *not* the evidence-to-scale
 Phase 8. Order: Console redesign close → 8.A-8.D autonomy → live CV →
 10.C classifier → Phase 9 federation → 10.E RL. Market validation
-(evidence-to-scale Phase 8) and PX4/SITL are deferred by founder decision
-for this window.
+(evidence-to-scale Phase 8) is deferred by founder decision for this window.
+PX4/SITL was also deferred, but its first bullet — MAVLink/PX4 adapter
+**SITL evidence** (evidence-to-scale Phase 9) — was executed 2026-06-24 for
+the YC push; see [`bench/phase9-sitl-validation.md`](bench/phase9-sitl-validation.md).
 
 Window progress: **M0** (Console redesign close) merged (`#103`); **8.B**
 (autonomy engine — full `VERIFY|DISMISS|ESCALATE|WAIT` decision set +
@@ -55,7 +57,13 @@ mode + divergence report) merged (`#106`); **CV live** (real YOLO `person`
 scores feeding anomalies in intrusion + search; wildfire scripted, fire-CV
 deferred) merged (`#107`); **CV-live video sub-step** (synthetic SIM-labeled
 Langhe-vineyard drone-POV clip via Blender + `StreamDescriptor` `simulated`
-mode, stamped `SIMULATED FEED`) **done** on `feature/cv-live-sim-feed`. Next
+mode, stamped `SIMULATED FEED`) **done**, then **expanded to one clip per demo
+scenario** (`dev_up.sh` selects by `SIM_SCENARIO`). Two interchangeable clip
+sources now exist: a CC0 reproducible **Blender pipeline** (`render_sim_feed.py`,
+strict "no stock clip" compliance) and — for the founder's "just looks real"
+demo ask — **real free-licensed (Mixkit) stock vineyard footage** which is what
+is currently committed (always stamped `SIMULATED FEED`; rule-tension + provenance
+in `frontend/public/sim-feed/LICENSES.md`). On `feature/cv-live-sim-feed`. Next
 milestone: **bbox overlay**.
 
 Baseline-oracle decision (8.B-bis, the plan's "first design decision of
@@ -68,18 +76,35 @@ float thresholds depart from band-level human judgment. See
 
 ## Pending / not yet tracked
 
+- **YC application pack drafted 2026-06-23** (`docs/yc/`): `application-draft.md`
+  (fill-in-ready answers + founder/demo video scripts + typed-claim truth table),
+  `readiness-and-gaps.md` (ranked gap analysis + dated plan; Early-Decision
+  deadline 2026-07-27 vs Winter-2027 ~Nov), `customer-discovery-kit.md` (Langhe
+  buyer interview script + outreach + one-pager), `supporting-answers.md`
+  (flight/regulatory/TAM) + `competitive-and-market.md` (researched, cited).
+  Founder decision A-vs-B deferred. Context: [[yc-winter-push]] memory.
+- **YC live one-pager built 2026-06-23**: `frontend/public/landing/index.html` —
+  self-contained static landing page, design-system compliant (no-red verified via
+  preview eval, `SIMULATED FEED` honesty placard, typed-claim truth table). Hostable
+  on any static host; deploy + set contact email to close YC gap #2's "live link"
+  half. Preview locally via the `landing-static` launch config (port 4173, `/landing/`).
 - Refreshed YC screenshots + the demo `.mov` (`docs/yc/videos/` empty)
   remain manual founder-machine steps — they need the full sim+backend
   WebGL capture harness driven through the scripted scenario states, not a
-  backend-less render.
+  backend-less render. **This is now gap #2 (critical) in the YC plan.**
 
 ## Last verified gates
 
-`make lint` + `make test` + `make audit` on 2026-06-17 (Python 3.13):
-ruff + mypy (190 files) + tsc clean; **847 passed / 23 skipped**
-(backend) + **151 passed / 1 todo** (frontend); audit exit 0
-(pip-audit + pnpm audit + bandit 0 high/med + integrity checks incl.
-`cv assets integrity: PASS fixtures=14` — no known vulnerabilities). Shadow gate: `make shadow-divergence` → **0%** divergence
+`make lint` + `make test` re-run **2026-06-23** (Python 3.13) after the
+per-scenario sim-feed clips: ruff + mypy (190 files) + tsc clean; **847 passed /
+23 skipped** (backend) + **151 passed / 1 todo** (frontend);
+`cv assets integrity: PASS fixtures=14` (the new viewport clips are correctly
+*not* in the CV fixture pool). `make audit` now flags **one pre-existing
+transitive CVE** — `msgpack 1.1.2` (GHSA-6v7p-g79w-8964, via `cachecontrol`, fix
+1.2.1), a newly-published advisory unrelated to the video work, tracked as a
+separate dependency bump (do not allowlist; root-cause via `uv lock`). The full
+2026-06-17 gate (audit exit 0 incl. pnpm audit + bandit 0 high/med) otherwise
+stands. Shadow gate: `make shadow-divergence` → **0%** divergence
 over 100 runs of the 3 scenarios (deterministic), within the < 5% Phase 8
 gate (`docs/bench/artifacts/phase-8bbis-shadow-*.json`). CV-live gate:
 `make cv-live` (opt-in `[cv]`, verified in an ephemeral `uv run --with` env
@@ -92,6 +117,37 @@ so the 2 GB AGPL surface never enters `.venv`) → real `person` scores
 See [`STATUS-archive.md`](STATUS-archive.md) for the full dated changelog.
 Latest entries:
 
+- 2026-06-23 — demo viewport clips → **real "looks-real" footage** (founder ask):
+  the committed `frontend/public/sim-feed/*.mp4` are now **real, free-licensed
+  (Mixkit) stock drone-vineyard clips** instead of the Blender renders —
+  standby = sunset-over-vineyards, search = drone-over-rows, intrusion = a couple
+  (small, distant, non-identifiable) in the rows, wildfire = a Chianti aerial
+  ffmpeg-composited with a grey-smoke plate (grey only, no fire glow). Still
+  stamped `SIMULATED FEED` by the Console (overlay, not burned in) — never a live
+  camera. New `scripts/normalize_sim_feed.sh` conforms any clip to the viewport
+  shape (1280×960, h264). This **deliberately relaxes the "never a stock clip"
+  design rule for demo realism** (recorded + justified in
+  `frontend/public/sim-feed/LICENSES.md`); the CC0 Blender pipeline below stays as
+  the strict-compliance alternative. `dev_up.sh` selection + `StreamDescriptor`
+  contract unchanged.
+- 2026-06-23 — CV-live video sub-step **per-scenario clips**: the single generic
+  patrol clip became **one photoreal drone-POV clip per demo scenario** so a demo
+  viewer sees a viewport that fits what the operator is verifying —
+  `wildfire-pov.mp4` (a grey smoke plume rising from the rows), `intrusion-pov.mp4`
+  (one figure on the vineyard access lane, back-view), `search-pov.mp4` (the same
+  figure, small + distant, over a wider sweep), plus the unchanged `drone-pov.mp4`
+  standby/default. All four are the **same** photoreal Langhe vineyard (real CC0
+  Poly Haven instances) from [`scripts/render_sim_feed.py`](cv/cv-live.md), now
+  parametrized by `SWARM_SIM_FEED_SCENARIO`; the smoke (a noise-driven Cycles
+  volume, no bake) and the figure (a low-poly SwarmOS-authored proxy) are both
+  **honest sim ambiance** — the figure is non-identifiable (back-view, not a real
+  likeness), never enters the CV fixture pool and never feeds the `person` score;
+  the smoke is grey-only (no red/orange fire glow, PDF §5.2) and wildfire CV stays
+  deferred. `dev_up.sh` selects the clip from the booted `SIM_SCENARIO` (backend
+  re-validates against the `/sim-feed/` prefix allowlist, so the new names need no
+  security change). Provenance: `frontend/public/sim-feed/LICENSES.md`,
+  [`docs/cv/cv-live.md`](cv/cv-live.md). Sim wiring + `StreamDescriptor` contract
+  unchanged.
 - 2026-06-21 — CV-live video sub-step **photorealism pass**: re-rendered the
   Langhe-vineyard drone-POV clip (`frontend/public/sim-feed/drone-pov.mp4`) to a
   genuinely photorealistic, demo-neutral shot. The key change: the vines are now

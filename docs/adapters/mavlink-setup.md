@@ -61,6 +61,13 @@ Phase 5 has two readiness levels:
 
 ## Local PX4 SITL bring-up
 
+> **Reproducible Docker path (recommended).** The pinned, headless,
+> multi-arch route used to capture the green Phase 9 SITL evidence —
+> `docker run jonasvautherin/px4-gazebo-headless@sha256:…` plus the exact
+> probe invocation — is documented in
+> [`../bench/phase9-sitl-validation.md`](../bench/phase9-sitl-validation.md).
+> It needs no native PX4 toolchain. The native build below is the fallback.
+
 PX4 SITL is the recommended way to exercise the adapter end-to-end
 without hardware. The adapter does **not** ship with SITL — it would
 pull Gazebo / a multi-gigabyte runtime — so install it once on your

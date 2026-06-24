@@ -47,7 +47,8 @@
       "next@16.2.6>postcss": "^8.5.14",
       "next>postcss": "^8.5.14",
       "postcss@8.4.31": "8.5.14",
-      "postcss": "^8.5.15"
+      "postcss": "^8.5.15",
+      "undici": "^7.28.0"
     }
   }
 }

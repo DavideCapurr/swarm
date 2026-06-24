@@ -1,16 +1,37 @@
 #!/usr/bin/env python3
-"""Render the synthetic SIM-labelled drone-POV viewport clip (CV-live video sub-step).
+"""Render the synthetic SIM-labelled drone-POV viewport clips (CV-live video sub-step).
 
-This is the **provenance + reproduction** record for
-`frontend/public/sim-feed/drone-pov.mp4` and the
+This is the **provenance + reproduction** record for the
+`frontend/public/sim-feed/*.mp4` clips and the
 `sim/swarm_sim/cv/fixtures/sim_drone_pov/` fixtures. It builds a Langhe-vineyard
 drone-POV scene — the same setting the demo scenarios model (Langhe, near Alba;
 `sim/swarm_sim/world.py` `DEFAULT_DOCK` = 44.70 N, 8.03 E) — and renders it to a
-PNG sequence. The clip is **explicitly synthetic** and is stamped `SIMULATED
-FEED` in the Console; it is never passed off as a real camera (PDF §5.2).
+PNG sequence. The clips are **explicitly synthetic** and are stamped `SIMULATED
+FEED` in the Console; they are never passed off as a real camera (PDF §5.2).
 
-Quality target (this revision): genuinely **photorealistic**, because every
-element is a real CC0 photoscanned asset rather than hand-faked geometry:
+**One clip per demo scenario** (`SWARM_SIM_FEED_SCENARIO`, default `standby`).
+Every scenario is the *same* photoreal vineyard; it only adds the one honest
+ambient element that scenario is about:
+
+  - `standby`   → `drone-pov.mp4`     — calm patrol, no figure (the universal
+                                        default; reproduces the prior clip).
+  - `wildfire`  → `wildfire-pov.mp4`  — a grey smoke plume rising from the rows.
+                                        Sim-modelled *visual* only (wildfire CV
+                                        is deferred, `cv_enabled:false`), so it
+                                        never stands in for a detection — it just
+                                        shows the smoke the SMOKE anomaly reports.
+  - `intrusion` → `intrusion-pov.mp4` — one non-identifiable figure in the alley.
+  - `search`    → `search-pov.mp4`    — the same figure, smaller + off-axis,
+                                        under a higher, wider sweep.
+
+The figure is a low-poly **SwarmOS-authored proxy** (CC0), shown back-view and
+at drone distance: deliberately not a real person's likeness and carrying no
+recognisable face. It is pure viewport ambiance and **never** feeds the CV
+`person` score — that stays on the real CC0 fixtures (honest-sim: a synthetic
+figure is never a real detection).
+
+Quality target: genuinely **photorealistic**, because every world element is a
+real CC0 photoscanned asset rather than hand-faked geometry:
 
   - **Vines are real plant models.** Each vine row is thousands of *instances*
     of a real CC0 Poly Haven shrub model (`shrub_01`) — actual leaf geometry
@@ -25,11 +46,11 @@ element is a real CC0 photoscanned asset rather than hand-faked geometry:
     long raking shadows.
   - Path-traced in **Cycles** (Metal GPU, 96 samples + OIDN, AgX).
 
-The drone holds station over the rows, looking down the vineyard to the
-horizon, with a gentle seamless in-place sway (no net travel) so the 60-frame
-clip loops cleanly. It carries **no figure** — a calm vineyard patrol works as
-honest ambient context in every phase of the wildfire demo (standby → smoke →
-verify → fire → escalate), with nothing identifiable to raise a privacy concern.
+The drone holds station over the rows, looking down the vineyard to the horizon,
+with a gentle integer-cycle in-place sway (no net travel) so each 60-frame clip
+loops cleanly. The scenario element (smoke / figure) likewise stays in place
+with near-zero net travel so the loop survives (the billowing smoke has a soft,
+deliberate seam).
 
 Assets (all CC0-1.0; fetched from the public Poly Haven API at render time, so
 nothing is committed to the repo):
@@ -38,26 +59,30 @@ nothing is committed to the repo):
   - Vines  — `shrub_01` 3D model (Poly Haven), instanced.
   - Trees  — `island_tree_01` 3D model (Poly Haven), instanced.
 
-The terrain, hills, the row layout, the posts and the camera path are
-SwarmOS-authored, dedicated to the public domain (CC0-1.0). Poly Haven assets
-are CC0-1.0 (no attribution required; recorded here and in the LICENSES files).
+The terrain, hills, row layout, posts, camera path, the smoke plume and the
+proxy figure are SwarmOS-authored, dedicated to the public domain (CC0-1.0).
+Poly Haven assets are CC0-1.0 (no attribution; recorded in the LICENSES files).
 
 Run (needs Blender ≥ 4.2; verified on 5.x; the glTF importer ships with Blender)
 — Blender is **not** a repo/CI dependency, this is an opt-in art tool, like the
-`[cv]` extra:
+`[cv]` extra. Render each scenario, then encode its PNG sequence to the matching
+clip (the script prints the exact ffmpeg line for the selected scenario):
 
-    blender --background --python scripts/render_sim_feed.py
+    for s in standby wildfire intrusion search; do
+        SWARM_SIM_FEED_SCENARIO=$s blender --background \
+            --python scripts/render_sim_feed.py
+    done
 
-then encode the PNG sequence to the browser clip with ffmpeg. A subtle vignette
-+ light sensor grain are added at encode time:
+A subtle vignette + light sensor grain are added at the ffmpeg encode stage, e.g.
 
-    ffmpeg -y -framerate 24 -i /tmp/swarm_sim_feed/frames/frame_%04d.png \
+    ffmpeg -y -framerate 24 -i /tmp/swarm_sim_feed/wildfire/frames/frame_%04d.png \
         -vf "vignette=PI/5,noise=alls=4:allf=t,format=yuv420p" \
         -c:v libx264 -preset slow -movflags +faststart -crf 23 -an \
-        frontend/public/sim-feed/drone-pov.mp4
+        frontend/public/sim-feed/wildfire-pov.mp4
 
-The committed clip was produced exactly this way (1280x960, 60 frames, 24 fps,
-Cycles GPU, 96 samples + OpenImageDenoise, AgX).
+The committed clips were produced exactly this way (1280x960, 60 frames, 24 fps,
+Cycles GPU, 96 samples + OpenImageDenoise, AgX). `SWARM_SIM_FEED_SAMPLES` /
+`SWARM_SIM_FEED_FRAMES` override samples/frame-count for cheap previews only.
 """
 
 from __future__ import annotations
@@ -72,15 +97,28 @@ import urllib.request
 
 # ── Constants (the committed clip's exact parameters) ────────────────────────
 
+# Which clip to render. Every scenario is the *same* Langhe vineyard drone-POV;
+# the scenario only adds the one honest SIMULATED-FEED element it is about (see
+# the "Scenario variants" block below). `standby` reproduces the universal
+# `drone-pov.mp4` exactly.
+SCENARIO = os.environ.get("SWARM_SIM_FEED_SCENARIO", "standby").strip().lower()
+
 OUT_DIR = os.environ.get("SWARM_SIM_FEED_OUT", "/tmp/swarm_sim_feed")
-FRAMES_DIR = os.path.join(OUT_DIR, "frames")
+# Frames go to a per-scenario sub-dir so several scenarios can be rendered in
+# one session without clobbering each other's PNG sequence. The asset + model
+# caches are shared (the CC0 downloads are identical across scenarios).
+FRAMES_DIR = os.path.join(OUT_DIR, SCENARIO, "frames")
 CACHE_DIR = os.path.join(OUT_DIR, "assets")
 MODEL_DIR = os.path.join(OUT_DIR, "models")
 
 RES_X, RES_Y = 1280, 960  # 4:3 — matches the Console viewport (aspect-[4/3])
 FPS = 24
-FRAME_START, FRAME_END = 1, 60
-CYCLES_SAMPLES = 96  # + OpenImageDenoise → clean at this count
+# The committed clips are 60 frames at 96 spp. Both are overridable from the
+# environment *only* to allow cheap low-sample previews while iterating on a
+# scene; every committed asset uses the defaults below.
+FRAME_START = 1
+FRAME_END = int(os.environ.get("SWARM_SIM_FEED_FRAMES", "60"))
+CYCLES_SAMPLES = int(os.environ.get("SWARM_SIM_FEED_SAMPLES", "96"))  # +OIDN
 
 # Golden-hour key light: warm, low, behind the camera so the vine foliage stays
 # lit while shadows rake the rows.
@@ -131,6 +169,61 @@ HILL_SPECS = (
 
 CAM_UP, CAM_Y = 3.2, -6.0  # m — low drone standoff over the alley
 AIM_Y, AIM_Z = 38.0, 1.8  # m — look down the rows toward the converging horizon
+
+# ── Scenario variants ────────────────────────────────────────────────────────
+# Each demo scenario gets a drone-POV clip whose viewport matches what the
+# operator is verifying — but every added element is honest SIMULATED-FEED
+# ambiance, never a stand-in for a real detection:
+#   standby   — calm patrol, nothing added (the universal default clip).
+#   wildfire  — a grey smoke plume rising from the rows. Sim-modelled *visual*
+#               only: wildfire CV stays deferred (cv_enabled:false), so the
+#               plume never substitutes for a CV score — it just shows the
+#               smoke the SMOKE anomaly already reports.
+#   intrusion — one non-identifiable figure in the centre alley.
+#   search    — the same figure, smaller + off-axis, under a higher, wider sweep.
+# The figure is a low-poly SwarmOS-authored proxy (CC0) shown *back-view* and at
+# drone distance: it is deliberately NOT a real person's likeness and carries no
+# recognisable face, so it reads as "someone is in the rows" without identifying
+# anyone. It is pure viewport ambiance and never feeds the CV `person` score —
+# that stays on the real CC0 fixtures (honest-sim: a synthetic figure is never a
+# real detection).
+KNOWN_SCENARIOS = ("standby", "wildfire", "intrusion", "search")
+
+# Per-scenario drone framing — (cam_height_m, cam_y_m, aim_y_m, aim_z_m, lens_mm).
+# standby/wildfire keep the original low horizon look (the smoke rises down-row);
+# the figure scenarios use a higher, steeper view that looks *into* the alley so
+# the person is clearly on open ground (a more overtly drone-like angle, which
+# also visually distinguishes them from the standby horizon shot).
+CAM_RIG = {
+    "standby": (3.2, -6.0, 38.0, 1.8, 30),
+    "wildfire": (3.2, -6.0, 38.0, 1.8, 30),
+    # Intrusion: a low drone looking down the open lane at the figure, which
+    # stands clear on the soil with the vineyard behind it (large + unmistakable).
+    "intrusion": (3.2, -3.5, 13.0, 0.7, 30),
+    # Search: a higher, wider sweep — the subject is a small distant find.
+    "search": (13.0, 1.0, 30.0, 0.5, 28),
+}
+
+# Figure scenarios push the vine rows apart so there is a clear central path the
+# person stands in (a real-vineyard-narrow alley would hide them at this angle),
+# with a worked-soil access lane down it for high contrast against the figure.
+ALLEY_HALF_FIG = 2.6  # m — half-width of the widened centre path
+ALLEY_LANE_HALF = 1.7  # m — half-width of the brown soil lane within it
+# Intrusion pushes the vine rows back so the foreground is open lane: the figure
+# stands clear on the soil with the vineyard wall as a backdrop (no near canopy
+# to occlude it). Search keeps the normal start (its subject is far downrange).
+ROW_Y0_FIG = 9.0  # m — where the rows begin in the intrusion shot
+
+# Smoke plume (wildfire) — off the centre alley, mid-distance, so it reads as
+# rising from the vineyard ahead. Local metres in the camera frame.
+SMOKE_POS = (3.2, 25.0)  # (x, y)
+SMOKE_BASE_Z = 0.35
+SMOKE_HEIGHT = 11.0
+SMOKE_RADIUS = 1.6
+
+# Figure (intrusion/search) — stands/shifts in the alley, back to the camera.
+FIGURE_POS = (0.0, 4.0)  # intrusion: close on the soil lane → large + unmistakable
+FIGURE_POS_SEARCH = (1.5, 44.0)  # search: a small distant subject on the headland
 
 POLYHAVEN_API = "https://api.polyhaven.com"
 # Poly Haven's CDN rejects the default Python-urllib User-Agent (HTTP 403), so
@@ -281,6 +374,12 @@ def _import_master(model_id: str, res: str, height_m: float, name: str):
 def build_scene() -> None:
     import bpy
 
+    if SCENARIO not in KNOWN_SCENARIOS:
+        raise SystemExit(
+            f"unknown SWARM_SIM_FEED_SCENARIO={SCENARIO!r}; "
+            f"expected one of {', '.join(KNOWN_SCENARIOS)}"
+        )
+
     scene = bpy.context.scene
 
     # Clean slate.
@@ -298,8 +397,10 @@ def build_scene() -> None:
         for b in list(block):
             with contextlib.suppress(Exception):
                 block.remove(b)
+    # Drop any animation handlers a previous build left behind (a re-run in the
+    # same Blender session would otherwise stack them).
     for h in list(bpy.app.handlers.frame_change_pre):
-        if getattr(h, "__name__", "") == "_pose":
+        if getattr(h, "__name__", "") in ("_pose", "_gait", "_smoke_anim"):
             bpy.app.handlers.frame_change_pre.remove(h)
 
     with contextlib.suppress(AttributeError):
@@ -310,7 +411,23 @@ def build_scene() -> None:
     terrain_mat = _terrain(fetch_texture_maps(GROUND_ID, GROUND_RES))
     _hills()
     _treeline()
-    _vine_rows(_import_master(SHRUB_ID, SHRUB_RES, PLANT_H, "ShrubMaster"))
+    master = _import_master(SHRUB_ID, SHRUB_RES, PLANT_H, "ShrubMaster")
+    if SCENARIO == "intrusion":
+        _vine_rows(master, ALLEY_HALF_FIG, ROW_Y0_FIG)  # rows back → open foreground
+    elif SCENARIO == "search":
+        _vine_rows(master, ALLEY_HALF_FIG, ROW_Y0)
+    else:
+        _vine_rows(master, ALLEY_HALF, ROW_Y0)
+
+    # Scenario-specific element (honest SIMULATED-FEED ambiance only).
+    if SCENARIO == "wildfire":
+        _smoke_plume(SMOKE_POS)
+    elif SCENARIO == "intrusion":
+        _alley_lane(-5.0, ROW_Y0_FIG + ROW_LEN)
+        _walker(FIGURE_POS, scale=1.12)
+    elif SCENARIO == "search":
+        _walker(FIGURE_POS_SEARCH, scale=1.4)
+
     cam = _camera()
     _setup_render(scene)
 
@@ -496,11 +613,13 @@ def _flat_material(name: str, rgb, rough: float):
     return mat
 
 
-def _vine_rows(master) -> None:
+def _vine_rows(master, alley_half: float = ALLEY_HALF, row_y0: float = ROW_Y0) -> None:
     """Rows on both sides of the centre alley, each a tall wall of stacked
     instances. Each instance is a linked copy of the shrub master (shared mesh →
     cheap) with a slightly different per-plant tint. Posts and worked-soil strips
-    give the trellis structure.
+    give the trellis structure. ``alley_half`` widens the central path and
+    ``row_y0`` is where the rows begin — pushed back in the intrusion shot so the
+    figure stands clear on the open foreground lane.
     """
     import bpy
 
@@ -526,11 +645,11 @@ def _vine_rows(master) -> None:
 
     for sign in (-1, 1):
         for k in range(N_ROWS):
-            x = sign * (ALLEY_HALF + k * ROW_PITCH)
+            x = sign * (alley_half + k * ROW_PITCH)
 
             # Worked-soil strip under the row.
             bpy.ops.mesh.primitive_plane_add(
-                size=1.0, location=(x, ROW_Y0 + ROW_LEN / 2, 0.02)
+                size=1.0, location=(x, row_y0 + ROW_LEN / 2, 0.02)
             )
             s = bpy.context.active_object
             s.name = f"Soil_{sign}_{k}"
@@ -539,8 +658,8 @@ def _vine_rows(master) -> None:
             s.data.materials.append(soil)
 
             # Five stacked layers of plant instances → a continuous tall wall.
-            y = ROW_Y0
-            while y < ROW_Y0 + ROW_LEN:
+            y = row_y0
+            while y < row_y0 + ROW_LEN:
                 jx = rng.uniform(-0.05, 0.05)
                 for zc in STACK_Z:
                     instance(
@@ -550,7 +669,7 @@ def _vine_rows(master) -> None:
 
             # Trellis posts every 6 m (one cylinder + a Y array per row).
             bpy.ops.mesh.primitive_cylinder_add(
-                radius=0.03, depth=2.0, vertices=6, location=(x, ROW_Y0, 1.0)
+                radius=0.03, depth=2.0, vertices=6, location=(x, row_y0, 1.0)
             )
             p = bpy.context.active_object
             p.name = f"Post_{sign}_{k}"
@@ -562,11 +681,191 @@ def _vine_rows(master) -> None:
             arr.count = int(ROW_LEN / 6.0) + 1
 
 
+def _alley_lane(y_start: float, y_end: float) -> None:
+    """A worked-soil access lane down the centre alley (figure scenarios) so the
+    figure stands on a high-contrast brown surface, not lost in the green — and
+    it reads as a real vineyard headland/access path.
+    """
+    import bpy
+
+    soil = _flat_material("AlleySoil", (0.20, 0.14, 0.09), 1.0)
+    bpy.ops.mesh.primitive_plane_add(
+        size=1.0, location=(0.0, (y_start + y_end) / 2.0, 0.015)
+    )
+    lane = bpy.context.active_object
+    lane.name = "AlleyLane"
+    lane.scale = (ALLEY_LANE_HALF, (y_end - y_start) / 2.0, 1.0)
+    bpy.ops.object.transform_apply(scale=True)
+    lane.data.materials.append(soil)
+
+
+def _walker(pos, *, scale: float = 1.0) -> None:
+    """One low-poly, back-view, non-identifiable figure in the centre alley.
+
+    Authored entirely from primitives (CC0, SwarmOS-original): torso, head, two
+    arms and two legs in a muted slate/earth palette (no red — PDF §5.2). It
+    faces *away* from the camera and carries no recognisable face, so it reads as
+    "someone is in the rows" without identifying anyone. It is pure SIMULATED-
+    FEED ambiance and never feeds the CV `person` score — that stays on the real
+    CC0 fixtures (honest-sim: a synthetic figure is never a real detection).
+
+    A frame handler gives it a subtle integer-cycle weight-shift + arm sway with
+    near-zero net travel, so the 60-frame clip still loops seamlessly.
+    """
+    import bpy
+
+    x0, y0 = pos
+    coll = bpy.context.scene.collection
+    skin = _flat_material("FigSkin", (0.42, 0.31, 0.25), 0.6)
+    jacket = _flat_material("FigJacket", (0.15, 0.17, 0.21), 0.8)  # muted slate
+    trousers = _flat_material("FigTrousers", (0.19, 0.18, 0.16), 0.85)
+
+    root = bpy.data.objects.new(f"Walker_{SCENARIO}", None)
+    coll.objects.link(root)
+    root.location = (x0, y0, 0.0)
+    bpy.context.view_layer.update()
+    # Keep each part exactly where it is built (world space); the root only adds
+    # the per-frame bob on top. Without this inverse, parenting would re-apply
+    # the root offset and place the figure at twice the intended distance.
+    parent_inv = root.matrix_world.inverted()
+
+    def part(prim, mat, loc, scl, **kw):
+        getattr(bpy.ops.mesh, prim)(location=(x0 + loc[0], y0 + loc[1], loc[2]), **kw)
+        o = bpy.context.active_object
+        o.scale = scl
+        bpy.ops.object.shade_smooth()
+        o.data.materials.append(mat)
+        o.parent = root
+        o.matrix_parent_inverse = parent_inv
+        return o
+
+    s = scale
+    part(  # torso
+        "primitive_cylinder_add", jacket, (0.0, 0.0, 1.16 * s),
+        (0.20 * s, 0.13 * s, 0.34 * s), vertices=16, radius=1.0, depth=1.0,
+    )
+    part(  # head
+        "primitive_uv_sphere_add", skin, (0.0, 0.0, 1.63 * s),
+        (0.115 * s, 0.115 * s, 0.135 * s), segments=18, ring_count=12, radius=1.0,
+    )
+    for sx in (-1, 1):  # legs
+        part(
+            "primitive_cylinder_add", trousers, (0.085 * s * sx, 0.0, 0.46 * s),
+            (0.075 * s, 0.075 * s, 0.46 * s), vertices=12, radius=1.0, depth=1.0,
+        )
+    arms = [
+        part(
+            "primitive_cylinder_add", jacket, (0.215 * s * sx, 0.0, 1.06 * s),
+            (0.052 * s, 0.052 * s, 0.30 * s), vertices=10, radius=1.0, depth=1.0,
+        )
+        for sx in (-1, 1)
+    ]
+
+    def _gait(scene):
+        f = scene.frame_current
+        t = (f - FRAME_START) / (FRAME_END - FRAME_START + 1)
+        a = math.sin(math.tau * t)
+        # Weight-shift + bob with near-zero net travel → loop-clean.
+        root.location = (x0 + 0.03 * s * a, y0 + 0.05 * s * a, 0.018 * s * abs(a))
+        root.rotation_euler = (0.0, 0.0, 0.04 * a)
+        for i, arm in enumerate(arms):  # counter-phase arm sway
+            arm.rotation_euler = (0.16 * (a if i == 0 else -a), 0.0, 0.0)
+
+    _gait.__name__ = "_gait"
+    bpy.app.handlers.frame_change_pre.append(_gait)
+    _gait(bpy.context.scene)
+
+
+def _smoke_plume(pos) -> None:
+    """A grey smoke column rising from the rows — a noise-driven Principled
+    Volume in a tapered cone domain, with **no fluid bake** so it renders
+    headlessly and reproducibly.
+
+    It is a sim-modelled *visual* only: wildfire CV stays deferred
+    (cv_enabled:false), so the plume never substitutes for a detection — it just
+    shows the smoke the SMOKE anomaly already reports. Grey, never a red/orange
+    fire glow (PDF §5.2). A frame handler scrolls the noise upward so the column
+    churns and rises (a soft loop seam is acceptable for billowing smoke).
+    """
+    import bpy
+
+    x0, y0 = pos
+    bpy.ops.mesh.primitive_cone_add(
+        radius1=SMOKE_RADIUS,
+        radius2=SMOKE_RADIUS * 2.6,  # widens as it rises
+        depth=SMOKE_HEIGHT,
+        vertices=28,
+        location=(x0, y0, SMOKE_BASE_Z + SMOKE_HEIGHT / 2.0),
+    )
+    dom = bpy.context.active_object
+    dom.name = "SmokePlume"
+
+    mat = bpy.data.materials.new("Smoke")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    vol = nt.nodes.new("ShaderNodeVolumePrincipled")
+    vol.inputs["Color"].default_value = (0.58, 0.58, 0.60, 1.0)  # cool grey smoke
+
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.name = "SmokeMap"
+    mp.inputs["Scale"].default_value = (1.0, 1.0, 0.45)  # stretch noise vertically
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 1.7
+    noise.inputs["Detail"].default_value = 6.0
+    noise.inputs["Roughness"].default_value = 0.6
+    ramp = nt.nodes.new("ShaderNodeValToRGB")  # carve wisps: clamp low noise → 0
+    ramp.color_ramp.elements[0].position = 0.42
+    ramp.color_ramp.elements[1].position = 0.72
+
+    # Vertical falloff: dense near the base, thinning to nothing at the top.
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    fall = nt.nodes.new("ShaderNodeMapRange")
+    fall.inputs["From Min"].default_value = 0.0
+    fall.inputs["From Max"].default_value = 1.0
+    fall.inputs["To Min"].default_value = 1.0
+    fall.inputs["To Max"].default_value = 0.0
+
+    mul = nt.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    dens = nt.nodes.new("ShaderNodeMath")
+    dens.operation = "MULTIPLY"
+    dens.inputs[1].default_value = 7.0  # overall density scale
+
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"])
+    nt.links.new(mp.outputs["Vector"], noise.inputs["Vector"])
+    nt.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    nt.links.new(tc.outputs["Generated"], sep.inputs["Vector"])
+    nt.links.new(sep.outputs["Z"], fall.inputs["Value"])
+    nt.links.new(ramp.outputs["Color"], mul.inputs[0])
+    nt.links.new(fall.outputs["Result"], mul.inputs[1])
+    nt.links.new(mul.outputs["Value"], dens.inputs[0])
+    nt.links.new(dens.outputs["Value"], vol.inputs["Density"])
+    nt.links.new(vol.outputs["Volume"], out.inputs["Volume"])
+    dom.data.materials.append(mat)
+
+    def _smoke_anim(scene):
+        f = scene.frame_current
+        t = (f - FRAME_START) / (FRAME_END - FRAME_START + 1)
+        m = nt.nodes.get("SmokeMap")
+        if m:
+            # Scroll the noise down in object space → the smoke reads as rising;
+            # a touch of lateral drift gives the column some life.
+            m.inputs["Location"].default_value = (0.12 * math.sin(math.tau * t), 0.0, -1.0 * t)
+
+    _smoke_anim.__name__ = "_smoke_anim"
+    bpy.app.handlers.frame_change_pre.append(_smoke_anim)
+    _smoke_anim(bpy.context.scene)
+
+
 def _camera():
     import bpy
 
+    cam_h, cam_y, aim_y, aim_z, lens = CAM_RIG.get(SCENARIO, CAM_RIG["standby"])
     cam_data = bpy.data.cameras.new("DroneCam")
-    cam_data.lens = 30
+    cam_data.lens = lens
     cam_data.sensor_width = 36
     cam_data.dof.use_dof = True
     cam_data.dof.aperture_fstop = 4.0
@@ -576,18 +875,24 @@ def _camera():
 
     aim = bpy.data.objects.new("CamAim", None)
     bpy.context.scene.collection.objects.link(aim)
-    aim.location = (0.0, AIM_Y, AIM_Z)
+    aim.location = (0.0, aim_y, aim_z)
     trk = cam.constraints.new("TRACK_TO")
     trk.target = aim
     trk.track_axis = "TRACK_NEGATIVE_Z"
     trk.up_axis = "UP_Y"
     cam_data.dof.focus_object = aim
-    cam.location = (0.0, CAM_Y, CAM_UP)
+    cam.location = (0.0, cam_y, cam_h)
     return cam
 
 
 def _register_pose(cam):
     import bpy
+
+    # Sway around wherever the camera + aim were actually placed (so the search
+    # variant's higher standoff is respected) rather than the standby constants.
+    base = tuple(cam.location)
+    aim = bpy.data.objects.get("CamAim")
+    aim_base = tuple(aim.location) if aim else (0.0, AIM_Y, AIM_Z)
 
     def _pose(scene):
         f = scene.frame_current
@@ -596,13 +901,16 @@ def _register_pose(cam):
         # gentle integer-cycle sway, so there is no net travel to break the loop.
         t = (f - FRAME_START) / (FRAME_END - FRAME_START + 1)  # 0..<1
         cam.location = (
-            0.16 * math.sin(math.tau * t),
-            CAM_Y + 0.45 * math.sin(math.tau * t),
-            CAM_UP + 0.10 * math.sin(math.tau * t + 1.0),
+            base[0] + 0.16 * math.sin(math.tau * t),
+            base[1] + 0.45 * math.sin(math.tau * t),
+            base[2] + 0.10 * math.sin(math.tau * t + 1.0),
         )
-        aim = bpy.data.objects.get("CamAim")
         if aim:
-            aim.location = (0.10 * math.sin(math.tau * t + 0.5), AIM_Y, AIM_Z)
+            aim.location = (
+                aim_base[0] + 0.10 * math.sin(math.tau * t + 0.5),
+                aim_base[1],
+                aim_base[2],
+            )
 
     _pose.__name__ = "_pose"
     bpy.app.handlers.frame_change_pre.append(_pose)
@@ -631,7 +939,9 @@ def _setup_render(scene) -> None:
     scene.cycles.diffuse_bounces = 3
     scene.cycles.glossy_bounces = 2
     scene.cycles.transmission_bounces = 4  # alpha-cut leaves are transmissive
-    scene.cycles.volume_bounces = 0
+    # The wildfire plume needs one volume bounce to scatter the warm sun softly;
+    # the figure/standby scenes have no volume, so 0 keeps them fast.
+    scene.cycles.volume_bounces = 1 if SCENARIO == "wildfire" else 0
     with contextlib.suppress(Exception):
         scene.cycles.use_persistent_data = True
 
@@ -648,6 +958,11 @@ def _setup_render(scene) -> None:
     scene.render.image_settings.color_mode = "RGB"
 
 
+def clip_name() -> str:
+    """The committed clip filename for the selected scenario."""
+    return "drone-pov.mp4" if SCENARIO == "standby" else f"{SCENARIO}-pov.mp4"
+
+
 def render() -> None:
     import bpy
 
@@ -657,8 +972,14 @@ def render() -> None:
         scene.frame_set(f)
         scene.render.filepath = os.path.join(FRAMES_DIR, f"frame_{f:04d}.png")
         bpy.ops.render.render(write_still=True)
-    print(f"rendered {FRAME_END - FRAME_START + 1} frames → {FRAMES_DIR}")
-    print("now encode with ffmpeg (see module docstring).")
+    print(f"rendered {FRAME_END - FRAME_START + 1} frames ({SCENARIO}) → {FRAMES_DIR}")
+    print("now encode this scenario's PNG sequence to the browser clip:")
+    print(
+        f'  ffmpeg -y -framerate {FPS} -i {FRAMES_DIR}/frame_%04d.png \\\n'
+        f'      -vf "vignette=PI/5,noise=alls=4:allf=t,format=yuv420p" \\\n'
+        f"      -c:v libx264 -preset slow -movflags +faststart -crf 23 -an \\\n"
+        f"      frontend/public/sim-feed/{clip_name()}"
+    )
 
 
 def main() -> int:
@@ -667,10 +988,12 @@ def main() -> int:
     except ImportError:
         print(
             "this script must run inside Blender:\n"
-            "  blender --background --python scripts/render_sim_feed.py",
+            "  SWARM_SIM_FEED_SCENARIO=wildfire blender --background "
+            "--python scripts/render_sim_feed.py",
             file=sys.stderr,
         )
         return 2
+    print(f"[render_sim_feed] scenario={SCENARIO} → {clip_name()}")
     build_scene()
     render()
     return 0

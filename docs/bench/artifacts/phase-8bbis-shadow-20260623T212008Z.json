@@ -1,0 +1,88 @@
+{
+  "by_scenario": {
+    "intrusion_owner_land": {
+      "by_profile": {
+        "intrusion": {
+          "diverged": 0,
+          "divergence_rate": 0.0,
+          "total": 200
+        }
+      },
+      "by_transition": {},
+      "cv_jitter": false,
+      "diverged": 0,
+      "divergence_rate": 0.0,
+      "gate": 0.05,
+      "total": 200,
+      "within_gate": true
+    },
+    "search_owner_land": {
+      "by_profile": {
+        "search": {
+          "diverged": 0,
+          "divergence_rate": 0.0,
+          "total": 200
+        }
+      },
+      "by_transition": {},
+      "cv_jitter": false,
+      "diverged": 0,
+      "divergence_rate": 0.0,
+      "gate": 0.05,
+      "total": 200,
+      "within_gate": true
+    },
+    "wildfire_owner_land": {
+      "by_profile": {
+        "wildfire": {
+          "diverged": 0,
+          "divergence_rate": 0.0,
+          "total": 400
+        }
+      },
+      "by_transition": {},
+      "cv_jitter": false,
+      "diverged": 0,
+      "divergence_rate": 0.0,
+      "gate": 0.05,
+      "total": 400,
+      "within_gate": true
+    }
+  },
+  "gate": 0.05,
+  "generated_at": "2026-06-23T21:20:08+00:00",
+  "jitter_sigma": 0.0,
+  "milestone": "8.B-bis",
+  "overall": {
+    "by_profile": {
+      "intrusion": {
+        "diverged": 0,
+        "divergence_rate": 0.0,
+        "total": 200
+      },
+      "search": {
+        "diverged": 0,
+        "divergence_rate": 0.0,
+        "total": 200
+      },
+      "wildfire": {
+        "diverged": 0,
+        "divergence_rate": 0.0,
+        "total": 400
+      }
+    },
+    "by_transition": {},
+    "diverged": 0,
+    "divergence_rate": 0.0,
+    "gate": 0.05,
+    "total": 800,
+    "within_gate": true
+  },
+  "runs_per_scenario": 100,
+  "scenarios": [
+    "intrusion_owner_land",
+    "search_owner_land",
+    "wildfire_owner_land"
+  ],
+  "seed": 0
+}

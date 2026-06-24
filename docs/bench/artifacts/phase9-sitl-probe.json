@@ -1,0 +1,87 @@
+{
+  "agent_id": "mav-px4-sitl",
+  "command": [
+    "phase5_sitl_probe.py",
+    "--exercise-verify",
+    "--verify-lat",
+    "47.3980",
+    "--verify-lon",
+    "8.5460",
+    "--connect-timeout-s",
+    "8",
+    "--mission-timeout-s",
+    "60",
+    "--json-out",
+    "docs/bench/artifacts/phase9-sitl-probe.json"
+  ],
+  "connection": "udpin:0.0.0.0:14540",
+  "duration_s": 1.654,
+  "exercise_verify": true,
+  "finished_at": "2026-06-24T11:40:52.708068+00:00",
+  "started_at": "2026-06-24T11:40:51.053599+00:00",
+  "status": "pass",
+  "steps": [
+    {
+      "detail": {
+        "message": "autopilot HEARTBEAT received"
+      },
+      "gate": "connect",
+      "name": "heartbeat",
+      "status": "pass",
+      "ts": "2026-06-24T11:40:51.628888+00:00"
+    },
+    {
+      "detail": {
+        "battery_pct": 100.0,
+        "last_telemetry_age_s": 0.00016770799993537366,
+        "link_quality": 0.9999973333742673,
+        "online": true
+      },
+      "gate": "status_visibility",
+      "name": "health",
+      "status": "pass",
+      "ts": "2026-06-24T11:40:51.628925+00:00"
+    },
+    {
+      "detail": {
+        "agent_id": "mav-px4-sitl",
+        "alt_m": 0.18,
+        "battery_pct": 100.0,
+        "lat": 47.3977509,
+        "link_quality": 0.9690472968750328,
+        "lon": 8.5456076
+      },
+      "gate": "telemetry_ingest",
+      "name": "telemetry",
+      "status": "pass",
+      "ts": "2026-06-24T11:40:51.883229+00:00"
+    },
+    {
+      "detail": {
+        "phases": [
+          "EN_ROUTE",
+          "ON_STATION",
+          "DONE"
+        ],
+        "start": "ARM\u2192AUTO.MISSION\u2192MAV_CMD_MISSION_START",
+        "upload": "MISSION_COUNT\u2192MISSION_ITEM_INT\u2192MISSION_ACK"
+      },
+      "gate": "mission_dispatch",
+      "name": "verify_mission",
+      "status": "pass",
+      "ts": "2026-06-24T11:40:52.696860+00:00"
+    },
+    {
+      "detail": {
+        "command": "RTL_DOCK\u2192MAV_CMD_NAV_RETURN_TO_LAUNCH",
+        "phases": [
+          "DONE"
+        ]
+      },
+      "gate": "safety_return_abort",
+      "name": "safety_return",
+      "status": "pass",
+      "ts": "2026-06-24T11:40:52.707879+00:00"
+    }
+  ]
+}

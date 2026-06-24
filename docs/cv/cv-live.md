@@ -91,6 +91,18 @@ installed only where it's licensed, never in the backend image.
 
 ## Synthetic SIM viewport feed (video sub-step)
 
+> **Demo build note (2026-06-23).** The clips actually committed in
+> `frontend/public/sim-feed/` are now **real, free-licensed (Mixkit) stock
+> drone-vineyard footage** — the founder asked for footage that simply *looks
+> real* for demos, at zero cost. They are always stamped `SIMULATED FEED`
+> (never passed off as a live camera) and their provenance + the deliberate
+> relaxation of the "never a stock clip" rule are recorded in
+> [`frontend/public/sim-feed/LICENSES.md`](../../frontend/public/sim-feed/LICENSES.md).
+> The CC0, fully-synthetic, reproducible **Blender pipeline described below**
+> remains in the repo as the strict-compliance alternative
+> (`scripts/render_sim_feed.py`); swap to it for any build that must obey the
+> rule strictly. The rest of this section documents that synthetic pipeline.
+
 The sim has no real camera, so the verification viewport showed only the honest
 `VIEWPORT PENDING` placard. The video sub-step adds a synthetic SIM-labeled
 drone-POV clip — **never a stock clip** (PDF §5.2): it is our own photorealistic,
@@ -99,25 +111,40 @@ explicitly not passed off as a real camera.
 
 - **Setting matches the demo.** Rendered as a **Langhe vineyard near Alba** —
   the same place the three scenarios model (`world.py` `DEFAULT_DOCK`
-  44.70 N / 8.03 E). A drone holds station over the rows, looking down the
-  vineyard to the horizon, with a treeline + rolling green hills behind under a
-  warm golden-hour sky. **No figure** — a calm vineyard patrol that reads as
-  honest ambient context in **every wildfire-demo phase** (standby → smoke →
-  verify → fire → escalate), with nothing identifiable to raise a privacy concern.
+  44.70 N / 8.03 E), with a treeline + rolling green hills behind under a warm
+  golden-hour sky.
+- **One clip per scenario** so the viewport fits what the operator is verifying
+  (`dev_up.sh` picks the clip from the booted `SIM_SCENARIO`, falling back to the
+  generic standby patrol):
+  - `drone-pov.mp4` — standby / default, no figure.
+  - `wildfire-pov.mp4` — a grey smoke plume rising from the rows (sim-modelled
+    *visual* only; wildfire CV stays deferred, so it never substitutes for a
+    detection — grey, never a red/orange fire glow, PDF §5.2).
+  - `intrusion-pov.mp4` — one figure on the access lane, the vineyard behind it.
+  - `search-pov.mp4` — the same figure, small + distant, over a wider sweep.
+
+  The figure is a low-poly **SwarmOS-authored proxy** (CC0), shown back-view and
+  carrying no recognisable face — even less identifiable than the real CC0
+  `person_aerial/` photos. It is **viewport ambiance only** and never feeds the
+  CV `person` score (that stays on the real CC0 fixtures) — honest-sim: a
+  synthetic figure is never a real detection.
 - **Photoreal from real CC0 assets.** The vines are thousands of *instances* of
   a real Poly Haven plant model (`shrub_01`, actual leaf geometry with alpha,
   per-plant tint) — not faked texture on a box; a real `island_tree_01` treeline;
   lit by a real Poly Haven sky HDRI (`kloofendal_48d_partly_cloudy_puresky`,
   warm-tinted, image-based light + clouds) over a CC0 `aerial_grass_rock` ground.
-  All CC0-1.0; the terrain / hills / row layout / posts / camera path are
-  SwarmOS-authored (CC0-1.0). Reproducible via
+  All CC0-1.0; the terrain / hills / row layout / posts / camera path / smoke
+  plume / proxy figure are SwarmOS-authored (CC0-1.0). Reproducible via
   [`scripts/render_sim_feed.py`](../../scripts/render_sim_feed.py)
-  (`blender --background`); Blender is an opt-in art tool, not a repo/CI dep.
+  (`SWARM_SIM_FEED_SCENARIO=<scenario> blender --background`); Blender is an
+  opt-in art tool, not a repo/CI dep.
 - **Served via `StreamDescriptor`.** The model gained a third honest state —
   `simulated=True`, carrying a **same-origin** `/sim-feed/…` path (not an
   external URL, so zero SSRF surface). The sim runner advertises it per unit
-  when `SWARM_SIM_FEED_PATH` is set; `dev_up.sh` turns it on for the demo when
-  the clip is present. Clip + provenance:
+  when `SWARM_SIM_FEED_PATH` is set; `dev_up.sh` selects the per-scenario clip
+  for the demo when present (the backend re-validates the path against the
+  `/sim-feed/` prefix allowlist, so a new clip name needs no security change).
+  Clip + provenance:
   [`frontend/public/sim-feed/`](../../frontend/public/sim-feed/LICENSES.md).
 - **Feeds the CV fixture pool.** A few frames live in
   `sim/swarm_sim/cv/fixtures/sim_drone_pov/` (the detector can run on them), but
