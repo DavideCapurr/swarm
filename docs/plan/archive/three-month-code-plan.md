@@ -1,5 +1,18 @@
 # Three-month code plan — summer 2026 (pre-BIEF → semester)
 
+> **ON HOLD 2026-06-26 (not abandoned).** Superseded as the *active* plan by the
+> data-backed **evidence-first YC decision** (see [`../../STATUS.md`](../../STATUS.md)
+> → Current focus). This code-only window (autonomy engine / federation / ML)
+> deepens the one axis already above the YC bar while leaving the non-code
+> rejection gaps untouched, so it is paused in favour of market + flight + demo
+> evidence. The autonomy work it already shipped (8.A/8.B/8.B-bis/CV-live,
+> #103-#107) stays merged; remaining federation/ML is deferred to its
+> evidence-earned position in
+> [`../swarm-roadmap-evidence-to-scale.md`](../swarm-roadmap-evidence-to-scale.md)
+> (Phase 17 intelligence / Phase 19 multi-cell). **Revive only on a concrete
+> trigger** (CLAUDE.md acceleration-mode rule). Its `swarmos-roadmap.md` Phase
+> 8/9/10 sub-numbering is the archived numbering — not canonical.
+
 Created 2026-06-16. This is the founder's code-only execution plan for the
 window before BIEF starts (Italian maturità June 2026, BIEF Bocconi
 September 2026). It deliberately excludes market validation, pitch assets

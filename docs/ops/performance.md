@@ -140,7 +140,7 @@ When CI flags an SLO breach, walk the call path bottom-up:
    Runs sector scoring, the scheduler, the command tick, and the
    event detector on every applied frame. If `_refresh` becomes the
    p95 contributor, the contingency described in
-   `docs/plan/phase-6f.md` §"Contingenti" — debouncing `_refresh` to
+   `docs/plan/archive/phase-6f.md` §"Contingenti" — debouncing `_refresh` to
    50 ms — applies.
 3. **Repository writes** — `backend/app/db/repository.py:96-189`.
    Per-message inserts. Plan §"Contingenti" describes the
@@ -165,7 +165,7 @@ When CI flags an SLO breach, walk the call path bottom-up:
 
 - **DB write batching** — contingent. Only added if `make load-soak`
   proves per-message writes are the p95 bottleneck. Touch points
-  catalogued in `docs/plan/phase-6f.md` §"Contingenti".
+  catalogued in `docs/plan/archive/phase-6f.md` §"Contingenti".
 - **Coordinator `_refresh` debouncing** — contingent for the same
   reason.
 - **Patroni / Redis-Sentinel failover** — Phase 6.G.

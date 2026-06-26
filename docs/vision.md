@@ -5,9 +5,14 @@ sentiment diverges between PDFs, the most recent version wins (`*_v2.pdf`).*
 
 ## What SWARM is
 
-SWARM is **autonomous coordination infrastructure**. Not a drone company.
+SWARM is the **operating system for autonomous drone operations** — vendor-
+neutral **autonomous coordination infrastructure**, not a drone company.
 
-The drones are replaceable. The coordination layer is the product.
+The drones are replaceable; the coordination layer is the product. One OS,
+any airframe, generalizing across drone **task classes** — patrol, inspection,
+monitoring, environmental intelligence, disaster response, logistics and
+defense ISR — civilian and (ISR-only) non-civilian. Today it is executed
+deeply on **one** wedge (see below); the platform is earned, not declared.
 
 ## The wedge
 
@@ -46,9 +51,55 @@ verification missions and auditable decisions.
 
 ## Long-term vision
 
-A distributed autonomous resilience infrastructure layer coordinating:
-environmental monitoring, wildfire response, disaster coordination, environmental
-intelligence, infrastructure sensing, autonomous operational systems.
+A distributed autonomous **coordination** infrastructure layer for
+time-critical territorial events. The same decide → verify → evidence →
+supervise loop is **dual-use** at the core:
+
+- **Civilian resilience** — environmental monitoring, wildfire response,
+  disaster coordination, environmental intelligence, infrastructure sensing,
+  autonomous operational systems.
+- **Defense ISR** — perimeter and base/border security, counter-UAS
+  awareness, force protection: the same patrol → verify → evidence → escalate
+  loop, human-on-the-loop. Intelligence, surveillance and reconnaissance —
+  **not** weapons.
+
+One coordination core, many territories. The civilian wedge ships first on
+purpose (see "The wedge"); the dual-use platform is the long game, bounded by
+the permanent rule below.
+
+## Civilian long-term vision — the autonomous first-response layer
+
+The civilian end-state is an **invisible, distributed first-response layer**
+for cities and territories: a strategic grid of docking stations, each with
+drones ready for immediate launch, coordinated by SwarmOS.
+
+- **Trigger.** A resident or site opens the app (subscription) and presses one
+  button, or SwarmOS detects the event automatically from sensors and
+  environmental data.
+- **Arrival in 1-2 minutes.** SwarmOS chooses which unit(s) to send in real
+  time by distance, battery and emergency class, dispatches them, and they
+  return to a dock to recharge autonomously — always ready for the next
+  mission. Multiple drones coordinate as a swarm to cover several angles.
+- **On scene — presence, awareness, handoff (not force).** The drones make the
+  situation *seen and slower*: high-intensity lighting, siren and voice
+  presence as **deterrence**, and a live, verified awareness + evidence feed to
+  the supervising operator **and to the authorities**. For a fire, SwarmOS is
+  first on scene to **detect, verify and guide** responders to the ignition
+  point in its earliest phase.
+- **Augment, never replace.** A new security layer *parallel* to traditional
+  services that **arrives first and hands off**: it shortens time-to-evidence
+  and time-to-response and raises perceived safety, then passes a documented
+  situation to police, fire or medical services. It does **not** replace them,
+  and a human is always on the loop.
+- **Gets smarter with use.** Owned response data improves dispatch speed and
+  decision quality over time.
+- Other civilian classes reuse the same loop — e.g. **anti-poaching** patrol
+  and evidence in protected areas.
+
+Bounded by the permanent rule below: active **suppression payloads** (e.g.
+fire retardant) are a deliberate *later*, partner-and-safety-gated step, not
+the MVP; and SWARM does not pursue, coerce or use force against people, and
+never carries weapons.
 
 ## The moat
 
@@ -72,10 +123,24 @@ Hardware commoditizes. The network becomes the product.
 - Promise continuous detection before the hardware, staffing and regulatory
   envelope make it true.
 - Operate in dense urban / highly occluded environments.
-- Government contracts (Phase 5+).
+- Government / defense ISR contracts **in the MVP**. Defense ISR is a
+  deliberate *later* lane (see Long-term vision), not an MVP target; the
+  civilian estate/wildfire wedge ships first.
 - Broad crime/public-safety/security marketplaces. Private-territory
   intrusion can be a supported event class only when it reuses the same
   Patrol Cell workflow.
+
+## Permanent boundary (every context, civilian or defense)
+
+These hold regardless of customer or phase — they are **not** "initially":
+
+- **No weaponization.** SWARM coordinates, patrols, verifies and produces
+  evidence. It is not a weapons system: no lethal autonomy, no autonomous
+  targeting, no weapons payload, no strike tasking.
+- **Human-on-the-loop, always.** Autonomy decides and executes; a human can
+  always intervene. No autonomy that isn't verifiable (the shadow-mode gate).
+- **Export-control discipline.** Any defense or dual-use engagement is
+  reviewed for ITAR/EAR and applicable law before it proceeds.
 
 ## Phased roadmap
 

@@ -6,7 +6,7 @@ Blue, Signal Green, Launch Amber. The AUTO chip is Orbital Blue
 ``StatusPill state="connected"`` halo, and no red accent may appear.
 
 Also asserts the new copy uses the canonical confidence-bound
-vocabulary documented in ``docs/plan/phase-7c.md`` (referenced by
+vocabulary documented in ``docs/plan/archive/phase-7c.md`` (referenced by
 PR #58 — long-form plan).
 """
 
