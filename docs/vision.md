@@ -67,6 +67,40 @@ One coordination core, many territories. The civilian wedge ships first on
 purpose (see "The wedge"); the dual-use platform is the long game, bounded by
 the permanent rule below.
 
+## Civilian long-term vision — the autonomous first-response layer
+
+The civilian end-state is an **invisible, distributed first-response layer**
+for cities and territories: a strategic grid of docking stations, each with
+drones ready for immediate launch, coordinated by SwarmOS.
+
+- **Trigger.** A resident or site opens the app (subscription) and presses one
+  button, or SwarmOS detects the event automatically from sensors and
+  environmental data.
+- **Arrival in 1-2 minutes.** SwarmOS chooses which unit(s) to send in real
+  time by distance, battery and emergency class, dispatches them, and they
+  return to a dock to recharge autonomously — always ready for the next
+  mission. Multiple drones coordinate as a swarm to cover several angles.
+- **On scene — presence, awareness, handoff (not force).** The drones make the
+  situation *seen and slower*: high-intensity lighting, siren and voice
+  presence as **deterrence**, and a live, verified awareness + evidence feed to
+  the supervising operator **and to the authorities**. For a fire, SwarmOS is
+  first on scene to **detect, verify and guide** responders to the ignition
+  point in its earliest phase.
+- **Augment, never replace.** A new security layer *parallel* to traditional
+  services that **arrives first and hands off**: it shortens time-to-evidence
+  and time-to-response and raises perceived safety, then passes a documented
+  situation to police, fire or medical services. It does **not** replace them,
+  and a human is always on the loop.
+- **Gets smarter with use.** Owned response data improves dispatch speed and
+  decision quality over time.
+- Other civilian classes reuse the same loop — e.g. **anti-poaching** patrol
+  and evidence in protected areas.
+
+Bounded by the permanent rule below: active **suppression payloads** (e.g.
+fire retardant) are a deliberate *later*, partner-and-safety-gated step, not
+the MVP; and SWARM does not pursue, coerce or use force against people, and
+never carries weapons.
+
 ## The moat
 
 - **Coordination** — auction-based mission allocation across heterogeneous fleets.
