@@ -3,6 +3,17 @@
 > Autonomous coordination + interoperability layer for heterogeneous drone fleets.
 > **Many units. One intention.**
 
+## Read this first
+
+[`swarm-thesis.md`](swarm-thesis.md) is the canonical startup thesis for SWARM.
+
+It defines what SWARM is, the problem it solves, why the coordination layer
+matters, the long-term vision, the first wedge, the dual-use defense boundary,
+the low-cost fleet economics, and the product boundaries.
+
+**When any other product, roadmap, architecture, or strategy document conflicts
+with it, `swarm-thesis.md` is the source of truth.**
+
 SWARM OS is the software layer that turns a heterogeneous fleet of off-the-shelf drones
 (DJI, MAVLink/PX4, Autel, Parrot, Skydio) into a single coordinated system. The drones
 remain replaceable. The coordination layer is the product.
@@ -164,6 +175,7 @@ https://github.com/DavideCapurr/swarm/security/advisories/new
 
 ## Documentation map
 
+- Canonical startup thesis: [`swarm-thesis.md`](swarm-thesis.md)
 - Architecture overview: [`docs/architecture/overview.md`](docs/architecture/overview.md)
 - Product wedge: [`docs/product/patrol-cell.md`](docs/product/patrol-cell.md)
 - REST API snapshot: [`docs/api/openapi.yaml`](docs/api/openapi.yaml)

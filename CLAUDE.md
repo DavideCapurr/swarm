@@ -3,6 +3,16 @@
 This file is read automatically by Claude Code at the start of every session
 in this repo. Read it first, then act according to the rules below.
 
+## Canonical strategy source
+
+Before making product, roadmap, architecture, or positioning decisions, read
+[`swarm-thesis.md`](swarm-thesis.md).
+
+It is the canonical source of truth for SWARM's startup thesis, company
+objective, problem definition, dual-use boundary, first wedge, low-cost fleet
+economics, and long-term vision. When any other document conflicts with it,
+`swarm-thesis.md` wins.
+
 ## What this product is
 
 - **SWARM** — the brand/project. The wordmark is uppercase. Repo path: `swarm/`.
