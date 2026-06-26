@@ -15,11 +15,11 @@
 > line and the *location/leave* answer change. Gap analysis + dated plan:
 > [`readiness-and-gaps.md`](readiness-and-gaps.md).
 
-**Honesty rule (carried from the codebase):** every claim here is typed `sim`.
-Nothing is SITL-, bench-, or field-validated yet. Do not let any external
-material imply otherwise — overclaiming is the fastest YC rejection for a
-hard-tech solo founder, and the typed-claim discipline is itself a selling
-point.
+**Honesty rule (carried from the codebase):** every claim here is typed. The
+MAVLink/PX4 adapter is **SITL-validated** (24 Jun 2026 probe artifact);
+nothing is bench- or field-validated yet. Do not let any external material
+imply otherwise — overclaiming is the fastest YC rejection for a hard-tech
+solo founder, and the typed-claim discipline is itself a selling point.
 
 ---
 
@@ -74,6 +74,16 @@ Alternatives to A/B:
 > The MVP deliberately needs **no SWARM-owned fixed infrastructure**: one
 > thermal-capable drone, an operator, the Console, and reports. That removes
 > the capex that makes incumbents slow to deploy.
+>
+> **The bigger picture (why this is big):** underneath the wedge, SwarmOS is
+> the **operating system for autonomous drone operations** — vendor-neutral
+> coordination across airframes and task classes. The same decide → verify →
+> evidence → supervise loop that watches an estate generalizes to inspection,
+> monitoring, disaster response and **defense ISR** (perimeter, counter-UAS,
+> force protection) — civilian and non-civilian. We start civilian and narrow
+> on purpose; the platform is earned wedge by wedge. SWARM coordinates and
+> verifies — explicitly **not** a weapons system (human-on-the-loop, no lethal
+> autonomy).
 
 **Where do you live now / where based after YC?**
 > Now: Piedmont, Italy (Langhe — wildfire-prone wine country, the exact
@@ -175,8 +185,9 @@ Alternatives to A/B:
 > [`competitive-and-market.md`](competitive-and-market.md). *(Drop the
 > seasonal price anchor from the discovery interviews before submitting.)*
 
-**Category:** Hard tech / robotics / aerospace & defense-adjacent (civil
-territorial security).
+**Category:** Hard tech / robotics / aerospace — the **OS for autonomous
+drones**, dual-use (civil territorial resilience + defense ISR; ISR only,
+never weapons).
 
 ---
 
