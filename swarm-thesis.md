@@ -690,6 +690,213 @@ SWARM should be built around these principles:
     SWARM can serve civilian and defense domains, but the system must remain legally bounded, human-supervised, and non-weaponized.
 
 ⸻
+Ecco solo il testo extra da aggiungere.
+
+Climate resilience
+
+SWARM does not solve climate change by itself.
+
+It does not replace decarbonization, clean energy, emissions reduction, policy change, or industrial transformation.
+
+SWARM belongs to the adaptation and resilience side of the climate crisis.
+
+As heatwaves, wildfires, floods, droughts, storms, infrastructure failures, biodiversity loss, and extreme-weather events increase, societies need faster ways to observe, verify, and respond to physical risk.
+
+SWARM coordinates autonomous drones to detect early signals, verify climate-related incidents, map damage, protect ecosystems, guide responders, and reduce the time between climate impact and operational response.
+
+In this context, SWARM becomes climate resilience infrastructure.
+
+The correct climate framing is:
+
+SWARM is not climate mitigation. SWARM is climate resilience.
+
+Or more directly:
+
+SWARM does not directly reduce emissions. SWARM reduces damage when the climate crisis hits the physical world.
+
+⸻
+
+Climate use cases
+
+Wildfire early verification
+
+Wildfire is one of the strongest climate-resilience use cases.
+
+The goal is not only to fight large fires after they become catastrophic.
+
+The goal is to detect, verify, and guide response in the earliest phase.
+
+SWARM can support:
+
+* high-risk patrol during heat and wind windows;
+* verification of smoke, heat, flame, or hotspot cues;
+* thermal checks of isolated terrain;
+* live mapping of fire spread;
+* guidance toward ignition points;
+* post-fire checks for reignition;
+* incident reports for landowners, municipalities, insurers, and responders.
+
+The first climate claim should be narrow:
+
+SWARM reduces the time between a suspicious fire-risk cue and a verified, operator-visible evidence packet.
+
+Floods and extreme-weather response
+
+After extreme rainfall, floods, storms, or landslides, the question is often:
+
+* where are the people at risk?
+* which roads are blocked?
+* which bridges, power lines, or buildings are damaged?
+* where should responders go first?
+* what has changed since the last observation?
+
+SWARM can coordinate drones to map damage, inspect critical infrastructure, locate isolated people, and provide updated situational awareness without sending humans into dangerous areas first.
+
+Agriculture and drought
+
+In agriculture, SWARM can support climate adaptation by monitoring:
+
+* crop stress;
+* drought impact;
+* irrigation problems;
+* storm or hail damage;
+* fire risk near fields;
+* damaged infrastructure;
+* insurance-relevant evidence.
+
+The goal is not to become a generic agriculture drone company.
+
+The goal is to coordinate mobile sensing and verification across climate-stressed land.
+
+Biodiversity and conservation
+
+Climate change increases stress on ecosystems.
+
+Protected areas face fire risk, drought, animal migration shifts, habitat degradation, and poaching pressure.
+
+SWARM can help conservation teams monitor large areas, detect unauthorized movement, verify threats, coordinate ranger response, and protect biodiversity with fewer human resources.
+
+Urban climate resilience
+
+Cities face heatwaves, blackouts, storm damage, urban flooding, fires, and infrastructure failures.
+
+In a city-scale deployment, SWARM could support fast verification of climate-related incidents and help municipalities understand where to send crews, responders, or emergency resources.
+
+⸻
+
+Climate positioning
+
+SWARM should not be positioned as a company that “solves climate change.”
+
+That would be too broad and inaccurate.
+
+The right positioning is:
+
+SWARM is autonomous coordination infrastructure for climate resilience.
+
+It helps societies respond faster when climate risk becomes physical reality.
+
+Fire.
+
+Flood.
+
+Storm.
+
+Drought.
+
+Infrastructure failure.
+
+Ecosystem damage.
+
+The climate crisis makes the physical world more unstable.
+
+SWARM makes physical response faster, more visible, and more coordinated.
+
+⸻
+
+Why climate matters to SWARM
+
+The climate crisis increases the number of physical events that need fast verification.
+
+A hotter, more unstable world creates more moments where humans need to know:
+
+* what is happening;
+* where it is happening;
+* how serious it is;
+* who needs to respond;
+* what evidence exists;
+* what changed since the last observation.
+
+This is exactly the type of problem SWARM is built for.
+
+SWARM is not only a security system.
+
+SWARM is not only a drone patrol system.
+
+SWARM is a response layer for a more unstable physical world.
+
+⸻
+
+Climate-resilience moat
+
+Over time, SWARM can build climate-risk intelligence for specific territories.
+
+The system can learn:
+
+* which sectors are most fire-prone;
+* which areas become dangerous during heat and wind windows;
+* which routes are fastest for verification;
+* which flood zones change first;
+* which infrastructure fails after storms;
+* which ecological zones need more frequent observation;
+* which alerts usually become real incidents;
+* which cues are usually false positives.
+
+This creates a data advantage.
+
+The more SWARM operates across climate-stressed environments, the better it becomes at prioritizing patrols, verifying events, and guiding response.
+
+The moat is not just drone coordination.
+
+The moat becomes operational climate intelligence.
+
+⸻
+
+FAQ addition: Is SWARM a climate company?
+
+SWARM is not a climate-mitigation company.
+
+It does not directly reduce emissions.
+
+It is a climate-resilience company.
+
+SWARM helps communities, landowners, responders, conservation teams, and infrastructure operators adapt to a world with more fires, floods, storms, droughts, and physical instability.
+
+Its role is to reduce the time between climate-related risk and operational response.
+
+⸻
+
+FAQ addition: How does SWARM help with wildfires?
+
+SWARM can patrol high-risk areas, verify smoke or heat cues, send drones toward suspicious signals, create evidence packets, map spread direction, and guide human responders.
+
+The first goal is not to replace firefighters.
+
+The first goal is to see earlier, verify faster, and help humans respond with better information.
+
+⸻
+
+FAQ addition: Does SWARM stop climate change?
+
+No.
+
+SWARM does not stop climate change.
+
+It helps reduce damage from climate-related events.
+
+The simplest framing is:
+
+Climate mitigation reduces the cause. SWARM reduces the delay in response.
 
 FAQ
 
