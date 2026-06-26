@@ -1,5 +1,9 @@
 # Phase 7.E — `make demo-*` per i tre scenari MVP
 
+> **ARCHIVED 2026-06-26.** Completed implementation spec for a shipped phase
+> (Phase 7 is `done`). Kept for history. Current status: [`../../STATUS.md`](../../STATUS.md).
+> Internal links below are relative to the original `docs/plan/` location.
+
 > Branch: `claude/loving-feynman-yxQqU`. Phase 7.A → 7.D mergeati (PR #55,
 > #56, #57, #59, #60). Roadmap reference:
 > [`docs/plan/swarmos-roadmap.md`](swarmos-roadmap.md) §Phase 7,

@@ -1,5 +1,9 @@
 # Phase 7.C — Console "AUTO" eyebrow + observatory surface
 
+> **ARCHIVED 2026-06-26.** Completed implementation spec for a shipped phase
+> (Phase 7 is `done`). Kept for history. Current status: [`../../STATUS.md`](../../STATUS.md).
+> Internal links below are relative to the original `docs/plan/` location.
+
 > Branch: `claude/plan-phase-7c-EDLfj`. Predecessor sub-phases done:
 > 7.A (3 owner-land scenarios + loader), 7.B (autonomy baseline kernel
 > R1/R2/R3 + `OperatorCommand.source` + scenario opt-in via

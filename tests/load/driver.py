@@ -46,7 +46,7 @@ import httpx
 import websockets
 
 # Default REST endpoints exercised by the poller. Keep this list aligned
-# with the Phase 6.F gate in ``docs/plan/phase-6f.md`` so the SLO is
+# with the Phase 6.F gate in ``docs/plan/archive/phase-6f.md`` so the SLO is
 # evaluated against the same surfaces the Console reads.
 DEFAULT_REST_PATHS = ("/awareness", "/units", "/anomalies", "/missions")
 

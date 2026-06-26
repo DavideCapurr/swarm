@@ -1,5 +1,9 @@
 # Phase 6.F — Performance + scale targets
 
+> **ARCHIVED 2026-06-26.** Completed implementation spec for a shipped phase
+> (Phase 6 is `done`). Kept for history. Current status: [`../../STATUS.md`](../../STATUS.md).
+> Internal links below are relative to the original `docs/plan/` location.
+
 > Branch: `claude/plan-phase-6e-ef41S` (l'utente ha scritto "6E" ma Phase 6.E è già `done` in `docs/STATUS.md` e mergeato in PR #40 — la prossima fase pendente è **6.F**, confermato dall'utente via AskUserQuestion).
 
 ## Context

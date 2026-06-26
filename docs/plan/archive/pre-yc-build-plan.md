@@ -1,5 +1,11 @@
 # Pre-YC build plan — fix the demo climax, then sequence the 3-month surface
 
+> **ARCHIVED 2026-06-26.** Mostly executed: WS1-WS3 shipped (PRs #103-#107),
+> WS5 PX4/SITL evidence captured 2026-06-24. The only unbuilt item — WS4 citizen
+> SOS — is deliberately deferred (it lives as conditional Phase 20 in the
+> canonical roadmap). Kept for history. Current status: [`../../STATUS.md`](../../STATUS.md).
+> Internal links below are relative to the original `docs/plan/` location.
+
 > Status: **approved, pending execution** (to be executed in a later session).
 > Branch for the immediate work (Workstream 1): `claude/dazzling-shannon-CDca7`.
 > Commit convention: `phase-N: <subject>` (CLAUDE.md). Run

@@ -31,40 +31,59 @@ See [`docs/product/patrol-cell.md`](product/patrol-cell.md).
 | 9 | Flight-path + PX4/SITL + hardware bench de-risk | **in_progress** — PX4 SITL adapter evidence captured 2026-06-24 (`docs/bench/phase9-sitl-validation.md`); flight-path planner + hardware bench still pending |
 | 10 | Summer evidence pack + BIEF/YC future-batch decision | **planned** |
 
-(Phases 8/9/10 above use the evidence-to-scale numbering.)
+(All phase numbers use the **evidence-to-scale** roadmap — the single
+canonical source. The old `swarmos-roadmap.md` Phase 7+ numbering, and the
+summer code-window's Phase 8/9/10 = autonomy/federation/ML, are retired to
+[`plan/archive/`](plan/archive/).)
 
 ## Current focus
 
 Phase 7 technical work is complete and the live demo gate was exercised on
 2026-06-15 (the 3-scenario metrics artifacts exist; still untracked in git).
 
-The founder's **summer code window (pre-BIEF)** is a code-only program
-tracked in [`three-month-code-plan.md`](plan/three-month-code-plan.md). It
-uses the **`swarmos-roadmap.md` sub-phase numbering** (Phase 8 = autonomy
-engine, Phase 9 = federation, Phase 10 = ML) — *not* the evidence-to-scale
-Phase 8. Order: Console redesign close → 8.A-8.D autonomy → live CV →
-10.C classifier → Phase 9 federation → 10.E RL. Market validation
-(evidence-to-scale Phase 8) is deferred by founder decision for this window.
-PX4/SITL was also deferred, but its first bullet — MAVLink/PX4 adapter
-**SITL evidence** (evidence-to-scale Phase 9) — was executed 2026-06-24 for
-the YC push; see [`bench/phase9-sitl-validation.md`](bench/phase9-sitl-validation.md).
+**Strategy decision — 2026-06-26: evidence-first for YC (Early Decision).**
+The binding constraints on a YC outcome are non-code, so the canonical plan
+is the evidence-first order in
+[`swarm-roadmap-evidence-to-scale.md`](plan/swarm-roadmap-evidence-to-scale.md)
+(Phase 8 market validation → Phase 9 flight/SITL → Phase 10 evidence pack +
+founder decision gate), executed against
+[`yc/readiness-and-gaps.md`](yc/readiness-and-gaps.md).
 
-Window progress: **M0** (Console redesign close) merged (`#103`); **8.B**
-(autonomy engine — full `VERIFY|DISMISS|ESCALATE|WAIT` decision set +
-per-scenario YAML thresholds) merged (`#104`); **8.A** (Console default
-inversion → observatory) merged (`#105`); **8.B-bis** (mandatory shadow
-mode + divergence report) merged (`#106`); **CV live** (real YOLO `person`
-scores feeding anomalies in intrusion + search; wildfire scripted, fire-CV
-deferred) merged (`#107`); **CV-live video sub-step** (synthetic SIM-labeled
-Langhe-vineyard drone-POV clip via Blender + `StreamDescriptor` `simulated`
-mode, stamped `SIMULATED FEED`) **done**, then **expanded to one clip per demo
-scenario** (`dev_up.sh` selects by `SIM_SCENARIO`). Two interchangeable clip
-sources now exist: a CC0 reproducible **Blender pipeline** (`render_sim_feed.py`,
-strict "no stock clip" compliance) and — for the founder's "just looks real"
-demo ask — **real free-licensed (Mixkit) stock vineyard footage** which is what
-is currently committed (always stamped `SIMULATED FEED`; rule-tension + provenance
-in `frontend/public/sim-feed/LICENSES.md`). On `feature/cv-live-sim-feed`. Next
-milestone: **bbox overlay**.
+Why (data review of YC admissions, 2026-06-26): acceptance ~0.6-1%; solo
+founders are ~10% of batches at ~5× worse odds and must offset the handicap
+with traction *or* elite technical depth; ~40% of funded companies are
+pre-revenue, so the bar is *slope of progress* + *evidence people want it*
+(deep customer interviews count as traction); the drones/defense vertical is
+now actively funded but its bar includes real-world evidence (e.g. Theseus
+shipped to US SOF). SWARM already clears the technical-depth axis; it scores
+~zero on user evidence, demo video/live link, founder-commitment framing and
+flight proof — exactly the axes YC rejects on. More autonomy/federation/ML
+depth moves none of them. Early Decision fits the BIEF calendar (funded
+immediately, place held until after graduation; deadline 2026-07-27).
+
+**Immediate queue** (readiness-and-gaps order):
+1. Gap #2 — record the <2-min demo video + deploy the live one-pager
+   (`frontend/public/landing/`, set the contact email).
+2. Gap #1 — 8-15 buyer/expert conversations in the Langhe
+   ([`yc/customer-discovery-kit.md`](yc/customer-discovery-kit.md)); log real quotes.
+3. Gap #5 — extend the PX4/SITL evidence started 2026-06-24
+   ([`bench/phase9-sitl-validation.md`](bench/phase9-sitl-validation.md)) toward the bench plan.
+4. By mid-July — decide Early-Decision vs Winter-2027 from real signal.
+
+**On hold (not abandoned):** the summer code-only window (autonomy engine /
+federation / ML), formerly `three-month-code-plan.md` → now
+[`plan/archive/`](plan/archive/). It deepened the one axis already above the YC
+bar; paused in favour of the evidence work above; revive on a concrete
+acceleration trigger (CLAUDE.md). **Already shipped under that window and
+staying merged:** **M0** Console redesign close (`#103`); **8.B** autonomy
+engine — full `VERIFY|DISMISS|ESCALATE|WAIT` + per-scenario YAML thresholds
+(`#104`); **8.A** Console default inversion → observatory (`#105`); **8.B-bis**
+mandatory shadow mode + divergence report (`#106`); **CV live** real YOLO
+`person` scores feeding intrusion+search anomalies (`#107`); **CV-live video
+sub-step** per-scenario SIM-labeled drone-POV clips stamped `SIMULATED FEED`
+(on `feature/cv-live-sim-feed`). Remaining federation/ML is deferred to its
+evidence-earned position (evidence-to-scale Phase 17 intelligence / Phase 19
+multi-cell).
 
 Baseline-oracle decision (8.B-bis, the plan's "first design decision of
 Track A"): the human-baseline oracle decides on the **same observable

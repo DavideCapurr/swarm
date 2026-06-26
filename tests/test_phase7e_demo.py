@@ -18,7 +18,7 @@ one command:
     expected CLI surface.
 
 Real end-to-end validation is the manual gate in
-`docs/plan/phase-7e.md` §Verifica.
+`docs/plan/archive/phase-7e.md` §Verifica.
 """
 
 from __future__ import annotations

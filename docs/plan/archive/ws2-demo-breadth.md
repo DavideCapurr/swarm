@@ -1,5 +1,10 @@
 # WS2 — Demo breadth: 3 legible scenario arcs + honest autonomy metrics
 
+> **ARCHIVED 2026-06-26.** Executed; its substance is folded into the shipped
+> Phase 7/8 work. Child of `pre-yc-build-plan.md` (also archived here). Kept for
+> history. Current status: [`../../STATUS.md`](../../STATUS.md). Internal links
+> below are relative to the original `docs/plan/` location.
+
 > Status: **approved, pending execution** (execute in a dedicated session).
 > Parent plan: [`pre-yc-build-plan.md`](pre-yc-build-plan.md) (Workstream 2).
 > Commit convention: `phase-7: <subject>` (CLAUDE.md). At the end of each
