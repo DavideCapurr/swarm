@@ -184,14 +184,14 @@ class DJICloudAdapter:
         if kind not in {k.value for k in MissionKind}:
             raise UnsupportedMission(f"unknown mission kind: {kind}")
 
-        # Translate to DJI Waypoint Mission KMZ payload.
+        # Translate a mission already selected by SwarmOS into DJI's dialect.
         kmz_payload = self._mission_to_dji_payload(mission)
         upload = await self._http.post(
             f"/control/api/v1/devices/{self.serial_number}/missions",
             json=kmz_payload,
         )
         dji_mission_id = upload.json().get("mission_id")
-        yield MissionProgress(mission_id=mission.id, phase="BIDDING", progress_pct=2.0)
+        yield MissionProgress(mission_id=mission.id, phase="ACCEPTED", progress_pct=2.0)
 
         await self._http.post(
             f"/control/api/v1/devices/{self.serial_number}/missions/{dji_mission_id}/start"
@@ -224,6 +224,7 @@ class DJICloudAdapter:
         full KMZ XML according to DJI's Waypoint Mission Format spec.
         """
         from swarm_core.missions import mission_waypoints
+
         return {
             "type": mission.kind,
             "priority": mission.priority,
