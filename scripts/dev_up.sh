@@ -66,6 +66,13 @@ SWARM_VENDORS="${SWARM_VENDORS:-simulator}"
 export SWARM_VENDORS
 echo "[dev_up] SWARM_VENDORS=$SWARM_VENDORS"
 
+# The default runner is the canonical simulator. Special, opt-in demos may
+# select another module without patching this boot script or changing the
+# behaviour of existing `make demo-*` targets.
+SWARM_SIM_RUNNER_MODULE="${SWARM_SIM_RUNNER_MODULE:-sim.swarm_sim.runner}"
+export SWARM_SIM_RUNNER_MODULE
+echo "[dev_up] SWARM_SIM_RUNNER_MODULE=$SWARM_SIM_RUNNER_MODULE"
+
 # CV-live video sub-step: advertise the synthetic SIM-labelled drone-POV clip in
 # the Console viewport. Pick the clip that matches the booted scenario (wildfire
 # / intrusion / search) so the demo viewer sees a photoreal POV that fits what
@@ -100,8 +107,8 @@ trap cleanup EXIT INT TERM
 # Case-insensitive match against a comma-separated list.
 SIM_PID=""
 if [[ ",$(echo "$SWARM_VENDORS" | tr '[:upper:]' '[:lower:]')," == *,simulator,* ]]; then
-  echo "[dev_up] starting sim runner…"
-  python3 -m sim.swarm_sim.runner &
+  echo "[dev_up] starting sim runner: $SWARM_SIM_RUNNER_MODULE…"
+  python3 -m "$SWARM_SIM_RUNNER_MODULE" &
   SIM_PID=$!
 fi
 
@@ -118,4 +125,5 @@ echo "          dashboard:  http://localhost:3000"
 echo "          backend:    http://localhost:${BACKEND_PORT:-8765}/health"
 echo "          ws:         ws://localhost:${BACKEND_PORT:-8765}/ws/telemetry"
 echo "          vendors:    $SWARM_VENDORS"
+echo "          sim runner: $SWARM_SIM_RUNNER_MODULE"
 wait $SIM_PID $BACKEND_PID $FRONT_PID
