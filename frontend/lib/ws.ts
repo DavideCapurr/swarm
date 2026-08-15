@@ -2,7 +2,9 @@
  * WebSocket client to the backend's telemetry fan-out hub.
  *
  * Emits typed events; callers subscribe via `onMessage`. The union below
- * mirrors the kinds projected by `swarm_os.coordinator.SwarmCoordinator`.
+ * mirrors the kinds projected by `swarm_os.coordinator.SwarmCoordinator` plus
+ * the orchestrator-owned allocation/runtime/payload truth frames bridged by
+ * the backend.
  *
  * Phase 6.C: the upgrade carries an access token via the `?token=` query
  * parameter (the browser WebSocket API does not let JS set custom
@@ -11,11 +13,14 @@
  */
 
 import type {
+  AllocationDecision,
   AnomalyView,
   AwarenessBreakdown,
   DockState,
+  MissionRuntimeEvent,
   MissionView,
   OperatorCommand,
+  PayloadEvent,
   Sector,
   Session,
   StreamDescriptor,
@@ -60,7 +65,10 @@ export type WSMessage =
   | { kind: "anomaly_view"; data: AnomalyView }
   | { kind: "event"; data: TimelineEvent }
   | { kind: "operator"; data: OperatorCommand }
-  | { kind: "stream"; data: StreamDescriptor };
+  | { kind: "stream"; data: StreamDescriptor }
+  | { kind: "allocation"; data: AllocationDecision }
+  | { kind: "mission_runtime"; data: MissionRuntimeEvent }
+  | { kind: "payload"; data: PayloadEvent };
 
 export type WSHandler = (msg: WSMessage) => void;
 
