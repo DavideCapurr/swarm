@@ -1,9 +1,12 @@
-"""Auction-based mission allocator — Contract Net protocol.
+"""Central fleet-state mission allocator.
 
-The orchestrator publishes a `MissionTask`. Available agents publish `Bid`s for a
-short window. The allocator scores bids and selects a winner. This is the
-"many units, one intention" primitive: nobody decides for everyone; everyone
-proposes, and the system picks.
+SwarmOS evaluates canonical `FleetState` centrally, computes a score for each
+candidate, and selects the winner. Physical agents do not bid for work, choose
+their own missions, or participate in fleet-level decision making.
+
+`Bid` is retained as a legacy/internal candidate-score DTO because existing
+interfaces and tests use that name. A `Bid` in the current runtime is created by
+SwarmOS from fleet state; it is not emitted or chosen by an aircraft.
 
 Scoring is intentionally explicit and tunable from one place. The score is:
 
@@ -53,7 +56,7 @@ def score_bid(
     fleet_member: FleetState,
     weights: AllocatorWeights = AllocatorWeights(),
 ) -> tuple[float, dict[str, float]]:
-    """Compute (score, reason_breakdown) for an agent's hypothetical bid."""
+    """Compute (score, reason_breakdown) for one centrally-evaluated candidate."""
 
     mgeo = _mission_geo(mission)
     distance_m = haversine_m(fleet_member.geo, mgeo) if mgeo else 0.0
@@ -76,7 +79,11 @@ def score_bid(
 
 
 def build_bid(mission: MissionTask, fleet_member: FleetState) -> Bid:
-    """Construct the Bid an agent would publish for a mission, if it chose to."""
+    """Build SWARM's internal candidate-score record for one physical agent.
+
+    The legacy `Bid` name does not imply agent-side negotiation: SwarmOS creates
+    this record from canonical fleet state and retains sole winner authority.
+    """
 
     score, reason = score_bid(mission, fleet_member)
     return Bid(
@@ -88,7 +95,7 @@ def build_bid(mission: MissionTask, fleet_member: FleetState) -> Bid:
 
 
 def select_winner(bids: list[Bid]) -> Bid | None:
-    """Pick the winning bid. Returns None if there are no bids.
+    """Pick the winning centrally-computed candidate. Returns None if empty.
 
     Tie-break: highest score; if tied, lowest agent_id (lexicographic, stable).
     """
@@ -99,7 +106,7 @@ def select_winner(bids: list[Bid]) -> Bid | None:
 
 
 def eligible(fleet: list[FleetState], *, min_battery_pct: float = 25.0) -> list[FleetState]:
-    """Filter a fleet to agents currently eligible to bid."""
+    """Filter a fleet to agents currently eligible for central evaluation."""
 
     from swarm_core.fsm import is_available  # local import to avoid cycles
 
