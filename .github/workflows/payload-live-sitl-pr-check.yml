@@ -64,7 +64,77 @@ jobs:
             docker logs px4-multi >&2 || true
             exit 1
           fi
-      - name: Wait for both PX4 offboard heartbeats
+      - name: Configure both PX4 instances for Offboard Actuator Set 1
+        run: |
+          uv run python - <<'PY'
+          import time
+          from pymavlink import mavutil
+
+          PARAM = b"PWM_AUX_FUNC1"
+          OFFBOARD_ACTUATOR_SET_1 = 301.0
+
+          for port in (14541, 14542):
+              connection = mavutil.mavlink_connection(f"udpin:0.0.0.0:{port}")
+              try:
+                  heartbeat = connection.wait_heartbeat(timeout=90)
+                  if heartbeat is None:
+                      raise SystemExit(f"no PX4 heartbeat on UDP {port}")
+                  target_system = connection.target_system
+                  target_component = 1
+
+                  connection.mav.param_request_read_send(
+                      target_system,
+                      target_component,
+                      PARAM,
+                      -1,
+                  )
+                  current = connection.recv_match(
+                      type="PARAM_VALUE",
+                      condition="PARAM_VALUE.param_id=='PWM_AUX_FUNC1'",
+                      blocking=True,
+                      timeout=10,
+                  )
+                  if current is None:
+                      raise SystemExit(
+                          f"PX4 sysid={target_system} does not expose PWM_AUX_FUNC1"
+                      )
+                  print(
+                      f"PX4 sysid={target_system} PWM_AUX_FUNC1 before={current.param_value}"
+                  )
+
+                  connection.mav.param_set_send(
+                      target_system,
+                      target_component,
+                      PARAM,
+                      OFFBOARD_ACTUATOR_SET_1,
+                      mavutil.mavlink.MAV_PARAM_TYPE_INT32,
+                  )
+                  deadline = time.monotonic() + 10.0
+                  confirmed = None
+                  while time.monotonic() < deadline:
+                      value = connection.recv_match(
+                          type="PARAM_VALUE", blocking=True, timeout=1.0
+                      )
+                      if value is None:
+                          continue
+                      param_id = value.param_id
+                      if isinstance(param_id, bytes):
+                          param_id = param_id.decode(errors="ignore")
+                      if str(param_id).rstrip("\x00") != "PWM_AUX_FUNC1":
+                          continue
+                      confirmed = value
+                      break
+                  if confirmed is None or int(round(confirmed.param_value)) != 301:
+                      raise SystemExit(
+                          f"failed to map PWM_AUX_FUNC1=301 on PX4 sysid={target_system}"
+                      )
+                  print(
+                      f"PX4 sysid={target_system} PWM_AUX_FUNC1 confirmed={confirmed.param_value}"
+                  )
+              finally:
+                  connection.close()
+          PY
+      - name: Wait for both PX4 offboard heartbeats after configuration
         run: |
           uv run python - <<'PY'
           from pymavlink import mavutil
