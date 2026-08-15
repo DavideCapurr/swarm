@@ -2,9 +2,9 @@
 
 The base ``Orchestrator`` remains unchanged. This subclass adds one narrow,
 explicit policy: when a sufficiently confident restricted-area presence
-(``AnomalyKind.INTRUSION``) reaches the VERIFY mission's ``ON_STATION`` phase,
-SwarmOS may activate a non-force payload response while the mission generator
-is paused at that exact point.
+(``AnomalyKind.INTRUSION``) reaches a capture-ready point in the VERIFY
+mission, SwarmOS may activate a non-force payload response while the mission
+generator is paused at that exact point.
 
 Pausing at the async-generator yield is important: the underlying autopilot
 has reached the verification waypoint, and the base mission cannot advance to
@@ -28,7 +28,7 @@ from swarm_core.payloads import (
     PayloadMessage,
 )
 
-from adapters.payload import PayloadControllerRegistry
+from adapters.payload import PayloadController, PayloadControllerRegistry
 from orchestrator.swarm_orchestrator.service import Orchestrator
 
 logger = logging.getLogger("swarm.orchestrator.presence")
@@ -40,6 +40,10 @@ class PresenceResponseOrchestrator(Orchestrator):
 
     payload_registry: PayloadControllerRegistry = field(default_factory=PayloadControllerRegistry)
     presence_min_confidence: float = 0.75
+    # The simulated VERIFY path emits ON_STATION once on arrival (~80%) and
+    # again after its capture pass (85%). Waiting for the latter prevents a
+    # physical-response action from firing merely because the unit arrived.
+    presence_ready_progress_pct: float = 85.0
     presence_hold_s: float = 5.0
     presence_message: PayloadMessage = PayloadMessage.RESTRICTED_AREA
     _mission_anomalies: dict[str, Anomaly] = field(default_factory=dict)
@@ -67,17 +71,21 @@ class PresenceResponseOrchestrator(Orchestrator):
             )
             self._mission_anomalies[mission.id] = anomaly
             await self._auction_and_dispatch(mission)
+            # If allocation failed, do not retain provenance forever.
+            if mission.assigned_agent is None:
+                self._mission_anomalies.pop(mission.id, None)
 
     async def _run_mission(
         self, agent_id: str, adapter: object, mission: MissionTask, *, is_verify: bool
     ) -> None:
-        """Drive the base mission loop and intercept the first ON_STATION yield."""
+        """Drive the base mission loop and intercept capture-ready ON_STATION."""
 
         try:
             async for progress in adapter.execute_mission(mission):  # type: ignore[attr-defined]
                 if (
                     is_verify
                     and progress.phase == "ON_STATION"
+                    and progress.progress_pct >= self.presence_ready_progress_pct
                     and mission.id not in self._presence_started
                 ):
                     self._presence_started.add(mission.id)
@@ -122,55 +130,55 @@ class PresenceResponseOrchestrator(Orchestrator):
             )
             return
 
-        await self._execute_if_supported(
-            controller=controller,
-            mission=mission,
-            anomaly=anomaly,
-            action=PayloadAction(agent_id=agent_id, kind=PayloadActionKind.LIGHT_ON),
-        )
-        await self._execute_if_supported(
-            controller=controller,
-            mission=mission,
-            anomaly=anomaly,
-            action=PayloadAction(
-                agent_id=agent_id,
-                kind=PayloadActionKind.PLAY_MESSAGE,
-                message=self.presence_message,
-            ),
-        )
+        try:
+            await self._execute_if_supported(
+                controller=controller,
+                mission=mission,
+                anomaly=anomaly,
+                action=PayloadAction(agent_id=agent_id, kind=PayloadActionKind.LIGHT_ON),
+            )
+            await self._execute_if_supported(
+                controller=controller,
+                mission=mission,
+                anomaly=anomaly,
+                action=PayloadAction(
+                    agent_id=agent_id,
+                    kind=PayloadActionKind.PLAY_MESSAGE,
+                    message=self.presence_message,
+                ),
+            )
 
-        # The mission async generator is suspended on ON_STATION while this
-        # sleep runs. It therefore cannot advance to its RTL branch yet.
-        await asyncio.sleep(max(0.0, self.presence_hold_s))
-
-        # Stop audio before extinguishing the light. Both are best-effort;
-        # unsupported capabilities are simply skipped and never fabricated.
-        await self._execute_if_supported(
-            controller=controller,
-            mission=mission,
-            anomaly=anomaly,
-            action=PayloadAction(agent_id=agent_id, kind=PayloadActionKind.STOP_MESSAGE),
-        )
-        await self._execute_if_supported(
-            controller=controller,
-            mission=mission,
-            anomaly=anomaly,
-            action=PayloadAction(agent_id=agent_id, kind=PayloadActionKind.LIGHT_OFF),
-        )
+            # The mission async generator is suspended on ON_STATION while
+            # this sleep runs. It therefore cannot advance to its RTL branch.
+            await asyncio.sleep(max(0.0, self.presence_hold_s))
+        finally:
+            # Fail-safe cleanup: cancellation or an exception must not leave a
+            # payload logically active. Unsupported capabilities are skipped.
+            await self._execute_if_supported(
+                controller=controller,
+                mission=mission,
+                anomaly=anomaly,
+                action=PayloadAction(agent_id=agent_id, kind=PayloadActionKind.STOP_MESSAGE),
+            )
+            await self._execute_if_supported(
+                controller=controller,
+                mission=mission,
+                anomaly=anomaly,
+                action=PayloadAction(agent_id=agent_id, kind=PayloadActionKind.LIGHT_OFF),
+            )
 
     async def _execute_if_supported(
         self,
         *,
-        controller: object,
+        controller: PayloadController,
         mission: MissionTask,
         anomaly: Anomaly,
         action: PayloadAction,
     ) -> None:
-        capabilities = getattr(controller, "capabilities", frozenset())
-        if action.kind not in capabilities:
+        if action.kind not in controller.capabilities:
             return
         try:
-            result = await controller.execute(action)  # type: ignore[attr-defined]
+            result = await controller.execute(action)
         except Exception:
             logger.exception(
                 "payload action %s failed for %s", action.kind.value, action.agent_id
