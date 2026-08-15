@@ -7,6 +7,7 @@ import type {
   AllocationEligibleUnit,
   AllocationExcludedUnit,
   AnomalyView,
+  ExecutionGroup,
   MissionRuntimeEvent,
   PayloadEvent,
 } from "@/lib/api";
@@ -345,6 +346,51 @@ function MissionLedger({
   );
 }
 
+function ExecutionGroupPanel({ group }: { group: ExecutionGroup | undefined }) {
+  if (!group) return null;
+  return (
+    <section className="border-y border-white/10 py-5" aria-label="Execution group">
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <div className="eyebrow-mono text-orbital-blue">SWARM EXECUTION GROUP</div>
+          <div className="mt-2 font-editorial text-2xl text-paper">
+            {group.objective_kind.replaceAll("_", " ")}
+          </div>
+        </div>
+        <div className="text-right font-mono text-[10px] leading-5 text-text-muted">
+          <div className={group.state === "FAILED" ? "text-status-caution" : "text-status-online"}>
+            {group.state}
+          </div>
+          <div>{group.requested_members} REQUIRED ROLES</div>
+        </div>
+      </div>
+      <div className="mt-5 grid grid-cols-[minmax(120px,1fr)_minmax(90px,0.8fr)_86px_minmax(90px,0.8fr)] gap-3 pb-2 font-mono text-[9px] tracking-[0.12em] text-text-muted">
+        <span>ROLE</span><span>AGENT</span><span>SCORE</span><span>STATE</span>
+      </div>
+      {group.members.map((member) => (
+        <div key={member.mission_id} className="grid grid-cols-[minmax(120px,1fr)_minmax(90px,0.8fr)_86px_minmax(90px,0.8fr)] gap-3 border-t border-white/10 py-3 font-mono text-[10px]">
+          <div>
+            <div className="text-paper">{member.role.replaceAll("_", " ")}</div>
+            <div className="mt-1 text-text-muted">mission {shortId(member.mission_id)}</div>
+          </div>
+          <div className="text-paper">{member.agent_id}</div>
+          <div className="tabular-nums text-orbital-blue">{score(member.score)}</div>
+          <div className={member.state === "FAILED" || member.state === "REPLACED" ? "text-status-caution" : "text-status-online"}>
+            {member.state}
+            {member.replaces_agent_id ? ` · replaces ${member.replaces_agent_id}` : ""}
+          </div>
+        </div>
+      ))}
+      {group.failure_reason ? (
+        <div className="mt-3 font-mono text-[10px] text-status-caution">{group.failure_reason}</div>
+      ) : null}
+      <div className="mt-3 font-mono text-[9px] leading-5 text-text-muted">
+        Membership, roles and scores are published by SwarmOS. Physical agents do not choose peers or roles.
+      </div>
+    </section>
+  );
+}
+
 function ResponseLedger({ events }: { events: PayloadEvent[] }) {
   const ordered = events.slice().sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
   return (
@@ -383,9 +429,12 @@ function ResponseLedger({ events }: { events: PayloadEvent[] }) {
   );
 }
 
-function FleetStrip({ decisions }: { decisions: AllocationDecision[] }) {
+function FleetStrip({ decisions, group }: { decisions: AllocationDecision[]; group?: ExecutionGroup }) {
   const { units } = useSwarm();
   const ownership = new Map<string, string>();
+  for (const member of group?.members ?? []) {
+    if (member.state !== "REPLACED") ownership.set(member.agent_id, member.mission_id);
+  }
   for (const decision of decisions) {
     if (decision.winner_agent_id) ownership.set(decision.winner_agent_id, decision.mission_id);
   }
@@ -416,7 +465,7 @@ function FleetStrip({ decisions }: { decisions: AllocationDecision[] }) {
 }
 
 export function IntrusionResponseDemo() {
-  const { allocations, anomalies, missionRuntime, payloadEvents, link } = useSwarm();
+  const { allocations, anomalies, executionGroups, missionRuntime, payloadEvents, link } = useSwarm();
 
   const anomalyMap = useMemo(
     () => new Map(anomalies.map((anomaly) => [anomaly.id, anomaly])),
@@ -430,12 +479,24 @@ export function IntrusionResponseDemo() {
     () => new Map(missionRuntime.map((event) => [event.mission_id, event])),
     [missionRuntime]
   );
+  const currentGroup = useMemo(() => {
+    const ordered = executionGroups.slice().sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+    const intrusionGroup = ordered.slice().reverse().find((group) => {
+      if (!group.anomaly_id) return false;
+      return anomalyMap.get(group.anomaly_id)?.kind === "INTRUSION";
+    });
+    return intrusionGroup ?? ordered.at(-1);
+  }, [executionGroups, anomalyMap]);
+
   const firstDecision = decisions[0];
   const secondDecision = decisions[1];
   const currentDecision = secondDecision ?? firstDecision;
-  const intrusion = decisions
-    .map((decision) => anomalyFor(decision, anomalyMap))
-    .find((anomaly) => anomaly?.kind === "INTRUSION");
+  const intrusion =
+    decisions
+      .map((decision) => anomalyFor(decision, anomalyMap))
+      .find((anomaly) => anomaly?.kind === "INTRUSION") ??
+    (currentGroup?.anomaly_id ? anomalyMap.get(currentGroup.anomaly_id) : undefined) ??
+    anomalies.slice().reverse().find((anomaly) => anomaly.kind === "INTRUSION");
 
   const focusRuntime = useMemo(() => {
     const active = decisions
@@ -444,10 +505,25 @@ export function IntrusionResponseDemo() {
       .map((decision) => runtimeByMission.get(decision.mission_id))
       .find((runtime) => runtime && runtime.phase !== "DONE" && runtime.phase !== "FAILED");
     if (active) return active;
+    const groupRuntime = currentGroup?.members
+      .slice()
+      .reverse()
+      .map((member) => runtimeByMission.get(member.mission_id))
+      .find((runtime) => runtime && runtime.phase !== "DONE" && runtime.phase !== "FAILED");
+    if (groupRuntime) return groupRuntime;
+    const latestGroupRuntime = currentGroup?.members
+      .slice()
+      .reverse()
+      .map((member) => runtimeByMission.get(member.mission_id))
+      .find(Boolean);
+    if (latestGroupRuntime) return latestGroupRuntime;
     return currentDecision ? runtimeByMission.get(currentDecision.mission_id) : undefined;
-  }, [decisions, currentDecision, runtimeByMission]);
+  }, [decisions, currentDecision, currentGroup, runtimeByMission]);
 
-  const demoMissionIds = new Set(decisions.map((decision) => decision.mission_id));
+  const demoMissionIds = new Set([
+    ...decisions.map((decision) => decision.mission_id),
+    ...(currentGroup?.members.map((member) => member.mission_id) ?? []),
+  ]);
   const demoPayloadEvents = payloadEvents.filter((event) => demoMissionIds.has(event.mission_id));
 
   return (
@@ -478,6 +554,7 @@ export function IntrusionResponseDemo() {
           </div>
 
           <div className="space-y-7">
+            <ExecutionGroupPanel group={currentGroup} />
             <AllocationPanel decision={currentDecision} />
             <MissionLedger
               decisions={decisions}
@@ -489,11 +566,11 @@ export function IntrusionResponseDemo() {
         </div>
 
         <div className="mt-8">
-          <FleetStrip decisions={decisions} />
+          <FleetStrip decisions={decisions} group={currentGroup} />
         </div>
 
         <footer className="mt-6 flex flex-col justify-between gap-2 border-t border-white/10 pt-4 font-mono text-[9px] leading-5 text-text-muted md:flex-row">
-          <span>Console renders allocator, runtime and payload frames. It does not calculate winners or response outcomes.</span>
+          <span>Console renders allocator, execution-group, runtime and payload frames. It does not calculate membership, winners or response outcomes.</span>
           <span>STOCK CCTV / DRONE VIDEO IS VISUALIZATION ONLY.</span>
         </footer>
       </div>

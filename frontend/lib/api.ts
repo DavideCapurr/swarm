@@ -389,6 +389,43 @@ export type PayloadEvent = {
   ts: string;
 };
 
+export type ExecutionGroupState =
+  | "FORMING"
+  | "ACTIVE"
+  | "DEGRADED"
+  | "COMPLETED"
+  | "FAILED";
+
+export type ExecutionGroupMemberState =
+  | "ASSIGNED"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "FAILED"
+  | "REPLACED";
+
+export type ExecutionGroupMember = {
+  agent_id: string;
+  role: string;
+  mission_id: string;
+  state: ExecutionGroupMemberState;
+  score: number;
+  score_breakdown: Record<string, number>;
+  replaces_agent_id: string | null;
+  ts: string;
+};
+
+export type ExecutionGroup = {
+  id: string;
+  objective_mission_id: string;
+  objective_kind: string;
+  anomaly_id: string | null;
+  requested_members: number;
+  members: ExecutionGroupMember[];
+  state: ExecutionGroupState;
+  failure_reason: string | null;
+  ts: string;
+};
+
 // ── Phase 5 stream descriptors (mirror core/swarm_core/streams.py) ───────────
 
 export type StreamProtocol = "rtsps" | "https";
@@ -519,6 +556,8 @@ export const api = {
   units: () => get<{ units: UnitState[] }>("/units"),
   missions: () => get<{ missions: MissionView[] }>("/missions"),
   allocations: () => get<{ allocations: AllocationDecision[] }>("/allocations"),
+  executionGroups: () =>
+    get<{ execution_groups: ExecutionGroup[] }>("/execution-groups"),
   missionRuntime: () =>
     get<{ mission_runtime: MissionRuntimeEvent[] }>("/mission-runtime"),
   payloadEvents: (limit = 200) =>
