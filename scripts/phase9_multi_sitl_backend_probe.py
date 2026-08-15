@@ -229,8 +229,8 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         )
         return 2, report
     finally:
-        await pubsub.aclose()
-        await client.aclose()
+        await pubsub.close()
+        await client.close()
         report["finished_at"] = _utc_now()
         report["duration_s"] = round(time.monotonic() - started, 3)
 
