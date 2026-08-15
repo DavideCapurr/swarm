@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import math
 
-from pymavlink import mavutil
 from swarm_core.payloads import (
     PayloadAction,
     PayloadActionKind,
@@ -30,6 +29,11 @@ from swarm_core.payloads import (
 
 from adapters.mavlink.adapter import MAVLinkAdapter
 from adapters.payload import UnsupportedPayloadAction
+
+# MAVLink common.xml canonical command id. The pymavlink 2.4.49
+# ardupilotmega dialect bundled by this project predates the generated symbol,
+# while PX4 v1.14 supports command 187 as MAV_CMD_DO_SET_ACTUATOR.
+MAV_CMD_DO_SET_ACTUATOR = 187
 
 
 class MAVLinkPayloadController:
@@ -83,7 +87,7 @@ class MAVLinkPayloadController:
             params = [math.nan] * 6
             params[self._light_actuator_number - 1] = value
             await self.adapter._send_command_long(
-                mavutil.mavlink.MAV_CMD_DO_SET_ACTUATOR,
+                MAV_CMD_DO_SET_ACTUATOR,
                 param1=params[0],
                 param2=params[1],
                 param3=params[2],
