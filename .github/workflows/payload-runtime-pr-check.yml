@@ -1,0 +1,39 @@
+name: payload-runtime-pr-check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  payload-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+      - name: Ruff
+        run: uv run ruff check core adapters orchestrator backend
+      - name: Mypy
+        run: uv run mypy core adapters orchestrator sim backend
+      - name: Payload and runtime regression tests
+        run: >-
+          uv run pytest -q
+          core/swarm_core/tests/test_payloads.py
+          adapters/mavlink/tests/test_payload.py
+          orchestrator/swarm_orchestrator/tests/test_presence_bus.py
+          backend/tests/test_payload_events.py
+          backend/tests/test_payload_runtime.py
+          backend/tests/test_fleet.py
+          backend/tests/test_mavlink_mission_runtime.py
+          backend/tests/test_mavlink_dynamic_reallocation.py
