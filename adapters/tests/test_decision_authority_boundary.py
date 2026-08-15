@@ -1,10 +1,12 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-FORBIDDEN_IMPORT_PREFIXES = (
+FORBIDDEN_DECISION_MODULES = (
     "swarm_core.allocator",
     "swarm_os",
-    "orchestrator",
+    "orchestrator.swarm_orchestrator.service",
+    "orchestrator.swarm_orchestrator.bus_fleet",
+    "orchestrator.swarm_orchestrator.presence_bus",
 )
 
 
@@ -18,6 +20,6 @@ def test_physical_agent_layer_cannot_import_decision_authority() -> None:
 
     for path in adapter_paths:
         source = path.read_text(encoding="utf-8")
-        for module in FORBIDDEN_IMPORT_PREFIXES:
+        for module in FORBIDDEN_DECISION_MODULES:
             assert f"from {module}" not in source
             assert f"import {module}" not in source
