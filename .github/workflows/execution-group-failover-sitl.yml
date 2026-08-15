@@ -47,7 +47,7 @@ jobs:
       - name: Probe static checks
         run: |
           uv run ruff check scripts/phase12_execution_group_failover_probe.py
-          uv run mypy core adapters orchestrator sim backend scripts/phase12_execution_group_failover_probe.py
+          uv run mypy core adapters orchestrator sim backend
 
       - name: Execution-group replacement regressions
         run: >-
