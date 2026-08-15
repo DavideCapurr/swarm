@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import json
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -104,7 +105,7 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             if frame.phase in {"DONE", "FAILED"}:
                 terminal_at.setdefault(frame.mission_id, time.monotonic())
 
-    async def _pump_until(predicate: Any) -> bool:
+    async def _pump_until(predicate: Callable[[], bool]) -> bool:
         while time.monotonic() < deadline:
             if predicate():
                 return True
