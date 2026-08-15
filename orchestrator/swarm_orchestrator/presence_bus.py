@@ -173,10 +173,6 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                     error=f"{type(exc).__name__}: {exc}"[:240],
                 )
                 failure = self._enrich_group_progress(failure, agent_id)
-                failure = self._enrich_group_progress(failure, agent_id)
-                failure = self._enrich_group_progress(failure, agent_id)
-                failure = self._enrich_group_progress(failure, agent_id)
-                failure = self._enrich_group_progress(failure, agent_id)
                 await self.bus.publish(
                     f"swarm:missions:progress:{mission.id}",
                     failure.model_dump_json(),
