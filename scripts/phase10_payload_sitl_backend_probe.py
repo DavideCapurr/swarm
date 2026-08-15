@@ -268,10 +268,10 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             return 2, report
 
         expected_bodies = (
-            "light on · PX4 output confirmed",
+            "light on · PX4 OUTPUT CONFIRMED",
             "restricted-area message active · SIMULATED PAYLOAD",
             "restricted-area message stopped · SIMULATED PAYLOAD",
-            "light off · PX4 output confirmed",
+            "light off · PX4 OUTPUT CONFIRMED",
         )
         bodies = [event.body for event in payload_events]
         missing_bodies = [
@@ -310,7 +310,7 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 index
                 for index, item in enumerate(sequence)
                 if item["kind"] == "payload"
-                and "light off · PX4 output confirmed" in str(item.get("body", ""))
+                and "light off · PX4 OUTPUT CONFIRMED" in str(item.get("body", ""))
             ),
             None,
         )
