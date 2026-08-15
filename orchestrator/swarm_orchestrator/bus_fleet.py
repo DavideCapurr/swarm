@@ -2,7 +2,8 @@
 
 The simulator can inspect ``world_drones`` directly. Real adapters cannot, so
 this runtime consumes the same canonical ``FleetState`` frames already emitted
-by vendor runners and uses them for auction scoring.
+by vendor runners and uses them for central allocation and execution-group
+composition.
 
 Only states for adapters present in this orchestrator's ``AdapterRegistry`` are
 eligible. That keeps mixed bus traffic from another fleet/process from being
@@ -18,13 +19,13 @@ from datetime import UTC, datetime
 
 from swarm_core.messages import FleetState
 
-from orchestrator.swarm_orchestrator.service import Orchestrator
+from orchestrator.swarm_orchestrator.execution_groups import ExecutionGroupOrchestrator
 
 logger = logging.getLogger("swarm.orchestrator.bus_fleet")
 
 
 @dataclass
-class BusFleetOrchestrator(Orchestrator):
+class BusFleetOrchestrator(ExecutionGroupOrchestrator):
     """Orchestrator whose fleet snapshot is projected from bus state."""
 
     fleet_state_stale_s: float = 5.0
