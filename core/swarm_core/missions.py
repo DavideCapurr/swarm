@@ -1,16 +1,14 @@
 """Mission DSL — the vocabulary the orchestrator emits.
 
-Each constructor returns a `MissionTask` with `kind` set to the corresponding
-`MissionKind` value and `params` populated with the structured arguments. Adapters
-translate executable primitives into vendor dialects (DJI KMZ Waypoint Mission,
-MAVLink `MISSION_ITEM_INT` sequence, Parrot Olympe `FlightPlan`, etc.).
+Each constructor returns a `MissionTask` with `kind` and structured `params`.
+Adapters translate executable primitives into vendor dialects (DJI KMZ,
+MAVLink mission items, Parrot FlightPlan, etc.).
 
-`COOPERATIVE_VERIFY` and `COVER` are orchestration-level objectives. SwarmOS must
-decompose them into per-agent executable child missions before dispatch; a
-physical adapter must never receive the parent objective directly.
-
-If an executable primitive is not natively supported by a vendor, the adapter
-MUST raise `UnsupportedMission` rather than invent fleet-level behaviour.
+`COOPERATIVE_VERIFY` is deliberately *not* a `MissionKind`: it is an
+orchestration-only parent objective. Keeping it outside the executable enum
+means adapters that allowlist `MissionKind` fail closed if the parent is ever
+sent to them by mistake. `COVER` is the older orchestration-level kind and is
+explicitly rejected by physical adapters before SwarmOS decomposes it.
 """
 
 from __future__ import annotations
@@ -21,10 +19,12 @@ from enum import Enum
 from swarm_core.messages import Geo, MissionTask, SensorKind, Waypoint, _now
 
 
+COOPERATIVE_VERIFY_KIND = "COOPERATIVE_VERIFY"
+
+
 class MissionKind(str, Enum):
     PATROL = "PATROL"
     VERIFY = "VERIFY"
-    COOPERATIVE_VERIFY = "COOPERATIVE_VERIFY"
     COVER = "COVER"
     RELAY = "RELAY"
     RTL_DOCK = "RTL_DOCK"
@@ -68,10 +68,7 @@ def VERIFY(  # noqa: N802 — DSL verb, matches MissionKind.VERIFY
     priority: int = 50,
     deadline_s: float | None = 300.0,
 ) -> MissionTask:
-    """Fly to anomaly, multi-sensor capture, classify, confirm or refute.
-
-    High default priority (50) so VERIFY preempts ordinary PATROL.
-    """
+    """Fly to anomaly, multi-sensor capture, classify, confirm or refute."""
 
     deadline = _now() + timedelta(seconds=deadline_s) if deadline_s else None
     return MissionTask(
@@ -101,7 +98,7 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
 
     This parent task is SwarmOS-only. `ExecutionGroupOrchestrator` centrally
     selects the members and decomposes the objective into individual VERIFY
-    child missions. Adapters must never execute this parent directly.
+    child missions. Physical adapters must never execute this parent directly.
     """
 
     if team_size < 2:
@@ -109,7 +106,7 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
     if roles is not None and len(roles) > team_size:
         raise ValueError("COOPERATIVE_VERIFY roles cannot exceed team_size")
     return MissionTask(
-        kind=MissionKind.COOPERATIVE_VERIFY.value,
+        kind=COOPERATIVE_VERIFY_KIND,
         params={
             "geo": geo.model_dump(),
             "team_size": team_size,
@@ -132,8 +129,8 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
 ) -> MissionTask:
     """Multi-drone area coverage with battery-aware rotation.
 
-    This is also an orchestration-only parent objective. SwarmOS decomposes it
-    into per-agent PATROL slices and owns every assignment/replacement.
+    SwarmOS decomposes this parent into per-agent PATROL slices and owns every
+    assignment/replacement.
     """
 
     return MissionTask(
@@ -178,10 +175,10 @@ def RTL_DOCK(*, priority: int = 5) -> MissionTask:  # noqa: N802 — DSL verb, m
 
 
 def mission_waypoints(m: MissionTask) -> list[Waypoint]:
-    """Extract waypoints from a mission's params (best-effort, for visualization)."""
+    """Extract waypoints from an executable mission (best-effort visualization)."""
 
     kind = m.kind
-    if kind in (MissionKind.VERIFY.value, MissionKind.COOPERATIVE_VERIFY.value):
+    if kind == MissionKind.VERIFY.value:
         return [
             Waypoint(
                 geo=Geo(**m.params["geo"]),
