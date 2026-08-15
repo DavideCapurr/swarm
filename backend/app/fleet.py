@@ -89,17 +89,28 @@ def _env_flag(name: str, *, default: bool = False) -> bool:
     raise ValueError(f"{name} must be one of 1/0, true/false, yes/no, on/off")
 
 
-def _env_optional_nonnegative_int(name: str) -> int | None:
+def _env_optional_int_range(
+    name: str,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int | None:
     raw = (os.getenv(name) or "").strip()
     if not raw:
         return None
     value = int(raw)
-    if value < 0:
-        raise ValueError(f"{name} must be >= 0")
+    if value < minimum or value > maximum:
+        raise ValueError(f"{name} must be in [{minimum}, {maximum}]")
     return value
 
 
-def _env_float(name: str, default: float, *, minimum: float, maximum: float | None = None) -> float:
+def _env_float(
+    name: str,
+    default: float,
+    *,
+    minimum: float,
+    maximum: float | None = None,
+) -> float:
     raw = (os.getenv(name) or "").strip()
     value = float(raw) if raw else default
     if value < minimum or (maximum is not None and value > maximum):
@@ -123,7 +134,7 @@ class FleetManager:
     presence_response_enabled: bool = False
     presence_min_confidence: float = 0.85
     presence_hold_s: float = 5.0
-    light_relay_index: int | None = None
+    light_actuator_number: int | None = None
     simulate_speaker: bool = False
     payload_registry: PayloadControllerRegistry = field(
         default_factory=PayloadControllerRegistry
@@ -177,7 +188,7 @@ class FleetManager:
                 continue
             controller = MAVLinkPayloadController(
                 adapter=adapter,
-                light_relay_index=self.light_relay_index,
+                light_actuator_number=self.light_actuator_number,
                 simulate_speaker=self.simulate_speaker,
             )
             if controller.capabilities:
@@ -186,7 +197,7 @@ class FleetManager:
         if len(self.payload_registry) == 0:
             raise ValueError(
                 "presence response enabled but no payload capability configured; "
-                "set MAVLINK_LIGHT_RELAY_INDEX and/or "
+                "set MAVLINK_LIGHT_ACTUATOR_NUMBER and/or "
                 "SWARM_PRESENCE_SIMULATE_SPEAKER=1"
             )
 
@@ -276,7 +287,11 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
             5.0,
             minimum=0.0,
         ),
-        light_relay_index=_env_optional_nonnegative_int("MAVLINK_LIGHT_RELAY_INDEX"),
+        light_actuator_number=_env_optional_int_range(
+            "MAVLINK_LIGHT_ACTUATOR_NUMBER",
+            minimum=1,
+            maximum=6,
+        ),
         simulate_speaker=_env_flag("SWARM_PRESENCE_SIMULATE_SPEAKER"),
     )
 
