@@ -47,7 +47,7 @@ jobs:
       - name: Probe static checks
         run: |
           uv run ruff check scripts/phase11_execution_group_probe.py
-          uv run mypy scripts/phase11_execution_group_probe.py
+          uv run mypy core adapters orchestrator sim backend scripts/phase11_execution_group_probe.py
 
       - name: Execution group integration tests
         run: >-
