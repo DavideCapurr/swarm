@@ -46,6 +46,14 @@ jobs:
           uv run ruff check .
           uv run mypy core adapters orchestrator sim backend scripts/phase9_multi_sitl_backend_probe.py
 
+      - name: Reach-aware MAVLink regression tests
+        run: >-
+          uv run pytest -q
+          adapters/mavlink/tests/test_reach_adapter.py
+          adapters/mavlink/tests/test_fleet_runner.py
+          orchestrator/swarm_orchestrator/tests/test_bus_fleet.py
+          backend/tests/test_mavlink_mission_runtime.py
+
       - name: Start two live PX4 v1.14 SITL vehicles
         run: |
           mkdir -p artifacts
