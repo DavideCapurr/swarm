@@ -8,7 +8,7 @@ The world changes. SWARM reallocates physical agents in real time.
 
 SwarmOS is the sole mission-level decision authority. Physical agents report state, observations, progress, and execution evidence; SwarmOS decides which objective to pursue, which agents are eligible, how many are needed, which roles they receive, who owns each mission, when to replace or retask an agent, and which fleet-level or payload action happens next.
 
-A physical agent can be a drone, rover, robot, or another compatible machine. Today, the live hardware-in-the-loop integration path in this repository is MAVLink/PX4 **SITL**. No physical-aircraft deployment is claimed.
+A physical agent can be a drone, rover, robot, or another compatible machine. Today, the live autopilot integration path in this repository is MAVLink/PX4 **SITL**. No physical-aircraft deployment is claimed.
 
 ## Why SWARM exists
 
@@ -35,7 +35,7 @@ The strongest validated paths are:
 
 | Proof | Result | Evidence |
 |---|---|---|
-| Dynamic multi-event allocation | two PX4 SITL missions overlap; the first owner is excluded as `BUSY` from event 2 and a different owner is selected | [`phase10-dynamic-multi-event-validation.md`](docs/bench/phase10-dynamic-multi-event-validation.md) |
+| Dynamic multi-event allocation | event 2 arrives while the first PX4 mission is still active; SwarmOS selects a different available PX4 and both missions overlap | [`phase10-dynamic-multi-event-validation.md`](docs/bench/phase10-dynamic-multi-event-validation.md) |
 | Verified arrival semantics | `ON_STATION` requires final `MISSION_ITEM_REACHED`; timeout fails closed | [`phase9-multi-sitl-validation.md`](docs/bench/phase9-multi-sitl-validation.md) |
 | Bounded payload response | PX4 SITL output is confirmed before light state is reported; speaker remains explicitly simulated | [`payload-presence-sitl-validation.md`](docs/bench/payload-presence-sitl-validation.md) |
 | Multi-agent `ExecutionGroup` | one `COOPERATIVE_VERIFY` objective is decomposed into 3 role-specific child missions across 3 of 4 PX4 SITL agents | [`phase11-execution-group-validation.md`](docs/bench/phase11-execution-group-validation.md) |
