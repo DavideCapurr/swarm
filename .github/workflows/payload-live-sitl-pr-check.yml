@@ -2,6 +2,14 @@ name: payload-live-sitl-pr-check
 
 on:
   pull_request:
+    paths:
+      - "adapters/mavlink/**"
+      - "adapters/payload.py"
+      - "backend/app/fleet.py"
+      - "core/swarm_core/payloads.py"
+      - "orchestrator/swarm_orchestrator/presence_bus.py"
+      - "scripts/phase10_payload_sitl_backend_probe.py"
+      - ".github/workflows/payload-live-sitl-pr-check.yml"
   workflow_dispatch:
 
 permissions:
