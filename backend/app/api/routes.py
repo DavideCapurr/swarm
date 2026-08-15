@@ -92,6 +92,26 @@ async def missions(_: _VIEWER) -> dict[str, Any]:
     return {"missions": [m.model_dump(mode="json") for m in SWARM_STATE.missions.values()]}
 
 
+@router.get("/allocations")
+async def allocations(_: _VIEWER) -> dict[str, Any]:
+    ordered = sorted(SWARM_STATE.allocations.values(), key=lambda d: d.ts)
+    return {"allocations": [d.model_dump(mode="json") for d in ordered]}
+
+
+@router.get("/mission-runtime")
+async def mission_runtime(_: _VIEWER) -> dict[str, Any]:
+    ordered = sorted(SWARM_STATE.mission_runtime.values(), key=lambda e: e.ts)
+    return {"mission_runtime": [e.model_dump(mode="json") for e in ordered]}
+
+
+@router.get("/payload-events")
+async def payload_events(
+    _: _VIEWER, limit: int = Query(200, ge=1, le=500)
+) -> dict[str, Any]:
+    rows = list(SWARM_STATE.payload_events)[-limit:]
+    return {"payload_events": [e.model_dump(mode="json") for e in rows]}
+
+
 @router.get("/missions/{mission_id}/history")
 async def mission_history(
     mission_id: str,
