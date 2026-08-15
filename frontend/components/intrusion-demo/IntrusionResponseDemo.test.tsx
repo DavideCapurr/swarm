@@ -240,10 +240,12 @@ describe("IntrusionResponseDemo", () => {
     render(<IntrusionResponseDemo />);
 
     expect(screen.getAllByText("2.710").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("BUSY")).toBeInTheDocument();
-    expect(screen.getByText(/mission mission-o/i)).toBeInTheDocument();
+    const excluded = screen.getByTestId("excluded-mav-002");
+    expect(excluded).toHaveTextContent("mav-002");
+    expect(excluded).toHaveTextContent("EXCLUDED");
+    expect(excluded).toHaveTextContent("BUSY");
+    expect(excluded).toHaveTextContent("mission-o");
     expect(screen.getAllByText("mav-001").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("mav-002").length).toBeGreaterThan(0);
     expect(screen.getByText(/48m · batt 80%/i)).toBeInTheDocument();
   });
 
@@ -251,10 +253,16 @@ describe("IntrusionResponseDemo", () => {
     mockUseSwarm.mockReturnValue(liveState());
     render(<IntrusionResponseDemo />);
 
-    expect(screen.getByText("INTRUSION")).toBeInTheDocument();
-    expect(screen.getByText("HEAT_SPOT")).toBeInTheDocument();
-    expect(screen.getByText("MISSION_ITEM_REACHED")).toBeInTheDocument();
-    expect(screen.getAllByText("EN ROUTE").length).toBeGreaterThan(0);
+    const firstMission = screen.getByTestId("mission-mission-one");
+    expect(firstMission).toHaveTextContent("INTRUSION");
+    expect(firstMission).toHaveTextContent("mav-002");
+    expect(firstMission).toHaveTextContent("ON STATION");
+    expect(firstMission).toHaveTextContent("MISSION_ITEM_REACHED");
+
+    const secondMission = screen.getByTestId("mission-mission-two");
+    expect(secondMission).toHaveTextContent("HEAT_SPOT");
+    expect(secondMission).toHaveTextContent("mav-001");
+    expect(secondMission).toHaveTextContent("EN ROUTE");
   });
 
   it("renders payload execution modes without upgrading simulated effects", () => {
