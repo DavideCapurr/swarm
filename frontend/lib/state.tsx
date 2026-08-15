@@ -17,20 +17,22 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
 
 import {
   api,
+  type AllocationDecision,
   type AnomalyView,
   type AwarenessBreakdown,
   type CommandResponse,
   type DockState,
+  type MissionRuntimeEvent,
   type MissionView,
   type OperatingMode,
   type OperatorCommand,
+  type PayloadEvent,
   type Sector,
   type Session,
   type StreamDescriptor,
@@ -68,6 +70,9 @@ export type SwarmState = {
   anomalies: AnomalyView[];
   events: TimelineEvent[];
   commands: OperatorCommand[];
+  allocations: AllocationDecision[];
+  missionRuntime: MissionRuntimeEvent[];
+  payloadEvents: PayloadEvent[];
   // Phase 5: stream descriptors per agent_id. `null` ≡ no descriptor yet
   // received; in that case the Console falls back to the placard.
   streams: Record<string, StreamDescriptor>;
@@ -122,6 +127,9 @@ export function SwarmStateProvider({
   const [anomalies, setAnomalies] = useState<AnomalyView[]>([]);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [commands, setCommands] = useState<OperatorCommand[]>([]);
+  const [allocations, setAllocations] = useState<AllocationDecision[]>([]);
+  const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);
+  const [payloadEvents, setPayloadEvents] = useState<PayloadEvent[]>([]);
   const [streams, setStreams] = useState<Record<string, StreamDescriptor>>({});
   const [awareness, setAwareness] = useState<AwarenessBreakdown>(() => fallbackAwareness(new Date()));
   // Link + clock.
@@ -136,7 +144,7 @@ export function SwarmStateProvider({
     let cancelled = false;
     (async () => {
       try {
-        const [s, aw, dk, sc, un, ms, an, ev, cm] = await Promise.all([
+        const [s, aw, dk, sc, un, ms, an, ev, cm, al, mr, pe] = await Promise.all([
           api.session(),
           api.awareness(),
           api.docks(),
@@ -146,6 +154,9 @@ export function SwarmStateProvider({
           api.anomalies(),
           api.events(50),
           api.commands(50),
+          api.allocations(),
+          api.missionRuntime(),
+          api.payloadEvents(200),
         ]);
         if (cancelled) return;
         setSession(s.session);
@@ -157,6 +168,9 @@ export function SwarmStateProvider({
         setAnomalies(an.anomalies);
         setEvents(ev.events);
         setCommands(cm.commands);
+        setAllocations(al.allocations);
+        setMissionRuntime(mr.mission_runtime);
+        setPayloadEvents(pe.payload_events);
       } catch {
         /* backend not up yet — WS will fill in once it connects */
       }
@@ -179,6 +193,9 @@ export function SwarmStateProvider({
     setAnomalies([]);
     setEvents([]);
     setCommands([]);
+    setAllocations([]);
+    setMissionRuntime([]);
+    setPayloadEvents([]);
     setStreams({});
     setAwareness(fallbackAwareness(new Date()));
   }, [isAuthed]);
@@ -245,6 +262,18 @@ export function SwarmStateProvider({
         case "stream":
           setStreams((prev) => ({ ...prev, [msg.data.agent_id]: msg.data }));
           return;
+        case "allocation":
+          setAllocations((prev) => upsertById(prev, msg.data, "mission_id"));
+          return;
+        case "mission_runtime":
+          setMissionRuntime((prev) => upsertById(prev, msg.data, "mission_id"));
+          return;
+        case "payload":
+          setPayloadEvents((prev) => {
+            if (prev.some((e) => e.id === msg.data.id)) return prev;
+            return [...prev.slice(-499), msg.data];
+          });
+          return;
       }
     });
     return () => {
@@ -302,6 +331,9 @@ export function SwarmStateProvider({
       anomalies,
       events,
       commands,
+      allocations,
+      missionRuntime,
+      payloadEvents,
       streams,
       awareness,
       link,
@@ -323,6 +355,9 @@ export function SwarmStateProvider({
       anomalies,
       events,
       commands,
+      allocations,
+      missionRuntime,
+      payloadEvents,
       streams,
       awareness,
       link,
