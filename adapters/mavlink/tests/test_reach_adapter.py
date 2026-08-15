@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 from swarm_core.messages import Geo, MissionProgress
-from swarm_core.missions import VERIFY
+from swarm_core.missions import VERIFY, mission_waypoints
 
 from adapters.mavlink.fake_endpoint import FakeMAVLinkEndpoint
 from adapters.mavlink.reach_adapter import ReachAwareMAVLinkAdapter
@@ -35,6 +35,34 @@ async def _collect_mission(
         altitude_m=20.0,
     )
     return [frame async for frame in adapter.execute_mission(mission)]
+
+
+def test_implicit_deadline_includes_initial_leg_and_climb() -> None:
+    adapter = ReachAwareMAVLinkAdapter(agent_id="mav-1")
+    adapter._last_position = Geo(lat=47.397796, lon=8.5455939, alt_m=0.0)
+    mission = VERIFY(
+        geo=Geo(lat=47.398, lon=8.546),
+        hover_s=0.0,
+        altitude_m=40.0,
+    )
+    deadline_s = adapter._mission_deadline_s(mission, mission_waypoints(mission))
+
+    # Base behavior would be exactly the 30 s floor for a single waypoint.
+    # The reach-aware runtime must budget both travel from the aircraft's
+    # actual location and the 40 m climb observed in the live PX4 gate.
+    assert deadline_s > 55.0
+
+
+def test_explicit_deadline_is_not_inflated_by_initial_leg() -> None:
+    adapter = ReachAwareMAVLinkAdapter(agent_id="mav-1")
+    adapter._last_position = Geo(lat=47.0, lon=8.0, alt_m=0.0)
+    mission = VERIFY(
+        geo=Geo(lat=47.398, lon=8.546),
+        hover_s=0.0,
+        altitude_m=40.0,
+    )
+    mission.params["timeout_s"] = 45.0
+    assert adapter._mission_deadline_s(mission, mission_waypoints(mission)) == 45.0
 
 
 @pytest.mark.asyncio
