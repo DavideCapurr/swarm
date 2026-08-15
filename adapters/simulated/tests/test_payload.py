@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from adapters.simulated.payload import SimulatedPayloadController
 from swarm_core.payloads import (
     PayloadAction,
     PayloadActionKind,
@@ -9,8 +10,6 @@ from swarm_core.payloads import (
     PayloadExecutionMode,
     PayloadMessage,
 )
-
-from adapters.simulated.payload import SimulatedPayloadController
 
 
 @pytest.mark.asyncio
