@@ -36,24 +36,42 @@ REDIS_TLS_KEYFILE=/run/secrets/swarm-client.key
 the discrete fields above so passwords with URL-reserved characters cannot
 change the parsed host or database.
 
-## Topic namespacing
+## Decision-authority boundary
 
-All SWARM topics live under `swarm:*`:
+Redis transports state and SwarmOS-owned decision records. It is **not** a
+peer-negotiation channel between aircraft. Physical-agent adapters publish
+telemetry/evidence and execute missions selected in-process by SwarmOS; they do
+not publish bids, elect themselves, allocate peers, or consume an award and then
+make another mission-level decision.
 
-| Topic pattern                        | Direction                  |
-|--------------------------------------|----------------------------|
-| `swarm:telemetry:{agent_id}`         | adapter → backend          |
-| `swarm:fleet:state`                  | orchestrator → backend     |
-| `swarm:anomalies`                    | perception → orchestrator  |
-| `swarm:missions:announce`            | orchestrator → adapters    |
-| `swarm:missions:bid:{mission_id}`    | adapters → orchestrator    |
-| `swarm:missions:award`               | orchestrator → adapters    |
-| `swarm:missions:progress:{id}`       | adapter → orchestrator/backend |
+The historical `Bid` model remains an internal candidate-score DTO computed by
+the central allocator from `FleetState`. There is no active
+`swarm:missions:bid:*` runtime topic.
+
+## Active topic namespacing
+
+All SWARM topics live under `swarm:*`. The principal current runtime topics are:
+
+| Topic pattern | Producer → consumer |
+|---|---|
+| `swarm:telemetry:{agent_id}` | adapter runner → backend projection |
+| `swarm:fleet:state` | adapter/simulator runner → SwarmOS orchestrator + backend |
+| `swarm:anomalies` | perception/event source → SwarmOS orchestrator + backend |
+| `swarm:allocations` | SwarmOS orchestrator → backend/Console truth projection |
+| `swarm:missions:award` | SwarmOS orchestrator → audit/probes |
+| `swarm:missions:progress:{id}` | mission executor/orchestrator → backend projection |
+| `swarm:missions:runtime` | SwarmOS mission runtime → backend/Console evidence |
+| `swarm:payload:events` | SwarmOS payload-response runtime → backend/Console evidence |
+
+Mission execution itself is not delegated through a Redis bidding protocol in
+the current runtime: the orchestrator selects an adapter from the registry and
+invokes its execution contract directly.
 
 ## Migration path
 
 The transport is encapsulated in `orchestrator/swarm_orchestrator/bus.py`.
-Swapping Redis for NATS / MQTT / DDS is a single-module change.
+Swapping Redis for NATS / MQTT / DDS is a single-module change and must not move
+mission-level decision authority into physical-agent adapters.
 
 ## Production sizing
 

@@ -151,7 +151,7 @@ class Anomaly(BaseModel):
 
 
 class MissionTask(BaseModel):
-    """A unit of work the orchestrator dispatches to an agent."""
+    """A unit of work SwarmOS selects and dispatches to an agent."""
 
     id: str = Field(default_factory=_new_id)
     kind: str  # one of MissionKind values — see swarm_core.missions
@@ -163,10 +163,12 @@ class MissionTask(BaseModel):
 
 
 class MissionProgress(BaseModel):
-    """Heartbeat from an adapter while a mission executes."""
+    """Execution progress reported after SwarmOS has selected a mission owner."""
 
     mission_id: str
-    phase: str  # "BIDDING" | "EN_ROUTE" | "ON_STATION" | "RETURNING" | "DONE" | "FAILED"
+    # ACCEPTED | EN_ROUTE | ON_STATION | RETURNING | DONE | FAILED.
+    # BIDDING remains accepted only as a legacy compatibility value in older state.
+    phase: str
     progress_pct: float = Field(0.0, ge=0.0, le=100.0)
     eta_s: float | None = None
     captured_artifacts: list[str] = Field(default_factory=list)
@@ -175,7 +177,7 @@ class MissionProgress(BaseModel):
 
 
 class FleetState(BaseModel):
-    """Aggregated view of a single agent — published by the orchestrator."""
+    """Canonical snapshot of one physical agent consumed by SwarmOS."""
 
     agent_id: str
     vendor: str
@@ -189,7 +191,11 @@ class FleetState(BaseModel):
 
 
 class Bid(BaseModel):
-    """An agent's bid for a mission. Higher score = better fit."""
+    """Legacy/internal SwarmOS candidate score. Higher score = better fit.
+
+    Despite the historical name, this record is computed centrally from
+    canonical fleet state. A physical agent does not publish or choose it.
+    """
 
     mission_id: str
     agent_id: str
@@ -199,7 +205,7 @@ class Bid(BaseModel):
 
 
 class Award(BaseModel):
-    """Orchestrator's auction result."""
+    """SwarmOS central mission-allocation result."""
 
     mission_id: str
     winner_agent_id: str
@@ -216,7 +222,6 @@ class CaptureResult(BaseModel):
     ts: datetime = Field(default_factory=_now)
     classification: AnomalyKind | None = None
     confidence: float | None = None
-
 
 # ── Console-facing aggregates (Phase 0+) ───────────────────────────────────────
 #
@@ -298,7 +303,7 @@ class AnomalyState(str, Enum):
 
 class MissionPhase(str, Enum):
     PENDING = "pending"
-    BIDDING = "bidding"
+    BIDDING = "bidding"  # legacy compatibility; physical executors do not bid
     ACCEPTED = "accepted"
     EN_ROUTE = "en_route"
     ON_STATION = "on_station"

@@ -23,12 +23,16 @@ SWARM OS operates one layer above:
 
 | Layer | Owner | Responsibility |
 |---|---|---|
-| Flight control | Vendor autopilot | How a single aircraft flies |
-| **Mission & fleet** | **SWARM OS** | **Who responds, when, where, why, with which asset, and what happens next** |
+| Flight control | Vendor autopilot | How a single aircraft flies and fails safe locally |
+| **Mission & fleet** | **SWARM OS** | **Who responds, when, where, why, with which asset or assets, and what happens next** |
 
-A mission can arrive from an operator, software system, sensor, previous observation, or other cue. SWARM evaluates the fleet and allocates the best available unit or units based on mission priority, distance, battery, capability, current task, and operational constraints.
+A mission can arrive from an operator, software system, sensor, previous observation, or other cue. SWARM evaluates canonical fleet state and centrally allocates the best available unit or units based on mission priority, distance, battery, capability, current task, and operational constraints.
 
-The current allocator is auction-based. The architecture is vendor-neutral through adapters.
+**SwarmOS is the sole mission-level decision authority.** Physical agents execute SWARM-issued objectives and report telemetry, observations, progress, and evidence. They do not elect themselves, allocate peers, or turn a local detection directly into a fleet action. Onboard autopilots retain bounded flight-control and safety behavior such as stabilization, waypoint following, geofence enforcement, low-battery RTL, lost-link behavior, and obstacle avoidance.
+
+The current live allocator is centralized and deterministic from fleet state. Some compatibility models still use the historical name `Bid`, but those candidate-score records are computed by SwarmOS, not published by aircraft. The architecture remains vendor-neutral through adapters.
+
+Future multi-agent responses are modeled as **SwarmOS-owned execution groups**: SWARM may assign several cheap physical agents complementary roles toward one mission objective, but the member agents do not form an independently deciding sub-swarm.
 
 ## Current proof level
 
@@ -37,7 +41,7 @@ SWARM is currently a software and simulation/SITL system, not a deployed physica
 What exists today:
 
 - domain core, mission DSL and FSM;
-- auction-based mission allocation;
+- centralized fleet-state mission allocation;
 - heterogeneous adapter architecture;
 - simulated adapter;
 - MAVLink/PX4 adapter;
@@ -52,6 +56,8 @@ What exists today:
 The MAVLink/PX4 path has been **PX4 SITL-validated** for connect, telemetry ingest, mission dispatch and RTL. It is **not yet bench- or field-validated on physical aircraft**.
 
 That distinction is intentional and must remain explicit.
+
+First-class dynamic multi-agent execution groups are part of the architecture direction, but the current production-shaped mission ownership path is still primarily one mission assignment per physical agent. Do not claim native group composition as validated until that runtime path is implemented and tested.
 
 ## Next technical demo
 
@@ -71,7 +77,7 @@ The demo target is:
 
 The point of the demo is not to make simulation look like real flight. It is to make the coordination layer undeniable.
 
-**The aircraft fly themselves. SWARM decides what the fleet should do.**
+**The autopilot flies the aircraft. SWARM decides what the fleet should do.**
 
 Existing wildfire / intrusion / search scenarios remain useful regression and product-demonstration fixtures, but wildfire is no longer the canonical first wedge.
 
@@ -90,7 +96,7 @@ adapters/            multi-vendor interoperability
   autel/ parrot/ skydio/    typed vendor stubs
 
 sim/                 Python simulation environment
-orchestrator/        coordination service
+orchestrator/        central coordination service
 backend/             FastAPI REST + WebSocket telemetry
 frontend/            Next.js operator Console
 infra/               Postgres/TimescaleDB + Redis
@@ -139,10 +145,13 @@ SwarmOS coordinates systems that can act in the physical world, so security is t
 
 The baseline includes lockfiles, pinned CI actions and images, CORS and WebSocket origin enforcement, security headers, strict input models, request limits, rate limiting, dependency scanning, CodeQL/Bandit/Semgrep/Trivy/gitleaks and documented threat/incident-response processes.
 
+Central mission authority limits the legitimate authority of a compromised endpoint, but it does **not** make a drone unhackable. A compromised aircraft may still falsify telemetry/sensor evidence, ignore commands, or be manipulated through its flight controller or vendor link. Agent-originated data is therefore semi-trusted operational input.
+
 See:
 
 - [`SECURITY.md`](SECURITY.md)
 - [`docs/security/threat-model.md`](docs/security/threat-model.md)
+- [`docs/security/agent-trust.md`](docs/security/agent-trust.md)
 - [`docs/security/incident-response.md`](docs/security/incident-response.md)
 
 ## Strategy and execution
@@ -150,6 +159,7 @@ See:
 - Canonical startup thesis: [`swarm-thesis.md`](swarm-thesis.md)
 - Live execution status: [`docs/STATUS.md`](docs/STATUS.md)
 - Architecture overview: [`docs/architecture/overview.md`](docs/architecture/overview.md)
+- Central decision authority: [`docs/adr/0011-central-decision-authority.md`](docs/adr/0011-central-decision-authority.md)
 - Evidence-to-scale roadmap: [`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md)
 - YC readiness: [`docs/yc/readiness-and-gaps.md`](docs/yc/readiness-and-gaps.md)
 - YC application draft: [`docs/yc/application-draft.md`](docs/yc/application-draft.md)
