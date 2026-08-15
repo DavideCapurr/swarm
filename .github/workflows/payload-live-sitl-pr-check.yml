@@ -32,6 +32,7 @@ jobs:
       SWARM_PRESENCE_MIN_CONFIDENCE: "0.85"
       SWARM_PRESENCE_HOLD_S: "1"
       MAVLINK_LIGHT_ACTUATOR_NUMBER: "1"
+      MAVLINK_LIGHT_OUTPUT_CHANNEL: "5"
       SWARM_PRESENCE_SIMULATE_SPEAKER: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -64,19 +65,14 @@ jobs:
             docker logs px4-multi >&2 || true
             exit 1
           fi
-      - name: Map a spare MAIN output to Offboard Actuator Set 1
+      - name: Map MAIN5 to Offboard Actuator Set 1
         run: |
           uv run python - <<'PY'
           import struct
           import time
           from pymavlink import mavutil
 
-          CANDIDATES = (
-              "PWM_MAIN_FUNC5",
-              "PWM_MAIN_FUNC6",
-              "PWM_MAIN_FUNC7",
-              "PWM_MAIN_FUNC8",
-          )
+          PARAM = "PWM_MAIN_FUNC5"
           DISABLED = 0
           OFFBOARD_ACTUATOR_SET_1 = 301
 
@@ -96,11 +92,11 @@ jobs:
           def encode_px4_int32(value):
               return struct.unpack("<f", struct.pack("<i", int(value)))[0]
 
-          def read_param(connection, target_system, name, timeout=3.0):
+          def read_param(connection, target_system, timeout=5.0):
               connection.mav.param_request_read_send(
                   target_system,
                   1,
-                  name.encode(),
+                  PARAM.encode(),
                   -1,
               )
               deadline = time.monotonic() + timeout
@@ -108,17 +104,15 @@ jobs:
                   message = connection.recv_match(
                       type="PARAM_VALUE", blocking=True, timeout=0.5
                   )
-                  if message is None:
-                      continue
-                  if param_name(message) == name:
+                  if message is not None and param_name(message) == PARAM:
                       return message
               return None
 
-          def set_int32_param(connection, target_system, name, value):
+          def set_param(connection, target_system, value):
               connection.mav.param_set_send(
                   target_system,
                   1,
-                  name.encode(),
+                  PARAM.encode(),
                   encode_px4_int32(value),
                   mavutil.mavlink.MAV_PARAM_TYPE_INT32,
               )
@@ -127,10 +121,9 @@ jobs:
                   message = connection.recv_match(
                       type="PARAM_VALUE", blocking=True, timeout=0.5
                   )
-                  if message is None or param_name(message) != name:
+                  if message is None or param_name(message) != PARAM:
                       continue
-                  decoded = decode_px4_int32(message)
-                  if decoded == value:
+                  if decode_px4_int32(message) == value:
                       return message
               return None
 
@@ -141,40 +134,26 @@ jobs:
                   if heartbeat is None:
                       raise SystemExit(f"no PX4 heartbeat on UDP {port}")
                   target_system = connection.target_system
-
-                  selected = None
-                  observed = {}
-                  for candidate in CANDIDATES:
-                      message = read_param(connection, target_system, candidate)
-                      if message is None:
-                          observed[candidate] = "absent"
-                          continue
-                      current = decode_px4_int32(message)
-                      observed[candidate] = current
-                      if current == DISABLED:
-                          selected = candidate
-                          break
-
-                  if selected is None:
+                  current_message = read_param(connection, target_system)
+                  if current_message is None:
+                      raise SystemExit(f"{PARAM} absent on PX4 sysid={target_system}")
+                  current = decode_px4_int32(current_message)
+                  if current not in {DISABLED, OFFBOARD_ACTUATOR_SET_1}:
                       raise SystemExit(
-                          f"PX4 sysid={target_system} has no disabled MAIN5-8 output; "
-                          f"observed={observed}"
+                          f"refusing to replace active {PARAM}={current} on PX4 sysid={target_system}"
                       )
-
-                  confirmed = set_int32_param(
+                  confirmed = set_param(
                       connection,
                       target_system,
-                      selected,
                       OFFBOARD_ACTUATOR_SET_1,
                   )
                   if confirmed is None:
                       raise SystemExit(
-                          f"failed to map {selected}=301 on PX4 sysid={target_system}; "
-                          f"observed={observed}"
+                          f"failed to map {PARAM}=301 on PX4 sysid={target_system}"
                       )
                   print(
-                      f"PX4 sysid={target_system} mapped {selected}: "
-                      f"0 -> {decode_px4_int32(confirmed)}"
+                      f"PX4 sysid={target_system} mapped {PARAM}: "
+                      f"{current} -> {decode_px4_int32(confirmed)}"
                   )
               finally:
                   connection.close()
