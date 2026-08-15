@@ -17,7 +17,11 @@ from collections import deque
 from datetime import UTC, datetime
 from typing import Any
 
-from swarm_core.execution_groups import ExecutionGroup, ExecutionGroupMemberState, ExecutionGroupState
+from swarm_core.execution_groups import (
+    ExecutionGroup,
+    ExecutionGroupMemberState,
+    ExecutionGroupState,
+)
 from swarm_core.geometry import haversine_m
 from swarm_core.messages import (
     AgentState,
