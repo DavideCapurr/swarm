@@ -2,9 +2,10 @@
 
 Run: `python -m sim.swarm_sim.runner`
 
-This is what `make demo` boots. It does NOT require Postgres or a frontend — those
-are layered on top. With only this running you can `redis-cli SUBSCRIBE 'swarm:*'`
-and watch the full event stream.
+`SIM_COOPERATIVE_VERIFY=1` opts the simulator into the same SwarmOS-owned
+execution-group path used by a bus-backed MAVLink fleet. In that mode the
+parent objective is decomposed centrally and only child missions reach the
+simulated physical executors.
 """
 
 from __future__ import annotations
@@ -28,10 +29,17 @@ from orchestrator.swarm_orchestrator.bus import (
     redis_url_from_env,
     secure_bus_required,
 )
-from orchestrator.swarm_orchestrator.service import Orchestrator
+from orchestrator.swarm_orchestrator.execution_groups import ExecutionGroupOrchestrator
 from sim.swarm_sim.world import World
 
 logger = logging.getLogger("sim.runner")
+
+
+def _env_flag(name: str, *, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 async def _stream_telemetry_to_bus(adapter: SimulatedAdapter, bus: Bus) -> None:
@@ -45,14 +53,19 @@ async def _publish_anomalies(world: World, bus: Bus) -> None:
     if not world.perception:
         return
 
-    # Strong refs to fire-and-forget publish tasks.
     pending: set[asyncio.Task[None]] = set()
 
     def _on_anomaly(a: Anomaly) -> None:
         task = asyncio.create_task(bus.publish("swarm:anomalies", a.model_dump_json()))
         pending.add(task)
         task.add_done_callback(pending.discard)
-        logger.info("anomaly: %s @ (%.5f, %.5f) c=%.2f", a.kind.value, a.geo.lat, a.geo.lon, a.confidence)
+        logger.info(
+            "anomaly: %s @ (%.5f, %.5f) c=%.2f",
+            a.kind.value,
+            a.geo.lat,
+            a.geo.lon,
+            a.confidence,
+        )
 
     world.perception.on_anomaly = _on_anomaly
     await world.perception.run()
@@ -61,15 +74,6 @@ async def _publish_anomalies(world: World, bus: Bus) -> None:
 async def _publish_simulated_streams(
     world: World, bus: Bus, sim_feed_path: str, *, period_s: float = 5.0
 ) -> None:
-    """Advertise the synthetic SIM-labelled drone-POV clip per unit.
-
-    The sim has no real camera, so for the demo viewport we publish a
-    `simulated` `StreamDescriptor` (CV-live video sub-step) for every drone.
-    The Console renders the bundled `/sim-feed/…` clip stamped `SIMULATED FEED`
-    instead of the offline placard. Republished periodically so a Console that
-    connects mid-run still receives it. Off unless `SWARM_SIM_FEED_PATH` is set
-    — without it the Console keeps the honest VIEWPORT PENDING placard.
-    """
     from swarm_core.streams import StreamDescriptor
 
     while True:
@@ -81,7 +85,9 @@ async def _publish_simulated_streams(
         await asyncio.sleep(period_s)
 
 
-async def _publish_fleet_state(world: World, registry: AdapterRegistry, bus: Bus) -> None:
+async def _publish_fleet_state(
+    world: World, registry: AdapterRegistry, bus: Bus
+) -> None:
     """Aggregate drone state at 2 Hz and publish on /fleet/state."""
     from swarm_core.messages import AgentState
 
@@ -89,10 +95,14 @@ async def _publish_fleet_state(world: World, registry: AdapterRegistry, bus: Bus
         for d in world.drones:
             adapter = registry.get(d.agent_id)
             state = (
-                AgentState.DOCKED if d.is_docked
-                else AgentState.LANDING if d._mode == "LANDING"
-                else AgentState.ON_STATION if d._mode == "HOVER"
-                else AgentState.EN_ROUTE if d._mode == "FLYING"
+                AgentState.DOCKED
+                if d.is_docked
+                else AgentState.LANDING
+                if d._mode == "LANDING"
+                else AgentState.ON_STATION
+                if d._mode == "HOVER"
+                else AgentState.EN_ROUTE
+                if d._mode == "FLYING"
                 else AgentState.TAKEOFF
             )
             fs = FleetState(
@@ -115,7 +125,19 @@ async def _tick_world(world: World, hz: float) -> None:
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s"
+    )
+
+    cooperative_verify = _env_flag("SIM_COOPERATIVE_VERIFY")
+    cooperative_team_size = int(os.getenv("SIM_COOPERATIVE_VERIFY_TEAM_SIZE", "3"))
+    if cooperative_team_size < 2:
+        raise ValueError("SIM_COOPERATIVE_VERIFY_TEAM_SIZE must be >= 2")
+    cooperative_min_confidence = float(
+        os.getenv("SIM_COOPERATIVE_VERIFY_MIN_CONFIDENCE", "0.90")
+    )
+    if not 0.0 <= cooperative_min_confidence <= 1.0:
+        raise ValueError("SIM_COOPERATIVE_VERIFY_MIN_CONFIDENCE must be in [0, 1]")
 
     scenario_path = os.getenv("SIM_SCENARIO")
     if scenario_path:
@@ -125,23 +147,25 @@ async def main() -> None:
         world = scenario.build_world()
         hz = scenario.tick_hz
         n_drones = scenario.fleet.n_drones
-        logger.info("loaded scenario %s (%d drones, %d anomalies)",
-                    scenario.id, n_drones, len(scenario.anomalies))
-        # Phase 7.B — flip the in-process autonomy gate when the scenario
-        # opts in. The backend process owns the COORDINATOR + state; this
-        # stamp is only meaningful when the runner + backend share a
-        # process (e.g. integration tests). For `make demo` the backend
-        # reads `SWARM_AUTONOMY_BASELINE` from the env at boot.
+        logger.info(
+            "loaded scenario %s (%d drones, %d anomalies)",
+            scenario.id,
+            n_drones,
+            len(scenario.anomalies),
+        )
         if scenario.autonomy_baseline:
             from swarm_os import SWARM_STATE
 
             SWARM_STATE.set_autonomy_enabled(True)
             logger.info("autonomy baseline enabled for scenario %s", scenario.id)
     else:
-        n_drones = int(os.getenv("SIM_DRONES", "3"))
+        default_drones = max(6, cooperative_team_size + 1) if cooperative_verify else 3
+        n_drones = int(os.getenv("SIM_DRONES", str(default_drones)))
         hz = float(os.getenv("SIM_TICK_HZ", "10"))
         ignition_after_s = float(os.getenv("SIM_IGNITION_AT_S", "10"))
-        world = World.vineyard(n_drones=n_drones, ignition_after_s=ignition_after_s)
+        world = World.vineyard(
+            n_drones=n_drones, ignition_after_s=ignition_after_s
+        )
     registry = AdapterRegistry()
 
     bus: Bus
@@ -172,28 +196,33 @@ async def main() -> None:
 
     adapters: list[SimulatedAdapter] = []
     for d in world.drones:
-        # `self_tick=False` because the world ticks all drones atomically below.
         a = SimulatedAdapter(agent_id=d.agent_id, drone=d, self_tick=False)
         await a.connect()
         registry.register(a)
         adapters.append(a)
 
-    # Continuous patrol keeps every unit sweeping its own wedge of the
-    # territory so the Console map is alive and Unit 003 doesn't sit docked.
-    # On by default for the demo; SIM_CONTINUOUS_PATROL=0 restores the
-    # single-shot (anomaly-only) behaviour.
-    continuous_patrol = os.getenv("SIM_CONTINUOUS_PATROL", "1") != "0"
+    patrol_default = "0" if cooperative_verify else "1"
+    continuous_patrol = os.getenv("SIM_CONTINUOUS_PATROL", patrol_default) != "0"
     patrol_radius_m = float(os.getenv("SIM_PATROL_RADIUS_M", "130"))
-    orchestrator = Orchestrator(
+    orchestrator = ExecutionGroupOrchestrator(
         bus=bus,
         registry=registry,
         world_drones=world.drones,
         continuous_patrol=continuous_patrol,
         patrol_origin=world.dock,
         patrol_radius_m=patrol_radius_m,
+        cooperative_verify_enabled=cooperative_verify,
+        cooperative_verify_min_confidence=cooperative_min_confidence,
+        cooperative_verify_team_size=cooperative_team_size,
     )
     if continuous_patrol:
         logger.info("continuous patrol enabled (radius %.0f m)", patrol_radius_m)
+    if cooperative_verify:
+        logger.info(
+            "cooperative verify enabled (team=%d, min confidence=%.2f)",
+            cooperative_team_size,
+            cooperative_min_confidence,
+        )
 
     stop = asyncio.Event()
 
@@ -204,7 +233,7 @@ async def main() -> None:
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        with contextlib.suppress(NotImplementedError):  # Windows
+        with contextlib.suppress(NotImplementedError):
             loop.add_signal_handler(sig, _on_signal)
 
     tasks = [
@@ -215,9 +244,6 @@ async def main() -> None:
         *[asyncio.create_task(_stream_telemetry_to_bus(a, bus)) for a in adapters],
     ]
 
-    # CV-live video sub-step: optionally advertise the synthetic SIM-labelled
-    # drone-POV clip on the viewport. Validated up front so a misconfigured
-    # path fails loud (a warning) rather than silently dropping every tick.
     sim_feed_path = os.getenv("SWARM_SIM_FEED_PATH")
     if sim_feed_path:
         from swarm_core.streams import InvalidStreamURL, validate_sim_feed_path
@@ -228,9 +254,14 @@ async def main() -> None:
             logger.warning("ignoring SWARM_SIM_FEED_PATH=%r: %s", sim_feed_path, e)
         else:
             tasks.append(
-                asyncio.create_task(_publish_simulated_streams(world, bus, sim_feed_path))
+                asyncio.create_task(
+                    _publish_simulated_streams(world, bus, sim_feed_path)
+                )
             )
-            logger.info("simulated viewport feed advertised for all units: %s", sim_feed_path)
+            logger.info(
+                "simulated viewport feed advertised for all units: %s",
+                sim_feed_path,
+            )
 
     logger.info("SWARM OS sim running with %d drones — Ctrl+C to stop", n_drones)
     await stop.wait()

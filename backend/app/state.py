@@ -1,13 +1,9 @@
 """In-process state holder for the backend.
 
-The backend's job in commit 1 is small but real:
-  - subscribe to the SWARM OS bus,
-  - keep an authoritative-enough recent snapshot of fleet + anomalies + events,
-  - expose REST + WebSocket so the frontend can render.
-
-The DB layer is bootstrapped in `db/` but commit 1 keeps the hot path in-memory
-to keep the demo zero-friction. Telemetry persistence to TimescaleDB is wired
-in a follow-up.
+The backend subscribes to the SWARM OS bus, keeps recent authoritative runtime
+snapshots, and exposes them over REST/WebSocket. Multi-agent execution-group
+composition is stored exactly as SwarmOS publishes it; the backend does not
+recompute group membership or roles.
 """
 
 from __future__ import annotations

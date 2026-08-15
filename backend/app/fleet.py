@@ -1,28 +1,10 @@
 """Vendor runner registry — picks which adapters the backend boots.
 
-Phase 5 introduces side-by-side simulator + MAVLink fleets. The `SWARM_VENDORS`
-env var is a comma-separated allowlist; for each token, this module spawns the
-corresponding runner so its telemetry / fleet-state / stream-descriptor frames
-flow onto the same bus the backend consumes.
-
-Defaults:
-  - `SWARM_VENDORS` unset            → `simulator`
-  - `SWARM_VENDORS=simulator`        → simulator only
-  - `SWARM_VENDORS=simulator,mavlink`→ both
-  - `SWARM_VENDORS=mavlink`          → MAVLink only
-
-Mission ownership is intentionally narrower than telemetry ownership. A
-MAVLink-only backend owns one bus-backed orchestrator, so anomalies can be
-auctioned against the registered real adapters and dispatched through their
-existing `execute_mission()` contract. Mixed `simulator,mavlink` mode does not
-start a second backend orchestrator because the simulator process already owns
-one; unified mixed-fleet routing remains a later explicit design step.
-
-Bounded presence response is an explicit opt-in on that same real runtime. It
-does not create another mission runner. When enabled, the fleet manager builds
-payload controllers for the already-registered MAVLink adapters and starts the
-payload-aware bus orchestrator. If no payload capability is configured, startup
-fails closed instead of advertising a response capability that cannot execute.
+Mission-level decisions remain in SwarmOS. A MAVLink-only backend owns one
+bus-backed orchestrator; simulator fleets may own their orchestrator in the
+out-of-process sim runner. Execution-group truth is projected from the shared
+bus in both cases, so REST/WebSocket surfaces render the same server-owned group
+composition regardless of vendor runtime.
 """
 
 from __future__ import annotations
@@ -131,6 +113,10 @@ class FleetManager:
     vendors: tuple[str, ...] = ()
     mission_ready_timeout_s: float = 8.0
 
+    cooperative_verify_enabled: bool = False
+    cooperative_verify_min_confidence: float = 0.90
+    cooperative_verify_team_size: int = 3
+
     presence_response_enabled: bool = False
     presence_min_confidence: float = 0.85
     presence_hold_s: float = 5.0
@@ -223,12 +209,18 @@ class FleetManager:
                 payload_registry=self.payload_registry,
                 presence_min_confidence=self.presence_min_confidence,
                 presence_hold_s=self.presence_hold_s,
+                cooperative_verify_enabled=self.cooperative_verify_enabled,
+                cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
+                cooperative_verify_team_size=self.cooperative_verify_team_size,
             )
         else:
             orchestrator = BusFleetOrchestrator(
                 bus=self.bus,
                 registry=self.registry,
                 continuous_patrol=False,
+                cooperative_verify_enabled=self.cooperative_verify_enabled,
+                cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
+                cooperative_verify_team_size=self.cooperative_verify_team_size,
             )
 
         task = asyncio.create_task(orchestrator.run())
@@ -238,9 +230,14 @@ class FleetManager:
             timeout_s=self.mission_ready_timeout_s
         )
         logger.info(
-            "fleet: mission orchestrator ready for %d MAVLink adapter(s)%s",
+            "fleet: mission orchestrator ready for %d MAVLink adapter(s)%s%s",
             len(self.registry),
             " with bounded presence response" if self.presence_response_enabled else "",
+            (
+                f" with cooperative verify team={self.cooperative_verify_team_size}"
+                if self.cooperative_verify_enabled
+                else ""
+            ),
         )
 
     async def stop(self) -> None:
@@ -273,10 +270,26 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
     """Build a FleetManager from environment configuration."""
 
     vendors = parse_vendors(os.getenv("SWARM_VENDORS"))
+    cooperative_team_size = (
+        _env_optional_int_range(
+            "SWARM_COOPERATIVE_VERIFY_TEAM_SIZE",
+            minimum=2,
+            maximum=32,
+        )
+        or 3
+    )
     return FleetManager(
         bus=bus,
         registry=registry or AdapterRegistry(),
         vendors=vendors,
+        cooperative_verify_enabled=_env_flag("SWARM_COOPERATIVE_VERIFY"),
+        cooperative_verify_min_confidence=_env_float(
+            "SWARM_COOPERATIVE_VERIFY_MIN_CONFIDENCE",
+            0.90,
+            minimum=0.0,
+            maximum=1.0,
+        ),
+        cooperative_verify_team_size=cooperative_team_size,
         presence_response_enabled=_env_flag("SWARM_PRESENCE_RESPONSE"),
         presence_min_confidence=_env_float(
             "SWARM_PRESENCE_MIN_CONFIDENCE",

@@ -1,14 +1,9 @@
 """Bounded on-station response for the real bus-backed fleet runtime.
 
-This is the payload-aware variant of ``BusFleetOrchestrator``. It preserves the
-same fleet auction and MAVLink mission execution path already validated against
-multi-PX4 SITL, and inserts a narrow policy only after a VERIFY mission has
-reached ``ON_STATION``.
-
-For the reach-aware MAVLink adapter, ``ON_STATION`` is emitted only after PX4
-reports the final ``MISSION_ITEM_REACHED``. The adapter async generator is
-paused at that yield while payload actions run, so it cannot advance to its RTL
-branch until the response completes.
+This payload-aware runtime supports both ordinary single-agent VERIFY and
+SwarmOS-owned cooperative execution groups. For a cooperative response only the
+PRIMARY_OBSERVER may execute the presence payload policy; secondary observers
+and overwatch remain observation roles. Member drones never choose that policy.
 """
 
 from __future__ import annotations
@@ -25,7 +20,7 @@ from swarm_core.messages import (
     MissionProgress,
     MissionTask,
 )
-from swarm_core.missions import VERIFY
+from swarm_core.missions import COOPERATIVE_VERIFY, VERIFY
 from swarm_core.payloads import (
     PayloadAction,
     PayloadActionKind,
@@ -42,6 +37,9 @@ from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
 
 logger = logging.getLogger("swarm.orchestrator.presence_bus")
 
+PRIMARY_PRESENCE_ROLE = "PRIMARY_OBSERVER"
+_MAX_GROUP_ANOMALY_HISTORY = 500
+
 
 @dataclass
 class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
@@ -54,10 +52,11 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
     presence_hold_s: float = 5.0
     presence_message: PayloadMessage = PayloadMessage.RESTRICTED_AREA
     _mission_anomalies: dict[str, Anomaly] = field(default_factory=dict)
+    _anomalies_by_id: dict[str, Anomaly] = field(default_factory=dict)
     _presence_started: set[str] = field(default_factory=set)
 
     async def _anomaly_loop(self) -> None:
-        """Open the normal VERIFY auction while retaining anomaly provenance."""
+        """Choose single or cooperative verification while retaining provenance."""
 
         async for _topic, payload in self.bus.subscribe("swarm:anomalies"):
             try:
@@ -72,6 +71,18 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                 anomaly.geo.lat,
                 anomaly.geo.lon,
             )
+            self._remember_anomaly(anomaly)
+
+            if self._should_cooperative_verify(anomaly):
+                parent = COOPERATIVE_VERIFY(
+                    geo=anomaly.geo,
+                    team_size=self.cooperative_verify_team_size,
+                    hover_s=self.cooperative_verify_hover_s,
+                    priority=80 + int(anomaly.confidence * 20),
+                )
+                await self.dispatch_execution_group(parent, anomaly_id=anomaly.id)
+                continue
+
             mission = VERIFY(
                 geo=anomaly.geo,
                 hover_s=self.verify_hover_s,
@@ -82,6 +93,28 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
             if mission.assigned_agent is None:
                 self._mission_anomalies.pop(mission.id, None)
 
+    def _remember_anomaly(self, anomaly: Anomaly) -> None:
+        self._anomalies_by_id[anomaly.id] = anomaly
+        while len(self._anomalies_by_id) > _MAX_GROUP_ANOMALY_HISTORY:
+            oldest = next(iter(self._anomalies_by_id))
+            self._anomalies_by_id.pop(oldest, None)
+
+    def _anomaly_for_mission(self, mission: MissionTask) -> Anomaly | None:
+        direct = self._mission_anomalies.get(mission.id)
+        if direct is not None:
+            return direct
+        group_id = mission.params.get("execution_group_id")
+        if not isinstance(group_id, str):
+            return None
+        group = self.execution_groups.get(group_id)
+        if group is None or group.anomaly_id is None:
+            return None
+        return self._anomalies_by_id.get(group.anomaly_id)
+
+    def _mission_may_execute_presence_payload(self, mission: MissionTask) -> bool:
+        role = self.group_role_for_mission(mission.id)
+        return role is None or role == PRIMARY_PRESENCE_ROLE
+
     async def _run_mission(
         self,
         agent_id: str,
@@ -90,13 +123,15 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
         *,
         is_verify: bool,
     ) -> None:
-        """Publish normal progress and pause at verified ON_STATION for payload."""
+        """Publish progress and pause verified primary role for payload."""
 
+        terminal_seen = False
         try:
             async for progress in adapter.execute_mission(mission):  # type: ignore[attr-defined]
                 if not is_verify:
                     continue
 
+                progress = self._enrich_group_progress(progress, agent_id)
                 await self.bus.publish(
                     f"swarm:missions:progress:{mission.id}",
                     progress.model_dump_json(),
@@ -110,16 +145,39 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                 if (
                     progress.phase == "ON_STATION"
                     and mission.id not in self._presence_started
+                    and self._mission_may_execute_presence_payload(mission)
                 ):
                     self._presence_started.add(mission.id)
                     await self._maybe_presence_response(agent_id, mission)
 
                 if progress.phase in ("DONE", "FAILED"):
+                    terminal_seen = True
                     return
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             logger.exception("mission %s failed: %s", mission.id, exc)
+            if (
+                is_verify
+                and mission.id in self._group_task_to_role
+                and not terminal_seen
+            ):
+                failure = MissionProgress(
+                    mission_id=mission.id,
+                    phase="FAILED",
+                    progress_pct=0.0,
+                    error=f"{type(exc).__name__}: {exc}"[:240],
+                )
+                failure = self._enrich_group_progress(failure, agent_id)
+                await self.bus.publish(
+                    f"swarm:missions:progress:{mission.id}",
+                    failure.model_dump_json(),
+                )
+                await self._publish_runtime_event(
+                    agent_id=agent_id,
+                    adapter=adapter,
+                    progress=failure,
+                )
         finally:
             self._busy.discard(agent_id)
             self._verifying.discard(agent_id)
@@ -158,8 +216,10 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
         )
         await self.bus.publish("swarm:missions:runtime", event.model_dump_json())
 
-    async def _maybe_presence_response(self, agent_id: str, mission: MissionTask) -> None:
-        anomaly = self._mission_anomalies.get(mission.id)
+    async def _maybe_presence_response(
+        self, agent_id: str, mission: MissionTask
+    ) -> None:
+        anomaly = self._anomaly_for_mission(mission)
         if anomaly is None:
             return
         if anomaly.kind is not AnomalyKind.INTRUSION:

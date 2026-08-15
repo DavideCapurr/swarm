@@ -150,10 +150,64 @@ const units = [
   },
 ];
 
+const executionGroup = {
+  id: "group-one",
+  objective_mission_id: "objective-one",
+  objective_kind: "COOPERATIVE_VERIFY",
+  anomaly_id: "anomaly-one",
+  requested_members: 3,
+  state: "DEGRADED" as const,
+  failure_reason: null,
+  ts: "2026-08-15T12:00:10Z",
+  members: [
+    {
+      agent_id: "mav-001",
+      role: "PRIMARY_OBSERVER",
+      mission_id: "group-mission-primary",
+      state: "ACTIVE" as const,
+      score: 2.812,
+      score_breakdown: {},
+      replaces_agent_id: null,
+      ts: "2026-08-15T12:00:02Z",
+    },
+    {
+      agent_id: "mav-002",
+      role: "SECONDARY_OBSERVER",
+      mission_id: "group-mission-secondary-old",
+      state: "REPLACED" as const,
+      score: 2.641,
+      score_breakdown: {},
+      replaces_agent_id: null,
+      ts: "2026-08-15T12:00:02Z",
+    },
+    {
+      agent_id: "mav-004",
+      role: "SECONDARY_OBSERVER",
+      mission_id: "group-mission-secondary-new",
+      state: "ASSIGNED" as const,
+      score: 2.432,
+      score_breakdown: {},
+      replaces_agent_id: "mav-002",
+      ts: "2026-08-15T12:00:10Z",
+    },
+    {
+      agent_id: "mav-003",
+      role: "OVERWATCH",
+      mission_id: "group-mission-overwatch",
+      state: "ACTIVE" as const,
+      score: 2.301,
+      score_breakdown: {},
+      replaces_agent_id: null,
+      ts: "2026-08-15T12:00:02Z",
+    },
+  ],
+};
+
 function liveState() {
   return {
     allocations: [decisionOne, decisionTwo],
     anomalies,
+    executionGroups: [],
     missionRuntime: [
       {
         id: "runtime-one",
@@ -218,6 +272,7 @@ describe("IntrusionResponseDemo", () => {
     mockUseSwarm.mockReturnValue({
       allocations: [],
       anomalies: [],
+      executionGroups: [],
       missionRuntime: [],
       payloadEvents: [],
       units: [],
@@ -272,5 +327,39 @@ describe("IntrusionResponseDemo", () => {
     expect(screen.getByText("PX4 OUTPUT CONFIRMED")).toBeInTheDocument();
     expect(screen.getByText("SPEAKER ACTIVE")).toBeInTheDocument();
     expect(screen.getByText("SIMULATED")).toBeInTheDocument();
+  });
+
+  it("renders SwarmOS-owned roles and replacement provenance", () => {
+    mockUseSwarm.mockReturnValue({
+      ...liveState(),
+      allocations: [],
+      executionGroups: [executionGroup],
+      missionRuntime: [
+        {
+          id: "runtime-primary",
+          mission_id: "group-mission-primary",
+          agent_id: "mav-001",
+          phase: "ON_STATION",
+          progress_pct: 90,
+          evidence: "mavlink_mission_item_reached" as const,
+          error: null,
+          ts: "2026-08-15T12:00:11Z",
+        },
+      ],
+      payloadEvents: [],
+    });
+
+    render(<IntrusionResponseDemo />);
+
+    expect(screen.getByText("SWARM EXECUTION GROUP")).toBeInTheDocument();
+    expect(screen.getByText("COOPERATIVE VERIFY")).toBeInTheDocument();
+    expect(screen.getByText("PRIMARY OBSERVER")).toBeInTheDocument();
+    expect(screen.getAllByText("SECONDARY OBSERVER").length).toBe(2);
+    expect(screen.getByText("OVERWATCH")).toBeInTheDocument();
+    expect(screen.getByText("2.812")).toBeInTheDocument();
+    expect(screen.getByText(/replaces mav-002/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Physical agents do not choose peers or roles/i)
+    ).toBeInTheDocument();
   });
 });

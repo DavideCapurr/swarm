@@ -1,0 +1,81 @@
+"""SwarmOS-owned multi-agent execution-group truth.
+
+An execution group is a logical coordination object, never an autonomous
+sub-swarm. SwarmOS creates it, selects every member, assigns every role, and
+replaces members when required. Physical agents only receive their own child
+``MissionTask`` and never gain authority over peers.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from enum import Enum
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _new_id() -> str:
+    return uuid4().hex
+
+
+_STRICT = ConfigDict(extra="forbid")
+
+
+class ExecutionGroupState(str, Enum):
+    FORMING = "FORMING"
+    ACTIVE = "ACTIVE"
+    DEGRADED = "DEGRADED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class ExecutionGroupMemberState(str, Enum):
+    ASSIGNED = "ASSIGNED"
+    ACTIVE = "ACTIVE"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    REPLACED = "REPLACED"
+
+
+class ExecutionGroupMember(BaseModel):
+    """One SwarmOS-owned role assignment inside a logical group."""
+
+    model_config = _STRICT
+
+    agent_id: str
+    role: str
+    mission_id: str
+    state: ExecutionGroupMemberState = ExecutionGroupMemberState.ASSIGNED
+    score: float
+    score_breakdown: dict[str, float] = Field(default_factory=dict)
+    replaces_agent_id: str | None = None
+    ts: datetime = Field(default_factory=_now)
+
+
+class ExecutionGroup(BaseModel):
+    """Authoritative composition and lifecycle of one multi-agent objective."""
+
+    model_config = _STRICT
+
+    id: str = Field(default_factory=_new_id)
+    objective_mission_id: str
+    objective_kind: str
+    anomaly_id: str | None = None
+    requested_members: int = Field(..., ge=1)
+    members: list[ExecutionGroupMember] = Field(default_factory=list)
+    state: ExecutionGroupState = ExecutionGroupState.FORMING
+    failure_reason: str | None = None
+    ts: datetime = Field(default_factory=_now)
+
+
+__all__ = (
+    "ExecutionGroup",
+    "ExecutionGroupMember",
+    "ExecutionGroupMemberState",
+    "ExecutionGroupState",
+)

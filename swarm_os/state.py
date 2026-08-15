@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from swarm_core.allocations import AllocationDecision
+from swarm_core.execution_groups import ExecutionGroup
 from swarm_core.messages import (
     AnomalyView,
     AwarenessBreakdown,
@@ -77,6 +78,7 @@ class SwarmState:
     # Decisions are keyed by mission; runtime keeps the latest phase/evidence;
     # payload events retain their ordered action history.
     allocations: dict[str, AllocationDecision] = field(default_factory=dict)
+    execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)
     mission_runtime: dict[str, MissionRuntimeEvent] = field(default_factory=dict)
     payload_events: deque[PayloadEvent] = field(
         default_factory=lambda: deque(maxlen=500)

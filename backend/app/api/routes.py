@@ -1,21 +1,9 @@
 """REST routes — thin wrappers around the in-memory state.
 
 These endpoints feed the frontend's initial render. Live updates ride the
-WebSocket (`/ws/telemetry`).
-
-Phase 6.C: every read route now requires the ``viewer`` JWT role. The
-public surface is just ``/`` and ``/health``. The action and admin
-routers enforce ``operator`` and ``commander`` respectively.
-
-Phase 4 additions (still in place):
-  - `/events` accepts `from=&to=` for historical queries against the DB
-    (falls back to the in-memory deque when persistence is disabled).
-  - `/missions/{id}/history` returns the per-mission event timeline from DB.
-  - `/operator-commands` returns the audit log for an operator id.
-
-The `from`/`to` parameters are typed as `datetime` so FastAPI parses + rejects
-malformed input before it reaches the DB — a free SQL injection guard on top
-of SQLAlchemy's parameterized queries.
+WebSocket (`/ws/telemetry`). Read routes require the viewer JWT role.
+Execution-group membership/roles are returned exactly as SwarmOS published
+them; this layer never recomputes a group.
 """
 
 from __future__ import annotations
@@ -33,12 +21,7 @@ from backend.app.state import STATE
 from swarm_os import SWARM_STATE
 
 router = APIRouter()
-# A second router for the few endpoints that must stay unauthenticated:
-# `/` (service identity) and `/health` (liveness probe for orchestrators).
 public_router = APIRouter()
-
-
-# ── Public (no auth) ──────────────────────────────────────────────────────────
 
 
 @public_router.get("/health")
@@ -52,11 +35,9 @@ async def health() -> dict[str, Any]:
         "telemetry_agents": list(STATE.last_telemetry.keys()),
         "swarmos_units": len(SWARM_STATE.units),
         "swarmos_mode": SWARM_STATE.mode.value,
+        "execution_groups": len(SWARM_STATE.execution_groups),
         "persistence": get_repository().enabled,
     }
-
-
-# ── Viewer (authenticated reads) ──────────────────────────────────────────────
 
 
 _VIEWER = Annotated[Principal, Depends(require_viewer)]
@@ -98,6 +79,12 @@ async def allocations(_: _VIEWER) -> dict[str, Any]:
     return {"allocations": [d.model_dump(mode="json") for d in ordered]}
 
 
+@router.get("/execution-groups")
+async def execution_groups(_: _VIEWER) -> dict[str, Any]:
+    ordered = sorted(SWARM_STATE.execution_groups.values(), key=lambda group: group.ts)
+    return {"execution_groups": [group.model_dump(mode="json") for group in ordered]}
+
+
 @router.get("/mission-runtime")
 async def mission_runtime(_: _VIEWER) -> dict[str, Any]:
     ordered = sorted(SWARM_STATE.mission_runtime.values(), key=lambda e: e.ts)
@@ -118,9 +105,7 @@ async def mission_history(
     _: _VIEWER,
     limit: int = Query(200, ge=1, le=500),
 ) -> dict[str, Any]:
-    """Per-mission event timeline. Phase 4: DB-backed."""
     if not get_repository().enabled:
-        # In-memory fallback — filter the deque by mission_id.
         in_mem = [
             e.model_dump(mode="json")
             for e in list(SWARM_STATE.events)
@@ -151,9 +136,6 @@ async def operator_commands(
     operator_id: str | None = Query(default=None, max_length=64),
     limit: int = Query(100, ge=1, le=500),
 ) -> dict[str, Any]:
-    """Audit log query — Phase 4. Backed by DB when persistence is enabled."""
-    # Reject malformed operator_id (same regex as the action endpoints) so the
-    # audit query surface matches the write surface.
     if operator_id is not None:
         from backend.app.security import is_valid_operator_id
 
@@ -213,12 +195,6 @@ async def events(
     from_: datetime | None = Query(default=None, alias="from"),
     to: datetime | None = Query(default=None),
 ) -> dict[str, Any]:
-    """Event timeline. Phase 4 adds `from=&to=` for DB-backed history queries.
-
-    When `from`/`to` is supplied, or persistence is enabled and the in-memory
-    deque is empty, we read from the DB. Otherwise we serve the live deque.
-    """
-    # Hard ceiling on time range to keep query bounded.
     if from_ is not None and to is not None and to < from_:
         raise HTTPException(status_code=400, detail="invalid_time_range")
 

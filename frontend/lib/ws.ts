@@ -17,6 +17,7 @@ import type {
   AnomalyView,
   AwarenessBreakdown,
   DockState,
+  ExecutionGroup,
   MissionRuntimeEvent,
   MissionView,
   OperatorCommand,
@@ -67,6 +68,7 @@ export type WSMessage =
   | { kind: "operator"; data: OperatorCommand }
   | { kind: "stream"; data: StreamDescriptor }
   | { kind: "allocation"; data: AllocationDecision }
+  | { kind: "execution_group"; data: ExecutionGroup }
   | { kind: "mission_runtime"; data: MissionRuntimeEvent }
   | { kind: "payload"; data: PayloadEvent };
 

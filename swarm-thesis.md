@@ -178,19 +178,21 @@ The repository contains an end-to-end coordination system with:
 
 The live allocation path already computes eligibility, exclusions, scores and winner centrally in SwarmOS before dispatching the selected physical agent. Physical adapters execute the selected work and report reality back.
 
-The current runtime supports multiple physical agents and simultaneous independent missions. First-class dynamic execution groups for one logical mission are an architectural direction, not a validated runtime claim yet.
+The current runtime supports both simultaneous independent missions and first-class, SwarmOS-owned **ExecutionGroups** for one logical objective executed by multiple physical agents. SwarmOS forms the group, selects distinct members, assigns roles, creates per-agent child missions, aggregates completion, and can centrally replace a failed member without granting peer authority to the aircraft.
 
-The MAVLink/PX4 path has been validated against PX4 SITL. It has **not** yet been validated on physical aircraft in bench or field operation.
+This multi-agent path has been validated live against four independent PX4 SITL instances through the real MAVLink backend runtime: one `COOPERATIVE_VERIFY` objective was decomposed into `PRIMARY_OBSERVER`, `SECONDARY_OBSERVER`, and `OVERWATCH` child missions executed by three distinct PX4 agents while a fourth remained spare. Every selected child produced `ON_STATION` only after `MISSION_ITEM_REACHED` evidence and `DONE` with acknowledged RTL. The parent objective itself was never dispatched to a physical adapter.
+
+Live fault replacement has **not** yet been injected in that four-PX4 run; central replacement is currently validated by deterministic integration tests. The MAVLink/PX4 path remains SITL validation, not physical-aircraft bench or field proof.
 
 That distinction must remain explicit in every external claim.
 
 ---
 
-## The next proof: coordination without buying drones
+## The current proof: coordination without buying drones
 
-The next investor-readable proof does not require SWARM to purchase a fleet.
+The investor-readable coordination proof does not require SWARM to purchase a fleet. The multi-PX4 SITL path now demonstrates both dynamic reallocation across simultaneous events and one logical objective composed across multiple role-specific physical executors.
 
-The immediate technical demo should use multiple PX4 SITL vehicles and make the coordination layer, not the visual simulation, the main event.
+The recorded demo should therefore make the coordination layer, not the visual simulation, the main event.
 
 A strong demo should show:
 

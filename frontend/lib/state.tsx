@@ -28,6 +28,7 @@ import {
   type AwarenessBreakdown,
   type CommandResponse,
   type DockState,
+  type ExecutionGroup,
   type MissionRuntimeEvent,
   type MissionView,
   type OperatingMode,
@@ -71,6 +72,7 @@ export type SwarmState = {
   events: TimelineEvent[];
   commands: OperatorCommand[];
   allocations: AllocationDecision[];
+  executionGroups: ExecutionGroup[];
   missionRuntime: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
   // Phase 5: stream descriptors per agent_id. `null` ≡ no descriptor yet
@@ -128,6 +130,7 @@ export function SwarmStateProvider({
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [commands, setCommands] = useState<OperatorCommand[]>([]);
   const [allocations, setAllocations] = useState<AllocationDecision[]>([]);
+  const [executionGroups, setExecutionGroups] = useState<ExecutionGroup[]>([]);
   const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);
   const [payloadEvents, setPayloadEvents] = useState<PayloadEvent[]>([]);
   const [streams, setStreams] = useState<Record<string, StreamDescriptor>>({});
@@ -144,7 +147,7 @@ export function SwarmStateProvider({
     let cancelled = false;
     (async () => {
       try {
-        const [s, aw, dk, sc, un, ms, an, ev, cm, al, mr, pe] = await Promise.all([
+        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, mr, pe] = await Promise.all([
           api.session(),
           api.awareness(),
           api.docks(),
@@ -155,6 +158,7 @@ export function SwarmStateProvider({
           api.events(50),
           api.commands(50),
           api.allocations(),
+          api.executionGroups(),
           api.missionRuntime(),
           api.payloadEvents(200),
         ]);
@@ -169,6 +173,7 @@ export function SwarmStateProvider({
         setEvents(ev.events);
         setCommands(cm.commands);
         setAllocations(al.allocations);
+        setExecutionGroups(eg.execution_groups);
         setMissionRuntime(mr.mission_runtime);
         setPayloadEvents(pe.payload_events);
       } catch {
@@ -194,6 +199,7 @@ export function SwarmStateProvider({
     setEvents([]);
     setCommands([]);
     setAllocations([]);
+    setExecutionGroups([]);
     setMissionRuntime([]);
     setPayloadEvents([]);
     setStreams({});
@@ -265,6 +271,9 @@ export function SwarmStateProvider({
         case "allocation":
           setAllocations((prev) => upsertById(prev, msg.data, "mission_id"));
           return;
+        case "execution_group":
+          setExecutionGroups((prev) => upsertById(prev, msg.data, "id"));
+          return;
         case "mission_runtime":
           setMissionRuntime((prev) => upsertById(prev, msg.data, "mission_id"));
           return;
@@ -332,6 +341,7 @@ export function SwarmStateProvider({
       events,
       commands,
       allocations,
+      executionGroups,
       missionRuntime,
       payloadEvents,
       streams,
@@ -356,6 +366,7 @@ export function SwarmStateProvider({
       events,
       commands,
       allocations,
+      executionGroups,
       missionRuntime,
       payloadEvents,
       streams,
