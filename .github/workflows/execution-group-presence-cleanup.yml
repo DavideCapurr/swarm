@@ -1,0 +1,36 @@
+name: execution-group-presence-cleanup
+
+on:
+  push:
+    branches: ["agent/execution-groups"]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.event.head_commit.message == 'Normalize cooperative presence progress enrichment'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: agent/execution-groups
+      - name: Collapse repeated enrichment and self-delete
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("orchestrator/swarm_orchestrator/presence_bus.py")
+          text = path.read_text(encoding="utf-8")
+          line = "                progress = self._enrich_group_progress(progress, agent_id)\n"
+          while line * 2 in text:
+              text = text.replace(line * 2, line)
+          path.write_text(text, encoding="utf-8")
+          Path(".github/workflows/execution-group-presence-cleanup.yml").unlink()
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Normalize cooperative presence progress"
+          git push origin HEAD:agent/execution-groups
