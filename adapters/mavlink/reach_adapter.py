@@ -31,6 +31,7 @@ from pymavlink import mavutil
 from swarm_core.geometry import haversine_m
 from swarm_core.messages import MissionProgress, MissionTask, Waypoint
 from swarm_core.missions import MissionKind, mission_waypoints
+from swarm_core.runtime_events import MissionRuntimeEvidence
 
 from adapters.mavlink.adapter import (
     CRUISE_SPEED_FRACTION,
@@ -47,6 +48,23 @@ class ReachAwareMAVLinkAdapter(MAVLinkAdapter):
     """MAVLink adapter that requires ``MISSION_ITEM_REACHED`` for completion."""
 
     _mission_reached: int = -1
+
+    def runtime_evidence_for_phase(
+        self, phase: str
+    ) -> MissionRuntimeEvidence | None:
+        """Return only evidence this adapter has actually established.
+
+        ``ON_STATION`` is yielded below only after the final
+        ``MISSION_ITEM_REACHED`` frame. ``DONE`` is yielded only after the RTL
+        COMMAND_LONG receives an accepted COMMAND_ACK. Other phases make no
+        stronger claim.
+        """
+
+        if phase == "ON_STATION":
+            return MissionRuntimeEvidence.MAVLINK_MISSION_ITEM_REACHED
+        if phase == "DONE":
+            return MissionRuntimeEvidence.MAVLINK_RTL_COMMAND_ACKNOWLEDGED
+        return None
 
     def _dispatch(self, msg: object) -> None:
         get_type = getattr(msg, "get_type", None)

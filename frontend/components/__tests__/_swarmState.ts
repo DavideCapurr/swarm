@@ -7,11 +7,14 @@
  */
 
 import type {
+  AllocationDecision,
   AnomalyView,
   AwarenessBreakdown,
   DockState,
+  MissionRuntimeEvent,
   MissionView,
   OperatorCommand,
+  PayloadEvent,
   Sector,
   Session,
   StreamDescriptor,
@@ -51,6 +54,9 @@ export function makeSwarmState(overrides: Partial<SwarmState> = {}): SwarmState 
     anomalies: overrides.anomalies ?? ([] as AnomalyView[]),
     events: overrides.events ?? ([] as TimelineEvent[]),
     commands: overrides.commands ?? ([] as OperatorCommand[]),
+    allocations: overrides.allocations ?? ([] as AllocationDecision[]),
+    missionRuntime: overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
+    payloadEvents: overrides.payloadEvents ?? ([] as PayloadEvent[]),
     streams: overrides.streams ?? ({} as Record<string, StreamDescriptor>),
     awareness: overrides.awareness ?? DEFAULT_AWARENESS,
     link: overrides.link ?? "connected",

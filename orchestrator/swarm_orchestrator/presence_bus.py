@@ -17,15 +17,25 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 
-from swarm_core.messages import Anomaly, AnomalyKind, Event, EventKind, MissionTask
+from swarm_core.messages import (
+    Anomaly,
+    AnomalyKind,
+    Event,
+    EventKind,
+    MissionProgress,
+    MissionTask,
+)
 from swarm_core.missions import VERIFY
 from swarm_core.payloads import (
     PayloadAction,
     PayloadActionKind,
     PayloadActionResult,
+    PayloadActionStatus,
+    PayloadEvent,
     PayloadExecutionMode,
     PayloadMessage,
 )
+from swarm_core.runtime_events import MissionRuntimeEvent
 
 from adapters.payload import PayloadController, PayloadControllerRegistry
 from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
@@ -68,7 +78,7 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                 priority=80 + int(anomaly.confidence * 20),
             )
             self._mission_anomalies[mission.id] = anomaly
-            await self._auction_and_dispatch(mission)
+            await self._auction_and_dispatch(mission, anomaly_id=anomaly.id)
             if mission.assigned_agent is None:
                 self._mission_anomalies.pop(mission.id, None)
 
@@ -91,6 +101,11 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                     f"swarm:missions:progress:{mission.id}",
                     progress.model_dump_json(),
                 )
+                await self._publish_runtime_event(
+                    agent_id=agent_id,
+                    adapter=adapter,
+                    progress=progress,
+                )
 
                 if (
                     progress.phase == "ON_STATION"
@@ -112,6 +127,36 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
             self._presence_started.discard(mission.id)
             if self._agent_tasks.get(agent_id) is asyncio.current_task():
                 self._agent_tasks.pop(agent_id, None)
+                self._agent_mission_ids.pop(agent_id, None)
+
+    async def _publish_runtime_event(
+        self,
+        *,
+        agent_id: str,
+        adapter: object,
+        progress: MissionProgress,
+    ) -> None:
+        evidence = None
+        evidence_for_phase = getattr(adapter, "runtime_evidence_for_phase", None)
+        if callable(evidence_for_phase):
+            try:
+                evidence = evidence_for_phase(progress.phase)
+            except Exception:
+                logger.exception(
+                    "runtime evidence projection failed for %s %s",
+                    agent_id,
+                    progress.phase,
+                )
+        event = MissionRuntimeEvent(
+            mission_id=progress.mission_id,
+            agent_id=agent_id,
+            phase=progress.phase,
+            progress_pct=progress.progress_pct,
+            evidence=evidence,
+            error=progress.error,
+            ts=progress.ts,
+        )
+        await self.bus.publish("swarm:missions:runtime", event.model_dump_json())
 
     async def _maybe_presence_response(self, agent_id: str, mission: MissionTask) -> None:
         anomaly = self._mission_anomalies.get(mission.id)
@@ -185,12 +230,24 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
             return
         try:
             result = await controller.execute(action)
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "payload action %s failed for %s",
                 action.kind.value,
                 action.agent_id,
             )
+            failed = PayloadEvent(
+                mission_id=mission.id,
+                anomaly_id=anomaly.id,
+                action_id=action.id,
+                agent_id=action.agent_id,
+                kind=action.kind,
+                status=PayloadActionStatus.FAILED,
+                execution_mode=None,
+                message=action.message,
+                error_code=type(exc).__name__,
+            )
+            await self.bus.publish("swarm:payload:events", failed.model_dump_json())
             await self._publish_payload_event(
                 mission=mission,
                 anomaly=anomaly,
@@ -207,6 +264,22 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
         anomaly: Anomaly,
         result: PayloadActionResult,
     ) -> None:
+        structured = PayloadEvent(
+            mission_id=mission.id,
+            anomaly_id=anomaly.id,
+            action_id=result.action_id,
+            agent_id=result.agent_id,
+            kind=result.kind,
+            status=result.status,
+            execution_mode=result.execution_mode,
+            light_on=result.light_on,
+            speaker_active=result.speaker_active,
+            message=result.message,
+            error_code=result.error_code,
+            ts=result.ts,
+        )
+        await self.bus.publish("swarm:payload:events", structured.model_dump_json())
+
         mode = {
             PayloadExecutionMode.MAVLINK_ACK: "MAVLink ACK",
             PayloadExecutionMode.MAVLINK_OUTPUT_CONFIRMED: "PX4 OUTPUT CONFIRMED",

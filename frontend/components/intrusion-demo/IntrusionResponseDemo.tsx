@@ -1,295 +1,241 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import type { AgentState, UnitState } from "@/lib/api";
+import type {
+  AllocationDecision,
+  AllocationEligibleUnit,
+  AllocationExcludedUnit,
+  AnomalyView,
+  MissionRuntimeEvent,
+  PayloadEvent,
+} from "@/lib/api";
 import { useSwarm } from "@/lib/state";
 
-const DEMO_DURATION_MS = 22_000;
+const CCTV_VIDEO = "/sim-feed/intrusion-pov.mp4";
+const DRONE_VIDEO = "/sim-feed/drone-pov.mp4";
 
-const STAGES = [
-  { at: 0, label: "Watching" },
-  { at: 1_700, label: "Person detected" },
-  { at: 3_600, label: "Fleet allocated" },
-  { at: 6_000, label: "Drone dispatched" },
-  { at: 8_700, label: "Support notified" },
-  { at: 11_800, label: "Visual verified" },
-  { at: 14_400, label: "Presence response" },
-  { at: 18_000, label: "Tracking" },
-] as const;
+function shortId(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value.length <= 10 ? value : `${value.slice(0, 8)}…`;
+}
 
-type StageIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+function clock(ts: string | null | undefined): string {
+  if (!ts) return "—";
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
 
-type ActionStatus = "pending" | "queued" | "active" | "done";
+function score(value: number | null | undefined): string {
+  return value == null ? "—" : value.toFixed(3);
+}
 
-type ResponseAction = {
-  id: string;
-  label: string;
-  detail: string;
-  status: ActionStatus;
-  simulated?: boolean;
-};
+function phaseLabel(phase: string | null | undefined): string {
+  if (!phase) return "AWAITING RUNTIME";
+  return phase.replaceAll("_", " ").toUpperCase();
+}
 
-const FALLBACK_UNITS: UnitState[] = [
-  {
-    agent_id: "mav-002",
-    vendor: "mavlink",
-    model: "PX4 iris SITL",
-    fsm_state: "EN_ROUTE",
-    battery_pct: 78,
-    geo: { lat: 47.398, lon: 8.546, alt_m: 40 },
-    current_mission_id: "5915bd56",
-    current_sector_id: "C7",
-    link_quality: 0.97,
-    heading_deg: 32,
-    altitude_agl_m: 40,
-    dock_id: null,
-    ts: "2026-08-15T10:07:25.000Z",
-  },
-  {
-    agent_id: "mav-001",
-    vendor: "mavlink",
-    model: "PX4 iris SITL",
-    fsm_state: "DOCKED",
-    battery_pct: 92,
-    geo: { lat: 47.3977, lon: 8.5457, alt_m: 0 },
-    current_mission_id: null,
-    current_sector_id: "B3",
-    link_quality: 0.99,
-    heading_deg: 0,
-    altitude_agl_m: 0,
-    dock_id: null,
-    ts: "2026-08-15T10:07:25.000Z",
-  },
-];
-
-function stageForElapsed(elapsed: number): StageIndex {
-  let index: StageIndex = 0;
-  for (let i = 0; i < STAGES.length; i += 1) {
-    if (elapsed >= STAGES[i].at) index = i as StageIndex;
+function evidenceLabel(event: MissionRuntimeEvent | undefined): string | null {
+  if (!event?.evidence) return null;
+  if (event.evidence === "mavlink_mission_item_reached") {
+    return "MISSION_ITEM_REACHED";
   }
-  return index;
-}
-
-function statusTone(status: ActionStatus): string {
-  if (status === "done") return "text-signal-green";
-  if (status === "active") return "text-orbital-blue";
-  if (status === "queued") return "text-launch-amber";
-  return "text-ash";
-}
-
-function stateTone(state: AgentState): string {
-  if (state === "EN_ROUTE" || state === "ON_STATION") return "text-signal-green";
-  if (state === "TAKEOFF" || state === "RTL") return "text-orbital-blue";
-  if (state === "ERROR") return "text-launch-amber";
-  return "text-muted-silver";
-}
-
-function compactState(state: AgentState): string {
-  return state.replaceAll("_", " ");
-}
-
-function Icon({ name }: { name: "camera" | "drone" | "phone" | "light" | "speaker" | "track" }) {
-  const common = "h-4 w-4";
-  switch (name) {
-    case "camera":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <path d="M4 7.5h4l1.4-2h5.2l1.4 2h4v10H4z" />
-          <circle cx="12" cy="12.5" r="3.1" />
-        </svg>
-      );
-    case "drone":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <path d="M8 12h8M12 8v8M6.5 9.5l-2-2M17.5 9.5l2-2M6.5 14.5l-2 2M17.5 14.5l2 2" />
-          <circle cx="12" cy="12" r="2.5" />
-          <circle cx="3.5" cy="6.5" r="1.5" />
-          <circle cx="20.5" cy="6.5" r="1.5" />
-          <circle cx="3.5" cy="17.5" r="1.5" />
-          <circle cx="20.5" cy="17.5" r="1.5" />
-        </svg>
-      );
-    case "phone":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <path d="M7.2 4.5 9.5 8 8 10c1.2 2.4 3 4.2 5.5 5.5l2-1.5 3.5 2.3-.8 3.2c-.2.7-.8 1.1-1.5 1-7-.8-12.4-6.2-13.2-13.2-.1-.7.3-1.3 1-1.5z" />
-        </svg>
-      );
-    case "light":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <circle cx="12" cy="10" r="4" />
-          <path d="M9.5 15.5h5M10 18h4M12 2v2M4.9 4.9l1.4 1.4M19.1 4.9l-1.4 1.4M3 10h2M19 10h2" />
-        </svg>
-      );
-    case "speaker":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <path d="M5 10h3l4-3v10l-4-3H5zM15.5 9.2c1.7 1.5 1.7 4.1 0 5.6M18 7c3 2.8 3 7.2 0 10" />
-        </svg>
-      );
-    case "track":
-      return (
-        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-        </svg>
-      );
+  if (event.evidence === "mavlink_rtl_command_acknowledged") {
+    return "RTL COMMAND ACKNOWLEDGED";
   }
+  return null;
 }
 
-function PanelHeader({
-  eyebrow,
-  title,
-  meta,
-}: {
-  eyebrow: string;
-  title: string;
-  meta?: React.ReactNode;
-}) {
+function payloadMode(event: PayloadEvent): string {
+  if (event.execution_mode === "mavlink_output_confirmed") {
+    return "PX4 OUTPUT CONFIRMED";
+  }
+  if (event.execution_mode === "mavlink_ack") return "MAVLINK ACK";
+  if (event.execution_mode === "simulated") return "SIMULATED";
+  return event.status.toUpperCase();
+}
+
+function payloadAction(event: PayloadEvent): string {
+  const labels: Record<PayloadEvent["kind"], string> = {
+    light_on: "LIGHT ON",
+    light_off: "LIGHT OFF",
+    play_message: "SPEAKER ACTIVE",
+    stop_message: "SPEAKER STOPPED",
+  };
+  return labels[event.kind];
+}
+
+function anomalyFor(
+  decision: AllocationDecision | undefined,
+  anomalies: Map<string, AnomalyView>
+): AnomalyView | undefined {
+  if (!decision?.anomaly_id) return undefined;
+  return anomalies.get(decision.anomaly_id);
+}
+
+function selectDemoDecisions(
+  allocations: AllocationDecision[],
+  anomalies: Map<string, AnomalyView>
+): AllocationDecision[] {
+  const ordered = allocations
+    .filter((decision) => decision.mission_kind === "VERIFY")
+    .slice()
+    .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+
+  if (ordered.length <= 2) return ordered;
+
+  // Prefer the most recent intrusion that has a following allocation so the
+  // two-event story remains visible after a longer bench session. This chooses
+  // which server frames to show; it never recomputes an allocation decision.
+  for (let index = ordered.length - 2; index >= 0; index -= 1) {
+    const anomaly = anomalyFor(ordered[index], anomalies);
+    if (anomaly?.kind === "INTRUSION") {
+      return [ordered[index], ordered[index + 1]];
+    }
+  }
+
+  return ordered.slice(-2);
+}
+
+function EligibleRow({ unit }: { unit: AllocationEligibleUnit }) {
+  const reason = unit.score_breakdown;
   return (
-    <div className="flex min-h-14 items-center justify-between gap-4 border-b border-gunmetal px-4">
-      <div className="min-w-0">
-        <div className="eyebrow-mono">{eyebrow}</div>
-        <div className="mt-1 truncate font-display text-ui text-platinum">{title}</div>
+    <div className="grid grid-cols-[minmax(90px,0.8fr)_90px_74px_minmax(0,1.7fr)] items-center gap-3 border-t border-white/10 py-3 text-[11px]">
+      <div className="font-mono text-paper">{unit.agent_id}</div>
+      <div className="font-mono text-status-online">ELIGIBLE</div>
+      <div className="font-mono tabular-nums text-paper">{score(unit.score)}</div>
+      <div className="min-w-0 font-mono text-text-muted">
+        {Math.round(reason.distance_m)}m · batt {reason.battery_pct.toFixed(0)}% · dist +
+        {reason.distance_score.toFixed(2)} · batt +{reason.battery_score.toFixed(2)} · priority +
+        {reason.priority_score.toFixed(2)}
       </div>
-      {meta}
     </div>
   );
 }
 
-function DemoStamp({ children = "SIMULATED STOCK FOOTAGE" }: { children?: React.ReactNode }) {
-  return (
-    <div className="absolute left-3 top-3 z-30 border border-platinum/25 bg-absolute-black/85 px-2 py-1 font-mono text-[9px] tracking-[0.18em] text-platinum">
-      {children}
-    </div>
-  );
-}
-
-function Scanlines() {
+function ExcludedRow({ unit }: { unit: AllocationExcludedUnit }) {
   return (
     <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 z-10 opacity-20"
-      style={{
-        backgroundImage:
-          "repeating-linear-gradient(to bottom, rgba(238,240,243,.08) 0px, rgba(238,240,243,.08) 1px, transparent 1px, transparent 4px)",
-      }}
-    />
+      data-testid={`excluded-${unit.agent_id}`}
+      className="grid grid-cols-[minmax(90px,0.8fr)_90px_74px_minmax(0,1.7fr)] items-center gap-3 border-t border-white/10 py-3 text-[11px]"
+    >
+      <div className="font-mono text-paper">{unit.agent_id}</div>
+      <div className="font-mono text-status-caution">EXCLUDED</div>
+      <div className="font-mono text-text-muted">—</div>
+      <div className="font-mono text-text-muted">
+        {unit.reason}
+        {unit.active_mission_id ? ` · mission ${shortId(unit.active_mission_id)}` : ""}
+      </div>
+    </div>
   );
 }
 
-function CameraFeed({ active }: { active: boolean }) {
-  return (
-    <section className="card min-h-0 overflow-hidden">
-      <PanelHeader
-        eyebrow="Detection source"
-        title="CAM-04 · North perimeter"
-        meta={
-          <div className="flex items-center gap-2 font-mono text-[10px] text-signal-green">
-            <span className="dot dot-operational" /> LIVE DEMO
-          </div>
-        }
-      />
-      <div className="relative aspect-[16/10] overflow-hidden bg-black">
-        <video
-          className="h-full w-full object-cover grayscale contrast-125 brightness-[0.58]"
-          src="/sim-feed/intrusion-pov.mp4"
-          autoPlay
-          muted
-          loop
-          playsInline
-          aria-label="Simulated stock security camera footage"
-        />
-        <Scanlines />
-        <DemoStamp />
-        <div className="absolute right-3 top-3 z-30 text-right font-mono text-[10px] leading-4 text-platinum/75">
-          <div>2026-08-15 23:47:18</div>
-          <div>CAM-04 · 12 FPS</div>
-        </div>
-        <div className="absolute bottom-3 left-3 z-30 flex gap-3 font-mono text-[9px] tracking-[0.12em] text-muted-silver">
-          <span>ZONE C7</span>
-          <span>MOTION · ARMED</span>
-        </div>
+function AllocationPanel({ decision }: { decision: AllocationDecision | undefined }) {
+  if (!decision) {
+    return (
+      <section className="border-y border-white/10 py-5">
+        <div className="eyebrow-mono text-text-muted">ALLOCATION DECISION</div>
+        <div className="mt-5 font-editorial text-2xl text-paper">Waiting for allocator frame.</div>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-text-muted">
+          No candidate, score, exclusion or winner is rendered until the orchestrator publishes it.
+        </p>
+      </section>
+    );
+  }
 
-        <div
-          className={`absolute z-20 border transition-all duration-500 ${
-            active
-              ? "left-[56%] top-[43%] h-[39%] w-[13%] border-launch-amber opacity-100"
-              : "left-[56%] top-[43%] h-[39%] w-[13%] border-transparent opacity-0"
-          }`}
-        >
-          <span className="absolute -top-6 left-0 whitespace-nowrap bg-launch-amber px-2 py-1 font-mono text-[9px] font-medium tracking-[0.12em] text-absolute-black">
-            PERSON · 0.96
+  return (
+    <section className="border-y border-white/10 py-5" aria-label="Allocation decision">
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <div className="eyebrow-mono text-orbital-blue">ALLOCATION DECISION</div>
+          <div className="mt-2 font-editorial text-2xl text-paper">
+            {decision.mode === "auction" ? "Fleet auction" : decision.mode.toUpperCase()}
+          </div>
+        </div>
+        <div className="text-right font-mono text-[10px] leading-5 text-text-muted">
+          <div>{clock(decision.ts)}</div>
+          <div>MISSION {shortId(decision.mission_id)}</div>
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-[minmax(90px,0.8fr)_90px_74px_minmax(0,1.7fr)] gap-3 pb-2 font-mono text-[9px] tracking-[0.15em] text-text-muted">
+        <span>UNIT</span>
+        <span>STATUS</span>
+        <span>SCORE</span>
+        <span>SERVER REASONS</span>
+      </div>
+      {decision.eligible_units.map((unit) => (
+        <EligibleRow key={unit.agent_id} unit={unit} />
+      ))}
+      {decision.excluded_units.map((unit) => (
+        <ExcludedRow key={unit.agent_id} unit={unit} />
+      ))}
+
+      <div className="mt-2 flex items-baseline justify-between border-t border-white/20 pt-4">
+        <span className="eyebrow-mono text-text-muted">WINNER</span>
+        <div className="text-right">
+          <span className="font-editorial text-2xl text-paper">
+            {decision.winner_agent_id ?? "NO AWARD"}
           </span>
-          <span className="absolute -left-px -top-px h-2 w-2 border-l border-t border-platinum" />
-          <span className="absolute -right-px -top-px h-2 w-2 border-r border-t border-platinum" />
-          <span className="absolute -bottom-px -left-px h-2 w-2 border-b border-l border-platinum" />
-          <span className="absolute -bottom-px -right-px h-2 w-2 border-b border-r border-platinum" />
+          {decision.winner_score != null ? (
+            <span className="ml-3 font-mono text-xs text-orbital-blue">
+              {score(decision.winner_score)}
+            </span>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
 
-function DroneFeed({ active, verified }: { active: boolean; verified: boolean }) {
+function SituationFeed({ intrusion }: { intrusion: AnomalyView | undefined }) {
   return (
-    <section className="card min-h-0 overflow-hidden">
-      <PanelHeader
-        eyebrow="Mobile verifier"
-        title="U-02 · PX4 SITL response"
-        meta={
-          <div className={`flex items-center gap-2 font-mono text-[10px] ${active ? "text-signal-green" : "text-ash"}`}>
-            <span className={`dot ${active ? "dot-operational" : "dot-rest"}`} />
-            {active ? "EN ROUTE" : "STANDBY"}
-          </div>
-        }
-      />
-      <div className="relative aspect-[16/10] overflow-hidden bg-black">
+    <section>
+      <div className="mb-3 flex items-end justify-between">
+        <div>
+          <div className="eyebrow-mono text-text-muted">PERIMETER CCTV · VISUALIZATION</div>
+          <div className="mt-1 font-editorial text-2xl text-paper">North perimeter</div>
+        </div>
+        <div className="font-mono text-[10px] text-status-caution">SIMULATED STOCK FOOTAGE</div>
+      </div>
+      <div className="relative aspect-video overflow-hidden border border-white/15 bg-black">
         <video
-          className={`h-full w-full object-cover grayscale contrast-125 transition-opacity duration-700 ${active ? "opacity-100 brightness-[0.72]" : "opacity-20 brightness-[0.35]"}`}
-          src="/sim-feed/drone-pov.mp4"
+          aria-label="Simulated perimeter CCTV"
+          className="h-full w-full object-cover opacity-80"
+          src={CCTV_VIDEO}
           autoPlay
           muted
           loop
           playsInline
-          aria-label="Simulated stock drone response footage"
         />
-        <DemoStamp>SIMULATED DRONE VIEW</DemoStamp>
-        <div className="pointer-events-none absolute inset-x-7 top-6 z-20 flex justify-between font-mono text-[9px] tracking-[0.16em] text-signal-green/80">
-          <span>W 300 330</span>
-          <span>N</span>
-          <span>030 060 E</span>
+        <div className="absolute left-4 top-4 border border-white/25 bg-black/75 px-2 py-1 font-mono text-[9px] tracking-[0.14em] text-paper">
+          CAM VISUALIZATION · 04
         </div>
-        <div className="absolute left-3 top-12 z-30 font-mono text-[9px] leading-5 text-platinum/70">
-          <div>ALT 040 M</div>
-          <div>BAT 078%</div>
-          <div>LINK 097%</div>
-          <div>HDG 032°</div>
-        </div>
-        <div className="absolute right-3 top-12 z-30 text-right font-mono text-[9px] leading-5 text-platinum/70">
-          <div>47.39800 N</div>
-          <div>008.54600 E</div>
-          <div className="text-orbital-blue">GPS · LOCK</div>
-        </div>
-
-        <div className={`absolute inset-0 z-20 transition-opacity duration-500 ${active ? "opacity-100" : "opacity-0"}`} aria-hidden="true">
-          <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 border border-signal-green/50">
-            <span className="absolute left-1/2 top-1/2 h-px w-8 -translate-x-1/2 bg-signal-green/70" />
-            <span className="absolute left-1/2 top-1/2 h-8 w-px -translate-y-1/2 bg-signal-green/70" />
-          </div>
-          <div className="absolute inset-x-0 top-1/2 h-px bg-signal-green/10" />
-          <div className="absolute inset-y-0 left-1/2 w-px bg-signal-green/10" />
-        </div>
-
-        <div className="absolute bottom-3 left-3 z-30 flex items-center gap-3">
-          <span className="pill pill-operational">U-02</span>
-          {active && <span className="font-mono text-[9px] tracking-[0.12em] text-muted-silver">MAVLINK · SITL</span>}
-        </div>
-        {verified && (
-          <div className="absolute bottom-3 right-3 z-30 border border-signal-green bg-absolute-black/85 px-2 py-1 font-mono text-[9px] tracking-[0.15em] text-signal-green">
-            VISUAL VERIFIED
+        {intrusion ? (
+          <>
+            <div className="absolute left-[48%] top-[23%] h-[54%] w-[18%] border border-status-caution" />
+            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-4 bg-black/80 px-3 py-2">
+              <div>
+                <div className="font-mono text-[10px] tracking-[0.12em] text-status-caution">
+                  INTRUSION DETECTED
+                </div>
+                <div className="mt-1 font-mono text-[10px] text-text-muted">
+                  EVENT {shortId(intrusion.id)} · SOURCE {intrusion.detected_by ?? "SWARM ANOMALY BUS"}
+                </div>
+              </div>
+              <div className="font-mono text-sm tabular-nums text-paper">
+                {(intrusion.confidence * 100).toFixed(0)}%
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-x-4 bottom-4 bg-black/80 px-3 py-2 font-mono text-[10px] text-text-muted">
+            WAITING FOR BACKEND INTRUSION EVENT
           </div>
         )}
       </div>
@@ -297,303 +243,259 @@ function DroneFeed({ active, verified }: { active: boolean; verified: boolean })
   );
 }
 
-function DecisionPanel({ stage, units }: { stage: StageIndex; units: UnitState[] }) {
-  const actions: ResponseAction[] = [
-    {
-      id: "verify",
-      label: "Verify from mobile camera",
-      detail: "Dispatch the nearest available aerial unit to C7.",
-      status: stage >= 5 ? "done" : stage >= 2 ? "active" : stage >= 1 ? "queued" : "pending",
-    },
-    {
-      id: "support",
-      label: "Notify site support",
-      detail: "Open the on-site guard desk channel. No external call is placed in demo mode.",
-      status: stage >= 5 ? "done" : stage >= 4 ? "active" : stage >= 2 ? "queued" : "pending",
-      simulated: true,
-    },
-    {
-      id: "presence",
-      label: "Establish bounded presence",
-      detail: "Hold standoff, illuminate the area and keep the subject in view.",
-      status: stage >= 7 ? "done" : stage >= 6 ? "active" : stage >= 5 ? "queued" : "pending",
-      simulated: true,
-    },
-    {
-      id: "speaker",
-      label: "Play site warning",
-      detail: "Speaker: “Restricted area. Please return to the marked exit.”",
-      status: stage >= 7 ? "done" : stage >= 6 ? "active" : stage >= 5 ? "queued" : "pending",
-      simulated: true,
-    },
-  ];
-
-  const winner = units.find((u) => u.agent_id === "mav-002") ?? units[0];
-  const reserve = units.find((u) => u.agent_id !== winner?.agent_id) ?? units[1];
-
+function DroneFeed({ runtime }: { runtime: MissionRuntimeEvent | undefined }) {
+  const proof = evidenceLabel(runtime);
   return (
-    <section className="card flex min-h-0 flex-col overflow-hidden">
-      <PanelHeader
-        eyebrow="SWARM decision"
-        title="Verify · deter · notify"
-        meta={<span className="pill pill-attention">INTRUSION</span>}
-      />
-
-      <div className="border-b border-gunmetal px-4 py-4">
-        <div className="flex items-baseline justify-between gap-4">
+    <section>
+      <div className="mb-3 flex items-end justify-between">
+        <div>
+          <div className="eyebrow-mono text-text-muted">DRONE FEED · VISUALIZATION</div>
+          <div className="mt-1 font-editorial text-2xl text-paper">
+            {runtime?.agent_id ?? "Awaiting dispatch"}
+          </div>
+        </div>
+        <div className="font-mono text-[10px] text-status-caution">SIMULATED DRONE VIEW</div>
+      </div>
+      <div className="relative aspect-video overflow-hidden border border-white/15 bg-black">
+        <video
+          aria-label="Simulated drone view"
+          className="h-full w-full object-cover opacity-75"
+          src={DRONE_VIDEO}
+          autoPlay
+          muted
+          loop
+          playsInline
+        />
+        <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-4 bg-black/80 px-3 py-2">
           <div>
-            <div className="eyebrow">Classification</div>
-            <div className="mt-1 font-display text-h3 text-platinum">Person in restricted zone</div>
+            <div className="font-mono text-[10px] tracking-[0.12em] text-paper">
+              {phaseLabel(runtime?.phase)}
+            </div>
+            <div className="mt-1 font-mono text-[10px] text-text-muted">
+              {runtime ? `MISSION ${shortId(runtime.mission_id)}` : "NO MISSION RUNTIME FRAME"}
+            </div>
           </div>
           <div className="text-right">
-            <div className="mono-num text-2xl text-launch-amber">96%</div>
-            <div className="eyebrow-mono mt-1">camera confidence</div>
+            {runtime ? (
+              <div className="font-mono text-xs tabular-nums text-paper">
+                {runtime.progress_pct.toFixed(0)}%
+              </div>
+            ) : null}
+            {proof ? (
+              <div className="mt-1 font-mono text-[9px] tracking-[0.1em] text-status-online">
+                {proof}
+              </div>
+            ) : null}
           </div>
-        </div>
-        <p className="mt-3 max-w-xl text-ui leading-5 text-muted-silver">
-          Policy keeps force bounded: verify first, notify a human support channel, then use light and speaker presence only after visual confirmation.
-        </p>
-      </div>
-
-      <div className="border-b border-gunmetal px-4 py-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="eyebrow">Fleet allocation</span>
-          <span className="font-mono text-[9px] tracking-[0.15em] text-orbital-blue">RECORDED SITL OUTCOME</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {winner && (
-            <div className={`border px-3 py-3 ${stage >= 2 ? "border-signal-green bg-signal-green/[0.035]" : "border-gunmetal"}`}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-ui text-platinum">{winner.agent_id}</span>
-                <span className="font-mono text-[9px] tracking-[0.14em] text-signal-green">{stage >= 2 ? "SELECTED" : "AVAILABLE"}</span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-[10px] text-muted-silver">
-                <span>{Math.round(winner.battery_pct)}% BAT</span>
-                <span className="text-right">{Math.round(winner.link_quality * 100)}% LINK</span>
-              </div>
-            </div>
-          )}
-          {reserve && (
-            <div className="border border-gunmetal px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-ui text-platinum">{reserve.agent_id}</span>
-                <span className={`font-mono text-[9px] tracking-[0.14em] ${stateTone(reserve.fsm_state)}`}>
-                  {compactState(reserve.fsm_state)}
-                </span>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-[10px] text-muted-silver">
-                <span>{Math.round(reserve.battery_pct)}% BAT</span>
-                <span className="text-right">RESERVE</span>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="mt-3 border-l border-orbital-blue pl-3 text-ui leading-5 text-muted-silver">
-          {stage >= 2
-            ? "Allocator committed U-02 to the verification mission. The Console is replaying the validated two-PX4 SITL path; it does not fabricate an allocation score."
-            : "Waiting for the detection gate before opening the fleet auction."}
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="eyebrow">Response plan</span>
-          <span className="font-mono text-[9px] tracking-[0.14em] text-muted-silver">BOUNDED DEMO POLICY</span>
-        </div>
-        <div className="space-y-0">
-          {actions.map((action, index) => (
-            <div key={action.id} className="grid grid-cols-[24px_1fr_auto] gap-3 border-t border-gunmetal py-3 first:border-t-0">
-              <div className={`font-mono text-[10px] ${statusTone(action.status)}`}>{String(index + 1).padStart(2, "0")}</div>
-              <div>
-                <div className="text-ui text-platinum">{action.label}</div>
-                <div className="mt-1 text-[12px] leading-5 text-muted-silver">{action.detail}</div>
-              </div>
-              <div className="text-right">
-                <div className={`font-mono text-[9px] tracking-[0.14em] uppercase ${statusTone(action.status)}`}>{action.status}</div>
-                {action.simulated && <div className="mt-1 font-mono text-[8px] tracking-[0.12em] text-ash">SIMULATED</div>}
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </section>
   );
 }
 
-function ActionStrip({ stage }: { stage: StageIndex }) {
-  const actionItems = [
-    { icon: "phone" as const, label: "Site support", state: stage >= 4 ? "CHANNEL OPEN" : "READY", tone: stage >= 4 ? "text-orbital-blue" : "text-muted-silver" },
-    { icon: "light" as const, label: "Spotlight", state: stage >= 6 ? "ON · SIM" : "ARMED", tone: stage >= 6 ? "text-launch-amber" : "text-muted-silver" },
-    { icon: "speaker" as const, label: "Speaker", state: stage >= 6 ? "PLAYING · SIM" : "READY", tone: stage >= 6 ? "text-launch-amber" : "text-muted-silver" },
-    { icon: "track" as const, label: "Track", state: stage >= 7 ? "ACTIVE" : "PENDING", tone: stage >= 7 ? "text-signal-green" : "text-muted-silver" },
-  ];
-
+function MissionLedger({
+  decisions,
+  anomalies,
+  runtimeByMission,
+}: {
+  decisions: AllocationDecision[];
+  anomalies: Map<string, AnomalyView>;
+  runtimeByMission: Map<string, MissionRuntimeEvent>;
+}) {
   return (
-    <section className="card grid grid-cols-4 divide-x divide-gunmetal overflow-hidden">
-      {actionItems.map((item) => (
-        <div key={item.label} className="flex min-w-0 items-center gap-3 px-4 py-3">
-          <div className={item.tone}><Icon name={item.icon} /></div>
-          <div className="min-w-0">
-            <div className="truncate text-ui text-platinum">{item.label}</div>
-            <div className={`mt-1 truncate font-mono text-[9px] tracking-[0.13em] ${item.tone}`}>{item.state}</div>
-          </div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function Timeline({ stage }: { stage: StageIndex }) {
-  const rows = [
-    [1, "23:47:18", "CAM-04", "Person detected · confidence 0.96"],
-    [2, "23:47:20", "SWARM", "Verification mission opened · U-02 selected"],
-    [3, "23:47:22", "U-02", "PX4 mission accepted · en route"],
-    [4, "23:47:25", "SUPPORT", "On-site guard desk channel opened · demo sink"],
-    [5, "23:47:29", "U-02", "Visual confirmation received · restricted zone"],
-    [6, "23:47:32", "PAYLOAD", "Standoff + spotlight + speaker response · simulated"],
-    [7, "23:47:36", "SWARM", "Subject tracking maintained · human escalation available"],
-  ] as const;
-
-  return (
-    <section className="card overflow-hidden">
-      <PanelHeader eyebrow="Incident log" title="One chain of custody" meta={<span className="font-mono text-[9px] tracking-[0.14em] text-ash">DEMO CLOCK</span>} />
-      <div className="grid grid-cols-[80px_90px_1fr] px-4 py-1 text-[9px] tracking-[0.14em] text-ash font-mono">
-        <span>TIME</span><span>SOURCE</span><span>EVENT</span>
-      </div>
-      {rows.map(([required, time, source, body]) => {
-        const visible = stage >= required;
-        return (
-          <div key={`${time}-${source}`} className={`grid grid-cols-[80px_90px_1fr] border-t border-gunmetal px-4 py-2.5 transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-20"}`}>
-            <span className="font-mono text-[10px] text-ash">{time}</span>
-            <span className={`font-mono text-[9px] tracking-[0.12em] ${source === "SWARM" ? "text-orbital-blue" : source === "PAYLOAD" ? "text-launch-amber" : "text-muted-silver"}`}>{source}</span>
-            <span className="text-[12px] text-platinum">{body}</span>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
-function FleetRail({ units, stage }: { units: UnitState[]; stage: StageIndex }) {
-  return (
-    <section className="card overflow-hidden">
-      <PanelHeader eyebrow="Fleet" title="Two PX4 units · one allocator" meta={<span className="font-mono text-[9px] tracking-[0.14em] text-signal-green">SITL VALIDATED</span>} />
-      <div className="divide-y divide-gunmetal">
-        {units.slice(0, 2).map((unit, index) => {
-          const demoState: AgentState = unit.agent_id === "mav-002" && stage >= 3 ? (stage >= 5 ? "ON_STATION" : "EN_ROUTE") : unit.fsm_state;
-          return (
-            <div key={unit.agent_id} className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Icon name="drone" />
-                  <span className="font-mono text-ui text-platinum">{unit.agent_id}</span>
-                  {index === 0 && stage >= 2 && <span className="pill pill-operational !px-1.5 !py-0.5 !text-[8px]">WINNER</span>}
+    <section>
+      <div className="eyebrow-mono text-text-muted">ACTIVE / RECENT MISSIONS</div>
+      <div className="mt-3 border-t border-white/10">
+        {decisions.length === 0 ? (
+          <div className="py-5 font-mono text-[11px] text-text-muted">NO MISSION OWNERSHIP FRAME</div>
+        ) : (
+          decisions.map((decision, index) => {
+            const anomaly = anomalyFor(decision, anomalies);
+            const runtime = runtimeByMission.get(decision.mission_id);
+            const proof = evidenceLabel(runtime);
+            return (
+              <div
+                key={decision.mission_id}
+                data-testid={`mission-${decision.mission_id}`}
+                className="grid grid-cols-[36px_minmax(0,1.4fr)_minmax(100px,0.8fr)] gap-3 border-b border-white/10 py-4"
+              >
+                <div className="font-mono text-[10px] text-text-muted">0{index + 1}</div>
+                <div>
+                  <div className="font-mono text-[10px] tracking-[0.1em] text-paper">
+                    {anomaly?.kind ?? decision.mission_kind} · {shortId(decision.mission_id)}
+                  </div>
+                  <div className="mt-1 text-sm text-text-muted">
+                    owner <span className="font-mono text-paper">{decision.winner_agent_id ?? "—"}</span>
+                  </div>
                 </div>
-                <div className="mt-2 font-mono text-[9px] tracking-[0.11em] text-ash">{unit.model} · {Math.round(unit.battery_pct)}% BAT</div>
+                <div className="text-right">
+                  <div className="font-mono text-[10px] text-orbital-blue">
+                    {phaseLabel(runtime?.phase ?? (decision.winner_agent_id ? "allocated" : "no_award"))}
+                  </div>
+                  {proof ? (
+                    <div className="mt-1 font-mono text-[9px] text-status-online">{proof}</div>
+                  ) : null}
+                </div>
               </div>
-              <div className="text-right">
-                <div className={`font-mono text-[9px] tracking-[0.13em] ${stateTone(demoState)}`}>{compactState(demoState)}</div>
-                <div className="mt-2 font-mono text-[9px] text-ash">LINK {Math.round(unit.link_quality * 100)}%</div>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </section>
   );
 }
 
-function DemoHeader({ stage, elapsed, replay }: { stage: StageIndex; elapsed: number; replay: () => void }) {
-  const progress = Math.min(100, (elapsed / DEMO_DURATION_MS) * 100);
+function ResponseLedger({ events }: { events: PayloadEvent[] }) {
+  const ordered = events.slice().sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
   return (
-    <header className="border-b border-gunmetal bg-obsidian px-4 py-3">
-      <div className="flex items-center justify-between gap-6">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="eyebrow text-launch-amber">Incident response demo</span>
-            <span className="pill pill-attention">ACTIVE</span>
-            <span className="pill">STOCK VIDEO · SITL REPLAY</span>
+    <section>
+      <div className="eyebrow-mono text-text-muted">PHYSICAL RESPONSE LEDGER</div>
+      <div className="mt-3 border-t border-white/10">
+        {ordered.length === 0 ? (
+          <div className="py-5 font-mono text-[11px] text-text-muted">
+            NO PAYLOAD RESULT PUBLISHED
           </div>
-          <div className="mt-2 flex items-baseline gap-4">
-            <h1 className="font-editorial text-3xl font-medium text-platinum">North perimeter · intrusion</h1>
-            <span className="font-mono text-[10px] tracking-[0.13em] text-muted-silver">IR-014 / C7</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-5">
-          <div className="hidden text-right md:block">
-            <div className="font-mono text-[9px] tracking-[0.13em] text-ash">CURRENT STEP</div>
-            <div className="mt-1 font-mono text-[11px] text-orbital-blue">{STAGES[stage].label}</div>
-          </div>
-          <button
-            type="button"
-            onClick={replay}
-            className="border border-gunmetal bg-absolute-black px-3 py-2 font-mono text-[10px] tracking-[0.14em] text-muted-silver transition-colors hover:border-orbital-blue hover:text-orbital-blue"
-          >
-            REPLAY
-          </button>
-        </div>
+        ) : (
+          ordered.slice(-6).map((event) => (
+            <div
+              key={event.id}
+              className="grid grid-cols-[68px_minmax(0,1fr)_minmax(150px,0.9fr)] gap-3 border-b border-white/10 py-3 text-[10px]"
+            >
+              <div className="font-mono text-text-muted">{clock(event.ts)}</div>
+              <div>
+                <div className="font-mono text-paper">{payloadAction(event)}</div>
+                <div className="mt-1 font-mono text-text-muted">
+                  {event.agent_id} · {shortId(event.mission_id)}
+                </div>
+              </div>
+              <div
+                className={`text-right font-mono ${
+                  event.execution_mode === "simulated" ? "text-status-caution" : "text-status-online"
+                }`}
+              >
+                {payloadMode(event)}
+              </div>
+            </div>
+          ))
+        )}
       </div>
-      <div className="mt-3 h-px w-full bg-gunmetal">
-        <div className="h-px bg-orbital-blue transition-[width] duration-300" style={{ width: `${progress}%` }} />
+    </section>
+  );
+}
+
+function FleetStrip({ decisions }: { decisions: AllocationDecision[] }) {
+  const { units } = useSwarm();
+  const ownership = new Map<string, string>();
+  for (const decision of decisions) {
+    if (decision.winner_agent_id) ownership.set(decision.winner_agent_id, decision.mission_id);
+  }
+
+  return (
+    <section className="border-t border-white/10 pt-4">
+      <div className="eyebrow-mono text-text-muted">FLEET · SERVER STATE</div>
+      <div className="mt-3 grid gap-px border-y border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+        {units.length === 0 ? (
+          <div className="bg-void px-4 py-4 font-mono text-[10px] text-text-muted">WAITING FOR FLEET STATE</div>
+        ) : (
+          units.map((unit) => (
+            <div key={unit.agent_id} className="bg-void px-4 py-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="font-mono text-xs text-paper">{unit.agent_id}</span>
+                <span className="font-mono text-[9px] text-orbital-blue">{unit.fsm_state}</span>
+              </div>
+              <div className="mt-2 flex justify-between font-mono text-[10px] text-text-muted">
+                <span>batt {unit.battery_pct.toFixed(0)}%</span>
+                <span>{ownership.has(unit.agent_id) ? `mission ${shortId(ownership.get(unit.agent_id))}` : "unassigned"}</span>
+              </div>
+            </div>
+          ))
+        )}
       </div>
-    </header>
+    </section>
   );
 }
 
 export function IntrusionResponseDemo() {
-  const { units: liveUnits, link } = useSwarm();
-  const units = useMemo(() => {
-    const mav = liveUnits.filter((u) => u.vendor === "mavlink");
-    return mav.length >= 2 ? mav.slice(0, 2) : FALLBACK_UNITS;
-  }, [liveUnits]);
+  const { allocations, anomalies, missionRuntime, payloadEvents, link } = useSwarm();
 
-  const [runStartedAt, setRunStartedAt] = useState(() => Date.now());
-  const [elapsed, setElapsed] = useState(0);
+  const anomalyMap = useMemo(
+    () => new Map(anomalies.map((anomaly) => [anomaly.id, anomaly])),
+    [anomalies]
+  );
+  const decisions = useMemo(
+    () => selectDemoDecisions(allocations, anomalyMap),
+    [allocations, anomalyMap]
+  );
+  const runtimeByMission = useMemo(
+    () => new Map(missionRuntime.map((event) => [event.mission_id, event])),
+    [missionRuntime]
+  );
+  const firstDecision = decisions[0];
+  const secondDecision = decisions[1];
+  const currentDecision = secondDecision ?? firstDecision;
+  const intrusion = decisions
+    .map((decision) => anomalyFor(decision, anomalyMap))
+    .find((anomaly) => anomaly?.kind === "INTRUSION");
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      const next = Date.now() - runStartedAt;
-      setElapsed(Math.min(next, DEMO_DURATION_MS));
-    }, 120);
-    return () => window.clearInterval(timer);
-  }, [runStartedAt]);
+  const focusRuntime = useMemo(() => {
+    const active = decisions
+      .slice()
+      .reverse()
+      .map((decision) => runtimeByMission.get(decision.mission_id))
+      .find((runtime) => runtime && runtime.phase !== "DONE" && runtime.phase !== "FAILED");
+    if (active) return active;
+    return currentDecision ? runtimeByMission.get(currentDecision.mission_id) : undefined;
+  }, [decisions, currentDecision, runtimeByMission]);
 
-  const stage = stageForElapsed(elapsed);
-  const replay = () => {
-    setElapsed(0);
-    setRunStartedAt(Date.now());
-  };
+  const demoMissionIds = new Set(decisions.map((decision) => decision.mission_id));
+  const demoPayloadEvents = payloadEvents.filter((event) => demoMissionIds.has(event.mission_id));
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col bg-absolute-black">
-      <DemoHeader stage={stage} elapsed={elapsed} replay={replay} />
-
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_430px] xl:grid-rows-[minmax(0,1fr)_auto]">
-        <CameraFeed active={stage >= 1} />
-        <DroneFeed active={stage >= 3} verified={stage >= 5} />
-        <DecisionPanel stage={stage} units={units} />
-
-        <div className="space-y-3 xl:col-span-2">
-          <ActionStrip stage={stage} />
-          <Timeline stage={stage} />
-        </div>
-        <div className="space-y-3">
-          <FleetRail units={units} stage={stage} />
-          <div className="card px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="eyebrow-mono">Truth boundary</div>
-                <div className="mt-1 text-ui text-platinum">Real coordination. Simulated imagery and side effects.</div>
-              </div>
-              <span className={`pill ${link === "connected" ? "pill-connected" : ""}`}>
-                {link === "connected" ? "BACKEND LIVE" : "RECORDED RUN"}
-              </span>
-            </div>
-            <p className="mt-3 text-[12px] leading-5 text-muted-silver">
-              Fleet allocation and PX4 mission behavior mirror the validated two-vehicle SITL path. CCTV/drone footage, support call, spotlight and speaker are demo-only until their runtime integrations are explicitly connected.
-            </p>
+    <main className="min-h-screen bg-void text-paper">
+      <header className="border-b border-white/10 px-5 py-4 lg:px-8">
+        <div className="mx-auto flex max-w-[1600px] items-end justify-between gap-6">
+          <div>
+            <div className="eyebrow-mono text-orbital-blue">SWARM / INCIDENT CONSOLE</div>
+            <h1 className="mt-1 font-editorial text-3xl tracking-tight text-paper lg:text-4xl">
+              Perimeter response
+            </h1>
+          </div>
+          <div className="flex items-center gap-3 font-mono text-[10px] tracking-[0.12em]">
+            <span className={link === "connected" ? "text-status-online" : "text-status-caution"}>
+              {link.toUpperCase()}
+            </span>
+            <span className="text-white/20">/</span>
+            <span className="text-text-muted">SWARM RUNTIME LIVE · IMAGERY SIMULATED</span>
           </div>
         </div>
+      </header>
+
+      <div className="mx-auto max-w-[1600px] px-5 py-6 lg:px-8 lg:py-8">
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(440px,0.8fr)]">
+          <div className="space-y-7">
+            <SituationFeed intrusion={intrusion} />
+            <DroneFeed runtime={focusRuntime} />
+          </div>
+
+          <div className="space-y-7">
+            <AllocationPanel decision={currentDecision} />
+            <MissionLedger
+              decisions={decisions}
+              anomalies={anomalyMap}
+              runtimeByMission={runtimeByMission}
+            />
+            <ResponseLedger events={demoPayloadEvents} />
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <FleetStrip decisions={decisions} />
+        </div>
+
+        <footer className="mt-6 flex flex-col justify-between gap-2 border-t border-white/10 pt-4 font-mono text-[9px] leading-5 text-text-muted md:flex-row">
+          <span>Console renders allocator, runtime and payload frames. It does not calculate winners or response outcomes.</span>
+          <span>STOCK CCTV / DRONE VIDEO IS VISUALIZATION ONLY.</span>
+        </footer>
       </div>
     </main>
   );

@@ -33,7 +33,15 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from swarm_core.allocator import build_bid, eligible, select_winner
+from swarm_core.allocations import (
+    AllocationDecision,
+    AllocationEligibleUnit,
+    AllocationExcludedUnit,
+    AllocationExclusionReason,
+    AllocationScoreBreakdown,
+)
+from swarm_core.allocator import build_bid, select_winner
+from swarm_core.fsm import is_available
 from swarm_core.geometry import haversine_m
 from swarm_core.messages import (
     AgentState,
@@ -44,6 +52,7 @@ from swarm_core.messages import (
     MissionTask,
 )
 from swarm_core.missions import PATROL, VERIFY
+from swarm_core.runtime_events import MissionRuntimeEvent
 
 from adapters.base import AdapterRegistry
 from orchestrator.swarm_orchestrator.bus import Bus
@@ -82,6 +91,9 @@ class Orchestrator:
     _background_tasks: set[asyncio.Task[None]] = field(default_factory=set)
     # Per-agent in-flight mission task (so a patrol can be cancelled to divert).
     _agent_tasks: dict[str, asyncio.Task[None]] = field(default_factory=dict)
+    # Exact mission ownership for allocator truth frames. Vendor FleetState can
+    # lag a dispatch, so BUSY is sourced from the orchestrator that owns it.
+    _agent_mission_ids: dict[str, str] = field(default_factory=dict)
     # Agents currently executing any orchestrator mission (patrol or verify).
     _busy: set[str] = field(default_factory=set)
     # Agents currently executing a VERIFY — never diverted out from under one.
@@ -110,7 +122,7 @@ class Orchestrator:
                 hover_s=self.verify_hover_s,
                 priority=80 + int(anomaly.confidence * 20),
             )
-            await self._auction_and_dispatch(mission)
+            await self._auction_and_dispatch(mission, anomaly_id=anomaly.id)
 
     async def _patrol_loop(self) -> None:
         """Keep idle docked units sweeping when continuous patrol is enabled.
@@ -198,14 +210,78 @@ class Orchestrator:
 
     # ── auction ──────────────────────────────────────────────────────────────
 
-    async def _auction_and_dispatch(self, mission: MissionTask) -> None:
+    async def _auction_and_dispatch(
+        self,
+        mission: MissionTask,
+        *,
+        anomaly_id: str | None = None,
+    ) -> None:
         fleet = self._snapshot_fleet()
-        candidates = eligible(fleet, min_battery_pct=MIN_BATTERY_PCT)
-        if candidates:
-            bids = [build_bid(mission, fs) for fs in candidates]
-            winner = select_winner(bids)
-            if winner is None:
-                return
+        eligible_units: list[AllocationEligibleUnit] = []
+        excluded_units: list[AllocationExcludedUnit] = []
+        bids = []
+
+        for fs in fleet:
+            if fs.agent_id in self._busy:
+                excluded_units.append(
+                    AllocationExcludedUnit(
+                        agent_id=fs.agent_id,
+                        fsm_state=fs.fsm_state,
+                        battery_pct=fs.battery_pct,
+                        reason=AllocationExclusionReason.BUSY,
+                        active_mission_id=(
+                            self._agent_mission_ids.get(fs.agent_id)
+                            or fs.current_mission_id
+                        ),
+                    )
+                )
+                continue
+            if fs.battery_pct < MIN_BATTERY_PCT:
+                excluded_units.append(
+                    AllocationExcludedUnit(
+                        agent_id=fs.agent_id,
+                        fsm_state=fs.fsm_state,
+                        battery_pct=fs.battery_pct,
+                        reason=AllocationExclusionReason.LOW_BATTERY,
+                        active_mission_id=fs.current_mission_id,
+                    )
+                )
+                continue
+            if not is_available(fs.fsm_state):
+                excluded_units.append(
+                    AllocationExcludedUnit(
+                        agent_id=fs.agent_id,
+                        fsm_state=fs.fsm_state,
+                        battery_pct=fs.battery_pct,
+                        reason=AllocationExclusionReason.UNAVAILABLE,
+                        active_mission_id=fs.current_mission_id,
+                    )
+                )
+                continue
+
+            bid = build_bid(mission, fs)
+            bids.append(bid)
+            eligible_units.append(
+                AllocationEligibleUnit(
+                    agent_id=fs.agent_id,
+                    fsm_state=fs.fsm_state,
+                    battery_pct=fs.battery_pct,
+                    score=bid.score,
+                    score_breakdown=AllocationScoreBreakdown(**bid.reason),
+                )
+            )
+
+        winner = select_winner(bids)
+        if winner is not None:
+            await self._publish_allocation_decision(
+                mission=mission,
+                anomaly_id=anomaly_id,
+                mode="auction",
+                eligible_units=eligible_units,
+                excluded_units=excluded_units,
+                winner_agent_id=winner.agent_id,
+                winner_score=winner.score,
+            )
             await self._award_and_run(mission, winner.agent_id, winner.score)
             return
 
@@ -215,10 +291,51 @@ class Orchestrator:
         if self.continuous_patrol:
             victim = self._nearest_airborne(fleet, mission)
             if victim is not None:
+                await self._publish_allocation_decision(
+                    mission=mission,
+                    anomaly_id=anomaly_id,
+                    mode="diversion",
+                    eligible_units=eligible_units,
+                    excluded_units=excluded_units,
+                    winner_agent_id=victim,
+                    winner_score=0.0,
+                )
                 await self._divert_to_verify(victim, mission)
                 return
 
+        await self._publish_allocation_decision(
+            mission=mission,
+            anomaly_id=anomaly_id,
+            mode="no_award",
+            eligible_units=eligible_units,
+            excluded_units=excluded_units,
+            winner_agent_id=None,
+            winner_score=None,
+        )
         logger.warning("no eligible bidders for mission %s", mission.id)
+
+    async def _publish_allocation_decision(
+        self,
+        *,
+        mission: MissionTask,
+        anomaly_id: str | None,
+        mode: str,
+        eligible_units: list[AllocationEligibleUnit],
+        excluded_units: list[AllocationExcludedUnit],
+        winner_agent_id: str | None,
+        winner_score: float | None,
+    ) -> None:
+        decision = AllocationDecision(
+            mission_id=mission.id,
+            mission_kind=mission.kind,
+            anomaly_id=anomaly_id,
+            mode=mode,  # type: ignore[arg-type]
+            eligible_units=eligible_units,
+            excluded_units=excluded_units,
+            winner_agent_id=winner_agent_id,
+            winner_score=winner_score,
+        )
+        await self.bus.publish("swarm:allocations", decision.model_dump_json())
 
     def _nearest_airborne(
         self, fleet: list[FleetState], mission: MissionTask
@@ -264,6 +381,7 @@ class Orchestrator:
         self, agent_id: str, mission: MissionTask, *, is_verify: bool
     ) -> asyncio.Task[None]:
         self._busy.add(agent_id)
+        self._agent_mission_ids[agent_id] = mission.id
         if is_verify:
             self._verifying.add(agent_id)
         mission.assigned_agent = agent_id
@@ -290,6 +408,30 @@ class Orchestrator:
                     f"swarm:missions:progress:{mission.id}",
                     progress.model_dump_json(),
                 )
+                evidence = None
+                evidence_for_phase = getattr(adapter, "runtime_evidence_for_phase", None)
+                if callable(evidence_for_phase):
+                    try:
+                        evidence = evidence_for_phase(progress.phase)
+                    except Exception:
+                        logger.exception(
+                            "runtime evidence projection failed for %s %s",
+                            agent_id,
+                            progress.phase,
+                        )
+                runtime_event = MissionRuntimeEvent(
+                    mission_id=mission.id,
+                    agent_id=agent_id,
+                    phase=progress.phase,
+                    progress_pct=progress.progress_pct,
+                    evidence=evidence,
+                    error=progress.error,
+                    ts=progress.ts,
+                )
+                await self.bus.publish(
+                    "swarm:missions:runtime",
+                    runtime_event.model_dump_json(),
+                )
                 if progress.phase in ("DONE", "FAILED"):
                     return
         except asyncio.CancelledError:
@@ -301,6 +443,7 @@ class Orchestrator:
             self._verifying.discard(agent_id)
             if self._agent_tasks.get(agent_id) is asyncio.current_task():
                 self._agent_tasks.pop(agent_id, None)
+                self._agent_mission_ids.pop(agent_id, None)
 
     # ── fleet snapshot ───────────────────────────────────────────────────────
 

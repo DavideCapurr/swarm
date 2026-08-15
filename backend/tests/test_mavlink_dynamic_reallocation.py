@@ -6,6 +6,7 @@ import time
 from collections.abc import AsyncIterator
 
 import pytest
+from swarm_core.allocations import AllocationDecision, AllocationExclusionReason
 from swarm_core.messages import Anomaly, AnomalyKind, Geo
 
 from adapters.base import AdapterRegistry
@@ -98,6 +99,7 @@ async def test_second_event_reallocates_to_idle_vehicle_while_first_verify_is_ac
     assert fleet._mission_orchestrator is not None
 
     awards: list[dict[str, object]] = []
+    allocations: list[AllocationDecision] = []
     terminals: dict[str, float] = {}
     first_en_route = asyncio.Event()
     near_airborne = asyncio.Event()
@@ -106,6 +108,12 @@ async def test_second_event_reallocates_to_idle_vehicle_while_first_verify_is_ac
         async for _, payload in bus.subscribe("swarm:missions:award"):
             awards.append(json.loads(payload))
             if len(awards) >= 2:
+                return
+
+    async def _watch_allocations() -> None:
+        async for _, payload in bus.subscribe("swarm:allocations"):
+            allocations.append(AllocationDecision.model_validate_json(payload))
+            if len(allocations) >= 2:
                 return
 
     async def _watch_progress() -> None:
@@ -127,18 +135,17 @@ async def test_second_event_reallocates_to_idle_vehicle_while_first_verify_is_ac
                 return
 
     award_task = asyncio.create_task(_watch_awards())
+    allocation_task = asyncio.create_task(_watch_allocations())
     progress_task = asyncio.create_task(_watch_progress())
     fleet_task = asyncio.create_task(_watch_fleet())
     await asyncio.sleep(0)
 
-    await bus.publish(
-        "swarm:anomalies",
-        Anomaly(
-            kind=AnomalyKind.INTRUSION,
-            geo=Geo(lat=45.0, lon=10.0),
-            confidence=0.90,
-        ).model_dump_json(),
+    first_anomaly = Anomaly(
+        kind=AnomalyKind.INTRUSION,
+        geo=Geo(lat=45.0, lon=10.0),
+        confidence=0.90,
     )
+    await bus.publish("swarm:anomalies", first_anomaly.model_dump_json())
 
     await asyncio.wait_for(first_en_route.wait(), timeout=3.0)
     await asyncio.wait_for(near_airborne.wait(), timeout=3.0)
@@ -147,20 +154,33 @@ async def test_second_event_reallocates_to_idle_vehicle_while_first_verify_is_ac
     assert first_mission_id not in terminals
 
     second_published_at = time.monotonic()
-    await bus.publish(
-        "swarm:anomalies",
-        Anomaly(
-            kind=AnomalyKind.HEAT_SPOT,
-            geo=Geo(lat=45.0201, lon=10.0201),
-            confidence=0.99,
-        ).model_dump_json(),
+    second_anomaly = Anomaly(
+        kind=AnomalyKind.HEAT_SPOT,
+        geo=Geo(lat=45.0201, lon=10.0201),
+        confidence=0.99,
     )
+    await bus.publish("swarm:anomalies", second_anomaly.model_dump_json())
 
     await asyncio.wait_for(award_task, timeout=3.0)
+    await asyncio.wait_for(allocation_task, timeout=3.0)
     assert awards[1]["winner_agent_id"] == "mav-far"
     second_mission_id = str(awards[1]["mission_id"])
     assert second_mission_id != first_mission_id
     assert first_mission_id not in terminals
+
+    assert allocations[0].anomaly_id == first_anomaly.id
+    assert allocations[0].winner_agent_id == "mav-near"
+    assert {unit.agent_id for unit in allocations[0].eligible_units} == {
+        "mav-near",
+        "mav-far",
+    }
+
+    assert allocations[1].anomaly_id == second_anomaly.id
+    assert allocations[1].winner_agent_id == "mav-far"
+    assert [unit.agent_id for unit in allocations[1].eligible_units] == ["mav-far"]
+    busy = next(unit for unit in allocations[1].excluded_units if unit.agent_id == "mav-near")
+    assert busy.reason is AllocationExclusionReason.BUSY
+    assert busy.active_mission_id == first_mission_id
 
     await asyncio.wait_for(progress_task, timeout=5.0)
     assert terminals[first_mission_id] > second_published_at
