@@ -10,16 +10,18 @@ Before making product, roadmap, architecture, or positioning decisions, read
 
 It is the canonical source of truth for SWARM's startup thesis, company
 objective, problem definition, dual-use boundary, first wedge, low-cost fleet
-economics, and long-term vision. When any other document conflicts with it,
-`swarm-thesis.md` wins.
+economics, and long-term vision. When any other strategic document conflicts
+with it, `swarm-thesis.md` wins. Current technical implementation/proof claims
+must be grounded in [`docs/STATUS.md`](docs/STATUS.md), accepted ADRs and the
+corresponding `docs/bench/` evidence.
 
 ## What this product is
 
 - **SWARM** — the brand/project. The wordmark is uppercase. Repo path: `swarm/`.
 - **SwarmOS** — the **product**: the autonomous operating layer that
-  decides, plans, and coordinates the drone fleet. SwarmOS is the source of
-  operational truth. **SwarmOS is the entire backend of this repo**: every
-  directory except `frontend/` is part of SwarmOS (`core/`, `swarm_os/`,
+  decides, plans, and coordinates the physical-agent fleet. SwarmOS is the
+  source of operational truth. **SwarmOS is the entire backend of this repo**:
+  every directory except `frontend/` is part of SwarmOS (`core/`, `swarm_os/`,
   `orchestrator/`, `adapters/`, `sim/`, `backend/`, `infra/`, `scripts/`).
 - **physical agent** — a drone/robot/autopilot endpoint. It executes
   SwarmOS-issued objectives and reports telemetry/evidence. It may retain
@@ -37,9 +39,10 @@ economics, and long-term vision. When any other document conflicts with it,
 
 Mission-level authority stays in SwarmOS: objective selection, event
 response, eligibility, allocation, mission ownership, retasking, abort/RTL,
-payload policy, escalation, and future multi-agent role composition. An
-adapter/aircraft must not elect itself, allocate peers, create a fleet action
-from a local observation, or run allocator/autonomy/scheduler logic.
+payload policy, escalation, `ExecutionGroup` composition/role assignment and
+replacement. An adapter/aircraft must not elect itself, allocate peers, create a
+fleet action from a local observation, or run allocator/autonomy/scheduler
+logic.
 
 The onboard autopilot may still own the bounded behavior required to execute
 safely: stabilization, actuator control, waypoint following, local obstacle
@@ -50,21 +53,33 @@ and emergency RTL/landing when central control is unavailable. Those answer
 ADR [`docs/adr/0011-central-decision-authority.md`](docs/adr/0011-central-decision-authority.md)
 is the canonical architecture boundary for physical agents.
 
-No UI ever invents operational truth. Every number on screen comes from
-SwarmOS or the honest simulator. Any field temporarily derived client-side
+No UI ever invents operational truth. Every operational number on screen comes
+from SwarmOS or the honest simulator. Any field temporarily derived client-side
 must be flagged `derived: true` and rendered with the eyebrow `DERIVED`.
+
+## Current demo boundary
+
+The definitive investor/demo surface is `/demo/intrusion`. The legacy `/`
+dashboard must not be modified for demo presentation work.
+
+The recording source of truth is
+[`docs/bench/final-demo-rehearsal.md`](docs/bench/final-demo-rehearsal.md).
+
+The demo may use stock CCTV/drone imagery only as **explicitly labeled simulated
+visualization**. It must never be presented as a live camera feed or runtime
+evidence. PX4 output may be called confirmed only where the backend actually
+observed the configured SITL output state. Speaker playback remains
+`SIMULATED`.
 
 ## Source of truth for this project
 
 The full development plan covering Phase 0 → Phase 6 lives at
 [`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md).
-The current Phase 7+ execution order lives at
-[`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md);
-it moves market validation, PX4/SITL/hardware evidence and the
-founder-calendar decision gate ahead of later platform scope.
+The current forward execution order lives at
+[`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md).
 Current execution status lives at [`docs/STATUS.md`](docs/STATUS.md). When
-starting a session, read STATUS first to see which phase is current and
-what's pending.
+starting a session, read STATUS first to see what is actually implemented and
+validated.
 
 ## Hard rules every change must respect
 
@@ -78,8 +93,10 @@ what's pending.
   Signal Green, Launch Amber.
 - **No external icon kit.** Named inline SVG 24px, stroke 1.5px, round caps.
   Lucide is fallback only.
-- **No fake video.** `LiveFeedFrame` renders `UNIT 003 VIEWPORT PENDING`
-  or `STREAM OFFLINE`. Never a stock clip.
+- **No unlabeled fake live feed.** Production/live surfaces must render real
+  state or an honest offline/pending state. `/demo/intrusion` may use simulated
+  imagery only when it is clearly labeled as simulation and never used as
+  operational evidence.
 - **No external chart / modal / toast / snackbar libraries.**
 
 ### Voice (PDF §5.2)
@@ -143,20 +160,24 @@ to make a gate pass:
 - Don't add features or refactors beyond the current phase. Three
   similar lines is better than a premature abstraction.
 
+For the current demo-frozen state, these historical phase guards do not override
+`docs/STATUS.md`: do not reopen completed demo/runtime scope merely because an
+older phase instruction describes it as future work.
+
 ## Repository layout (current)
 
 ```
 swarm/
 ├── core/swarm_core/           # shared types, geometry, voice, fsm primitives
-├── swarm_os/                  # Phase 1+ kernel package (state, fsm, scheduler, …)
-├── orchestrator/swarm_orchestrator/  # central allocation + dispatch loop
+├── swarm_os/                  # kernel package: state, fsm, scheduler, policy
+├── orchestrator/swarm_orchestrator/  # central allocation + dispatch + groups
 ├── adapters/                  # thin execution boundary + vendor integrations
 ├── sim/swarm_sim/             # world + perception + runner
 ├── backend/app/               # FastAPI + WS + security middleware
 ├── frontend/                  # Next.js Console (the ONLY non-SwarmOS area)
 ├── infra/                     # postgres, redis, sites config
-├── scripts/                   # dev_up.sh, demo_wildfire.sh
-├── docs/                      # plan, security, ops, operator, compliance, dev
+├── scripts/                   # development, demo and validation probes
+├── docs/                      # architecture, evidence, ops, security, plans
 ├── tests/                     # cross-cutting tests (fuzz, e2e, load)
 └── .github/                   # workflows, dependabot, codeql
 ```
@@ -165,7 +186,7 @@ swarm/
 
 ```
 make setup                # python venv + pnpm install
-make bootstrap-auth-dev   # Phase 6.C — generate JWT secret + dev operators
+make bootstrap-auth-dev   # generate JWT secret + dev operators
 make demo                 # boot sim + backend + frontend
 make lint                 # ruff + mypy + tsc
 make test                 # pytest + frontend tests
@@ -173,9 +194,9 @@ make audit                # pip-audit + pnpm audit + bandit + semgrep
 make clean                # remove caches and node_modules
 ```
 
-## Auth (Phase 6.C)
+## Auth
 
-Auth is in place since Phase 6.C: pure JWT HS256, three roles
+Auth is in place: pure JWT HS256, three roles
 (viewer < operator < commander), MFA mandatory for commander at login
 and `mfa=true` claim re-checked on every commander-only call. Design
 note: [`docs/security/auth.md`](docs/security/auth.md). Operator-store
@@ -187,62 +208,41 @@ Local dev expects two pieces of state:
 - `infra/config/operators.yaml` (gitignored — the example template is
   at `infra/config/operators.example.yaml`).
 
-`make bootstrap-auth-dev` provisions both idempotently. The transitional
-`X-Operator-Id` header gate (Phase 1) and the `X-Admin-Token` gate
-(Phase 6.B) are gone — anything that touches a protected endpoint must
-go through `Authorization: Bearer <jwt>` (REST) or `?token=<jwt>` (WS).
+`make bootstrap-auth-dev` provisions both idempotently. Protected endpoints use
+`Authorization: Bearer <jwt>` (REST) or `?token=<jwt>` (WS).
 
 ## Branch + commit
 
 - Develop on the branch named in the system reminder for the session.
 - Never amend a previous commit; always create new commits.
-- Commit messages: `phase-N: <short subject>` where N is the phase number.
+- Commit messages should be terse and describe the scoped change.
 - Do not create a PR unless the user asks for one.
 
 ## When the user asks you to start a new phase
 
-1. Read [`docs/STATUS.md`](docs/STATUS.md) to confirm the current
-   completed phase.
-2. Read the corresponding roadmap section: Phase 0-6 in
-   [`docs/plan/swarmos-roadmap.md`](docs/plan/swarmos-roadmap.md), Phase
-   7+ in
-   [`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md).
-3. Update STATUS.md with the new phase as `in_progress`.
+1. Read [`docs/STATUS.md`](docs/STATUS.md) to confirm the current completed work.
+2. Read the corresponding roadmap section.
+3. Update STATUS.md with the new phase as `in_progress` when phase work is
+   actually being started.
 4. Execute the milestone exactly as scoped (no scope creep).
-5. At the end of the phase, run `make lint && make test && make audit`,
-   commit, push, and update STATUS.md with the phase as `done`.
+5. At the end, run the relevant gates, commit, push, and update STATUS.md with
+   evidence rather than checklist claims.
 
-## When the user asks for a readiness check on a phase (NEVER just trust STATUS.md)
+## When the user asks for a readiness check (NEVER just trust STATUS.md)
 
-A previous readiness check missed real Phase 4 blockers because it
-cross-referenced STATUS.md to the code instead of actually running the
-phase end-to-end. STATUS.md describes what was implemented, **not what
-works**. Follow this list every time the user asks "is phase N ready?":
+A previous readiness check missed real blockers because it cross-referenced
+STATUS.md to the code instead of actually running the phase end-to-end.
+STATUS.md describes implemented/validated state, but readiness claims still need
+the requested evidence. Follow this list:
 
-1. **Re-run the gates from a clean state**, not from a warm venv. If `.venv`
-   already exists, that proves nothing — a transitive dep may have been
-   installed by accident. Use `rm -rf .venv && make setup` then
-   `make lint && make test && make audit`.
-2. **Exercise the real infra, not just SQLite/in-memory stubs.** For Phase 4+
-   spin up `docker compose up -d postgres redis`, run
-   `alembic upgrade head` against the live Timescale container, and
-   verify the schema actually applies. SQLite-only tests **do not** catch
-   dialect-specific failures (Timescale unique-index rules, asyncpg SSL,
-   redis ACLs, etc.).
-3. **Read scripts critically.** `|| echo "continuing"`, `|| true`,
-   `--no-verify`, and other failure-swallowing patterns are blockers — flag
-   them. The same goes for `try/except: pass` in startup paths.
-4. **Verify config files are effective, not just present.** Examples:
-   `pnpm config get <key>` from inside the relevant dir, `psql -c '\d'`
-   to confirm a table really has the constraints the migration claims,
-   `python -c "import x"` to confirm an extra was actually pulled.
-5. **Check that dependencies are explicit, not just transitive.** Run a
-   `make setup` in a fresh worktree on a different machine if possible;
-   an env where the lib "happens to be there" hides a missing dep.
-6. **The phase is ready only if a fresh clone can boot the next phase.**
-   Treat the gate as "would a new contributor running `git clone && make
-   setup && make demo` get to the next phase's starting line?", not "is
-   the checklist ticked?".
-7. **Cite evidence, not claims.** When reporting readiness, quote the
-   command output (`make test → 225 passed`), not the STATUS.md line. If
-   you didn't run a real Timescale container, say so.
+1. **Re-run the requested gates from a clean state** when the user asks for a
+   fresh readiness proof. A warm venv alone proves nothing.
+2. **Exercise real infra when the claim depends on it.** SQLite/in-memory tests
+   do not prove Timescale/Redis/PX4 behavior.
+3. **Read scripts critically.** Failure-swallowing patterns are blockers.
+4. **Verify config files are effective, not just present.**
+5. **Check that dependencies are explicit, not just transitive.**
+6. **Treat fresh-clone bootability as a meaningful contributor gate** when that
+   is in scope.
+7. **Cite evidence, not claims.** Bench documents and artifacts define the
+   supported hardware/SITL claim boundary.
