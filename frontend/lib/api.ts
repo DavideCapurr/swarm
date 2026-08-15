@@ -299,6 +299,96 @@ export type CommandResponse = {
   mission_id?: string | null;
 };
 
+// ── Allocator / runtime / payload truth frames ───────────────────────────────
+
+export type AllocationExclusionReason = "BUSY" | "LOW_BATTERY" | "UNAVAILABLE";
+
+export type AllocationScoreBreakdown = {
+  distance_m: number;
+  distance_score: number;
+  battery_pct: number;
+  battery_score: number;
+  priority: number;
+  priority_score: number;
+  busy_penalty: number;
+};
+
+export type AllocationEligibleUnit = {
+  agent_id: string;
+  fsm_state: AgentState;
+  battery_pct: number;
+  score: number;
+  score_breakdown: AllocationScoreBreakdown;
+};
+
+export type AllocationExcludedUnit = {
+  agent_id: string;
+  fsm_state: AgentState;
+  battery_pct: number;
+  reason: AllocationExclusionReason;
+  active_mission_id: string | null;
+};
+
+export type AllocationDecision = {
+  mission_id: string;
+  mission_kind: string;
+  anomaly_id: string | null;
+  mode: "auction" | "diversion" | "no_award";
+  eligible_units: AllocationEligibleUnit[];
+  excluded_units: AllocationExcludedUnit[];
+  winner_agent_id: string | null;
+  winner_score: number | null;
+  ts: string;
+};
+
+export type MissionRuntimeEvidence =
+  | "mavlink_mission_item_reached"
+  | "mavlink_rtl_command_acknowledged";
+
+export type MissionRuntimeEvent = {
+  id: string;
+  mission_id: string;
+  agent_id: string;
+  phase: string;
+  progress_pct: number;
+  evidence: MissionRuntimeEvidence | null;
+  error: string | null;
+  ts: string;
+};
+
+export type PayloadActionKind =
+  | "light_on"
+  | "light_off"
+  | "play_message"
+  | "stop_message";
+export type PayloadActionStatus =
+  | "acknowledged"
+  | "confirmed"
+  | "simulated"
+  | "unsupported"
+  | "failed";
+export type PayloadExecutionMode =
+  | "simulated"
+  | "mavlink_ack"
+  | "mavlink_output_confirmed";
+export type PayloadMessage = "restricted_area";
+
+export type PayloadEvent = {
+  id: string;
+  mission_id: string;
+  anomaly_id: string | null;
+  action_id: string;
+  agent_id: string;
+  kind: PayloadActionKind;
+  status: PayloadActionStatus;
+  execution_mode: PayloadExecutionMode | null;
+  light_on: boolean | null;
+  speaker_active: boolean | null;
+  message: PayloadMessage | null;
+  error_code: string | null;
+  ts: string;
+};
+
 // ── Phase 5 stream descriptors (mirror core/swarm_core/streams.py) ───────────
 
 export type StreamProtocol = "rtsps" | "https";
@@ -428,6 +518,11 @@ export const api = {
   sectors: () => get<{ sectors: Sector[] }>("/sectors"),
   units: () => get<{ units: UnitState[] }>("/units"),
   missions: () => get<{ missions: MissionView[] }>("/missions"),
+  allocations: () => get<{ allocations: AllocationDecision[] }>("/allocations"),
+  missionRuntime: () =>
+    get<{ mission_runtime: MissionRuntimeEvent[] }>("/mission-runtime"),
+  payloadEvents: (limit = 200) =>
+    get<{ payload_events: PayloadEvent[] }>(`/payload-events?limit=${limit}`),
   commands: (limit = 100) =>
     get<{ commands: OperatorCommand[] }>(`/commands?limit=${limit}`),
   anomalies: () => get<{ anomalies: AnomalyView[] }>("/anomalies"),
