@@ -207,11 +207,11 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
         anomaly: Anomaly,
         result: PayloadActionResult,
     ) -> None:
-        mode = (
-            "MAVLink ACK"
-            if result.execution_mode is PayloadExecutionMode.MAVLINK_ACK
-            else "SIMULATED PAYLOAD"
-        )
+        mode = {
+            PayloadExecutionMode.MAVLINK_ACK: "MAVLink ACK",
+            PayloadExecutionMode.MAVLINK_OUTPUT_CONFIRMED: "PX4 OUTPUT CONFIRMED",
+            PayloadExecutionMode.SIMULATED: "SIMULATED PAYLOAD",
+        }[result.execution_mode]
         label = {
             PayloadActionKind.LIGHT_ON: "light on",
             PayloadActionKind.LIGHT_OFF: "light off",
