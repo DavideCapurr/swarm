@@ -4,8 +4,11 @@ This package is the canonical definition of:
 - Domain messages (Telemetry, Anomaly, MissionTask, FleetState, Bid, Award).
 - Mission DSL (PATROL, VERIFY, COVER, RELAY, RTL_DOCK).
 - Agent finite-state machine.
-- Auction-based mission allocator (Contract Net).
+- Centralized fleet-state mission allocation.
 - Geometry primitives (waypoints, distance, coverage tiling).
+
+`Bid` remains a compatibility name for a candidate-score record computed by
+SwarmOS. Physical agents do not negotiate, allocate, or choose missions.
 """
 
 from swarm_core.messages import (
