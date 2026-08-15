@@ -12,7 +12,10 @@ from swarm_core.payloads import (
     PayloadEvent,
     PayloadExecutionMode,
 )
-from swarm_core.runtime_events import MissionRuntimeEvidence, MissionRuntimeEvent
+from swarm_core.runtime_events import (
+    MissionRuntimeEvent,
+    MissionRuntimeEvidence,
+)
 
 from backend.app.bus_consumer import BusConsumer
 from orchestrator.swarm_orchestrator.bus import InMemoryBus
@@ -45,7 +48,7 @@ async def test_structured_console_truth_is_validated_stored_and_broadcast() -> N
     consumer = BusConsumer(hub)  # type: ignore[arg-type]
     bus = InMemoryBus()
     await bus.connect()
-    consumer._bus = bus  # type: ignore[attr-defined]
+    consumer._bus = bus
     coordinator = RecordingCoordinator()
     consumer._coordinator = coordinator  # type: ignore[assignment]
 
