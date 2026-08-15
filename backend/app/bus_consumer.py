@@ -20,6 +20,7 @@ from swarm_core.messages import (
     AgentState,
     Anomaly,
     AnomalyState,
+    Event,
     FleetState,
     MissionPhase,
     MissionProgress,
@@ -108,6 +109,7 @@ class BusConsumer:
             asyncio.create_task(self._consume_anomalies()),
             asyncio.create_task(self._consume_progress()),
             asyncio.create_task(self._consume_streams()),
+            asyncio.create_task(self._consume_external_events()),
         ]
 
     async def stop(self) -> None:
@@ -238,6 +240,26 @@ class BusConsumer:
             await self._hub.broadcast(
                 {"kind": "stream", "data": descriptor.model_dump(mode="json")}
             )
+
+    async def _consume_external_events(self) -> None:
+        """Bridge trusted, typed subsystem events into the existing EventFeed.
+
+        Payload controllers publish only server-built ``Event`` objects on
+        ``swarm:events:*``. Re-validating the strict model here prevents a
+        producer from injecting arbitrary frame shapes into the Console.
+        """
+
+        async for _topic, payload in self.bus.subscribe("swarm:events:*"):
+            try:
+                event = Event.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed external event from bus")
+                continue
+            self._coordinator.state.append_event(event)
+            await self._hub.broadcast(
+                {"kind": "event", "data": event.model_dump(mode="json")}
+            )
+            await self._persist_frames(frame_events=True)
 
     # ── Metrics helpers ──────────────────────────────────────────────────────
 
