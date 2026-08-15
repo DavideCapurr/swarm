@@ -41,8 +41,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from adapters.base import AdapterRegistry
-from adapters.mavlink.runner import MAVLinkRunner
-from adapters.mavlink.runner import boot_runner as boot_mavlink_runner
+from adapters.mavlink.fleet_runner import MAVLinkFleetRunner, boot_fleet_runner
 from orchestrator.swarm_orchestrator.bus import Bus
 from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
 
@@ -178,8 +177,8 @@ class FleetManager:
 
 
 def _default_booters() -> dict[str, VendorBooter]:
-    async def _mavlink(bus: Bus, registry: AdapterRegistry) -> MAVLinkRunner:
-        return await boot_mavlink_runner(bus, registry)
+    async def _mavlink(bus: Bus, registry: AdapterRegistry) -> MAVLinkFleetRunner:
+        return await boot_fleet_runner(bus, registry)
 
     return {"mavlink": _mavlink}
 
