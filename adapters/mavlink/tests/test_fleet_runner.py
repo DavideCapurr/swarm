@@ -106,6 +106,7 @@ async def test_boot_fleet_runner_registers_two_live_adapters(
     fleet = await boot_fleet_runner(bus, registry, adapters=adapters)
     try:
         assert [a.agent_id for a in registry.all()] == ["mav-001", "mav-002"]
-        assert all((await a.health()).online for a in adapters)
+        for adapter in adapters:
+            assert (await adapter.health()).online
     finally:
         await fleet.stop()
