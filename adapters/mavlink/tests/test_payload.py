@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import pytest
 from pymavlink import mavutil
+import pytest
 
+from adapters.mavlink.adapter import MAVLinkAdapter
+from adapters.mavlink.fake_endpoint import FakeMAVLinkEndpoint
+from adapters.mavlink.payload import MAVLinkPayloadController
 from swarm_core.payloads import (
     PayloadAction,
     PayloadActionKind,
@@ -10,10 +13,6 @@ from swarm_core.payloads import (
     PayloadExecutionMode,
     PayloadMessage,
 )
-
-from adapters.mavlink.adapter import MAVLinkAdapter
-from adapters.mavlink.fake_endpoint import FakeMAVLinkEndpoint
-from adapters.mavlink.payload import MAVLinkPayloadController
 
 
 @pytest.mark.asyncio
