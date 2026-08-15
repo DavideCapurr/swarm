@@ -16,6 +16,7 @@ import json
 import time
 from typing import TYPE_CHECKING
 
+from swarm_core.allocations import AllocationDecision
 from swarm_core.messages import (
     AgentState,
     Anomaly,
@@ -27,7 +28,9 @@ from swarm_core.messages import (
     MissionView,
     Telemetry,
 )
+from swarm_core.payloads import PayloadEvent
 from swarm_core.rate_limit import DEFAULT_MAX_HZ, TelemetryRateLimiter
+from swarm_core.runtime_events import MissionRuntimeEvent
 from swarm_core.streams import InvalidStreamURL, StreamDescriptor
 
 from backend.app.db import get_repository
@@ -108,6 +111,9 @@ class BusConsumer:
             asyncio.create_task(self._consume_fleet()),
             asyncio.create_task(self._consume_anomalies()),
             asyncio.create_task(self._consume_progress()),
+            asyncio.create_task(self._consume_allocations()),
+            asyncio.create_task(self._consume_mission_runtime()),
+            asyncio.create_task(self._consume_payload_events()),
             asyncio.create_task(self._consume_streams()),
             asyncio.create_task(self._consume_external_events()),
         ]
@@ -199,6 +205,51 @@ class BusConsumer:
                 await get_repository().write_mission(mission)
                 self._observe_mission_duration(mission)
             await self._persist_frames(frame_events=True)
+
+    async def _consume_allocations(self) -> None:
+        """Forward the allocator's complete evaluation without client derivation."""
+
+        async for _topic, payload in self.bus.subscribe("swarm:allocations"):
+            try:
+                decision = AllocationDecision.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed allocation decision from bus")
+                continue
+            async with self._coordinator.state.lock:
+                self._coordinator.state.allocations[decision.mission_id] = decision
+            await self._hub.broadcast(
+                {"kind": "allocation", "data": decision.model_dump(mode="json")}
+            )
+
+    async def _consume_mission_runtime(self) -> None:
+        """Forward mission ownership + adapter-supplied phase evidence."""
+
+        async for _topic, payload in self.bus.subscribe("swarm:missions:runtime"):
+            try:
+                event = MissionRuntimeEvent.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed mission runtime event from bus")
+                continue
+            async with self._coordinator.state.lock:
+                self._coordinator.state.mission_runtime[event.mission_id] = event
+            await self._hub.broadcast(
+                {"kind": "mission_runtime", "data": event.model_dump(mode="json")}
+            )
+
+    async def _consume_payload_events(self) -> None:
+        """Forward structured payload outcomes; text Events remain separate."""
+
+        async for _topic, payload in self.bus.subscribe("swarm:payload:events"):
+            try:
+                event = PayloadEvent.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed payload event from bus")
+                continue
+            async with self._coordinator.state.lock:
+                self._coordinator.state.payload_events.append(event)
+            await self._hub.broadcast(
+                {"kind": "payload", "data": event.model_dump(mode="json")}
+            )
 
     def _observe_mission_duration(self, mission: MissionView) -> None:
         """Feed the ``swarm_mission_duration_seconds`` histogram.
