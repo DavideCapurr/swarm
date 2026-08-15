@@ -120,7 +120,10 @@ function EligibleRow({ unit }: { unit: AllocationEligibleUnit }) {
 
 function ExcludedRow({ unit }: { unit: AllocationExcludedUnit }) {
   return (
-    <div className="grid grid-cols-[minmax(90px,0.8fr)_90px_74px_minmax(0,1.7fr)] items-center gap-3 border-t border-white/10 py-3 text-[11px]">
+    <div
+      data-testid={`excluded-${unit.agent_id}`}
+      className="grid grid-cols-[minmax(90px,0.8fr)_90px_74px_minmax(0,1.7fr)] items-center gap-3 border-t border-white/10 py-3 text-[11px]"
+    >
       <div className="font-mono text-paper">{unit.agent_id}</div>
       <div className="font-mono text-status-caution">EXCLUDED</div>
       <div className="font-mono text-text-muted">—</div>
@@ -313,6 +316,7 @@ function MissionLedger({
             return (
               <div
                 key={decision.mission_id}
+                data-testid={`mission-${decision.mission_id}`}
                 className="grid grid-cols-[36px_minmax(0,1.4fr)_minmax(100px,0.8fr)] gap-3 border-b border-white/10 py-4"
               >
                 <div className="font-mono text-[10px] text-text-muted">0{index + 1}</div>
@@ -461,7 +465,7 @@ export function IntrusionResponseDemo() {
               {link.toUpperCase()}
             </span>
             <span className="text-white/20">/</span>
-            <span className="text-text-muted">OPERATIONS REAL · IMAGERY SIMULATED</span>
+            <span className="text-text-muted">SWARM RUNTIME LIVE · IMAGERY SIMULATED</span>
           </div>
         </div>
       </header>
