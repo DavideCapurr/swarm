@@ -1,4 +1,4 @@
-"""SWARM OS orchestrator — auction-based mission allocation, fleet aggregation."""
+"""SWARM OS orchestrator — central mission allocation and fleet coordination."""
 
 from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus, RedisBus
 from orchestrator.swarm_orchestrator.service import Orchestrator
