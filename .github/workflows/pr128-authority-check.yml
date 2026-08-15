@@ -1,0 +1,31 @@
+name: pr128-authority-check
+
+on:
+  push:
+    branches: ["agent/central-decision-authority"]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+      - name: Install deps
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+      - name: Ruff
+        run: uv run ruff check .
+      - name: Mypy
+        run: uv run mypy core adapters orchestrator sim backend
+      - name: Authority and contract tests
+        run: >-
+          uv run pytest -q
+          adapters/tests/test_decision_authority_boundary.py
+          core/swarm_core/tests/test_allocator.py
+          core/swarm_core/tests/test_messages.py
