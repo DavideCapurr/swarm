@@ -9,7 +9,9 @@ Configuration:
     MAVLINK_FLEET="mav-001=udp:localhost:14540,mav-002=udp:localhost:14541"
 
 When `MAVLINK_FLEET` is unset, the legacy `MAVLINK_AGENT_ID` /
-`MAVLINK_CONNECTION` path is preserved exactly through `adapter_from_env()`.
+`MAVLINK_CONNECTION` environment shape is preserved. Backend fleet adapters
+use the reach-aware mission implementation so a waypoint is complete only
+after the autopilot emits `MISSION_ITEM_REACHED`.
 """
 
 from __future__ import annotations
@@ -20,7 +22,8 @@ from dataclasses import dataclass, field
 
 from adapters.base import AdapterRegistry
 from adapters.mavlink.adapter import MAVLinkAdapter
-from adapters.mavlink.runner import MAVLinkRunner, adapter_from_env
+from adapters.mavlink.reach_adapter import ReachAwareMAVLinkAdapter
+from adapters.mavlink.runner import MAVLinkRunner
 from orchestrator.swarm_orchestrator.bus import Bus
 
 logger = logging.getLogger("mavlink.fleet_runner")
@@ -65,18 +68,27 @@ def parse_mavlink_fleet(raw: str) -> tuple[MAVLinkUnitConfig, ...]:
 
 
 def adapters_from_env() -> list[MAVLinkAdapter]:
-    """Build one or many MAVLink adapters while preserving legacy env config."""
+    """Build one or many reach-aware adapters while preserving legacy env keys."""
 
     raw = (os.getenv("MAVLINK_FLEET") or "").strip()
-    if not raw:
-        return [adapter_from_env()]
-
     model = os.getenv("MAVLINK_MODEL", "px4-x500")
     rate_limit_hz = float(os.getenv("MAVLINK_RATE_LIMIT_HZ", "50"))
+
+    if not raw:
+        return [
+            ReachAwareMAVLinkAdapter(
+                agent_id=os.getenv("MAVLINK_AGENT_ID") or "mav-001",
+                connection=os.getenv("MAVLINK_CONNECTION", "udp:localhost:14540"),
+                model=model,
+                stream_url=os.getenv("MAVLINK_STREAM_URL") or None,
+                rate_limit_hz=rate_limit_hz,
+            )
+        ]
+
     adapters: list[MAVLinkAdapter] = []
     for unit in parse_mavlink_fleet(raw):
         adapters.append(
-            MAVLinkAdapter(
+            ReachAwareMAVLinkAdapter(
                 agent_id=unit.agent_id,
                 connection=unit.connection,
                 model=model,
