@@ -7,6 +7,9 @@ from typing import Any
 
 import pytest
 
+from adapters.base import AdapterRegistry
+from adapters.payload import PayloadControllerRegistry
+from orchestrator.swarm_orchestrator.presence import PresenceResponseOrchestrator
 from swarm_core.messages import Anomaly, AnomalyKind, Geo, MissionProgress
 from swarm_core.missions import VERIFY
 from swarm_core.payloads import (
@@ -16,10 +19,6 @@ from swarm_core.payloads import (
     PayloadActionStatus,
     PayloadExecutionMode,
 )
-
-from adapters.base import AdapterRegistry
-from adapters.payload import PayloadControllerRegistry
-from orchestrator.swarm_orchestrator.presence import PresenceResponseOrchestrator
 
 
 class RecordingBus:
