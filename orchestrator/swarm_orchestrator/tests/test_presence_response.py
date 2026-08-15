@@ -39,8 +39,11 @@ class RecordingBus:
 
 
 class MissionAdapter:
+    """Mirror the simulated VERIFY contract: arrival, capture-ready, done."""
+
     async def execute_mission(self, mission: Any) -> AsyncIterator[MissionProgress]:
-        yield MissionProgress(mission_id=mission.id, phase="ON_STATION", progress_pct=90.0)
+        yield MissionProgress(mission_id=mission.id, phase="ON_STATION", progress_pct=80.0)
+        yield MissionProgress(mission_id=mission.id, phase="ON_STATION", progress_pct=85.0)
         yield MissionProgress(mission_id=mission.id, phase="DONE", progress_pct=100.0)
 
 
@@ -76,7 +79,7 @@ class RecordingPayloadController:
 
 
 @pytest.mark.asyncio
-async def test_verified_presence_runs_payload_sequence_before_mission_finishes() -> None:
+async def test_verified_presence_waits_for_capture_ready_then_runs_once() -> None:
     bus = RecordingBus()
     payload_registry = PayloadControllerRegistry()
     payload = RecordingPayloadController("unit-001")
@@ -104,9 +107,14 @@ async def test_verified_presence_runs_payload_sequence_before_mission_finishes()
         PayloadActionKind.STOP_MESSAGE,
         PayloadActionKind.LIGHT_OFF,
     ]
-    assert any(topic == "swarm:events:payload" for topic, _ in bus.published)
-    progress_topics = [topic for topic, _ in bus.published if topic.startswith("swarm:missions:progress:")]
-    assert len(progress_topics) == 2
+    payload_topics = [topic for topic, _ in bus.published if topic == "swarm:events:payload"]
+    assert len(payload_topics) == 4
+    progress_topics = [
+        topic
+        for topic, _ in bus.published
+        if topic.startswith("swarm:missions:progress:")
+    ]
+    assert len(progress_topics) == 3
 
 
 @pytest.mark.asyncio
