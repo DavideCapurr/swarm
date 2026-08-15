@@ -11,6 +11,7 @@ from swarm_core.messages import Anomaly, AnomalyKind, Geo
 from adapters.base import AdapterRegistry
 from adapters.mavlink.fake_endpoint import FakeMAVLinkEndpoint
 from adapters.mavlink.fleet_runner import boot_fleet_runner
+from adapters.mavlink.payload import MAV_CMD_DO_SET_ACTUATOR
 from adapters.mavlink.reach_adapter import ReachAwareMAVLinkAdapter
 from backend.app.fleet import FleetManager, VendorBootError
 from orchestrator.swarm_orchestrator.bus import Bus, InMemoryBus
@@ -123,7 +124,7 @@ async def test_intrusion_runs_payload_before_verify_returns_done(
         for body in bodies
     )
     assert any("light off · MAVLink ACK" in body for body in bodies)
-    assert endpoint.state.command_calls.count(mavutil.mavlink.MAV_CMD_DO_SET_ACTUATOR) == 2
+    assert endpoint.state.command_calls.count(MAV_CMD_DO_SET_ACTUATOR) == 2
     assert mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH in endpoint.state.command_calls
 
 
