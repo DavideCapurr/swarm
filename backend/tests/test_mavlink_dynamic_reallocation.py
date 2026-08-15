@@ -108,7 +108,7 @@ async def test_second_event_reallocates_to_idle_vehicle_while_first_verify_is_ac
                 return
 
     async def _watch_progress() -> None:
-        async for topic, payload in bus.subscribe("swarm:missions:progress:*"):
+        async for _topic, payload in bus.subscribe("swarm:missions:progress:*"):
             frame = json.loads(payload)
             if frame["phase"] == "EN_ROUTE" and len(awards) == 1:
                 first_en_route.set()
