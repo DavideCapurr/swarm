@@ -11,9 +11,10 @@ like a perception producer / audit observer would:
 5. observe the bounded payload event sequence;
 6. require cleanup before mission DONE.
 
-A passing light event must explicitly report ``PX4 OUTPUT CONFIRMED``. Speaker
-events must explicitly report ``SIMULATED PAYLOAD``. This keeps flight-
-controller output proof and demo-only side effects separate in the evidence.
+A passing light event requires the configured PX4 PWM output to have been
+observed in the requested state. Speaker events must explicitly report
+``SIMULATED PAYLOAD``. This keeps flight-controller output proof and demo-only
+side effects separate in the captured evidence.
 """
 
 from __future__ import annotations
@@ -267,10 +268,10 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             return 2, report
 
         expected_bodies = (
-            "light on · PX4 OUTPUT CONFIRMED",
+            "light on · PX4 output confirmed",
             "restricted-area message active · SIMULATED PAYLOAD",
             "restricted-area message stopped · SIMULATED PAYLOAD",
-            "light off · PX4 OUTPUT CONFIRMED",
+            "light off · PX4 output confirmed",
         )
         bodies = [event.body for event in payload_events]
         missing_bodies = [
@@ -309,7 +310,7 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 index
                 for index, item in enumerate(sequence)
                 if item["kind"] == "payload"
-                and "light off · PX4 OUTPUT CONFIRMED" in str(item.get("body", ""))
+                and "light off · PX4 output confirmed" in str(item.get("body", ""))
             ),
             None,
         )
