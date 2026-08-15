@@ -1,0 +1,175 @@
+{
+  "evidence": {
+    "artifact_digest": "sha256:4013e44e824181dae018c6750656a8f8b165f8bea0315ad398aea2d181008ec4",
+    "artifact_id": 9245447732,
+    "head_sha": "b952ba6b9c6a8422ae62085d4c58a213c45ac6f7",
+    "recorded_at": "2026-08-15T10:08:01Z",
+    "workflow_run_id": 31878636052
+  },
+  "probe": {
+    "duration_s": 40.993,
+    "event_a_target": {
+      "lat": 47.398,
+      "lon": 8.546
+    },
+    "event_b_target": {
+      "lat": 47.39795,
+      "lon": 8.5459
+    },
+    "expected_agents": [
+      "mav-001",
+      "mav-002"
+    ],
+    "finished_at": "2026-08-15T10:07:59.664018+00:00",
+    "mission_a": {
+      "mission_id": "5915bd56a1464fd5beb1a4691615dcf5",
+      "score": 2.2533318587856517,
+      "ts": "2026-08-15T10:07:18.869983Z",
+      "winner_agent_id": "mav-002"
+    },
+    "mission_b": {
+      "mission_id": "06eb39fd75524823bde4c4e939fa4b38",
+      "score": 2.2653104422185835,
+      "ts": "2026-08-15T10:07:25.882201Z",
+      "winner_agent_id": "mav-001"
+    },
+    "started_at": "2026-08-15T10:07:18.671063+00:00",
+    "status": "pass",
+    "steps": [
+      {
+        "detail": {
+          "agents": {
+            "mav-001": {
+              "agent_id": "mav-001",
+              "battery_pct": 100.0,
+              "current_mission_id": null,
+              "fsm_state": "DOCKED",
+              "geo": {
+                "alt_m": -0.013,
+                "lat": 47.3977688,
+                "lon": 8.5455938
+              },
+              "link_quality": 0.6669944409999953,
+              "model": "px4-iris-sitl",
+              "ts": "2026-08-15T10:07:18.743099Z",
+              "vendor": "mavlink"
+            },
+            "mav-002": {
+              "agent_id": "mav-002",
+              "battery_pct": 100.0,
+              "current_mission_id": null,
+              "fsm_state": "DOCKED",
+              "geo": {
+                "alt_m": -0.011,
+                "lat": 47.397796,
+                "lon": 8.5455939
+              },
+              "link_quality": 0.8295328173333303,
+              "model": "px4-iris-sitl",
+              "ts": "2026-08-15T10:07:18.864606Z",
+              "vendor": "mavlink"
+            }
+          }
+        },
+        "name": "fleet_ready",
+        "status": "pass",
+        "ts": "2026-08-15T10:07:18.866093+00:00"
+      },
+      {
+        "detail": {
+          "anomaly_id": "3c346e5debd046d6a1d33953805e6b49",
+          "confidence": 0.9
+        },
+        "name": "event_a_published",
+        "status": "pass",
+        "ts": "2026-08-15T10:07:18.867725+00:00"
+      },
+      {
+        "detail": {
+          "fleet_state": "EN_ROUTE",
+          "mission_id": "5915bd56a1464fd5beb1a4691615dcf5",
+          "winner": "mav-002"
+        },
+        "name": "event_a_active",
+        "status": "pass",
+        "ts": "2026-08-15T10:07:25.879989+00:00"
+      },
+      {
+        "detail": {
+          "anomaly_id": "5f6f4eb0097d4bfe9c43d73c12957d83",
+          "mission_a_id": "5915bd56a1464fd5beb1a4691615dcf5",
+          "mission_a_winner": "mav-002"
+        },
+        "name": "event_b_published_while_a_active",
+        "status": "pass",
+        "ts": "2026-08-15T10:07:25.881126+00:00"
+      },
+      {
+        "detail": {
+          "mission_a": {
+            "mission_id": "5915bd56a1464fd5beb1a4691615dcf5",
+            "still_active": true,
+            "winner": "mav-002"
+          },
+          "mission_b": {
+            "mission_id": "06eb39fd75524823bde4c4e939fa4b38",
+            "winner": "mav-001"
+          },
+          "proof": "winner A was EN_ROUTE and non-eligible; second event was awarded to a different available fleet unit before mission A terminated"
+        },
+        "name": "event_b_reallocation",
+        "status": "pass",
+        "ts": "2026-08-15T10:07:25.883383+00:00"
+      },
+      {
+        "detail": {
+          "event_b_to_a_terminal_s": 28.178,
+          "event_b_to_b_terminal_s": 33.783,
+          "mission_a": {
+            "phases": [
+              "EN_ROUTE",
+              "ON_STATION",
+              "DONE"
+            ],
+            "winner": "mav-002"
+          },
+          "mission_b": {
+            "phases": [
+              "EN_ROUTE",
+              "ON_STATION",
+              "DONE"
+            ],
+            "winner": "mav-001"
+          }
+        },
+        "name": "concurrent_completion",
+        "status": "pass",
+        "ts": "2026-08-15T10:07:59.662977+00:00"
+      }
+    ]
+  },
+  "px4_log_evidence": {
+    "mav-001": [
+      "PX4 instance 1 / MAV_SYS_ID 2",
+      "Onboard MAVLink UDP local 14581 -> remote 14541",
+      "Armed by external command",
+      "Takeoff to 40.0 meters above home",
+      "Takeoff detected",
+      "Mission finished, loitering",
+      "Returning to launch",
+      "RTL HOME activated",
+      "RTL: landing at home position"
+    ],
+    "mav-002": [
+      "PX4 instance 2 / MAV_SYS_ID 3",
+      "Onboard MAVLink UDP local 14582 -> remote 14542",
+      "Armed by external command",
+      "Takeoff to 40.0 meters above home",
+      "Takeoff detected",
+      "Mission finished, loitering",
+      "Returning to launch",
+      "RTL HOME activated",
+      "RTL: landing at home position"
+    ]
+  }
+}
