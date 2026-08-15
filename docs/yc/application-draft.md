@@ -1,25 +1,20 @@
 # SWARM — YC application draft
 
-> **Status:** working draft, 2026-06-23. Fill-in-ready answers to the real YC
-> application questions, grounded in the actual repo state — not aspiration.
-> Two live targets are kept open (decision deferred):
+> **Status:** working draft, updated 2026-08-15.
 >
-> - **Early Decision (now):** apply in the currently-open window, **on-time
->   deadline 2026-07-27 20:00 PT**, batch deferred to after the BIEF school
->   year. ([ycombinator.com/early-decision](https://www.ycombinator.com/early-decision))
-> - **Winter 2027 batch:** literal Jan–Mar 2027 batch in SF (implies a BIEF
->   leave). Deadline expected ~Nov 2026; confirm on
->   [ycombinator.com/apply](https://www.ycombinator.com/apply).
+> This document is grounded in the current repo state and the canonical thesis in [`../../swarm-thesis.md`](../../swarm-thesis.md).
 >
-> The application content below is identical for both; only the *batch target*
-> line and the *location/leave* answer change. Gap analysis + dated plan:
-> [`readiness-and-gaps.md`](readiness-and-gaps.md).
+> **Do not copy stale batch dates from older versions of this file. Confirm the live YC application window before submission.**
 
-**Honesty rule (carried from the codebase):** every claim here is typed. The
-MAVLink/PX4 adapter is **SITL-validated** (24 Jun 2026 probe artifact);
-nothing is bench- or field-validated yet. Do not let any external material
-imply otherwise — overclaiming is the fastest YC rejection for a hard-tech
-solo founder, and the typed-claim discipline is itself a selling point.
+## Honesty rule
+
+Every technical claim must preserve the repo's evidence level.
+
+The MAVLink/PX4 path is **PX4 SITL-validated**.
+
+SWARM is **not** yet bench-validated or field-proven on physical aircraft.
+
+The current wildfire / intrusion / search scenarios are simulation fixtures. They are not customer validation and do not establish the first market.
 
 ---
 
@@ -27,251 +22,288 @@ solo founder, and the typed-claim discipline is itself a selling point.
 
 **Company name:** SWARM
 
-**Describe what your company does in 50 characters or less.**
-> `Autonomous drone patrol for high-value land` (43 chars)
+### Describe what your company does in 50 characters or less
 
-Alternatives to A/B:
-- `Self-flying patrol that verifies land threats` (46)
-- `An operating system for autonomous drone patrols` (48)
+Preferred:
 
-**Company URL / product link.**
-> Demo + repo. *(Gap: stand up a one-page live link before submitting — see
-> gap plan. Today there is no public URL; the demo is local one-command.)*
+> `Coordination OS for autonomous drone fleets`
 
-**Demo video.**
-> See the demo shot-list below. A <2-min screen capture of the one-command
-> wildfire Patrol Cell run: sector freshness → cue → verification mission →
-> evidence packet → verify/escalate decision, narrated in confidence-bound
-> voice. (`docs/yc/videos/` is currently empty — this is a required pre-submit
-> artifact.)
+Alternative:
 
-**What is your company going to make? (long answer)**
+> `Autonomous coordination for drone fleets`
 
-> SWARM keeps private high-value land — vineyards, estates, forestry, remote
-> industrial sites — recently observed, and turns an uncertain signal into
-> verified evidence in minutes, using drones as **mobile** sensors instead of
-> a fixed camera/tower/sensor network.
+The short answer should describe the product, not an unvalidated vertical.
+
+### Company URL / product link
+
+> Public demo / landing page + GitHub repo once the multi-agent SITL demo is packaged and deployed.
+
+### Demo video
+
+Target: **60–90 seconds**.
+
+The demo should show multiple PX4 SITL vehicles, a neutral physical-world task, autonomous fleet allocation, mission dispatch, a mid-mission change, reallocation/re-tasking, and an auditable explanation of why SWARM made each decision.
+
+The environment must be clearly labeled as **PX4 SITL / simulation**.
+
+The reviewer should understand, without a long explanation:
+
+> The autopilot flies the aircraft. SWARM decides what the fleet should do.
+
+---
+
+## What is your company going to make?
+
+> SWARM is building the coordination layer for autonomous drone fleets.
 >
-> The product is **SwarmOS**: the autonomous operating layer that decides,
-> plans and coordinates the fleet. It tracks coverage freshness per sector,
-> schedules patrols from risk and staleness (not a static route), turns a cue
-> — a patrol observation, a weather/fire-risk feed, a guard call-in, a
-> stale-sector rule — into a verification mission, dispatches the best
-> available drone, and builds an evidence packet: coordinates, captures,
-> source, confidence, timeline, nearby assets, recommended disposition. A
-> human operator supervises through the **Console** and escalates, dismisses,
-> requests another pass, or returns the unit. **SwarmOS decides; the Console
-> only supervises** — and every number on screen comes from SwarmOS or an
-> honest simulator, never invented in the UI.
+> Individual drone autopilots already know how to fly a mission. The unsolved layer above them is deciding which unit should respond, when it should launch, what objective it should execute, how multiple units should coordinate, when one unit should replace another, how battery and availability affect the mission, and what happens when the situation changes.
 >
-> The first wedge is **wildfire-risk patrol** because the problem is urgent,
-> seasonal and measurable — but the same loop already runs perimeter
-> intrusion and missing-person/search scenarios in the demo. The buyer doesn't
-> pay for "a drone that looks at a fire"; they pay for a recent view of the
-> land, fast conversion of an uncertain signal into evidence, fewer wasted
-> callouts, and an auditable record of patrols and decisions.
+> SWARM turns a heterogeneous set of autonomous aircraft into one operational system. A task enters the system; SWARM evaluates the fleet, selects the best available unit or units, dispatches missions through vendor adapters, tracks execution, re-tasks when conditions change, and produces an auditable result for the operator.
 >
-> The MVP deliberately needs **no SWARM-owned fixed infrastructure**: one
-> thermal-capable drone, an operator, the Console, and reports. That removes
-> the capex that makes incumbents slow to deploy.
+> Today the product runs end-to-end in simulation and the MAVLink/PX4 path is validated against PX4 SITL for connect, telemetry, mission dispatch, and return-to-launch. The next technical proof is a short multi-vehicle SITL demo that makes autonomous allocation and re-tasking visible.
 >
-> **The bigger picture (why this is big):** underneath the wedge, SwarmOS is
-> the **operating system for autonomous drone operations** — vendor-neutral
-> coordination across airframes and task classes. The same decide → verify →
-> evidence → supervise loop that watches an estate generalizes to inspection,
-> monitoring, disaster response and **defense ISR** (perimeter, counter-UAS,
-> force protection) — civilian and non-civilian. We start civilian and narrow
-> on purpose; the platform is earned wedge by wedge. SWARM coordinates and
-> verifies — explicitly **not** a weapons system (human-on-the-loop, no lethal
-> autonomy).
-
-**Where do you live now / where based after YC?**
-> Now: Piedmont, Italy (Langhe — wildfire-prone wine country, the exact
-> territory the product models). After YC: *(Early-Decision answer)* remain
-> in Italy / EU for the BIEF year and join the batch in SF after the school
-> year; *(Winter-batch answer)* relocate to SF for the batch. Be explicit and
-> honest about the school timeline either way.
+> We have deliberately reopened the first commercial wedge instead of forcing the company around an unvalidated wildfire/private-land assumption. We are now interviewing operators of industrial sites, logistics yards, mines, energy infrastructure, ports, inspection workflows, and other large physical environments to find the highest-frequency situation where someone currently has to physically go and check what is happening.
+>
+> The long-term vision is larger than drone fleet management: SWARM can become a coordination runtime that gives software reliable physical presence through distributed autonomous machines.
 
 ---
 
 ## Progress
 
-**How far along are you?**
-> Code-complete, simulation-validated product. SwarmOS runs end-to-end in an
-> honest simulator: the autonomy engine returns an explicit
-> `VERIFY | DISMISS | ESCALATE | WAIT` verdict on every anomaly, gated by a
-> mandatory **shadow-mode** that compares every decision to a human baseline
-> and fails the build above 5% divergence (currently 0% deterministic over the
-> 3 scenarios). A one-command demo runs three Patrol Cell scenarios
-> (wildfire / intrusion / search) with real event-to-detection and
-> detection-to-verification metrics. The verification viewport runs **real**
-> YOLOv8 person detection (0.95 / 0.86 confidence) on licensed imagery, kept
-> opt-in and out of the production image for licensing hygiene.
+### How far along are you?
+
+> SWARM has an end-to-end coordination stack: domain core, mission model, fleet state machine, auction-based allocator, simulator, orchestrator, backend, real-time telemetry, operator Console, persistence/audit, autonomy/shadow-mode logic, CV-backed scenarios, security controls, and a multi-vendor adapter architecture.
 >
-> Engineering maturity is unusually high for stage: JWT auth with mandatory
-> MFA for the commander role, Timescale-backed audit history, SHA-pinned
-> dependencies + SBOM, CSP/security headers on every response, a committed
-> threat model, and CI gates that fail on overclaiming language. **~850
-> backend + ~150 frontend tests pass.** The MAVLink/PX4 adapter is CI-ready and
-> now **PX4 SITL-validated** — a live PX4 v1.14.0 SITL run drives HEARTBEAT
-> connect → telemetry ingest → VERIFY mission dispatch → return-to-launch, with
-> a green probe artifact (`docs/bench/phase9-sitl-validation.md`). Not yet
-> hardware/field proven.
+> The MAVLink/PX4 adapter has been validated against PX4 SITL. A reproducible probe covers connect, status visibility, telemetry ingest, mission dispatch and RTL.
+>
+> The strongest missing technical proof is physical-aircraft validation. We are not claiming it yet.
+>
+> The strongest missing company proof is customer evidence. The previous wildfire/vineyard wedge was based too heavily on thesis rather than real buyer evidence, so we reopened the first market and are doing cross-vertical customer discovery before naming a canonical wedge.
 
-**How long / how much full-time?**
-> *(Fill in honestly.)* Built largely solo over [N months]; full-time during
-> the summer code window, around Italian secondary-school finals (maturità,
-> June 2026).
+### Are people using your product?
 
-**Are people using your product?** No.
-**Active users / paying?** None yet. **Revenue?** None yet.
-> Honest and intentional: the roadmap deliberately put market and field
-> evidence *after* a working, investor-readable demo. The gap plan closes the
-> "talked to users" hole before submission.
+> No production users yet.
 
-**Incubators/accelerators?** *(Fill in — likely none. Bocconi B4i / HAX are
-> options under evaluation, not commitments.)*
+### Revenue?
+
+> No revenue yet.
+
+### What have you done that is difficult or impressive?
+
+> I built the coordination system end-to-end before starting university: the mission allocator, autonomy logic, fleet state, simulator, backend, Console, audit/security discipline, and PX4/MAVLink integration. The codebase is designed to keep claims typed: simulated, SITL-validated, bench-validated and field-proven are separate evidence levels. The PX4 path is at SITL today, and I know exactly what remains to make it physical.
+
+Use actual test counts and other engineering metrics only if re-verified immediately before submission.
 
 ---
 
 ## Idea
 
-**Why this idea? Domain expertise? How do you know people need it?**
-> I grew up in the Langhe, where dry-season wildfire risk over vineyards and
-> woodland is a real, recurring threat, and where high-value private land is
-> mostly *unwatched* between rare guard rounds. Fixed camera/tower networks
-> (public wildfire camera grids, perimeter CCTV) don't cover private
-> mid-size estates — the capex and install don't pencil out. So the land goes
-> unobserved until something is already burning or already inside the fence.
+### Why this idea?
+
+> Physical systems are still dispatched and coordinated much more manually than software systems. A drone can autonomously fly a route, but operating many distributed drones across changing tasks still requires humans to decide who should go, when, with which capabilities, and what should happen when the situation changes.
 >
-> I'm a software founder, not a hardware vendor: I built the coordination OS
-> first because **autonomy and coordination — not the airframe — is the hard,
-> defensible part**. *(Demand evidence: this is the current weakest answer.
-> The gap plan adds 10–15 real conversations with estate/vineyard managers,
-> land-risk and drone-operator contacts in Piedmont before submission, so this
-> answer cites real quotes, not a founder hunch.)*
-
-**Competitors? What do you understand that they don't?**
-> Every credible incumbent requires **fixed infrastructure** (researched
-> landscape + sources: [`competitive-and-market.md`](competitive-and-market.md)):
-> - **Pano AI** — AI cameras on fixed towers (~30M acres; $44M Series B Jun
->   2025). Tower capex only pencils for utilities/public land at landscape
->   scale, not a single private estate; press flags cloud false-positives and
->   heavy human reliance.
-> - **Dryad Networks** — fixed solar mesh **gas sensors** on trees; dense
->   per-hectare install, detection only, no verification/response.
-> - **Percepto / Skydio** — drone-in-a-box tied to a **fixed dock**, **$40k–
->   $250k+ capex per site**, aimed at heavy industry/defense; they sell the box.
-> - **Manual drone ops / guard patrols** — not autonomous, not coordinated, no
->   auditable record, doesn't scale.
+> My core insight is that the durable product may not be one better airframe. It may be the coordination layer that makes many replaceable autonomous units behave like one system.
 >
-> What I understand: fixed infrastructure structurally locks all of them out of
-> **private mid-size high-value territory**, which is left unserved. The wedge
-> is **mobile, no-fixed-infrastructure, capex-free patrol**, and the defensible
-> product is the **coordination OS**, not the drone. Start with one drone +
-> operator + Console, prove value on freshness + verification + evidence, and
-> the same loop generalizes across event classes and, later, to multi-cell
-> coordination. They sell fixed hardware; I sell trustworthy decisions.
+> A single drone is an asset. A coordinated fleet can become infrastructure.
 
-**How do you make money? How much?**
-> Per-territory seasonal patrol subscription (mobile cell), priced against the
-> cost of a wasted callout and an unverified threat; later a docked-cell
-> premium and SwarmOS coordination-OS licensing. Demand tailwind is real and
-> citable: the Mediterranean basin is **86% of total EU burned area**, and
-> extreme-fire-weather exposure is projected to rise sharply through 2049 — a
-> clean "why now." Beachhead alone (Piedmont ~45,000 ha under vine, thousands
-> of mostly small family estates) is sizable before widening to the wildfire-
-> exposed Mediterranean EU. Bottoms-up frame + sources:
-> [`competitive-and-market.md`](competitive-and-market.md). *(Drop the
-> seasonal price anchor from the discovery interviews before submitting.)*
+### How do you know people need it?
 
-**Category:** Hard tech / robotics / aerospace — the **OS for autonomous
-drones**, dual-use (civil territorial resilience + defense ISR; ISR only,
-never weapons).
+**Do not submit the old vineyard/wildfire founder-hunch answer.**
+
+The final answer should be replaced with real discovery evidence.
+
+Before submission, answer with concrete patterns such as:
+
+> We spoke with [N] operators across [verticals]. The repeated workflow was [specific physical verification task]. It happens [frequency], currently takes [time/cost], and [buyer type] owns the budget. [N] said they would evaluate a supervised pilot if we can hit [specific success metric].
+
+If that evidence does not exist yet, say so honestly rather than fabricating certainty.
 
 ---
 
-## Founders / team
+## First wedge
 
-> Answer chosen: **founder + cofounder in progress.** Frame honestly.
+### Current position
+
+The first wedge is **not yet canonically selected**.
+
+Candidate environments for discovery:
+
+- industrial sites and logistics yards;
+- mines and quarries;
+- energy infrastructure;
+- ports and large compounds;
+- infrastructure inspection;
+- large private/semi-private sites;
+- manual drone-service workflows that already suffer from dispatch/coverage constraints.
+
+The wedge should be chosen based on repeated evidence that the workflow is frequent, painful, has a clear budget owner, and benefits from coordinated autonomous mobile units.
+
+Wildfire remains a possible application, not the identity of the company.
+
+---
+
+## Competitors
+
+The final answer should compare SWARM against the categories the selected wedge actually encounters.
+
+At the platform layer, likely categories include:
+
+- single-vendor drone fleet-management products;
+- drone-in-a-box systems;
+- manual drone-service operators;
+- fixed camera/sensor systems;
+- robotics orchestration systems;
+- internal operator workflows built around one autopilot/vendor.
+
+### What do we understand differently?
+
+> Onboard autonomy and airframes will keep improving and becoming more replaceable. The coordination problem remains: heterogeneous assets, many simultaneous tasks, limited human attention, battery/availability constraints, and changing priorities. SWARM is designed to own that layer rather than one airframe.
+
+Do not claim a moat from vendor neutrality alone. The defensibility must eventually come from deployed workflow integration, coordination reliability, operational data, adapters, safety/evidence tooling, and the ability to manage increasingly complex fleets.
+
+---
+
+## Business model
+
+Do not force a final pricing model until the wedge is selected.
+
+Possible models include:
+
+- annual software license per site / fleet;
+- per-site managed deployment;
+- software + support / integration;
+- usage-based mission or asset coordination;
+- later API/runtime pricing for third-party systems that request physical tasks.
+
+The first pricing answer should be tied to the workflow discovered in customer interviews and to a clear existing cost or budget line.
+
+---
+
+## Market size
+
+Do not use “all drones” as the initial TAM.
+
+Once the wedge is selected:
+
+> target sites × realistic annual contract value × realistic initial market
+
+Then explain how the same coordination layer expands to adjacent workflows and industries.
+
+Long-term vision:
+
+> SWARM becomes infrastructure for software-directed physical agency, starting with autonomous drone fleets and potentially expanding to other distributed robotic systems.
+
+---
+
+## Why now?
+
+Potential structural tailwinds to verify and cite before submission:
+
+- rapidly improving and cheaper autonomous drone hardware;
+- better onboard autonomy and commodity autopilots;
+- increasing drone-in-a-box deployment;
+- more AI systems capable of detecting events and generating tasks;
+- growing demand for remote inspection and operations;
+- increasing need to coordinate heterogeneous fleets rather than one vehicle at a time.
+
+Use current sources in the final application rather than unsupported generalities.
+
+---
+
+## Founder / team
+
+### Founder
+
+> Technical founder who designed and built SWARM's coordination stack end-to-end before starting university.
+
+The application should make the unusual technical slope the center of the founder story.
+
+### Cofounder
+
+Current state: unresolved.
+
+Do not add a placeholder cofounder.
+
+If still solo, say so plainly. Explain that the highest-value complementary profile would likely add robotics/controls, hardware/flight operations, regulation, or industrial customer access.
+
+---
+
+## Founder commitment / university
+
+This answer must match reality.
+
+Possible structure:
+
+> I am starting university, but SWARM is not a class project. I built the current system before university and I am continuing to push the company through customer discovery and technical proof. If the evidence shows this should become my full-time company, I am prepared to make that decision rather than treating school as a reason not to act.
+
+Do not use this wording if it overstates actual willingness.
+
+---
+
+## Regulatory / deployment answer
+
+> We are separating software proof from deployment claims. Today the real-aircraft path is not field-proven. Early physical testing will be supervised and bounded under the applicable operating rules. Broader BVLOS/autonomous operations are a real scaling constraint that must be addressed market by market; we are not assuming regulation away. The coordination layer can still be developed and validated in SITL and supervised operations while the deployment envelope expands.
+
+Verify jurisdiction-specific details before submission.
+
+---
+
+## Demo script — target 60–90 seconds
+
+### 0–10s
+
+> “SWARM coordinates autonomous drone fleets. The autopilot flies each drone. SWARM decides who should go, when, and what happens next.”
+
+Show three PX4 SITL units with clearly different battery/availability states.
+
+### 10–30s
+
+Create:
+
+`VERIFY anomaly at sector C7`
+
+Show the allocator reasoning and autonomous unit selection.
+
+### 30–50s
+
+Show mission dispatch through the PX4/MAVLink path and live fleet state.
+
+### 50–70s
+
+Introduce a second higher-priority event or make the selected unit unavailable / low battery.
+
+Show SWARM reallocate, add a second unit, or command RTL.
+
+### 70–90s
+
+Show the audit/result view.
+
+Close:
+
+> “Everything shown here is PX4 SITL. We have not field-validated the aircraft path yet. Next we are taking this same coordination layer into the first workflow that customer discovery proves is worth deploying.”
+
+That ending is stronger than pretending simulation is hardware.
+
+---
+
+## The bigger picture
+
+> Software can move information instantly, but physical response is still limited by where machines and people happen to be. SWARM's long-term goal is to make physical presence programmable: a software system expresses an objective, and SWARM finds and coordinates the available autonomous agents that can carry it out.
 >
-> - **[Founder]** — technical founder; designed and built SwarmOS end-to-end
->   (kernel, autonomy engine, sim, security, Console). The story is the
->   strongest single asset: a solo pre-university founder shipped a
->   production-discipline autonomous-coordination system. Lean into it.
-> - **[Cofounder / candidate]** — *(fill in real name + complementary
->   strengths: ideally domain/field-ops, hardware/flight, or
->   commercial/buyer-access — the lanes I'm weakest in.)* If still recruiting
->   at submission, say so plainly and describe the exact gap being filled; YC
->   prefers honesty to a fabricated team.
-
-**Founder video script (<1 min, each founder records their own):**
-> "I'm [name], from the Langhe in Piedmont — wine country that's also some of
-> Italy's most wildfire-exposed private land. Between rare guard rounds, that
-> land is unwatched, and fixed camera networks are too expensive to install on
-> a private estate. I spent the last [N] months building SwarmOS: the
-> autonomous layer that flies a drone to patrol the land, verifies a
-> suspicious signal in minutes, and hands a human operator an evidence packet
-> and a verify-or-escalate decision — no fixed cameras, no towers. It already
-> runs end-to-end in simulation across wildfire, intrusion and search, with
-> real computer-vision detection and a safety gate that checks every
-> autonomous decision against a human baseline. I'm building this because the
-> land I grew up on deserves to be watched, and because the hard part —
-> coordinating autonomy you can trust — is software, which is what I'm best
-> at. [Cofounder line.] Next we put it in front of buyers and onto real
-> hardware."
-> *(Record in one take, plain background, look at camera, no slides. Energy +
-> clarity beat polish.)*
+> We start with drones because they are increasingly capable, mobile and replaceable. The larger company can become the runtime for autonomous physical infrastructure.
 
 ---
 
-## Curious
+## Pre-submit checklist
 
-**What convinced you to apply to YC?** *(Fill in — genuine, specific, short.)*
-**How did you hear about YC?** *(Fill in.)*
-
----
-
-## Demo video — shot list (target <2 min)
-
-Drive the real one-command demo (`make demo` / wildfire scenario) and screen-
-capture the Console. Use the existing stills in
-[`docs/yc/screenshots/`](screenshots/) as fallback frames. Narrate in the
-PDF §5.2 confidence-bound voice — never the forbidden words.
-
-1. **0:00–0:12 — Hook.** "Private high-value land is unwatched between guard
-   rounds. SWARM keeps it observed and verifies threats with autonomous
-   drones — no fixed cameras." (`wildfire-01-standby.png`)
-2. **0:12–0:30 — Coverage freshness.** Show sectors + last-seen/staleness; a
-   priority sector goes stale and triggers a patrol.
-3. **0:30–0:50 — Cue → mission.** A wildfire-risk cue appears; SwarmOS turns
-   it into a verification mission and dispatches a unit.
-   (`wildfire-02-smoke.png`)
-4. **0:50–1:15 — Verification + CV.** Viewport (stamped `SIMULATED FEED`);
-   SwarmOS reaches R1/VERIFY. (`wildfire-03-r1-verify.png`) Note: CV person-
-   detection is real on intrusion/search; wildfire smoke is honestly scripted
-   (no fake fire CV).
-5. **1:15–1:40 — Evidence + decision.** Evidence packet; SwarmOS escalates a
-   verified hotspot; operator supervises. (`wildfire-04-fire.png`,
-   `wildfire-05-r2-escalate.png`)
-6. **1:40–2:00 — Truth + ask.** One line: "Everything you saw is
-   simulation-validated today. Next: buyers and real flight." State the YC
-   ask. Show the typed claim table.
-
-**Hard rule:** stamp simulation honestly; never imply field/hardware proof.
-
----
-
-## Truth table (paste into the application / demo)
-
-| Capability | sim | SITL | bench | field |
-|---|:--:|:--:|:--:|:--:|
-| Autonomy engine (verify/dismiss/escalate/wait) | ✅ | — | — | — |
-| Shadow-mode safety gate (<5% vs human baseline) | ✅ | — | — | — |
-| Coverage freshness + patrol scheduling | ✅ | — | — | — |
-| CV person detection (real YOLOv8) | ✅ | — | — | — |
-| Wildfire smoke/fire CV | scripted | — | — | — |
-| MAVLink/PX4 adapter | CI-ready | ✅ | — | — |
-| Flight / hardware | — | — | — | — |
-
-Nothing ships to an investor as more proven than this table says.
+- [ ] Re-verify all current YC dates and application fields.
+- [ ] Record the multi-agent PX4 SITL demo.
+- [ ] Deploy a simple public demo/landing link.
+- [ ] Complete serious cross-vertical customer discovery.
+- [ ] Replace all placeholder demand answers with real evidence.
+- [ ] Select a wedge only if evidence supports it.
+- [ ] Re-verify test counts and technical metrics.
+- [ ] Keep SITL / bench / field claims distinct.
+- [ ] Decide the honest founder-commitment answer.
+- [ ] Decide solo/cofounder status.
+- [ ] Build wedge-specific market sizing only after the buyer/workflow is clear.
