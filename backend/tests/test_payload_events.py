@@ -5,10 +5,9 @@ import contextlib
 
 import pytest
 
-from swarm_core.messages import Event, EventKind
-
 from backend.app.bus_consumer import BusConsumer
 from orchestrator.swarm_orchestrator.bus import InMemoryBus
+from swarm_core.messages import Event, EventKind
 
 
 class RecordingHub:
