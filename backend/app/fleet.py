@@ -16,18 +16,13 @@ import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
-from swarm_core.execution_groups import ExecutionGroup
-
 from adapters.base import AdapterRegistry
 from adapters.mavlink.adapter import MAVLinkAdapter
 from adapters.mavlink.fleet_runner import MAVLinkFleetRunner, boot_fleet_runner
 from adapters.mavlink.payload import MAVLinkPayloadController
 from adapters.payload import PayloadControllerRegistry
-from backend.app.hub import HUB
-from backend.app.state import STATE
 from orchestrator.swarm_orchestrator.bus import Bus
 from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
-from orchestrator.swarm_orchestrator.execution_groups import EXECUTION_GROUP_TOPIC
 from orchestrator.swarm_orchestrator.presence_bus import (
     PresenceResponseBusFleetOrchestrator,
 )
@@ -135,16 +130,9 @@ class FleetManager:
     _runners: list[object] = field(default_factory=list)
     _mission_orchestrator: BusFleetOrchestrator | None = None
     _mission_task: asyncio.Task[None] | None = None
-    _execution_group_projection_task: asyncio.Task[None] | None = None
     booters: dict[str, VendorBooter] = field(default_factory=dict)
 
     async def start(self) -> None:
-        if self._execution_group_projection_task is not None:
-            raise RuntimeError("fleet manager already started")
-        self._execution_group_projection_task = asyncio.create_task(
-            self._project_execution_groups()
-        )
-
         booters = {**_default_booters(), **self.booters}
         for vendor in self.vendors:
             if vendor not in IN_PROCESS_VENDORS:
@@ -173,20 +161,6 @@ class FleetManager:
             logger.exception("fleet: mission runtime boot failed")
             await self.stop()
             raise VendorBootError("MAVLink mission runtime boot failed") from exc
-
-    async def _project_execution_groups(self) -> None:
-        """Project exact SwarmOS group truth; never infer membership in backend."""
-
-        async for _topic, payload in self.bus.subscribe(EXECUTION_GROUP_TOPIC):
-            try:
-                group = ExecutionGroup.model_validate_json(payload)
-            except Exception:
-                logger.warning("dropped malformed execution-group frame")
-                continue
-            STATE.execution_groups[group.id] = group
-            await HUB.broadcast(
-                {"kind": "execution_group", "data": group.model_dump(mode="json")}
-            )
 
     def _configure_payload_runtime(self) -> None:
         if not self.presence_response_enabled:
@@ -273,12 +247,6 @@ class FleetManager:
                 await self._mission_task
             self._mission_task = None
             self._mission_orchestrator = None
-
-        if self._execution_group_projection_task is not None:
-            self._execution_group_projection_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await self._execution_group_projection_task
-            self._execution_group_projection_task = None
 
         for runner in self._runners:
             stop = getattr(runner, "stop", None)

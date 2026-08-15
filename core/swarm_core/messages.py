@@ -166,6 +166,12 @@ class MissionProgress(BaseModel):
     """Execution progress reported after SwarmOS has selected a mission owner."""
 
     mission_id: str
+    # SwarmOS enriches adapter progress with ownership provenance before it
+    # reaches the truth projection. Physical adapters do not choose these.
+    agent_id: str | None = None
+    execution_group_id: str | None = None
+    execution_role: str | None = None
+    parent_objective_id: str | None = None
     # ACCEPTED | EN_ROUTE | ON_STATION | RETURNING | DONE | FAILED.
     # BIDDING remains accepted only as a legacy compatibility value in older state.
     phase: str

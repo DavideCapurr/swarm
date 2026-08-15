@@ -374,6 +374,25 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 self._agent_tasks.pop(agent_id, None)
                 self._agent_mission_ids.pop(agent_id, None)
 
+    def _enrich_group_progress(
+        self, progress: MissionProgress, agent_id: str
+    ) -> MissionProgress:
+        mapping = self._group_task_to_role.get(progress.mission_id)
+        if mapping is None:
+            return progress.model_copy(update={"agent_id": agent_id})
+        group_id, role = mapping
+        group = self._execution_groups.get(group_id)
+        return progress.model_copy(
+            update={
+                "agent_id": agent_id,
+                "execution_group_id": group_id,
+                "execution_role": role,
+                "parent_objective_id": (
+                    group.objective_mission_id if group is not None else None
+                ),
+            }
+        )
+
     async def _publish_group_child_progress(
         self,
         *,
@@ -381,6 +400,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
         adapter: object,
         progress: MissionProgress,
     ) -> None:
+        progress = self._enrich_group_progress(progress, agent_id)
         await self.bus.publish(
             f"swarm:missions:progress:{progress.mission_id}",
             progress.model_dump_json(),

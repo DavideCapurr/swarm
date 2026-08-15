@@ -131,6 +131,7 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                 if not is_verify:
                     continue
 
+                progress = self._enrich_group_progress(progress, agent_id)
                 await self.bus.publish(
                     f"swarm:missions:progress:{mission.id}",
                     progress.model_dump_json(),
@@ -167,6 +168,7 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                     progress_pct=0.0,
                     error=f"{type(exc).__name__}: {exc}"[:240],
                 )
+                failure = self._enrich_group_progress(failure, agent_id)
                 await self.bus.publish(
                     f"swarm:missions:progress:{mission.id}",
                     failure.model_dump_json(),

@@ -17,6 +17,7 @@ import time
 from typing import TYPE_CHECKING
 
 from swarm_core.allocations import AllocationDecision
+from swarm_core.execution_groups import ExecutionGroup
 from swarm_core.messages import (
     AgentState,
     Anomaly,
@@ -112,6 +113,7 @@ class BusConsumer:
             asyncio.create_task(self._consume_anomalies()),
             asyncio.create_task(self._consume_progress()),
             asyncio.create_task(self._consume_allocations()),
+            asyncio.create_task(self._consume_execution_groups()),
             asyncio.create_task(self._consume_mission_runtime()),
             asyncio.create_task(self._consume_payload_events()),
             asyncio.create_task(self._consume_streams()),
@@ -220,6 +222,18 @@ class BusConsumer:
             await self._hub.broadcast(
                 {"kind": "allocation", "data": decision.model_dump(mode="json")}
             )
+
+    async def _consume_execution_groups(self) -> None:
+        """Project authoritative multi-agent composition and aggregate outcome."""
+
+        async for _topic, payload in self.bus.subscribe("swarm:execution-groups"):
+            try:
+                group = ExecutionGroup.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed execution-group frame from bus")
+                continue
+            for frame in await self._coordinator.apply_execution_group(group):
+                await self._hub.broadcast(frame)
 
     async def _consume_mission_runtime(self) -> None:
         """Forward mission ownership + adapter-supplied phase evidence."""

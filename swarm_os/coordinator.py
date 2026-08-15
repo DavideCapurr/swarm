@@ -17,6 +17,7 @@ from collections import deque
 from datetime import UTC, datetime
 from typing import Any
 
+from swarm_core.execution_groups import ExecutionGroup, ExecutionGroupMemberState, ExecutionGroupState
 from swarm_core.geometry import haversine_m
 from swarm_core.messages import (
     AgentState,
@@ -164,7 +165,10 @@ class SwarmCoordinator:
             now = datetime.now(UTC)
             phase = _mission_phase(progress.phase)
             existing = self.state.missions.get(progress.mission_id)
-            assigned = existing.assigned_agent if existing else self.state.verifier_id
+            assigned = (
+                progress.agent_id
+                or (existing.assigned_agent if existing else self.state.verifier_id)
+            )
             mission = MissionView(
                 id=progress.mission_id,
                 kind=existing.kind if existing else "VERIFY",
@@ -186,12 +190,87 @@ class SwarmCoordinator:
             # id. Promotion happens *before* `_refresh` so the same refresh's
             # autonomy tick observes the freshly-VERIFIED anomaly — though R2
             # only fires a later tick once the idle floor elapses (ts=now).
-            if phase is MissionPhase.DONE and mission.kind == "VERIFY":
+            if (
+                phase is MissionPhase.DONE
+                and mission.kind == "VERIFY"
+                and progress.execution_group_id is None
+            ):
                 self._promote_verified_anomaly(mission, now)
             new_events, autonomy_cmds = await self._refresh_async(now)
             frames = self._frames("mission", mission)
             frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
             frames.extend(self._frame("event", event) for event in new_events)
+            return frames
+
+    async def apply_execution_group(
+        self, group: ExecutionGroup
+    ) -> list[dict[str, Any]]:
+        """Project a SwarmOS-owned group and aggregate cooperative outcome.
+
+        Child VERIFY completion is intentionally insufficient. Only the parent
+        group lifecycle may transition its anomaly to VERIFIED (or back to
+        PENDING after an unrecoverable group failure).
+        """
+
+        async with self.state.lock:
+            now = datetime.now(UTC)
+            previous = self.state.execution_groups.get(group.id)
+            self.state.execution_groups[group.id] = group
+            frames = [self._frame("execution_group", group)]
+
+            anomaly = (
+                self.state.anomalies.get(group.anomaly_id)
+                if group.anomaly_id is not None
+                else None
+            )
+            if anomaly is not None:
+                primary = next(
+                    (
+                        member
+                        for member in reversed(group.members)
+                        if member.role == "PRIMARY_OBSERVER"
+                        and member.state is not ExecutionGroupMemberState.REPLACED
+                    ),
+                    None,
+                )
+                updates: dict[str, Any] = {}
+                active_states = {
+                    ExecutionGroupState.FORMING,
+                    ExecutionGroupState.ACTIVE,
+                    ExecutionGroupState.DEGRADED,
+                }
+                if group.state in active_states:
+                    if anomaly.state is AnomalyState.PENDING:
+                        updates["state"] = AnomalyState.VERIFYING
+                    if primary is not None:
+                        updates["verifying_agent"] = primary.agent_id
+                elif (
+                    group.state is ExecutionGroupState.COMPLETED
+                    and anomaly.state in {AnomalyState.PENDING, AnomalyState.VERIFYING}
+                ):
+                    updates["state"] = AnomalyState.VERIFIED
+                    if primary is not None:
+                        updates["verifying_agent"] = primary.agent_id
+                elif (
+                    group.state is ExecutionGroupState.FAILED
+                    and anomaly.state is AnomalyState.VERIFYING
+                ):
+                    updates["state"] = AnomalyState.PENDING
+                    updates["verifying_agent"] = None
+
+                if updates:
+                    updates["ts"] = now
+                    anomaly = anomaly.model_copy(update=updates)
+                    self.state.anomalies[anomaly.id] = anomaly
+                    frames.append(self._frame("anomaly_view", anomaly))
+
+            # Run derived-state refresh only for a meaningful lifecycle update.
+            # Duplicate frames are still stored/broadcast but cannot repeatedly
+            # fire autonomy transitions.
+            if previous != group:
+                new_events, autonomy_cmds = await self._refresh_async(now)
+                frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
+                frames.extend(self._frame("event", event) for event in new_events)
             return frames
 
     async def apply_command(self, command: OperatorCommand) -> tuple[CommandResult, list[dict[str, Any]]]:
@@ -230,6 +309,10 @@ class SwarmCoordinator:
                 *[self._frame("sector", sector) for sector in self.state.sectors.values()],
                 *[self._frame("unit", unit) for unit in self.state.units.values()],
                 *[self._frame("mission", mission) for mission in self.state.missions.values()],
+                *[
+                    self._frame("execution_group", group)
+                    for group in self.state.execution_groups.values()
+                ],
                 *[
                     self._frame("anomaly_view", anomaly)
                     for anomaly in self.state.anomalies.values()
@@ -489,7 +572,19 @@ class SwarmCoordinator:
         """
 
         verifier = self.state.verifier_id
+        group_owned_anomalies = {
+            group.anomaly_id
+            for group in self.state.execution_groups.values()
+            if group.anomaly_id is not None
+            and group.state in {
+                ExecutionGroupState.FORMING,
+                ExecutionGroupState.ACTIVE,
+                ExecutionGroupState.DEGRADED,
+            }
+        }
         for aid, anomaly in list(self.state.anomalies.items()):
+            if aid in group_owned_anomalies:
+                continue
             if anomaly.state not in {
                 AnomalyState.PENDING,
                 AnomalyState.VERIFYING,

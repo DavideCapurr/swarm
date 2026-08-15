@@ -12,7 +12,6 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from swarm_core.execution_groups import ExecutionGroup
 from swarm_core.messages import Anomaly, FleetState, Telemetry
 
 
@@ -21,7 +20,6 @@ class BackendState:
     fleet: dict[str, FleetState] = field(default_factory=dict)
     anomalies: dict[str, Anomaly] = field(default_factory=dict)
     last_telemetry: dict[str, Telemetry] = field(default_factory=dict)
-    execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)
     events: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=500))
 
     def add_event(self, kind: str, payload: dict[str, Any]) -> None:

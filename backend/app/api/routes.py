@@ -35,7 +35,7 @@ async def health() -> dict[str, Any]:
         "telemetry_agents": list(STATE.last_telemetry.keys()),
         "swarmos_units": len(SWARM_STATE.units),
         "swarmos_mode": SWARM_STATE.mode.value,
-        "execution_groups": len(STATE.execution_groups),
+        "execution_groups": len(SWARM_STATE.execution_groups),
         "persistence": get_repository().enabled,
     }
 
@@ -81,7 +81,7 @@ async def allocations(_: _VIEWER) -> dict[str, Any]:
 
 @router.get("/execution-groups")
 async def execution_groups(_: _VIEWER) -> dict[str, Any]:
-    ordered = sorted(STATE.execution_groups.values(), key=lambda group: group.ts)
+    ordered = sorted(SWARM_STATE.execution_groups.values(), key=lambda group: group.ts)
     return {"execution_groups": [group.model_dump(mode="json") for group in ordered]}
 
 
