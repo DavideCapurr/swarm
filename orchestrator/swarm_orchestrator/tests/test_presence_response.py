@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -78,24 +80,44 @@ class RecordingPayloadController:
         )
 
 
-@pytest.mark.asyncio
-async def test_verified_presence_waits_for_capture_ready_then_runs_once() -> None:
-    bus = RecordingBus()
+def _build_orchestrator(
+    *,
+    bus: RecordingBus,
+    payload: RecordingPayloadController,
+    hold_s: float,
+    min_confidence: float = 0.75,
+) -> PresenceResponseOrchestrator:
     payload_registry = PayloadControllerRegistry()
-    payload = RecordingPayloadController("unit-001")
     payload_registry.register(payload)
-    orchestrator = PresenceResponseOrchestrator(
+    return PresenceResponseOrchestrator(
         bus=bus,  # type: ignore[arg-type]
         registry=AdapterRegistry(),
         payload_registry=payload_registry,
-        presence_hold_s=0.0,
+        presence_min_confidence=min_confidence,
+        presence_hold_s=hold_s,
     )
+
+
+def _bind_presence(
+    orchestrator: PresenceResponseOrchestrator,
+    *,
+    confidence: float,
+) -> Any:
     mission = VERIFY(geo=Geo(lat=45.0, lon=10.0), hover_s=0.0)
     orchestrator._mission_anomalies[mission.id] = Anomaly(
         kind=AnomalyKind.INTRUSION,
         geo=Geo(lat=45.0, lon=10.0),
-        confidence=0.94,
+        confidence=confidence,
     )
+    return mission
+
+
+@pytest.mark.asyncio
+async def test_verified_presence_waits_for_capture_ready_then_runs_once() -> None:
+    bus = RecordingBus()
+    payload = RecordingPayloadController("unit-001")
+    orchestrator = _build_orchestrator(bus=bus, payload=payload, hold_s=0.0)
+    mission = _bind_presence(orchestrator, confidence=0.94)
 
     await orchestrator._run_mission(
         "unit-001", MissionAdapter(), mission, is_verify=True
@@ -120,22 +142,14 @@ async def test_verified_presence_waits_for_capture_ready_then_runs_once() -> Non
 @pytest.mark.asyncio
 async def test_low_confidence_presence_does_not_activate_payload() -> None:
     bus = RecordingBus()
-    payload_registry = PayloadControllerRegistry()
     payload = RecordingPayloadController("unit-001")
-    payload_registry.register(payload)
-    orchestrator = PresenceResponseOrchestrator(
-        bus=bus,  # type: ignore[arg-type]
-        registry=AdapterRegistry(),
-        payload_registry=payload_registry,
-        presence_min_confidence=0.75,
-        presence_hold_s=0.0,
+    orchestrator = _build_orchestrator(
+        bus=bus,
+        payload=payload,
+        hold_s=0.0,
+        min_confidence=0.75,
     )
-    mission = VERIFY(geo=Geo(lat=45.0, lon=10.0), hover_s=0.0)
-    orchestrator._mission_anomalies[mission.id] = Anomaly(
-        kind=AnomalyKind.INTRUSION,
-        geo=Geo(lat=45.0, lon=10.0),
-        confidence=0.60,
-    )
+    mission = _bind_presence(orchestrator, confidence=0.60)
 
     await orchestrator._run_mission(
         "unit-001", MissionAdapter(), mission, is_verify=True
@@ -143,3 +157,35 @@ async def test_low_confidence_presence_does_not_activate_payload() -> None:
 
     assert payload.actions == []
     assert not any(topic == "swarm:events:payload" for topic, _ in bus.published)
+
+
+@pytest.mark.asyncio
+async def test_cancellation_still_stops_message_and_turns_light_off() -> None:
+    bus = RecordingBus()
+    payload = RecordingPayloadController("unit-001")
+    orchestrator = _build_orchestrator(bus=bus, payload=payload, hold_s=30.0)
+    mission = _bind_presence(orchestrator, confidence=0.94)
+
+    task = asyncio.create_task(
+        orchestrator._run_mission("unit-001", MissionAdapter(), mission, is_verify=True)
+    )
+    for _ in range(100):
+        if payload.actions[:2] == [
+            PayloadActionKind.LIGHT_ON,
+            PayloadActionKind.PLAY_MESSAGE,
+        ]:
+            break
+        await asyncio.sleep(0.01)
+    assert payload.light_on is True
+    assert payload.speaker_active is True
+
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+    assert payload.actions[-2:] == [
+        PayloadActionKind.STOP_MESSAGE,
+        PayloadActionKind.LIGHT_OFF,
+    ]
+    assert payload.speaker_active is False
+    assert payload.light_on is False
