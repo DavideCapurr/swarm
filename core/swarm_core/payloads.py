@@ -88,3 +88,28 @@ class PayloadActionResult(BaseModel):
     message: PayloadMessage | None = None
     error_code: str | None = None
     ts: datetime = Field(default_factory=_now)
+
+
+class PayloadEvent(BaseModel):
+    """Mission-scoped payload truth frame published by the orchestrator.
+
+    ``PayloadActionResult`` is already the controller-owned truth. This wrapper
+    only adds mission/anomaly ownership so the Console can correlate actions
+    without parsing the human-readable Event body.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(default_factory=_new_id)
+    mission_id: str
+    anomaly_id: str | None = None
+    action_id: str
+    agent_id: str
+    kind: PayloadActionKind
+    status: PayloadActionStatus
+    execution_mode: PayloadExecutionMode | None = None
+    light_on: bool = False
+    speaker_active: bool = False
+    message: PayloadMessage | None = None
+    error_code: str | None = None
+    ts: datetime = Field(default_factory=_now)
