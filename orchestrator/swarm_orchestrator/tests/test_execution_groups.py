@@ -5,7 +5,11 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
 import pytest
-from swarm_core.execution_groups import ExecutionGroupMemberState, ExecutionGroupState
+from swarm_core.execution_groups import (
+    ExecutionGroup,
+    ExecutionGroupMemberState,
+    ExecutionGroupState,
+)
 from swarm_core.messages import AgentState, FleetState, Geo, MissionProgress, MissionTask
 from swarm_core.missions import COOPERATIVE_VERIFY, MissionKind
 
@@ -77,11 +81,14 @@ async def _wait_group_terminal(
     group_id: str,
     *,
     timeout_s: float = 2.0,
-):
-    async def _wait():
+) -> ExecutionGroup:
+    async def _wait() -> ExecutionGroup:
         while True:
             group = orchestrator.execution_groups[group_id]
-            if group.state in {ExecutionGroupState.COMPLETED, ExecutionGroupState.FAILED}:
+            if group.state in {
+                ExecutionGroupState.COMPLETED,
+                ExecutionGroupState.FAILED,
+            }:
                 return group
             await asyncio.sleep(0.005)
 
@@ -126,7 +133,10 @@ async def test_cooperative_verify_assigns_unique_roles_and_never_dispatches_pare
         "SECONDARY_OBSERVER",
         "OVERWATCH",
     }
-    assert all(member.state is ExecutionGroupMemberState.COMPLETED for member in terminal.members)
+    assert all(
+        member.state is ExecutionGroupMemberState.COMPLETED
+        for member in terminal.members
+    )
     assert all(
         mission.kind == MissionKind.VERIFY.value
         for adapter in adapters
