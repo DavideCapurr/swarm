@@ -19,6 +19,8 @@ jobs:
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
       - name: Install deps
         run: uv sync --frozen --extra dev --extra mavlink --extra dji
+      - name: Ruff import diagnostic
+        run: uv run ruff check core/swarm_core/missions.py --fix --diff || true
       - name: Ruff
         run: uv run ruff check core orchestrator backend adapters
       - name: Mypy
