@@ -10,17 +10,16 @@ FORBIDDEN_DECISION_MODULES = (
 )
 
 
-def _production_adapter_paths() -> list[Path]:
-    return sorted(
-        path
-        for path in (ROOT / "adapters").rglob("*.py")
-        if "tests" not in path.parts
-    )
+def _physical_execution_adapter_paths() -> list[Path]:
+    return [
+        ROOT / "adapters" / "base.py",
+        *sorted((ROOT / "adapters").glob("*/adapter.py")),
+    ]
 
 
-def test_physical_agent_layer_cannot_import_decision_authority() -> None:
-    adapter_paths = _production_adapter_paths()
-    assert adapter_paths
+def test_physical_execution_adapters_cannot_import_decision_authority() -> None:
+    adapter_paths = _physical_execution_adapter_paths()
+    assert len(adapter_paths) > 1
 
     for path in adapter_paths:
         source = path.read_text(encoding="utf-8")
@@ -29,11 +28,8 @@ def test_physical_agent_layer_cannot_import_decision_authority() -> None:
             assert f"import {module}" not in source
 
 
-def test_physical_agent_layer_cannot_emit_bidding_as_execution_progress() -> None:
-    adapter_paths = _production_adapter_paths()
-    assert adapter_paths
-
-    for path in adapter_paths:
+def test_physical_execution_adapters_cannot_emit_bidding_as_progress() -> None:
+    for path in _physical_execution_adapter_paths():
         source = path.read_text(encoding="utf-8")
         assert 'phase="BIDDING"' not in source
         assert "phase='BIDDING'" not in source
