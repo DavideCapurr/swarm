@@ -2,13 +2,15 @@
 
 Each constructor returns a `MissionTask` with `kind` set to the corresponding
 `MissionKind` value and `params` populated with the structured arguments. Adapters
-translate these into vendor dialects (DJI KMZ Waypoint Mission, MAVLink
-`MISSION_ITEM_INT` sequence, Parrot Olympe `FlightPlan`, etc.).
+translate executable primitives into vendor dialects (DJI KMZ Waypoint Mission,
+MAVLink `MISSION_ITEM_INT` sequence, Parrot Olympe `FlightPlan`, etc.).
 
-If a primitive is not natively supported by a vendor, the adapter MUST either:
-  1. raise `UnsupportedMission`, OR
-  2. decompose it via primitives all vendors support — but NEVER bake
-     vendor-specific logic into the orchestrator.
+`COOPERATIVE_VERIFY` and `COVER` are orchestration-level objectives. SwarmOS must
+decompose them into per-agent executable child missions before dispatch; a
+physical adapter must never receive the parent objective directly.
+
+If an executable primitive is not natively supported by a vendor, the adapter
+MUST raise `UnsupportedMission` rather than invent fleet-level behaviour.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from swarm_core.messages import Geo, MissionTask, SensorKind, Waypoint, _now
 class MissionKind(str, Enum):
     PATROL = "PATROL"
     VERIFY = "VERIFY"
+    COOPERATIVE_VERIFY = "COOPERATIVE_VERIFY"
     COVER = "COVER"
     RELAY = "RELAY"
     RTL_DOCK = "RTL_DOCK"
@@ -84,6 +87,41 @@ def VERIFY(  # noqa: N802 — DSL verb, matches MissionKind.VERIFY
     )
 
 
+def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
+    *,
+    geo: Geo,
+    team_size: int = 3,
+    roles: list[str] | None = None,
+    hover_s: float = 20.0,
+    base_altitude_m: float = 40.0,
+    altitude_step_m: float = 15.0,
+    priority: int = 80,
+) -> MissionTask:
+    """One logical verification objective requiring multiple physical agents.
+
+    This parent task is SwarmOS-only. `ExecutionGroupOrchestrator` centrally
+    selects the members and decomposes the objective into individual VERIFY
+    child missions. Adapters must never execute this parent directly.
+    """
+
+    if team_size < 2:
+        raise ValueError("COOPERATIVE_VERIFY team_size must be >= 2")
+    if roles is not None and len(roles) > team_size:
+        raise ValueError("COOPERATIVE_VERIFY roles cannot exceed team_size")
+    return MissionTask(
+        kind=MissionKind.COOPERATIVE_VERIFY.value,
+        params={
+            "geo": geo.model_dump(),
+            "team_size": team_size,
+            "roles": list(roles or []),
+            "hover_s": hover_s,
+            "base_altitude_m": base_altitude_m,
+            "altitude_step_m": altitude_step_m,
+        },
+        priority=priority,
+    )
+
+
 def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
     *,
     area: list[Geo],
@@ -94,7 +132,8 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
 ) -> MissionTask:
     """Multi-drone area coverage with battery-aware rotation.
 
-    The orchestrator decomposes this into per-agent PATROL slices.
+    This is also an orchestration-only parent objective. SwarmOS decomposes it
+    into per-agent PATROL slices and owns every assignment/replacement.
     """
 
     return MissionTask(
@@ -142,7 +181,7 @@ def mission_waypoints(m: MissionTask) -> list[Waypoint]:
     """Extract waypoints from a mission's params (best-effort, for visualization)."""
 
     kind = m.kind
-    if kind == MissionKind.VERIFY.value:
+    if kind in (MissionKind.VERIFY.value, MissionKind.COOPERATIVE_VERIFY.value):
         return [
             Waypoint(
                 geo=Geo(**m.params["geo"]),
