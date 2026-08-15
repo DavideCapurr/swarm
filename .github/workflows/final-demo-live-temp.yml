@@ -76,6 +76,7 @@ jobs:
       - name: Start Console and write disposable observer
         run: |
           cat > frontend/final-demo-live.temp.spec.ts <<'TS'
+          import { writeFileSync } from "node:fs";
           import { expect, test } from "@playwright/test";
 
           test("authenticated Console renders authoritative final demo flow", async ({ page }) => {
@@ -90,7 +91,11 @@ jobs:
             await expect(page).toHaveURL(/\/demo\/intrusion$/, { timeout: 15_000 });
             await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible({ timeout: 20_000 });
 
-            await expect(page.getByText("INTRUSION DETECTED")).toBeVisible({ timeout: 45_000 });
+            const readyFile = process.env.BROWSER_READY_FILE;
+            if (!readyFile) throw new Error("BROWSER_READY_FILE is required");
+            writeFileSync(readyFile, "connected\n", "utf8");
+
+            await expect(page.getByText("INTRUSION DETECTED")).toBeVisible({ timeout: 60_000 });
             await expect(page.getByText("Fleet auction")).toBeVisible();
             await expect(page.getByText("SERVER REASONS")).toBeVisible();
             await expect(page.getByText("WINNER", { exact: true })).toBeVisible();
@@ -159,9 +164,11 @@ jobs:
 
           run_take() {
             local take="$1"
+            local ready_file="$GITHUB_WORKSPACE/artifacts/browser-ready-${take}"
             echo "========== FINAL LIVE TAKE ${take} =========="
             cleanup
             reset_redis
+            rm -f "$ready_file"
 
             docker run -d --name px4-final-demo --network host \
               --entrypoint /bin/bash -e DISPLAY=:99 \
@@ -190,10 +197,27 @@ jobs:
             token="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["access_token"])' "artifacts/login-take-${take}.json")"
             curl -fsS -H "Authorization: Bearer ${token}" http://localhost:8765/allocations >/dev/null
 
-            (cd frontend && pnpm exec playwright test final-demo-live.temp.spec.ts --reporter=line \
+            (cd frontend && BROWSER_READY_FILE="$ready_file" pnpm exec playwright test final-demo-live.temp.spec.ts --reporter=line \
               > "../artifacts/browser-take-${take}.log" 2>&1) &
             browser_pid=$!
-            sleep 4
+
+            for i in $(seq 1 60); do
+              if [ -s "$ready_file" ]; then
+                break
+              fi
+              if ! kill -0 "$browser_pid" >/dev/null 2>&1; then
+                echo "browser exited before CONNECTED" >&2
+                cat "artifacts/browser-take-${take}.log" >&2 || true
+                return 1
+              fi
+              if [ "$i" -eq 60 ]; then
+                echo "browser never reached CONNECTED" >&2
+                cat "artifacts/browser-take-${take}.log" >&2 || true
+                return 1
+              fi
+              sleep 0.5
+            done
+            sleep 1
 
             set +e
             uv run python scripts/final_demo_rehearsal_probe.py \
