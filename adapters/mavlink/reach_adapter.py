@@ -13,7 +13,9 @@ completion semantics strict:
 - ``MISSION_ITEM_REACHED`` = waypoint completion proof;
 - the final VERIFY ``ON_STATION`` frame is emitted only after the last item is
   reached;
-- deadline expiry always triggers RTL + ``FAILED`` rather than ``DONE``.
+- deadline expiry always triggers RTL + ``FAILED`` rather than ``DONE``;
+- implicit deadlines include the initial aircraft→first-waypoint leg and climb,
+  which the base pairwise-waypoint calculation cannot see for one-item VERIFY.
 
 It is used by the backend's MAVLink fleet composition. Keeping this correction
 narrow avoids rewriting the mature connection/upload/safety code while the
@@ -26,10 +28,19 @@ import asyncio
 from collections.abc import AsyncIterator
 
 from pymavlink import mavutil
-from swarm_core.messages import MissionProgress, MissionTask
+from swarm_core.geometry import haversine_m
+from swarm_core.messages import MissionProgress, MissionTask, Waypoint
 from swarm_core.missions import MissionKind, mission_waypoints
 
-from adapters.mavlink.adapter import MAVLinkAdapter
+from adapters.mavlink.adapter import (
+    CRUISE_SPEED_FRACTION,
+    MAVLinkAdapter,
+)
+
+# Conservative relative-altitude climb speed for deadline sizing. This is not a
+# command sent to PX4; it is intentionally slower than the vehicle's nominal
+# capability so takeoff / estimator settling does not create false timeouts.
+_DEADLINE_CLIMB_MPS = 1.5
 
 
 class ReachAwareMAVLinkAdapter(MAVLinkAdapter):
@@ -42,6 +53,41 @@ class ReachAwareMAVLinkAdapter(MAVLinkAdapter):
         if callable(get_type) and get_type() == "MISSION_ITEM_REACHED":
             self._mission_reached = int(getattr(msg, "seq", -1))
         super()._dispatch(msg)
+
+    def _mission_deadline_s(
+        self,
+        mission: MissionTask,
+        waypoints: list[Waypoint],
+    ) -> float:
+        """Size the deadline from the aircraft's actual starting position.
+
+        The base adapter accounts for distances *between* mission waypoints.
+        A one-item VERIFY therefore gets only the fixed floor even when the
+        aircraft still has to climb and travel to that first item. Preserve an
+        explicit operator-provided timeout exactly as the base implementation
+        does; only implicit deadlines receive the initial-leg allowance.
+        """
+
+        base = super()._mission_deadline_s(mission, waypoints)
+        if mission.params.get("timeout_s") is not None or not waypoints:
+            return base
+
+        start = self._last_position
+        if start is None:
+            return base
+
+        first = waypoints[0].geo
+        cruise_mps = max(
+            self.capabilities.max_speed_mps * CRUISE_SPEED_FRACTION,
+            1.0,
+        )
+        horizontal_s = haversine_m(start, first) / cruise_mps
+
+        default_alt = float(mission.params.get("altitude_m", 60.0))
+        target_alt_m = first.alt_m if first.alt_m else default_alt
+        climb_m = max(0.0, target_alt_m - max(0.0, start.alt_m))
+        climb_s = climb_m / _DEADLINE_CLIMB_MPS
+        return base + horizontal_s + climb_s
 
     async def _fly_waypoints(  # type: ignore[override]
         self,
