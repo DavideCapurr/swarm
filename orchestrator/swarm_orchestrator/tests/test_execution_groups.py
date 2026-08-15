@@ -22,9 +22,16 @@ class FakeAdapter:
     vendor = "fake"
     model = "thin-executor"
 
-    def __init__(self, agent_id: str, *, fail_first: bool = False) -> None:
+    def __init__(
+        self,
+        agent_id: str,
+        *,
+        fail_first: bool = False,
+        raise_first: bool = False,
+    ) -> None:
         self.agent_id = agent_id
         self.fail_first = fail_first
+        self.raise_first = raise_first
         self.failed_once = False
         self.executed: list[MissionTask] = []
 
@@ -38,6 +45,9 @@ class FakeAdapter:
             progress_pct=25.0,
         )
         await asyncio.sleep(0)
+        if self.raise_first and not self.failed_once:
+            self.failed_once = True
+            raise RuntimeError("injected executor crash")
         if self.fail_first and not self.failed_once:
             self.failed_once = True
             yield MissionProgress(
@@ -183,17 +193,10 @@ async def test_execution_group_fails_closed_before_partial_dispatch() -> None:
     assert orchestrator._busy == set()
 
 
-@pytest.mark.asyncio
-async def test_failed_member_is_replaced_centrally_by_spare_agent() -> None:
+async def _assert_failed_member_replaced(adapters: list[FakeAdapter]) -> None:
     bus = InMemoryBus()
     await bus.connect()
     registry = AdapterRegistry()
-    adapters = [
-        FakeAdapter("agent-1", fail_first=True),
-        FakeAdapter("agent-2"),
-        FakeAdapter("agent-3"),
-        FakeAdapter("agent-4"),
-    ]
     for adapter in adapters:
         registry.register(adapter)  # type: ignore[arg-type]
 
@@ -226,8 +229,30 @@ async def test_failed_member_is_replaced_centrally_by_spare_agent() -> None:
     assert replaced[0].agent_id == "agent-4"
     assert replaced[0].state is ExecutionGroupMemberState.COMPLETED
     original = next(
-        member
-        for member in terminal.members
-        if member.agent_id == "agent-1"
+        member for member in terminal.members if member.agent_id == "agent-1"
     )
     assert original.state is ExecutionGroupMemberState.REPLACED
+
+
+@pytest.mark.asyncio
+async def test_failed_member_is_replaced_centrally_by_spare_agent() -> None:
+    await _assert_failed_member_replaced(
+        [
+            FakeAdapter("agent-1", fail_first=True),
+            FakeAdapter("agent-2"),
+            FakeAdapter("agent-3"),
+            FakeAdapter("agent-4"),
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_executor_exception_becomes_failed_and_triggers_replacement() -> None:
+    await _assert_failed_member_replaced(
+        [
+            FakeAdapter("agent-1", raise_first=True),
+            FakeAdapter("agent-2"),
+            FakeAdapter("agent-3"),
+            FakeAdapter("agent-4"),
+        ]
+    )
