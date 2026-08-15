@@ -403,6 +403,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
         progress = self._enrich_group_progress(progress, agent_id)
         progress = self._enrich_group_progress(progress, agent_id)
         progress = self._enrich_group_progress(progress, agent_id)
+        progress = self._enrich_group_progress(progress, agent_id)
         await self.bus.publish(
             f"swarm:missions:progress:{progress.mission_id}",
             progress.model_dump_json(),
