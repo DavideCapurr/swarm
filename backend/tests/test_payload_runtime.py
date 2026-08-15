@@ -60,7 +60,7 @@ async def payload_runtime() -> AsyncIterator[
         presence_response_enabled=True,
         presence_min_confidence=0.85,
         presence_hold_s=0.0,
-        light_relay_index=0,
+        light_actuator_number=1,
         simulate_speaker=True,
     )
     await fleet.start()
@@ -123,7 +123,7 @@ async def test_intrusion_runs_payload_before_verify_returns_done(
         for body in bodies
     )
     assert any("light off · MAVLink ACK" in body for body in bodies)
-    assert endpoint.state.command_calls.count(mavutil.mavlink.MAV_CMD_DO_SET_RELAY) == 2
+    assert endpoint.state.command_calls.count(mavutil.mavlink.MAV_CMD_DO_SET_ACTUATOR) == 2
     assert mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH in endpoint.state.command_calls
 
 
