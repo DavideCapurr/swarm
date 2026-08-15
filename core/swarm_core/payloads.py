@@ -95,7 +95,9 @@ class PayloadEvent(BaseModel):
 
     ``PayloadActionResult`` is already the controller-owned truth. This wrapper
     only adds mission/anomaly ownership so the Console can correlate actions
-    without parsing the human-readable Event body.
+    without parsing the human-readable Event body. State fields are nullable on
+    failures because a failed transport cannot prove the resulting payload
+    state.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -108,8 +110,8 @@ class PayloadEvent(BaseModel):
     kind: PayloadActionKind
     status: PayloadActionStatus
     execution_mode: PayloadExecutionMode | None = None
-    light_on: bool = False
-    speaker_active: bool = False
+    light_on: bool | None = None
+    speaker_active: bool | None = None
     message: PayloadMessage | None = None
     error_code: str | None = None
     ts: datetime = Field(default_factory=_now)
