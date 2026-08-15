@@ -1,0 +1,234 @@
+name: final-demo-rehearsal-temp
+
+on:
+  push:
+    branches:
+      - agent/final-demo-rehearsal
+
+permissions:
+  contents: read
+
+jobs:
+  final-demo-rehearsal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      redis:
+        image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      REDIS_URL: redis://127.0.0.1:6379/0
+      SWARM_ENV: dev
+      SWARM_AUTH_DISABLED: 1
+      SWARM_VENDORS: mavlink
+      MAVLINK_FLEET: mav-001=udpin:0.0.0.0:14541,mav-002=udpin:0.0.0.0:14542
+      MAVLINK_MODEL: px4-iris-sitl
+      SWARM_PRESENCE_RESPONSE: 1
+      SWARM_PRESENCE_MIN_CONFIDENCE: 0.85
+      SWARM_PRESENCE_HOLD_S: 12
+      MAVLINK_LIGHT_ACTUATOR_NUMBER: 1
+      MAVLINK_LIGHT_OUTPUT_CHANNEL: 5
+      SWARM_PRESENCE_SIMULATE_SPEAKER: 1
+      SWARM_COOPERATIVE_VERIFY: 0
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python dependencies
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+
+      - name: Static check rehearsal probe
+        run: |
+          uv run ruff check scripts/final_demo_rehearsal_probe.py
+          uv run mypy scripts/final_demo_rehearsal_probe.py
+
+      - name: Verify Console contract for final flow
+        working-directory: frontend
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec vitest run components/intrusion-demo/IntrusionResponseDemo.test.tsx
+
+      - name: Pull pinned PX4 image once
+        run: docker pull jonasvautherin/px4-gazebo-headless@sha256:77f11913cbb2c4e9147a0ec0fdc4318e9575515e20e88d1f3cd9a21470ddcd21
+
+      - name: Run three consecutive clean rehearsals
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+
+          cleanup() {
+            if [ -f artifacts/backend.pid ]; then
+              kill -TERM "$(cat artifacts/backend.pid)" >/dev/null 2>&1 || true
+              rm -f artifacts/backend.pid
+            fi
+            docker rm -f px4-final-demo >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          map_payload_output() {
+            uv run python - <<'PY'
+          import struct
+          import time
+          from pymavlink import mavutil
+
+          PARAM = "PWM_MAIN_FUNC5"
+          DISABLED = 0
+          OFFBOARD_ACTUATOR_SET_1 = 301
+
+          def name(message):
+              value = message.param_id
+              if isinstance(value, bytes):
+                  value = value.decode(errors="ignore")
+              return str(value).rstrip("\x00")
+
+          def decode(message):
+              if message.param_type != mavutil.mavlink.MAV_PARAM_TYPE_INT32:
+                  raise SystemExit(f"{name(message)} unexpected type {message.param_type}")
+              return struct.unpack("<i", struct.pack("<f", float(message.param_value)))[0]
+
+          def encode(value):
+              return struct.unpack("<f", struct.pack("<i", int(value)))[0]
+
+          def read_param(connection, target_system, timeout=5.0):
+              connection.mav.param_request_read_send(target_system, 1, PARAM.encode(), -1)
+              deadline = time.monotonic() + timeout
+              while time.monotonic() < deadline:
+                  message = connection.recv_match(type="PARAM_VALUE", blocking=True, timeout=0.5)
+                  if message is not None and name(message) == PARAM:
+                      return message
+              return None
+
+          def set_param(connection, target_system, value):
+              connection.mav.param_set_send(
+                  target_system,
+                  1,
+                  PARAM.encode(),
+                  encode(value),
+                  mavutil.mavlink.MAV_PARAM_TYPE_INT32,
+              )
+              deadline = time.monotonic() + 10.0
+              while time.monotonic() < deadline:
+                  message = connection.recv_match(type="PARAM_VALUE", blocking=True, timeout=0.5)
+                  if message is None or name(message) != PARAM:
+                      continue
+                  if decode(message) == value:
+                      return message
+              return None
+
+          for port in (14541, 14542):
+              connection = mavutil.mavlink_connection(f"udpin:0.0.0.0:{port}")
+              try:
+                  heartbeat = connection.wait_heartbeat(timeout=90)
+                  if heartbeat is None:
+                      raise SystemExit(f"no PX4 heartbeat on UDP {port}")
+                  target_system = connection.target_system
+                  current_message = read_param(connection, target_system)
+                  if current_message is None:
+                      raise SystemExit(f"{PARAM} absent on PX4 sysid={target_system}")
+                  current = decode(current_message)
+                  if current not in {DISABLED, OFFBOARD_ACTUATOR_SET_1}:
+                      raise SystemExit(
+                          f"refusing to replace active {PARAM}={current} on PX4 sysid={target_system}"
+                      )
+                  confirmed = set_param(connection, target_system, OFFBOARD_ACTUATOR_SET_1)
+                  if confirmed is None:
+                      raise SystemExit(f"failed to map {PARAM}=301 on PX4 sysid={target_system}")
+                  print(f"PX4 sysid={target_system} mapped {PARAM}: {current} -> {decode(confirmed)}")
+              finally:
+                  connection.close()
+          PY
+          }
+
+          run_take() {
+            local take="$1"
+            echo "========== TAKE ${take} =========="
+            cleanup
+            redis-cli -u "$REDIS_URL" FLUSHALL >/dev/null
+
+            docker run -d --name px4-final-demo --network host \
+              --entrypoint /bin/bash -e DISPLAY=:99 \
+              jonasvautherin/px4-gazebo-headless@sha256:77f11913cbb2c4e9147a0ec0fdc4318e9575515e20e88d1f3cd9a21470ddcd21 \
+              -lc 'rm -f /tmp/.X99-lock; Xvfb :99 -screen 0 1600x1200x24+32 & cd /root/Firmware && Tools/simulation/gazebo-classic/sitl_multiple_run.sh -m iris -n 2 -w empty' \
+              >/dev/null
+            sleep 8
+            test "$(docker inspect -f '{{.State.Running}}' px4-final-demo)" = "true"
+
+            map_payload_output
+
+            nohup uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8765 \
+              > "artifacts/backend-take-${take}.log" 2>&1 &
+            echo $! > artifacts/backend.pid
+            for i in $(seq 1 60); do
+              if curl -fsS --max-time 1 http://127.0.0.1:8765/health >/dev/null; then
+                break
+              fi
+              if [ "$i" -eq 60 ]; then
+                cat "artifacts/backend-take-${take}.log" >&2 || true
+                return 1
+              fi
+              sleep 1
+            done
+
+            uv run python scripts/final_demo_rehearsal_probe.py \
+              --redis-url "$REDIS_URL" \
+              --expected-agents mav-001,mav-002 \
+              --timeout-s 180 \
+              --json-out "artifacts/final-demo-take-${take}.json"
+
+            docker logs px4-final-demo > "artifacts/px4-take-${take}.log" 2>&1 || true
+            docker exec px4-final-demo bash -lc \
+              'for f in /root/Firmware/build/px4_sitl_default/rootfs/*/out.log; do echo "=== $f ==="; tail -200 "$f"; done' \
+              > "artifacts/px4-instance-out-take-${take}.log" 2>&1 || true
+
+            cleanup
+            sleep 2
+          }
+
+          run_take 1
+          run_take 2
+          run_take 3
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows = []
+          for take in (1, 2, 3):
+              data = json.loads(Path(f"artifacts/final-demo-take-{take}.json").read_text())
+              rows.append({
+                  "take": take,
+                  "status": data["status"],
+                  "duration_s": data["duration_s"],
+                  "mission_1": data.get("mission_1"),
+                  "mission_2": data.get("mission_2"),
+              })
+          if any(row["status"] != "pass" for row in rows):
+              raise SystemExit("not all takes passed")
+          Path("artifacts/final-demo-summary.json").write_text(json.dumps(rows, indent=2) + "\n")
+          print(json.dumps(rows, indent=2))
+          PY
+
+      - name: Upload rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: final-demo-rehearsal
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 30
