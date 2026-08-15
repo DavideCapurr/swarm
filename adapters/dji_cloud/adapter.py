@@ -191,7 +191,9 @@ class DJICloudAdapter:
             json=kmz_payload,
         )
         dji_mission_id = upload.json().get("mission_id")
-        yield MissionProgress(mission_id=mission.id, phase="ACCEPTED", progress_pct=2.0)
+        # The mission is already allocated by SwarmOS; at this point the vendor
+        # mission has only been uploaded and has not started executing yet.
+        yield MissionProgress(mission_id=mission.id, phase="PENDING", progress_pct=2.0)
 
         await self._http.post(
             f"/control/api/v1/devices/{self.serial_number}/missions/{dji_mission_id}/start"
