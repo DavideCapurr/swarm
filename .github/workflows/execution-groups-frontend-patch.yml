@@ -1,0 +1,195 @@
+name: execution-groups-frontend-patch
+
+on:
+  push:
+    branches: ["agent/execution-groups"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Wire execution groups into frontend state and demo'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: agent/execution-groups
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Patch frontend
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if old not in text:
+                  raise SystemExit(f"missing patch anchor: {label}")
+              return text.replace(old, new, 1)
+
+          # API types + REST bootstrap.
+          path = Path("frontend/lib/api.ts")
+          text = path.read_text()
+          if "export type ExecutionGroupState" not in text:
+              marker = "// ── Phase 5 stream descriptors (mirror core/swarm_core/streams.py) ───────────\n"
+              block = '''export type ExecutionGroupState =\n  | "FORMING"\n  | "ACTIVE"\n  | "DEGRADED"\n  | "COMPLETED"\n  | "FAILED";\n\nexport type ExecutionGroupMemberState =\n  | "ASSIGNED"\n  | "ACTIVE"\n  | "COMPLETED"\n  | "FAILED"\n  | "REPLACED";\n\nexport type ExecutionGroupMember = {\n  agent_id: string;\n  role: string;\n  mission_id: string;\n  state: ExecutionGroupMemberState;\n  score: number;\n  score_breakdown: Record<string, number>;\n  replaces_agent_id: string | null;\n  ts: string;\n};\n\nexport type ExecutionGroup = {\n  id: string;\n  objective_mission_id: string;\n  objective_kind: string;\n  anomaly_id: string | null;\n  requested_members: number;\n  members: ExecutionGroupMember[];\n  state: ExecutionGroupState;\n  failure_reason: string | null;\n  ts: string;\n};\n\n'''
+              text = replace_once(text, marker, block + marker, "api execution group types")
+              old = '  allocations: () => get<{ allocations: AllocationDecision[] }>("/allocations"),\n'
+              new = old + '  executionGroups: () =>\n    get<{ execution_groups: ExecutionGroup[] }>("/execution-groups"),\n'
+              text = replace_once(text, old, new, "api execution groups endpoint")
+              path.write_text(text)
+
+          # WebSocket union.
+          path = Path("frontend/lib/ws.ts")
+          text = path.read_text()
+          if 'kind: "execution_group"' not in text:
+              text = replace_once(
+                  text,
+                  "  DockState,\n  MissionRuntimeEvent,\n",
+                  "  DockState,\n  ExecutionGroup,\n  MissionRuntimeEvent,\n",
+                  "ws import",
+              )
+              text = replace_once(
+                  text,
+                  '  | { kind: "allocation"; data: AllocationDecision }\n',
+                  '  | { kind: "allocation"; data: AllocationDecision }\n  | { kind: "execution_group"; data: ExecutionGroup }\n',
+                  "ws union",
+              )
+              path.write_text(text)
+
+          # Shared frontend state.
+          path = Path("frontend/lib/state.tsx")
+          text = path.read_text()
+          if "executionGroups: ExecutionGroup[]" not in text:
+              text = replace_once(
+                  text,
+                  "  type DockState,\n  type MissionRuntimeEvent,\n",
+                  "  type DockState,\n  type ExecutionGroup,\n  type MissionRuntimeEvent,\n",
+                  "state import",
+              )
+              text = replace_once(
+                  text,
+                  "  allocations: AllocationDecision[];\n  missionRuntime: MissionRuntimeEvent[];\n",
+                  "  allocations: AllocationDecision[];\n  executionGroups: ExecutionGroup[];\n  missionRuntime: MissionRuntimeEvent[];\n",
+                  "state shape",
+              )
+              text = replace_once(
+                  text,
+                  "  const [allocations, setAllocations] = useState<AllocationDecision[]>([]);\n  const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);\n",
+                  "  const [allocations, setAllocations] = useState<AllocationDecision[]>([]);\n  const [executionGroups, setExecutionGroups] = useState<ExecutionGroup[]>([]);\n  const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);\n",
+                  "state useState",
+              )
+              text = replace_once(
+                  text,
+                  "        const [s, aw, dk, sc, un, ms, an, ev, cm, al, mr, pe] = await Promise.all([\n",
+                  "        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, mr, pe] = await Promise.all([\n",
+                  "state rest tuple",
+              )
+              text = replace_once(
+                  text,
+                  "          api.allocations(),\n          api.missionRuntime(),\n",
+                  "          api.allocations(),\n          api.executionGroups(),\n          api.missionRuntime(),\n",
+                  "state rest calls",
+              )
+              text = replace_once(
+                  text,
+                  "        setAllocations(al.allocations);\n        setMissionRuntime(mr.mission_runtime);\n",
+                  "        setAllocations(al.allocations);\n        setExecutionGroups(eg.execution_groups);\n        setMissionRuntime(mr.mission_runtime);\n",
+                  "state rest assignment",
+              )
+              text = replace_once(
+                  text,
+                  "    setAllocations([]);\n    setMissionRuntime([]);\n",
+                  "    setAllocations([]);\n    setExecutionGroups([]);\n    setMissionRuntime([]);\n",
+                  "state logout",
+              )
+              text = replace_once(
+                  text,
+                  '        case "allocation":\n          setAllocations((prev) => upsertById(prev, msg.data, "mission_id"));\n          return;\n',
+                  '        case "allocation":\n          setAllocations((prev) => upsertById(prev, msg.data, "mission_id"));\n          return;\n        case "execution_group":\n          setExecutionGroups((prev) => upsertById(prev, msg.data, "id"));\n          return;\n',
+                  "state ws",
+              )
+              text = replace_once(
+                  text,
+                  "      allocations,\n      missionRuntime,\n",
+                  "      allocations,\n      executionGroups,\n      missionRuntime,\n",
+                  "state value",
+              )
+              text = replace_once(
+                  text,
+                  "      allocations,\n      missionRuntime,\n      payloadEvents,\n",
+                  "      allocations,\n      executionGroups,\n      missionRuntime,\n      payloadEvents,\n",
+                  "state deps",
+              )
+              path.write_text(text)
+
+          # Incident Console: render group truth and use group child missions as demo truth.
+          path = Path("frontend/components/intrusion-demo/IntrusionResponseDemo.tsx")
+          text = path.read_text()
+          if "function ExecutionGroupPanel" not in text:
+              text = replace_once(
+                  text,
+                  "  AnomalyView,\n  MissionRuntimeEvent,\n",
+                  "  AnomalyView,\n  ExecutionGroup,\n  MissionRuntimeEvent,\n",
+                  "demo import",
+              )
+              panel_anchor = "function ResponseLedger({ events }: { events: PayloadEvent[] }) {\n"
+              panel = '''function ExecutionGroupPanel({ group }: { group: ExecutionGroup | undefined }) {\n  if (!group) return null;\n  return (\n    <section className="border-y border-white/10 py-5" aria-label="Execution group">\n      <div className="flex items-start justify-between gap-6">\n        <div>\n          <div className="eyebrow-mono text-orbital-blue">SWARM EXECUTION GROUP</div>\n          <div className="mt-2 font-editorial text-2xl text-paper">\n            {group.objective_kind.replaceAll("_", " ")}\n          </div>\n        </div>\n        <div className="text-right font-mono text-[10px] leading-5 text-text-muted">\n          <div className={group.state === "FAILED" ? "text-status-caution" : "text-status-online"}>\n            {group.state}\n          </div>\n          <div>{group.requested_members} REQUIRED ROLES</div>\n        </div>\n      </div>\n      <div className="mt-5 grid grid-cols-[minmax(120px,1fr)_minmax(90px,0.8fr)_86px_minmax(90px,0.8fr)] gap-3 pb-2 font-mono text-[9px] tracking-[0.12em] text-text-muted">\n        <span>ROLE</span><span>AGENT</span><span>SCORE</span><span>STATE</span>\n      </div>\n      {group.members.map((member) => (\n        <div key={member.mission_id} className="grid grid-cols-[minmax(120px,1fr)_minmax(90px,0.8fr)_86px_minmax(90px,0.8fr)] gap-3 border-t border-white/10 py-3 font-mono text-[10px]">\n          <div>\n            <div className="text-paper">{member.role.replaceAll("_", " ")}</div>\n            <div className="mt-1 text-text-muted">mission {shortId(member.mission_id)}</div>\n          </div>\n          <div className="text-paper">{member.agent_id}</div>\n          <div className="tabular-nums text-orbital-blue">{score(member.score)}</div>\n          <div className={member.state === "FAILED" || member.state === "REPLACED" ? "text-status-caution" : "text-status-online"}>\n            {member.state}\n            {member.replaces_agent_id ? ` · replaces ${member.replaces_agent_id}` : ""}\n          </div>\n        </div>\n      ))}\n      {group.failure_reason ? (\n        <div className="mt-3 font-mono text-[10px] text-status-caution">{group.failure_reason}</div>\n      ) : null}\n      <div className="mt-3 font-mono text-[9px] leading-5 text-text-muted">\n        Membership, roles and scores are published by SwarmOS. Physical agents do not choose peers or roles.\n      </div>\n    </section>\n  );\n}\n\n'''
+              text = replace_once(text, panel_anchor, panel + panel_anchor, "group panel")
+              text = replace_once(
+                  text,
+                  "function FleetStrip({ decisions }: { decisions: AllocationDecision[] }) {\n",
+                  "function FleetStrip({ decisions, group }: { decisions: AllocationDecision[]; group?: ExecutionGroup }) {\n",
+                  "fleet signature",
+              )
+              text = replace_once(
+                  text,
+                  "  const ownership = new Map<string, string>();\n  for (const decision of decisions) {\n",
+                  "  const ownership = new Map<string, string>();\n  for (const member of group?.members ?? []) {\n    if (member.state !== \"REPLACED\") ownership.set(member.agent_id, member.mission_id);\n  }\n  for (const decision of decisions) {\n",
+                  "fleet group ownership",
+              )
+              text = replace_once(
+                  text,
+                  "  const { allocations, anomalies, missionRuntime, payloadEvents, link } = useSwarm();\n",
+                  "  const { allocations, anomalies, executionGroups, missionRuntime, payloadEvents, link } = useSwarm();\n",
+                  "demo state destructure",
+              )
+              marker = "  const firstDecision = decisions[0];\n"
+              group_select = '''  const currentGroup = useMemo(() => {\n    const ordered = executionGroups.slice().sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());\n    const intrusionGroup = ordered.slice().reverse().find((group) => {\n      if (!group.anomaly_id) return false;\n      return anomalyMap.get(group.anomaly_id)?.kind === "INTRUSION";\n    });\n    return intrusionGroup ?? ordered.at(-1);\n  }, [executionGroups, anomalyMap]);\n\n'''
+              text = replace_once(text, marker, group_select + marker, "demo group selection")
+              old_intrusion = '''  const intrusion = decisions\n    .map((decision) => anomalyFor(decision, anomalyMap))\n    .find((anomaly) => anomaly?.kind === "INTRUSION");\n'''
+              new_intrusion = '''  const intrusion =\n    decisions\n      .map((decision) => anomalyFor(decision, anomalyMap))\n      .find((anomaly) => anomaly?.kind === "INTRUSION") ??\n    (currentGroup?.anomaly_id ? anomalyMap.get(currentGroup.anomaly_id) : undefined) ??\n    anomalies.slice().reverse().find((anomaly) => anomaly.kind === "INTRUSION");\n'''
+              text = replace_once(text, old_intrusion, new_intrusion, "demo intrusion fallback")
+              old_focus_tail = '''    if (active) return active;\n    return currentDecision ? runtimeByMission.get(currentDecision.mission_id) : undefined;\n  }, [decisions, currentDecision, runtimeByMission]);\n\n  const demoMissionIds = new Set(decisions.map((decision) => decision.mission_id));\n'''
+              new_focus_tail = '''    if (active) return active;\n    const groupRuntime = currentGroup?.members\n      .slice()\n      .reverse()\n      .map((member) => runtimeByMission.get(member.mission_id))\n      .find((runtime) => runtime && runtime.phase !== "DONE" && runtime.phase !== "FAILED");\n    if (groupRuntime) return groupRuntime;\n    const latestGroupRuntime = currentGroup?.members\n      .slice()\n      .reverse()\n      .map((member) => runtimeByMission.get(member.mission_id))\n      .find(Boolean);\n    if (latestGroupRuntime) return latestGroupRuntime;\n    return currentDecision ? runtimeByMission.get(currentDecision.mission_id) : undefined;\n  }, [decisions, currentDecision, currentGroup, runtimeByMission]);\n\n  const demoMissionIds = new Set([\n    ...decisions.map((decision) => decision.mission_id),\n    ...(currentGroup?.members.map((member) => member.mission_id) ?? []),\n  ]);\n'''
+              text = replace_once(text, old_focus_tail, new_focus_tail, "demo group runtime")
+              text = replace_once(
+                  text,
+                  "            <AllocationPanel decision={currentDecision} />\n",
+                  "            <ExecutionGroupPanel group={currentGroup} />\n            <AllocationPanel decision={currentDecision} />\n",
+                  "demo group panel placement",
+              )
+              text = replace_once(
+                  text,
+                  "          <FleetStrip decisions={decisions} />\n",
+                  "          <FleetStrip decisions={decisions} group={currentGroup} />\n",
+                  "demo fleet group",
+              )
+              text = replace_once(
+                  text,
+                  "Console renders allocator, runtime and payload frames. It does not calculate winners or response outcomes.",
+                  "Console renders allocator, execution-group, runtime and payload frames. It does not calculate membership, winners or response outcomes.",
+                  "demo footer",
+              )
+              path.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/lib/api.ts frontend/lib/ws.ts frontend/lib/state.tsx frontend/components/intrusion-demo/IntrusionResponseDemo.tsx
+          if git diff --cached --quiet; then
+            echo "No frontend patch needed"
+            exit 0
+          fi
+          git commit -m "Wire execution groups into frontend state and demo"
+          git push origin HEAD:agent/execution-groups
