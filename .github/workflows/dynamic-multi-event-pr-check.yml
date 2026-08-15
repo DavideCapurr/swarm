@@ -1,0 +1,136 @@
+name: dynamic-multi-event-pr-check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dynamic-multi-event:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      redis:
+        image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      REDIS_URL: redis://127.0.0.1:6379/0
+      SWARM_ENV: dev
+      SWARM_AUTH_DISABLED: "1"
+      SWARM_VENDORS: mavlink
+      MAVLINK_FLEET: mav-001=udpin:0.0.0.0:14541,mav-002=udpin:0.0.0.0:14542
+      MAVLINK_MODEL: px4-iris-sitl
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python dependencies
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+
+      - name: Static checks
+        run: |
+          uv run ruff check backend/tests/test_mavlink_dynamic_reallocation.py scripts/phase10_dynamic_multi_event_probe.py
+          uv run mypy core adapters orchestrator sim backend scripts/phase10_dynamic_multi_event_probe.py
+
+      - name: Dynamic reallocation integration test
+        run: uv run pytest -q backend/tests/test_mavlink_dynamic_reallocation.py
+
+      - name: Start two live PX4 v1.14 SITL vehicles
+        run: |
+          mkdir -p artifacts
+          docker pull jonasvautherin/px4-gazebo-headless@sha256:77f11913cbb2c4e9147a0ec0fdc4318e9575515e20e88d1f3cd9a21470ddcd21
+          docker run -d --name px4-dynamic --network host \
+            --entrypoint /bin/bash \
+            -e DISPLAY=:99 \
+            jonasvautherin/px4-gazebo-headless@sha256:77f11913cbb2c4e9147a0ec0fdc4318e9575515e20e88d1f3cd9a21470ddcd21 \
+            -lc 'rm -f /tmp/.X99-lock; Xvfb :99 -screen 0 1600x1200x24+32 & cd /root/Firmware && Tools/simulation/gazebo-classic/sitl_multiple_run.sh -m iris -n 2 -w empty'
+          sleep 8
+          if [ "$(docker inspect -f '{{.State.Running}}' px4-dynamic)" != "true" ]; then
+            echo "PX4 multi-SITL container exited during startup" >&2
+            docker logs px4-dynamic >&2 || true
+            exit 1
+          fi
+
+      - name: Wait for both PX4 offboard heartbeats
+        run: |
+          uv run python - <<'PY'
+          from pymavlink import mavutil
+
+          for port in (14541, 14542):
+              connection = mavutil.mavlink_connection(f"udpin:0.0.0.0:{port}")
+              try:
+                  heartbeat = connection.wait_heartbeat(timeout=90)
+                  if heartbeat is None:
+                      raise SystemExit(f"no PX4 heartbeat on UDP {port}")
+                  print(
+                      f"PX4 heartbeat port={port} "
+                      f"sysid={connection.target_system} compid={connection.target_component}"
+                  )
+              finally:
+                  connection.close()
+          PY
+
+      - name: Start real backend lifecycle with MAVLink fleet
+        run: |
+          nohup uv run uvicorn backend.app.main:app \
+            --host 127.0.0.1 --port 8765 \
+            > artifacts/backend.log 2>&1 &
+          echo $! > artifacts/backend.pid
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 1 http://127.0.0.1:8765/health >/dev/null; then
+              echo "backend healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend never became healthy" >&2
+          cat artifacts/backend.log >&2 || true
+          exit 1
+
+      - name: Run live changing-condition probe
+        run: |
+          uv run python scripts/phase10_dynamic_multi_event_probe.py \
+            --redis-url "$REDIS_URL" \
+            --expected-agents mav-001,mav-002 \
+            --timeout-s 150 \
+            --json-out artifacts/phase10-dynamic-multi-event-probe.json
+
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          mkdir -p artifacts
+          docker logs px4-dynamic > artifacts/px4-dynamic.log 2>&1 || true
+          docker exec px4-dynamic bash -lc 'for f in /root/Firmware/build/px4_sitl_default/rootfs/*/out.log; do echo "=== $f ==="; tail -260 "$f"; done' > artifacts/px4-instance-out.log 2>&1 || true
+          docker exec px4-dynamic bash -lc 'for f in /root/Firmware/build/px4_sitl_default/rootfs/*/err.log; do echo "=== $f ==="; tail -260 "$f"; done' > artifacts/px4-instance-err.log 2>&1 || true
+          if [ -f artifacts/backend.pid ]; then
+            kill -TERM "$(cat artifacts/backend.pid)" || true
+          fi
+          docker rm -f px4-dynamic >/dev/null 2>&1 || true
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dynamic-multi-event-validation
+          path: |
+            artifacts/phase10-dynamic-multi-event-probe.json
+            artifacts/backend.log
+            artifacts/px4-dynamic.log
+            artifacts/px4-instance-out.log
+            artifacts/px4-instance-err.log
+          if-no-files-found: warn
+          retention-days: 30
