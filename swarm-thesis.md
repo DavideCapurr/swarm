@@ -4,7 +4,7 @@
 
 SWARM is the coordination layer for autonomous physical response.
 
-Today, the agents are drones. SWARM turns many distributed autonomous units into one coordinated system that can decide who should respond, when, where, and what happens next.
+Today, the physical agents are drones. SWARM turns many distributed, replaceable units into one coordinated system that can decide who should respond, when, where, how many units are needed, what role each should perform, and what happens next.
 
 **Many units. One intention.**
 
@@ -18,7 +18,7 @@ When something important happens in the physical world, useful action is delayed
 
 SWARM exists to reduce that dead time.
 
-The long-term objective is to create an autonomous physical-response layer: distributed agents, docking or charging infrastructure, sensors, and coordination software that can bring fast presence, visibility, verification, and eventually task execution to real-world events.
+The long-term objective is to create an autonomous physical-response layer: distributed physical agents, docking or charging infrastructure, sensors, and coordination software that can bring fast presence, visibility, verification, and eventually task execution to real-world events.
 
 SWARM is not fundamentally a wildfire company, a security company, an inspection company, or a drone manufacturer.
 
@@ -32,27 +32,52 @@ The core product is coordination.
 
 The winning system is not necessarily one better drone.
 
-The winning system can be the software that makes many replaceable units act like one operational network.
+The winning system can be the software that makes many simple, replaceable units act like one operational network.
 
-Individual autopilots already know how to stabilize, follow waypoints, avoid obstacles, return home, and execute a mission. SWARM operates one layer above them.
+Individual autopilots already know how to stabilize, follow waypoints, avoid obstacles, return home, and enforce immediate flight-safety constraints. SWARM operates one layer above them.
 
-The autopilot flies **how**.
+The autopilot decides **how to execute safely**.
 
 SWARM decides:
 
-- which unit should respond;
-- when it should launch;
-- where it should go;
+- which unit or units should respond;
+- when they should launch;
+- where they should go;
 - which payload or sensor is needed;
-- how multiple units should coordinate;
+- what role each participating unit should perform;
+- how multiple units should be coordinated;
 - when a unit should be re-tasked;
 - when another unit should replace it;
+- when capacity should be split across simultaneous events;
 - how battery rotation and availability affect the mission;
 - what evidence should be collected;
 - when to escalate to a human;
 - what happens next.
 
 This is the coordination layer.
+
+### Decision authority is centralized
+
+**SwarmOS is the sole mission-level decision authority.**
+
+A drone is a physical execution endpoint and evidence source. It reports telemetry, sensor observations, health and execution progress to SWARM, then executes the mission or retask SWARM issues.
+
+A physical agent does not legitimately:
+
+- select its own fleet mission;
+- decide that a local observation should become a fleet action;
+- elect or command another drone;
+- allocate itself or peers;
+- form an independently deciding sub-swarm;
+- change the fleet objective without a SWARM decision.
+
+The onboard autopilot still retains bounded local behavior necessary to keep the aircraft flying safely, including stabilization, actuator control, waypoint following, obstacle avoidance where available, geofence enforcement, low-battery RTL, lost-link behavior, and emergency landing/return behavior.
+
+The distinction is deliberate:
+
+> **SWARM decides what / who / where / when / why / what next. The autopilot executes safely and fails safe locally.**
+
+This limits the legitimate authority of each cheap endpoint and keeps fleet reasoning observable and auditable in one place. It does **not** make a drone impossible to compromise: a compromised endpoint may still falsify telemetry or sensor data, ignore commands, or be manipulated through its flight controller or command link. Agent-originated data is therefore evidence, not authority.
 
 ---
 
@@ -65,18 +90,38 @@ A coordinated fleet can become infrastructure.
 Many lower-cost or replaceable units can create capabilities that one expensive unit cannot provide alone:
 
 - wider geographic coverage;
-- multiple viewpoints;
+- multiple simultaneous viewpoints;
 - redundancy;
 - faster response from the nearest available unit;
 - battery rotation;
 - graceful degradation when a unit fails;
 - parallel missions;
+- temporary concentration of several units on one important event;
 - lower vendor dependence;
 - easier replacement and scaling.
 
 The economic thesis is not that cheap hardware is always better. It is that coordination can make ordinary, heterogeneous hardware substantially more useful as a system.
 
 SWARM should therefore remain vendor-neutral wherever practical and avoid making proprietary airframes a prerequisite for the software thesis.
+
+### Collective capability without local swarm brains
+
+When one mission needs several physical agents, SWARM should compose them centrally into a temporary **execution group**.
+
+For example:
+
+```text
+MISSION: investigate anomaly
+
+SWARM forms execution group EG-42
+  mav-002 → primary observation
+  mav-004 → secondary viewpoint
+  mav-006 → illumination
+```
+
+The execution group is a SwarmOS-owned logical object, not another autonomous decision authority. The drones do not negotiate roles among themselves. If a member degrades or fails, its telemetry returns to SWARM and SWARM decides whether to replace, remove, rotate, or retask it.
+
+This is the intended meaning of “the union makes the strength”: intelligence belongs to the coordinated system, while individual physical units can remain comparatively simple and replaceable.
 
 ---
 
@@ -85,28 +130,28 @@ SWARM should therefore remain vendor-neutral wherever practical and avoid making
 Across use cases, SWARM is designed around the same loop:
 
 1. **Receive a cue**  
-   A request or signal arrives from an operator, software system, sensor, camera, previous patrol, external feed, or another agent.
+   A request or signal arrives from an operator, software system, sensor, camera, previous patrol, external feed, or physical agent.
 
 2. **Understand the task**  
-   SWARM evaluates urgency, geography, confidence, required capabilities, operational constraints, and available assets.
+   SWARM evaluates urgency, geography, confidence, required capabilities, operational constraints, and available capacity.
 
 3. **Allocate the best unit or units**  
-   The system considers distance, battery, payload, current mission, availability, geofence, and mission priority.
+   SWARM considers distance, battery, payload, current mission, availability, geofence, mission priority, and any required redundancy or complementary roles.
 
 4. **Dispatch and coordinate**  
-   One or more agents receive missions through the appropriate vendor adapter.
+   One or more physical agents receive SWARM-issued missions through the appropriate vendor adapters.
 
-5. **Adapt**  
-   If conditions change, SWARM can re-task, replace, add, abort, or return units while preserving the mission objective.
+5. **Adapt centrally**  
+   If conditions change, SWARM can re-task, replace, add, rotate, abort, or return units while preserving the mission objective.
 
 6. **Observe and verify**  
-   Agents produce telemetry, imagery, video, sensor readings, and geospatial context.
+   Agents produce telemetry, imagery, video, sensor readings, execution evidence, and geospatial context back to SWARM.
 
 7. **Create an auditable result**  
    SWARM records what happened, which units were used, why decisions were made, and what evidence was produced.
 
 8. **Escalate or conclude**  
-   A human or an approved downstream system decides the next operational step where supervision is required.
+   SWARM concludes the mission or an approved human/downstream system takes the next operational step where supervision is required.
 
 This loop is the product primitive.
 
@@ -120,7 +165,7 @@ The repository contains an end-to-end coordination system with:
 
 - a domain core and mission model;
 - fleet state and finite-state logic;
-- auction-based mission allocation;
+- centralized fleet-state mission allocation;
 - multi-vendor adapter architecture;
 - a MAVLink/PX4 adapter;
 - simulator-driven multi-agent scenarios;
@@ -128,8 +173,12 @@ The repository contains an end-to-end coordination system with:
 - backend and real-time telemetry paths;
 - an operator Console;
 - autonomy and shadow-mode decision logic;
-- evidence and audit primitives;
+- structured allocation, runtime and payload evidence;
 - security and operational controls.
+
+The live allocation path already computes eligibility, exclusions, scores and winner centrally in SwarmOS before dispatching the selected physical agent. Physical adapters execute the selected work and report reality back.
+
+The current runtime supports multiple physical agents and simultaneous independent missions. First-class dynamic execution groups for one logical mission are an architectural direction, not a validated runtime claim yet.
 
 The MAVLink/PX4 path has been validated against PX4 SITL. It has **not** yet been validated on physical aircraft in bench or field operation.
 
@@ -145,21 +194,21 @@ The immediate technical demo should use multiple PX4 SITL vehicles and make the 
 
 A strong demo should show:
 
-1. several autonomous vehicles available at different locations and states;
+1. several autonomous-flight vehicles available at different locations and states;
 2. a neutral real-world task entering the system, for example `VERIFY anomaly at sector C7`;
 3. SWARM evaluating distance, battery, availability, capability, and constraints;
-4. autonomous selection of the best unit;
+4. central autonomous selection of the best unit;
 5. real mission dispatch through the MAVLink/PX4 path;
 6. a second event or changing condition while the first mission is active;
 7. reallocation, replacement, escalation, or RTL without the operator manually choosing the aircraft;
-8. an auditable explanation of why the system made each decision;
+8. an auditable explanation of why SWARM made each decision;
 9. mission completion and fleet recovery.
 
 The demo must be labeled honestly as simulation/SITL. It should never imply physical flight when none occurred.
 
 The objective is to make a reviewer understand one thing immediately:
 
-**the vehicles fly themselves; SWARM decides what the fleet should do.**
+**the autopilot flies the aircraft; SWARM decides what the fleet should do.**
 
 ---
 
@@ -231,6 +280,7 @@ SWARM is not:
 - a fixed-camera network;
 - a dashboard that merely shows drone positions;
 - a replacement for the onboard autopilot;
+- a peer-to-peer swarm in which each aircraft independently decides fleet objectives;
 - a claim that simulation equals field validation;
 - a company whose identity depends on one unvalidated vertical;
 - an autonomous weapons system.
@@ -253,7 +303,7 @@ or
 
 `respond(event, constraints)`
 
-and let SWARM determine which available physical agents should perform it.
+and let SWARM determine which available physical agents, or which temporary combination of them, should perform it.
 
 At sufficient scale, the network could include:
 
@@ -262,11 +312,11 @@ At sufficient scale, the network could include:
 - mobile sensors;
 - ground robots;
 - specialized inspection platforms;
-- other autonomous machines exposed through compatible coordination interfaces.
+- other autonomous machines exposed through compatible execution interfaces.
 
 The end-state is not “more drones.”
 
-It is a runtime for autonomous physical infrastructure: a distributed system that turns software intent into coordinated action in the real world.
+It is a runtime for autonomous physical infrastructure: a distributed physical system with centralized mission intelligence that turns software intent into coordinated action in the real world.
 
 ---
 
@@ -279,7 +329,7 @@ SWARM should expand in this order:
 3. **Demonstrate the same coordination path on physical hardware, owned or borrowed.**
 4. **Run a supervised pilot in a bounded environment.**
 5. **Prove repeatable customer value.**
-6. **Add multi-site, multi-vendor, and higher-autonomy capabilities only when demanded by real deployments.**
+6. **Add multi-site, multi-vendor, and higher central coordination capabilities only when demanded by real deployments.**
 7. **Expand into adjacent markets that reuse the same coordination primitive.**
 
 More software is not automatically more progress. From the current state, field evidence and customer evidence are higher-value than adding speculative platform breadth.
@@ -292,15 +342,15 @@ For an accelerator or early investor, SWARM should be presented narrowly first a
 
 **What works today**
 
-> SWARM coordinates autonomous drone fleets. We have an end-to-end multi-agent system and a PX4 SITL-validated MAVLink path that allocates missions based on fleet state and can adapt while missions are running.
+> SWARM coordinates drone fleets from one mission-level decision layer. We have an end-to-end multi-agent system and a PX4 SITL-validated MAVLink path that allocates missions centrally from fleet state and adapts allocation while missions are running.
 
 **What we are proving next**
 
-> We are building a short multi-drone SITL demo that makes autonomous allocation and re-tasking visible, while interviewing operators of large physical sites to identify the first high-frequency workflow worth deploying into.
+> We are building a short multi-drone SITL demo that makes central autonomous allocation and re-tasking visible, while interviewing operators of large physical sites to identify the first high-frequency workflow worth deploying into.
 
 **What it can become**
 
-> SWARM can become the coordination runtime that gives software autonomous presence in the physical world.
+> SWARM can become the coordination runtime that gives software autonomous presence in the physical world by composing many replaceable physical agents into one adaptive system.
 
 The application must not pretend that the first market is already known if it is not. The strongest story is a technically capable founder who has built the coordination core, knows exactly what is still unproven, and is moving aggressively toward customer and physical evidence.
 
@@ -315,7 +365,9 @@ Every SWARM document, demo, application, and external claim must preserve these 
 - **bench-validated** is not **field-proven**;
 - **customer interview** is not **pilot commitment**;
 - **pilot interest** is not **revenue**;
-- a **possible vertical** is not a **validated wedge**.
+- a **possible vertical** is not a **validated wedge**;
+- **multiple agents in one fleet** is not yet **first-class execution-group runtime support**;
+- **central decision authority** does not mean **a physical endpoint cannot be compromised**.
 
 When documents conflict, this thesis is the strategic source of truth.
 
