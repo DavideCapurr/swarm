@@ -29,6 +29,7 @@ from swarm_core.missions import (
     VERIFY,
     MissionKind,
 )
+from swarm_core.runtime_events import MissionRuntimeEvent
 
 from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT, Orchestrator
 
@@ -228,8 +229,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         ] = []
         reserved: set[str] = set()
 
-        # Plan the whole group before dispatching anything. If one required role
-        # cannot be filled, fail closed with zero child missions launched.
         for plan in plans:
             choice = self._select_group_candidate(
                 plan.mission, excluded_agent_ids=reserved
@@ -266,9 +265,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
         self._execution_groups[group.id] = group
         self._group_role_templates[group.id] = templates
 
-        # Reserve every selected executor before the first await, so patrol or a
-        # concurrent anomaly cannot steal a member between planning and launch.
-        for (plan, agent_id, _score, _breakdown) in assignments:
+        for plan, agent_id, _score, _breakdown in assignments:
             self._busy.add(agent_id)
             self._agent_mission_ids[agent_id] = plan.mission.id
 
@@ -325,6 +322,93 @@ class ExecutionGroupOrchestrator(Orchestrator):
         award = Award(mission_id=mission.id, winner_agent_id=agent_id, score=score)
         await self.bus.publish("swarm:missions:award", award.model_dump_json())
 
+    async def _run_mission(
+        self,
+        agent_id: str,
+        adapter: object,
+        mission: MissionTask,
+        *,
+        is_verify: bool,
+    ) -> None:
+        """Run group children with explicit terminal failure truth."""
+
+        if mission.id not in self._group_task_to_role:
+            await super()._run_mission(
+                agent_id, adapter, mission, is_verify=is_verify
+            )
+            return
+
+        terminal_seen = False
+        try:
+            async for progress in adapter.execute_mission(mission):  # type: ignore[attr-defined]
+                if not is_verify:
+                    continue
+                await self._publish_group_child_progress(
+                    agent_id=agent_id,
+                    adapter=adapter,
+                    progress=progress,
+                )
+                if progress.phase in ("DONE", "FAILED"):
+                    terminal_seen = True
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.exception("group mission %s failed: %s", mission.id, exc)
+            if is_verify and not terminal_seen:
+                failure = MissionProgress(
+                    mission_id=mission.id,
+                    phase="FAILED",
+                    progress_pct=0.0,
+                    error=f"{type(exc).__name__}: {exc}"[:240],
+                )
+                await self._publish_group_child_progress(
+                    agent_id=agent_id,
+                    adapter=adapter,
+                    progress=failure,
+                )
+        finally:
+            self._busy.discard(agent_id)
+            self._verifying.discard(agent_id)
+            if self._agent_tasks.get(agent_id) is asyncio.current_task():
+                self._agent_tasks.pop(agent_id, None)
+                self._agent_mission_ids.pop(agent_id, None)
+
+    async def _publish_group_child_progress(
+        self,
+        *,
+        agent_id: str,
+        adapter: object,
+        progress: MissionProgress,
+    ) -> None:
+        await self.bus.publish(
+            f"swarm:missions:progress:{progress.mission_id}",
+            progress.model_dump_json(),
+        )
+        evidence = None
+        evidence_for_phase = getattr(adapter, "runtime_evidence_for_phase", None)
+        if callable(evidence_for_phase):
+            try:
+                evidence = evidence_for_phase(progress.phase)
+            except Exception:
+                logger.exception(
+                    "runtime evidence projection failed for %s %s",
+                    agent_id,
+                    progress.phase,
+                )
+        runtime_event = MissionRuntimeEvent(
+            mission_id=progress.mission_id,
+            agent_id=agent_id,
+            phase=progress.phase,
+            progress_pct=progress.progress_pct,
+            evidence=evidence,
+            error=progress.error,
+            ts=progress.ts,
+        )
+        await self.bus.publish(
+            "swarm:missions:runtime", runtime_event.model_dump_json()
+        )
+
     async def _execution_group_progress_loop(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:missions:progress:*"):
             try:
@@ -376,6 +460,8 @@ class ExecutionGroupOrchestrator(Orchestrator):
             return
 
         if progress.phase == "FAILED":
+            if member.state is ExecutionGroupMemberState.REPLACED:
+                return
             member = member.model_copy(
                 update={"state": ExecutionGroupMemberState.FAILED}
             )
