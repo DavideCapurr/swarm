@@ -227,11 +227,6 @@ class FleetManager:
         if self._mission_task is not None:
             raise RuntimeError("mission runtime already started")
 
-        group_options = {
-            "cooperative_verify_enabled": self.cooperative_verify_enabled,
-            "cooperative_verify_min_confidence": self.cooperative_verify_min_confidence,
-            "cooperative_verify_team_size": self.cooperative_verify_team_size,
-        }
         if self.presence_response_enabled:
             orchestrator: BusFleetOrchestrator = PresenceResponseBusFleetOrchestrator(
                 bus=self.bus,
@@ -240,14 +235,18 @@ class FleetManager:
                 payload_registry=self.payload_registry,
                 presence_min_confidence=self.presence_min_confidence,
                 presence_hold_s=self.presence_hold_s,
-                **group_options,
+                cooperative_verify_enabled=self.cooperative_verify_enabled,
+                cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
+                cooperative_verify_team_size=self.cooperative_verify_team_size,
             )
         else:
             orchestrator = BusFleetOrchestrator(
                 bus=self.bus,
                 registry=self.registry,
                 continuous_patrol=False,
-                **group_options,
+                cooperative_verify_enabled=self.cooperative_verify_enabled,
+                cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
+                cooperative_verify_team_size=self.cooperative_verify_team_size,
             )
 
         task = asyncio.create_task(orchestrator.run())
