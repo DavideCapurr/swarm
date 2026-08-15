@@ -30,7 +30,8 @@ See [`ADR 0011`](../adr/0011-central-decision-authority.md).
 1. Fleet adapters report telemetry/evidence and execute **SWARM-issued** mission
    commands through vendor/autopilot protocols.
 2. SwarmOS orchestrator/policy/scheduler perform mission-level decisions,
-   allocation, ownership and coordination.
+   allocation, ownership, execution-group composition, replacement and
+   coordination.
 3. Backend exposes REST + WebSocket projections of SwarmOS truth.
 4. Console consumes authenticated REST + WS projections and sends operator
    intent; it never invents an operational decision.
@@ -42,16 +43,30 @@ observations or other approved sources. A cue is input, not operational command
 authority. SwarmOS decides whether it warrants action, which physical agent or
 agents should respond, and what should happen next.
 
-Edge/on-device perception may eventually produce low-latency observations, but
-those observations remain evidence sent to SwarmOS. They do not grant the
-physical agent authority to allocate or retask the fleet.
+Edge/on-device perception may produce low-latency observations, but those
+observations remain evidence sent to SwarmOS. They do not grant the physical
+agent authority to allocate or retask the fleet.
 
 ## Multi-agent model
 
-Collective capability should be composed centrally. A future execution group may
-contain several cheap physical agents with different roles, but the group is a
-SwarmOS-owned logical object rather than an autonomous sub-swarm that makes its
-own mission decisions.
+Collective capability is composed centrally through a SwarmOS-owned
+`ExecutionGroup`. One logical objective can be decomposed into complementary
+role-specific child missions assigned to distinct physical agents. The group is
+a logical coordination object, not an autonomous sub-swarm.
+
+The live PX4 SITL path has validated a three-role `COOPERATIVE_VERIFY` group
+across three of four available agents, plus central replacement of an active
+failed member with the unused spare. See the Phase 11 and Phase 12 bench
+evidence below.
+
+## Current proof links
+
+- Dynamic multi-event allocation: [`phase10`](../bench/phase10-dynamic-multi-event-validation.md)
+- Four-PX4 multi-agent `ExecutionGroup`: [`phase11`](../bench/phase11-execution-group-validation.md)
+- Live PX4 member failure/replacement: [`phase12`](../bench/phase12-execution-group-live-failover.md)
+- Final demo runbook and three clean takes: [`final demo rehearsal`](../bench/final-demo-rehearsal.md)
+
+All PX4 claims above are SITL-scoped, not physical-aircraft proof.
 
 ## Deep links
 

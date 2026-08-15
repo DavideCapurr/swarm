@@ -8,7 +8,7 @@
 
 SWARM is the coordination layer for autonomous physical response.
 
-Today the agents are drones. The product sits above individual autopilots and decides which unit should respond, when, where, with what objective, and what should happen as conditions change.
+Today the agents are drones. The product sits above individual autopilots and decides which unit should respond, when, where, with what objective, how many agents are required, which role each receives, and what should happen as conditions change.
 
 The drones are replaceable. The coordination system is the durable product thesis.
 
@@ -17,6 +17,8 @@ The drones are replaceable. The coordination system is the durable product thesi
 ## The immediate company state
 
 The engineering system exists end-to-end in simulation and has a MAVLink/PX4 path validated against PX4 SITL.
+
+The current SITL evidence includes dynamic allocation across simultaneous missions, first-class SwarmOS-owned multi-agent `ExecutionGroup` composition across four PX4 instances, live central replacement after an active PX4 executor is killed, and three consecutive deterministic final-demo rehearsal passes.
 
 SWARM does not yet have physical-aircraft proof, a validated first market, a pilot, or revenue.
 
@@ -44,23 +46,28 @@ The key question is:
 
 The best initial market should combine high frequency, real cost or urgency, a clear budget owner, feasible early operations, repeatability, and a meaningful advantage from coordinated mobile units.
 
-## The near-term product proof
+## Current technical proof
 
-The next technical demonstration should make multi-agent coordination obvious without requiring SWARM to purchase drones.
+The investor-facing technical proof is now feature-frozen for the demo.
 
-Use several PX4 SITL vehicles with different fleet states. Inject a neutral task. Show SWARM:
+The definitive `/demo/intrusion` path shows SwarmOS:
 
-- rank the available assets;
-- choose the best unit;
+- evaluate eligible and excluded physical agents centrally;
+- publish server-side scores and ownership;
 - dispatch through the MAVLink/PX4 path;
-- respond to a second event or changing condition;
-- re-task, replace, add or return units;
-- expose why each decision was made;
-- complete the mission and restore fleet availability.
+- accept `ON_STATION` only after `MISSION_ITEM_REACHED`;
+- execute a bounded payload response with confirmed PX4 SITL light output and explicitly simulated speaker;
+- handle a second event while the first mission remains active;
+- exclude the first owner as `BUSY` with its exact active mission id;
+- select a different second owner;
+- keep two missions active concurrently;
+- clean up and return through acknowledged RTL.
 
-The demo must be labeled honestly as simulation/SITL.
+Separate four-PX4 bench evidence proves one logical `COOPERATIVE_VERIFY` objective composed into three role-specific child missions, with one spare. A live failover proof kills one selected PX4 while `EN_ROUTE`; SwarmOS detects failure and centrally assigns the spare to the same role before the group completes.
 
-The point is not to prove that PX4 can fly a drone. The point is to prove that SWARM can decide what a fleet should do.
+The final recording runbook is [`bench/final-demo-rehearsal.md`](bench/final-demo-rehearsal.md). All of these claims remain explicitly SITL-scoped.
+
+The next technical evidence gap is supervised physical hardware, not another demo feature.
 
 ## The coordination thesis
 
@@ -82,7 +89,7 @@ SWARM exists to resolve that layer.
 
 The core loop is:
 
-**cue → understand → allocate → dispatch → adapt → verify → record → conclude/escalate**
+**cue → understand → allocate → compose → dispatch → adapt → verify → record → conclude/escalate**
 
 That loop should remain portable across markets.
 
@@ -100,7 +107,7 @@ or
 
 `respond(event, constraints)`
 
-and allow SWARM to determine which available physical agents should carry it out.
+and allow SWARM to determine which available physical agents, or temporary combination of them, should carry it out.
 
 At scale, that network could include:
 
@@ -141,7 +148,7 @@ The platform must be earned in sequence:
 6. expand across sites, vendors and adjacent workflows;
 7. generalize toward a broader physical-agent runtime.
 
-Do not build the final platform before the first workflow earns it.
+The software/SITL coordination proof in step 1 is now materially complete for the current demo scope. Do not reopen it merely for presentation breadth.
 
 ## Potential application families
 
@@ -200,7 +207,7 @@ SWARM is not an autonomous weapons thesis.
 
 ### Today
 
-> Coordination software for autonomous drone fleets, with an end-to-end system and a PX4 SITL-validated integration path.
+> A real-time orchestration layer for physical agents, with centralized mission authority and a PX4 SITL-validated multi-agent execution path.
 
 ### First business
 

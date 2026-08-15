@@ -59,8 +59,8 @@ See [`docs/adr/0011-central-decision-authority.md`](adr/0011-central-decision-au
    SWARM-issued execution commands and report reality. They must not import
    allocator, scheduler, autonomy or orchestrator decision modules.
 3. **`orchestrator/`** depends on `core/` and `adapters/base`. It owns live fleet
-   allocation, mission ownership and coordinated dispatch without importing
-   vendor-specific implementations.
+   allocation, mission ownership, execution-group composition/replacement and
+   coordinated dispatch without importing vendor-specific implementations.
 4. **`swarm_os/`** owns server-side state, policy, scheduling and deterministic
    autonomy decisions.
 5. **`backend/`** exposes SwarmOS state and bridges bus truth to REST/WebSocket.
@@ -77,10 +77,11 @@ Violating these layers means the layer has the wrong responsibility.
 - which physical agent or agents are eligible;
 - why a unit is excluded;
 - candidate scores and winner selection;
+- required agent count;
 - mission ownership and role assignment;
+- multi-agent `ExecutionGroup` composition;
 - retask, replacement, rotation, abort and return;
 - payload-response policy;
-- future multi-agent execution-group composition;
 - follow-up escalation or conclusion.
 
 ### Physical agents execute and report
@@ -105,15 +106,16 @@ named `Bid` for compatibility.
 3. SwarmOS snapshots canonical `FleetState` for the adapters it owns.
 4. SwarmOS centrally excludes busy, unavailable or low-battery units.
 5. SwarmOS computes each remaining candidate score from mission and fleet state.
-6. SwarmOS selects the winner.
-7. SwarmOS publishes a structured `AllocationDecision` containing candidates,
-   exclusions, score breakdown and winner.
-8. SwarmOS publishes the award and invokes the selected adapter's
+6. SwarmOS selects the winner or, for a multi-agent objective, plans the required
+   distinct role assignments.
+7. SwarmOS publishes structured allocation/execution-group truth containing
+   candidates, exclusions, score breakdown, ownership and roles.
+8. SwarmOS publishes child awards and invokes each selected adapter's
    `execute_mission()` contract.
 9. The adapter translates the command to the vendor/autopilot dialect and emits
    execution progress.
-10. New telemetry/events return to SwarmOS. Any further retask/replacement is a
-    new SwarmOS decision.
+10. New telemetry/events return to SwarmOS. Any retask or replacement is a new
+    SwarmOS decision.
 
 There is **no peer Contract Net negotiation in the current runtime** and no
 agent-side mission election.
@@ -121,7 +123,7 @@ agent-side mission election.
 ## Runtime message contracts
 
 Canonical models live in `core/swarm_core/messages.py` plus the focused
-allocation/runtime/payload modules.
+allocation/runtime/payload/execution-group modules.
 
 | Type | Current topic/path | Producer | Consumer |
 |---|---|---|---|
@@ -133,24 +135,26 @@ allocation/runtime/payload modules.
 | `MissionProgress` | `swarm:missions:progress:<mission_id>` | selected adapter via orchestrator | backend |
 | `MissionRuntimeEvent` | `swarm:missions:runtime` | orchestrator projection | backend + Console |
 | `PayloadEvent` | `swarm:payload:events` | presence-response orchestrator | backend + Console |
+| `ExecutionGroup` truth | `swarm:execution-groups` | orchestrator | backend + Console |
 
 `Bid` remains an internal compatibility-shaped candidate-score record. It is
 computed inside SwarmOS and is not a permission surface exposed to an aircraft.
 
 ## Mission DSL
 
-`PATROL`, `VERIFY`, `COVER`, `RELAY`, `RTL_DOCK` are defined in
-`core/swarm_core/missions.py`.
+`PATROL`, `VERIFY`, `COVER`, `RELAY`, `RTL_DOCK` and orchestration-level mission
+kinds are defined in `core/swarm_core/missions.py`.
 
-Adapters translate a **selected SWARM mission** into a vendor dialect. For
+Adapters translate a **selected SWARM child mission** into a vendor dialect. For
 example, the current MAVLink/PX4 path uploads waypoint missions, starts
 `AUTO.MISSION`, observes mission progress and issues RTL. PX4 owns low-level
 flight execution; it does not choose why or where the fleet should respond.
 
-`COVER` describes a multi-unit objective but is intentionally rejected by the
-MAVLink adapter: decomposition into per-agent work belongs above the adapter.
-First-class dynamic execution groups remain a future SwarmOS capability rather
-than an agent-side coordination mechanism.
+Orchestration-only parent objectives are not sent directly to physical adapters.
+`COOPERATIVE_VERIFY` is centrally decomposed into role-specific child `VERIFY`
+missions, and that path is live-validated against four PX4 SITL instances.
+`COVER` follows the same architecture rule: decomposition belongs above the
+adapter rather than in an agent-side coordination mechanism.
 
 ## Agent FSM
 
@@ -200,8 +204,8 @@ The concrete invariant is:
 
 ## Multi-agent execution groups
 
-When SWARM needs several cheap agents to create one larger capability, the group
-is a **SwarmOS-owned logical execution object**.
+When SWARM needs several physical agents to create one larger capability, the
+group is a **SwarmOS-owned logical execution object**.
 
 Example:
 
@@ -214,11 +218,23 @@ SwarmOS forms execution group EG-42
   mav-006 → illumination
 ```
 
-The drones do not negotiate those roles. If `mav-002` degrades, its telemetry
-returns to SwarmOS and SwarmOS decides whether `mav-008` should replace it.
+The drones do not negotiate those roles. SwarmOS plans the full required group,
+assigns distinct agents, creates child missions, aggregates lifecycle state and
+retains replacement provenance.
+
+If a member fails, SwarmOS can select unused eligible capacity for the same role.
+The live Phase 12 validation demonstrates this with `mav-003` SIGKILLed while
+`EN_ROUTE` and spare `mav-001` centrally selected as its replacement.
 
 This is how collective capability can scale without putting a separate fleet
-brain on every cheap physical agent.
+brain on every physical agent.
+
+Evidence:
+
+- [`docs/bench/phase11-execution-group-validation.md`](bench/phase11-execution-group-validation.md)
+- [`docs/bench/phase12-execution-group-live-failover.md`](bench/phase12-execution-group-live-failover.md)
+
+Both proofs are PX4 SITL, not physical-aircraft validation.
 
 ## Persistence
 
@@ -233,6 +249,7 @@ Console is a truth renderer and intent surface. It may show:
 - fleet state and mission ownership;
 - anomalies and evidence;
 - structured allocation candidates/exclusions/scores;
+- `ExecutionGroup` membership, roles and replacement history;
 - mission runtime evidence;
 - payload execution evidence.
 
@@ -248,5 +265,6 @@ mission transition that SwarmOS did not publish.
 - **Perception** — inference may occur centrally or at the edge for latency. An
   edge model may emit an observation/cue, but that observation is still input to
   SwarmOS; it does not itself allocate or command the fleet.
-- **Fleet scale** — future cells/execution groups are logical partitions managed
-  by SwarmOS, not autonomous sub-swarms with independent mission authority.
+- **Fleet scale** — larger cells/execution groups remain logical partitions
+  managed by SwarmOS, not autonomous sub-swarms with independent mission
+  authority.

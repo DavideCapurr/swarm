@@ -11,20 +11,20 @@ The Phase 0–6 technical foundation remains documented in [`swarmos-roadmap.md`
 1. **The company is the coordination layer, not a wildfire product.**
    Wildfire, private-land patrol, inspection, security and other verticals are candidate applications until customer evidence proves a first wedge.
 
-2. **The next technical proof does not require owned drones.**
-   Build a multi-vehicle PX4 SITL demonstration that makes autonomous allocation, mission dispatch and re-tasking obvious.
+2. **The current technical demo proof is complete enough to freeze.**
+   Dynamic multi-event PX4 SITL allocation, first-class multi-agent `ExecutionGroup` composition, live member replacement, and the final `/demo/intrusion` rehearsal are validated. Do not add features merely to broaden the demo.
 
 3. **The next market proof is workflow-first customer discovery.**
    Ask operators where someone must physically go and check what is happening today. Find repeated, frequent, costly workflows before naming the wedge.
 
-4. **Physical hardware comes after useful signal, not before.**
-   The first hardware bridge can use borrowed, partnered or later purchased aircraft. Buying hardware just for optics is not a milestone.
+4. **The next technical evidence gap is physical hardware.**
+   The first physical bridge can use borrowed, partnered or later purchased aircraft. Buying hardware just for optics is not a milestone.
 
 5. **Claims remain typed.**
    Keep `sim`, `SITL`, `bench`, `supervised field`, `pilot`, and `commercial production` distinct.
 
 6. **More code is not automatically more progress.**
-   New engineering must either improve the investor demo, customer discovery, physical proof, pilot path, or a blocker revealed by those activities.
+   New engineering must improve physical proof, customer discovery, pilot readiness, or a blocker revealed by those activities. The demo runtime is feature-frozen.
 
 7. **The long-term vision remains large.**
    SWARM can evolve from drone-fleet coordination toward a runtime for distributed autonomous physical agents, but that platform must be earned through real deployments.
@@ -36,18 +36,30 @@ The Phase 0–6 technical foundation remains documented in [`swarmos-roadmap.md`
 | Area | Current evidence |
 |---|---|
 | Core mission / fleet model | working |
-| Auction-based allocation | working |
+| Centralized fleet-state allocation | working |
 | End-to-end simulation | working |
 | Console / backend / audit | working |
 | Autonomy + shadow logic | working |
-| CV-backed demo scenarios | working |
 | MAVLink/PX4 integration | **SITL-validated** |
-| Multi-vehicle YC demo | not yet packaged |
+| Dynamic multi-event allocation | **live two-PX4 SITL-validated** |
+| Verified `MISSION_ITEM_REACHED` arrival semantics | **validated** |
+| Bounded PX4 payload output | **SITL output-confirmed; speaker simulated** |
+| First-class multi-agent `ExecutionGroup` | **live four-PX4 SITL-validated** |
+| Live `ExecutionGroup` member replacement | **validated with active PX4 process SIGKILL** |
+| Final `/demo/intrusion` rehearsal | **3 consecutive clean PASS takes, ~62 s each** |
 | Physical-aircraft proof | missing |
 | Validated first wedge | missing |
 | Customer evidence | weak / insufficient |
 | Pilot | none |
 | Revenue | none |
+
+Authoritative technical evidence:
+
+- [`../bench/phase10-dynamic-multi-event-validation.md`](../bench/phase10-dynamic-multi-event-validation.md)
+- [`../bench/payload-presence-sitl-validation.md`](../bench/payload-presence-sitl-validation.md)
+- [`../bench/phase11-execution-group-validation.md`](../bench/phase11-execution-group-validation.md)
+- [`../bench/phase12-execution-group-live-failover.md`](../bench/phase12-execution-group-live-failover.md)
+- [`../bench/final-demo-rehearsal.md`](../bench/final-demo-rehearsal.md)
 
 ---
 
@@ -55,32 +67,29 @@ The Phase 0–6 technical foundation remains documented in [`swarmos-roadmap.md`
 
 ### Phase 7 — technical foundation proof
 
-**State: done enough to move on.**
+**State: done.**
 
 Existing outputs include the coordination core, operator system, simulation scenarios, autonomy/shadow logic and a PX4/MAVLink path validated in SITL.
 
-Do not reopen Phase 7 merely to add polish unless the next proof exposes a blocker.
+Do not reopen Phase 7 merely to add polish unless a later proof exposes a blocker.
 
-### Phase 8 — multi-agent SITL proof
+### Phase 8 — multi-agent SITL proof + investor demo
 
-**State: next technical priority.**
+**State: done / feature-frozen for the current demo.**
 
-Goal: make the coordination primitive understandable in 60–90 seconds.
+The original goal was to make the coordination primitive understandable in roughly one minute without buying aircraft. That gate is now satisfied by a set of separate but compatible proofs:
 
-#### Demo requirements
+- dynamic allocation while another mission is active;
+- exact `BUSY` exclusion and different second owner;
+- verified `ON_STATION` through `MISSION_ITEM_REACHED`;
+- bounded payload output with explicit simulation boundaries;
+- one logical objective composed into a three-role `ExecutionGroup` across three of four PX4 SITL agents;
+- central replacement after one active selected PX4 is SIGKILLed;
+- three consecutive deterministic final-demo rehearsal passes.
 
-- 3+ PX4 SITL vehicles;
-- different location / battery / availability states;
-- neutral task such as `VERIFY anomaly at sector C7`;
-- autonomous fleet ranking;
-- selected-unit explanation;
-- actual mission dispatch through the MAVLink/PX4 path;
-- a second higher-priority event or state change;
-- re-task / replace / add / RTL behavior;
-- audit trail / reason view;
-- visible `PX4 SITL / SIMULATION` labeling.
+The definitive demo surface is `/demo/intrusion`; the authoritative recording runbook is [`../bench/final-demo-rehearsal.md`](../bench/final-demo-rehearsal.md).
 
-#### Gate
+#### Gate result
 
 A technically literate viewer should be able to answer:
 
@@ -88,15 +97,15 @@ A technically literate viewer should be able to answer:
 
 with:
 
-> “It decides what the fleet should do and adapts that plan as the world changes.”
+> “SwarmOS decides what the fleet should do, composes the required physical agents, and adapts ownership as conditions change. The autopilots execute locally.”
 
-without needing a long founder explanation.
+Do not expand Phase 8 with new runtime features, frontend redesign, dependency work, or unrelated platform scope merely for demo presentation.
 
 ---
 
 ### Phase 9 — cross-vertical workflow discovery
 
-**State: next market priority, parallel with Phase 8.**
+**State: next market priority.**
 
 Goal: identify repeated physical-verification workflows, not reactions to a drone pitch.
 
@@ -177,7 +186,7 @@ Until then, all verticals remain hypotheses.
 
 ### Phase 11 — physical control-path bridge
 
-**State: planned.**
+**State: next technical evidence priority.**
 
 Goal: prove the same command path that works in PX4 SITL can control physical aircraft under supervised conditions.
 
@@ -312,7 +321,7 @@ Do not count activity that advances none of these lanes.
 
 ## Explicitly deferred work
 
-Unless a demo, customer, hardware, regulatory or pilot blocker requires it, defer:
+Unless a customer, hardware, regulatory, pilot, or verified demo blocker requires it, defer:
 
 - speculative ML expansion;
 - federation for hypothetical future cells;
@@ -329,18 +338,9 @@ Unless a demo, customer, hardware, regulatory or pilot blocker requires it, defe
 
 ## YC evidence pack
 
-The YC/investor pack should eventually contain:
+The technical repo/demo component is now materially ready at the SITL claim level. Any future investor pack may reference the validated demo and bench evidence above, but must preserve the simulation/SITL/physical distinction.
 
-1. **60–90s multi-agent PX4 SITL video**
-2. **public demo / simple landing page**
-3. **repo / technical proof**
-4. **customer discovery summary with exact patterns**
-5. **selected wedge memo, if evidence supports one**
-6. **physical-aircraft proof, if achieved**
-7. **pilot evidence, if achieved**
-8. **clear truth table of what is sim / SITL / physical / customer-proven**
-
-The application should be submitted when the marginal value of waiting for another proof is lower than the value of applying now. Do not delay merely to make the codebase larger.
+Customer, wedge, physical-aircraft, and pilot evidence remain separate future evidence categories; this roadmap does not upgrade them based on software progress.
 
 ---
 
@@ -364,4 +364,4 @@ Until a trigger exists, SWARM should still move with a fixed cadence rather than
 
 **Coordination proof → workflow proof → wedge → physical proof → pilot → revenue → platform.**
 
-That order is the current operating strategy.
+The coordination proof is now feature-frozen for the current demo. The sequence continues with workflow evidence and a physical control-path bridge rather than more speculative demo code.

@@ -1,113 +1,133 @@
-# SWARM OS
+# SWARM
 
-> Autonomous coordination + interoperability layer for heterogeneous drone fleets.
-> **Many units. One intention.**
+> **SWARM is a real-time orchestration layer for physical agents.**
+>
+> **SwarmOS decides. Physical agents execute.**
 
-## Read this first
+The world changes. SWARM reallocates physical agents in real time.
 
-[`swarm-thesis.md`](swarm-thesis.md) is the canonical startup thesis for SWARM.
+SwarmOS is the sole mission-level decision authority. Physical agents report state, observations, progress, and execution evidence; SwarmOS decides which objective to pursue, which agents are eligible, how many are needed, which roles they receive, who owns each mission, when to replace or retask an agent, and which fleet-level or payload action happens next.
 
-It defines the company-level problem, the coordination-layer thesis, the long-term vision, the current proof level, and the rules for choosing a first market.
+A physical agent can be a drone, rover, robot, or another compatible machine. Today, the live autopilot integration path in this repository is MAVLink/PX4 **SITL**. No physical-aircraft deployment is claimed.
 
-**When another product, roadmap, architecture, or strategy document conflicts with it, `swarm-thesis.md` is the source of truth.**
+## Why SWARM exists
 
-SWARM OS turns a heterogeneous fleet of off-the-shelf autonomous aircraft into one coordinated system. The drones remain replaceable. The coordination layer is the product.
+Individual autopilots already solve the local problem of keeping one machine operating safely: stabilization, waypoint following, obstacle avoidance where available, geofencing, low-battery behavior, lost-link behavior, and RTL.
 
-The first commercial wedge is **not yet fixed**. Wildfire, private-land patrol, industrial security, inspection, energy infrastructure, logistics, mining, and other environments are hypotheses to test, not company identity. The next market phase is customer discovery around frequent, expensive physical-verification workflows.
+SWARM solves the fleet problem above that layer:
 
-## What SWARM OS actually does
+- which physical agent or agents should respond;
+- which units are ineligible and why;
+- how many agents one objective requires;
+- which role each agent should perform;
+- how active missions share limited fleet capacity;
+- when an agent should be replaced, retasked, returned, or removed;
+- which payload action is authorized;
+- how the fleet should react when conditions change.
 
-DJI / PX4 / Skydio and other vendors already ship onboard autopilots. They handle stabilization, waypoint following, RTL, obstacle avoidance, and other single-aircraft flight functions.
+That is why SWARM is not simply “AI drone software.” The physical endpoints do not contain independent fleet brains and do not negotiate mission ownership with peers. SwarmOS owns the mission-level decision loop and the audit trail.
 
-SWARM OS operates one layer above:
+## What works today
 
-| Layer | Owner | Responsibility |
+The current repository contains an end-to-end coordination runtime with centralized fleet allocation, mission ownership, multi-agent `ExecutionGroup` composition, live replacement, MAVLink/PX4 execution, backend truth projections, and the `/demo/intrusion` operator Console.
+
+The strongest validated paths are:
+
+| Proof | Result | Evidence |
 |---|---|---|
-| Flight control | Vendor autopilot | How a single aircraft flies and fails safe locally |
-| **Mission & fleet** | **SWARM OS** | **Who responds, when, where, why, with which asset or assets, and what happens next** |
+| Dynamic multi-event allocation | event 2 arrives while the first PX4 mission is still active; SwarmOS selects a different available PX4 and both missions overlap | [`phase10-dynamic-multi-event-validation.md`](docs/bench/phase10-dynamic-multi-event-validation.md) |
+| Verified arrival semantics | `ON_STATION` requires final `MISSION_ITEM_REACHED`; timeout fails closed | [`phase9-multi-sitl-validation.md`](docs/bench/phase9-multi-sitl-validation.md) |
+| Bounded payload response | PX4 SITL output is confirmed before light state is reported; speaker remains explicitly simulated | [`payload-presence-sitl-validation.md`](docs/bench/payload-presence-sitl-validation.md) |
+| Multi-agent `ExecutionGroup` | one `COOPERATIVE_VERIFY` objective is decomposed into 3 role-specific child missions across 3 of 4 PX4 SITL agents | [`phase11-execution-group-validation.md`](docs/bench/phase11-execution-group-validation.md) |
+| Live member failure + replacement | selected `mav-003` is SIGKILLed while `EN_ROUTE`; SwarmOS selects spare `mav-001` for the same role; replacement reaches `MISSION_ITEM_REACHED`, receives RTL ACK, and the group completes | [`phase12-execution-group-live-failover.md`](docs/bench/phase12-execution-group-live-failover.md) |
+| Final investor-demo rehearsal | 3 consecutive clean takes, ~62 s each, with event 2 arriving while mission 1 is still active, exact `BUSY` exclusion with active mission id, different second owner, concurrent missions, cleanup, and acknowledged RTL | [`final-demo-rehearsal.md`](docs/bench/final-demo-rehearsal.md) |
 
-A mission can arrive from an operator, software system, sensor, previous observation, or other cue. SWARM evaluates canonical fleet state and centrally allocates the best available unit or units based on mission priority, distance, battery, capability, current task, and operational constraints.
+These are **SITL/runtime proofs**, not physical-aircraft field proofs.
 
-**SwarmOS is the sole mission-level decision authority.** Physical agents execute SWARM-issued objectives and report telemetry, observations, progress, and evidence. They do not elect themselves, allocate peers, or turn a local detection directly into a fleet action. Onboard autopilots retain bounded flight-control and safety behavior such as stabilization, waypoint following, geofence enforcement, low-battery RTL, lost-link behavior, and obstacle avoidance.
+## Architecture
 
-The current live allocator is centralized and deterministic from fleet state. Some compatibility models still use the historical name `Bid`, but those candidate-score records are computed by SwarmOS, not published by aircraft. The architecture remains vendor-neutral through adapters.
+```text
+operators / software / sensors / observations
+                    │
+                    ▼
+                 SwarmOS
+       understand + decide + allocate
+       compose + replace + retask + audit
+                    │
+        SWARM-issued child missions
+                    │
+       ┌────────────┼────────────┐
+       ▼            ▼            ▼
+    adapter      adapter      adapter
+       │            │            │
+       ▼            ▼            ▼
+ physical agent physical agent physical agent
+       │            │            │
+       └── telemetry / progress / evidence ──► SwarmOS
+```
 
-Future multi-agent responses are modeled as **SwarmOS-owned execution groups**: SWARM may assign several cheap physical agents complementary roles toward one mission objective, but the member agents do not form an independently deciding sub-swarm.
+**SwarmOS decides:** objective, eligibility, allocation, required agent count, roles, mission ownership, replacement, retasking, payload actions, and fleet-level response.
 
-## Current proof level
+**Physical agents execute:** low-level flight/motion control, already-issued mission primitives, sensor capture, telemetry, execution evidence, and bounded local safety failsafes.
 
-SWARM is currently a software and simulation/SITL system, not a deployed physical fleet.
+`ExecutionGroup` is a SwarmOS-owned logical object. It is not an autonomous sub-swarm. SwarmOS forms the group, assigns distinct agents to roles, creates per-agent child missions, aggregates lifecycle state, and centrally selects replacements when required.
 
-What exists today:
+See [`docs/architecture.md`](docs/architecture.md) and [`ADR 0011 — Central decision authority`](docs/adr/0011-central-decision-authority.md).
 
-- domain core, mission DSL and FSM;
-- centralized fleet-state mission allocation;
-- heterogeneous adapter architecture;
-- simulated adapter;
-- MAVLink/PX4 adapter;
-- orchestrator and fleet management;
-- FastAPI backend and WebSocket telemetry;
-- Next.js operator Console;
-- persistence and audit history;
-- autonomy/shadow-mode logic;
-- CV-backed simulation scenarios;
-- security and operations baseline.
+## Demo
 
-The MAVLink/PX4 path has been **PX4 SITL-validated** for connect, telemetry ingest, mission dispatch and RTL. It is **not yet bench- or field-validated on physical aircraft**.
+The definitive demo surface is **`/demo/intrusion`**. The legacy dashboard at `/` is separate and is intentionally left unchanged.
 
-That distinction is intentional and must remain explicit.
+The final recording runbook is [`docs/bench/final-demo-rehearsal.md`](docs/bench/final-demo-rehearsal.md). Do not replace it with a second incompatible runbook.
 
-First-class dynamic multi-agent execution groups are part of the architecture direction, but the current production-shaped mission ownership path is still primarily one mission assignment per physical agent. Do not claim native group composition as validated until that runtime path is implemented and tested.
+The demo deliberately separates runtime truth from visualization:
 
-## Next technical demo
+### Backend/runtime truth
 
-The next investor-readable demo is a **multi-vehicle PX4 SITL coordination demo**. It does not require SWARM to buy drones.
+The Console renders server-published allocation and execution truth, including:
 
-The demo target is:
+- eligible and excluded units;
+- exclusion reasons such as `BUSY` and the exact active mission id;
+- server-side scores and score breakdown;
+- winner and mission ownership;
+- `EN_ROUTE`, verified `ON_STATION`, and completion evidence;
+- `ExecutionGroup` composition and replacement history;
+- structured payload state and execution mode.
 
-1. several PX4 SITL vehicles start in different positions and states;
-2. a neutral task such as `VERIFY anomaly at sector C7` enters SWARM;
-3. SWARM evaluates distance, battery, availability and capability;
-4. SWARM selects the aircraft autonomously;
-5. the mission is dispatched through the MAVLink/PX4 path;
-6. a second event or state change occurs while the first mission is active;
-7. SWARM re-tasks, replaces, adds or returns units without manual aircraft selection;
-8. the Console shows why each decision was made;
-9. the mission completes and the fleet returns to an available state.
+### Simulated visualization
 
-The point of the demo is not to make simulation look like real flight. It is to make the coordination layer undeniable.
+- stock CCTV/drone imagery is visualization only;
+- imagery/video must remain labeled simulated;
+- speaker playback remains `SIMULATED`;
+- PX4 light output may be described as confirmed only where the runtime actually observed the configured SITL output state;
+- no physical lamp, speaker, aircraft, or field deployment is implied.
 
-**The autopilot flies the aircraft. SWARM decides what the fleet should do.**
+## Product thesis
 
-Existing wildfire / intrusion / search scenarios remain useful regression and product-demonstration fixtures, but wildfire is no longer the canonical first wedge.
+The system is designed so that **many simple, inexpensive physical agents can be composed dynamically into a larger capability**. The claim is architectural, not an assertion that cheaper hardware always produces lower total operating cost.
+
+The coordination layer remains vendor-neutral where practical: adapters translate SwarmOS-issued work into vendor/autopilot protocols without gaining mission authority.
+
+The long-term target is broader than drones: a runtime that can coordinate heterogeneous physical agents while keeping mission-level intelligence centralized, observable, and auditable.
 
 ## Repo map
 
 ```text
-core/                domain layer — pure Python, no I/O
-  swarm_core/        messages, missions DSL, FSM, allocator, geometry
-
-adapters/            multi-vendor interoperability
-  base.py            DroneAdapter Protocol
-  simulated/         simulation adapter
-  mavlink/           PX4 / ArduPilot via pymavlink
-  dji_cloud/         DJI Dock + Cloud API
-  dji_psdk/          DJI Payload SDK stub
-  autel/ parrot/ skydio/    typed vendor stubs
-
-sim/                 Python simulation environment
-orchestrator/        central coordination service
-backend/             FastAPI REST + WebSocket telemetry
-frontend/            Next.js operator Console
-infra/               Postgres/TimescaleDB + Redis
-scripts/             development, demo and validation scripts
-docs/                architecture, product, evidence, ops, YC and strategy docs
+core/                domain contracts and pure decision models
+swarm_os/            server-side state, scheduling and policy
+orchestrator/        centralized allocation, dispatch and ExecutionGroups
+adapters/            thin vendor/autopilot execution boundary
+sim/                 simulation environment
+backend/             FastAPI, persistence and WebSocket projections
+frontend/            operator Console
+scripts/             development, demo and validation probes
+docs/                architecture, status, operations and evidence
 ```
 
 ## Quickstart
 
 ```bash
-git clone https://github.com/davidecapurr/swarm.git
+git clone https://github.com/DavideCapurr/swarm.git
 cd swarm
 cp .env.example .env
 
@@ -117,9 +137,9 @@ make infra
 make demo
 ```
 
-`make demo` boots the simulation, orchestrator, backend and frontend and opens the Console at `http://localhost:3000`.
+`make demo` boots the local system and Console at `http://localhost:3000`.
 
-Existing scenario commands:
+Scenario fixtures remain available:
 
 ```bash
 make demo-wildfire-sim
@@ -127,9 +147,9 @@ make demo-intrusion-sim
 make demo-search-sim
 ```
 
-These are demonstration scenarios, not declarations of the first commercial market.
+These scenarios are fixtures, not claims about a validated first market.
 
-## Testing
+## Validation and claim boundaries
 
 ```bash
 make test
@@ -137,49 +157,12 @@ make lint
 make audit
 ```
 
-The repository uses typed claims and evidence gates. A simulated result must not be described as physical validation, and a SITL result must not be described as bench or field validation.
+Permanent distinctions:
 
-## Security
+- simulated ≠ SITL-validated;
+- SITL-validated ≠ physical bench or field proof;
+- PX4 output confirmation ≠ proof of a physical payload;
+- central mission authority ≠ an unhackable endpoint;
+- local autopilot safety reflexes ≠ fleet-level mission autonomy.
 
-SwarmOS coordinates systems that can act in the physical world, so security is treated as a product constraint rather than a later add-on.
-
-The baseline includes lockfiles, pinned CI actions and images, CORS and WebSocket origin enforcement, security headers, strict input models, request limits, rate limiting, dependency scanning, CodeQL/Bandit/Semgrep/Trivy/gitleaks and documented threat/incident-response processes.
-
-Central mission authority limits the legitimate authority of a compromised endpoint, but it does **not** make a drone unhackable. A compromised aircraft may still falsify telemetry/sensor evidence, ignore commands, or be manipulated through its flight controller or vendor link. Agent-originated data is therefore semi-trusted operational input.
-
-See:
-
-- [`SECURITY.md`](SECURITY.md)
-- [`docs/security/threat-model.md`](docs/security/threat-model.md)
-- [`docs/security/agent-trust.md`](docs/security/agent-trust.md)
-- [`docs/security/incident-response.md`](docs/security/incident-response.md)
-
-## Strategy and execution
-
-- Canonical startup thesis: [`swarm-thesis.md`](swarm-thesis.md)
-- Live execution status: [`docs/STATUS.md`](docs/STATUS.md)
-- Architecture overview: [`docs/architecture/overview.md`](docs/architecture/overview.md)
-- Central decision authority: [`docs/adr/0011-central-decision-authority.md`](docs/adr/0011-central-decision-authority.md)
-- Evidence-to-scale roadmap: [`docs/plan/swarm-roadmap-evidence-to-scale.md`](docs/plan/swarm-roadmap-evidence-to-scale.md)
-- YC readiness: [`docs/yc/readiness-and-gaps.md`](docs/yc/readiness-and-gaps.md)
-- YC application draft: [`docs/yc/application-draft.md`](docs/yc/application-draft.md)
-- Customer discovery: [`docs/yc/customer-discovery-kit.md`](docs/yc/customer-discovery-kit.md)
-- PX4/SITL evidence: [`docs/bench/phase9-sitl-validation.md`](docs/bench/phase9-sitl-validation.md)
-
-## Product discipline
-
-From the current state, the highest-value next evidence is not speculative platform breadth.
-
-The priority is:
-
-1. make multi-agent coordination obvious in a short PX4 SITL demo;
-2. discover a high-frequency first workflow through real operator interviews;
-3. validate the same control path on borrowed, partnered, or later purchased physical hardware;
-4. earn the first supervised pilot;
-5. expand the platform only from real deployment evidence.
-
-The long-term vision remains much larger than drones: a coordination runtime that gives software reliable physical presence and agency through distributed autonomous machines.
-
----
-
-*Quiet. Precise. Already arrived.*
+For the current execution state, see [`docs/STATUS.md`](docs/STATUS.md). For the authoritative demo evidence, start with [`docs/bench/final-demo-rehearsal.md`](docs/bench/final-demo-rehearsal.md), [`docs/bench/phase11-execution-group-validation.md`](docs/bench/phase11-execution-group-validation.md), and [`docs/bench/phase12-execution-group-live-failover.md`](docs/bench/phase12-execution-group-live-failover.md).
