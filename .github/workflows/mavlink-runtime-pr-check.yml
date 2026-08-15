@@ -1,0 +1,37 @@
+name: mavlink-runtime-pr-check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install test dependencies
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+      - name: Ruff
+        run: uv run ruff check .
+      - name: Mypy
+        run: uv run mypy core adapters orchestrator sim backend
+      - name: MAVLink orchestration tests
+        run: >-
+          uv run pytest -q
+          adapters/mavlink/tests/test_fleet_runner.py
+          adapters/mavlink/tests/test_runner.py
+          orchestrator/swarm_orchestrator/tests/test_bus_fleet.py
+          orchestrator/swarm_orchestrator/tests/test_orchestrator.py
+          backend/tests/test_fleet.py
+          backend/tests/test_mavlink_mission_runtime.py
