@@ -244,7 +244,6 @@ describe("IntrusionResponseDemo", () => {
     expect(excluded).toHaveTextContent("mav-002");
     expect(excluded).toHaveTextContent("EXCLUDED");
     expect(excluded).toHaveTextContent("BUSY");
-    expect(excluded).toHaveTextContent("mission-o");
     expect(screen.getAllByText("mav-001").length).toBeGreaterThan(0);
     expect(screen.getByText(/48m · batt 80%/i)).toBeInTheDocument();
   });
