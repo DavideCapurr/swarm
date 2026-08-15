@@ -109,7 +109,7 @@ async def test_deadline_expiry_fails_closed_into_rtl() -> None:
     )
     # Test seam: keep the production minimum deadline untouched while making
     # this failure-path test deterministic and fast.
-    adapter._mission_deadline_s = lambda _mission, _waypoints: 0.25  # type: ignore[method-assign]
+    adapter._mission_deadline_s = lambda _mission, _waypoints: 0.25  # type: ignore[method-assign,assignment]
     try:
         await adapter.connect()
         frames = await _collect_mission(adapter)
