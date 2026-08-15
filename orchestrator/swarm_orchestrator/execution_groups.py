@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from swarm_core.allocator import build_bid
 from swarm_core.execution_groups import (
@@ -20,15 +21,14 @@ from swarm_core.execution_groups import (
     ExecutionGroupState,
 )
 from swarm_core.fsm import is_available
-from swarm_core.messages import (
-    Anomaly,
-    Award,
-    FleetState,
-    Geo,
-    MissionProgress,
-    MissionTask,
+from swarm_core.messages import Anomaly, Award, Geo, MissionProgress, MissionTask
+from swarm_core.missions import (
+    COOPERATIVE_VERIFY,
+    COOPERATIVE_VERIFY_KIND,
+    PATROL,
+    VERIFY,
+    MissionKind,
 )
-from swarm_core.missions import COOPERATIVE_VERIFY, PATROL, VERIFY, MissionKind
 
 from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT, Orchestrator
 
@@ -55,7 +55,9 @@ class ExecutionGroupOrchestrator(Orchestrator):
     max_group_replacements_per_role: int = 1
 
     _execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)
-    _group_role_templates: dict[str, dict[str, MissionTask]] = field(default_factory=dict)
+    _group_role_templates: dict[str, dict[str, MissionTask]] = field(
+        default_factory=dict
+    )
     _group_task_to_role: dict[str, tuple[str, str]] = field(default_factory=dict)
     _group_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -132,7 +134,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
     ) -> ExecutionGroup:
         """Plan and dispatch a group objective without sending the parent to agents."""
 
-        if objective.kind == MissionKind.COOPERATIVE_VERIFY.value:
+        if objective.kind == COOPERATIVE_VERIFY_KIND:
             plans = self._cooperative_verify_plans(objective)
         elif objective.kind == MissionKind.COVER.value:
             plans = self._cover_plans(objective)
@@ -147,10 +149,14 @@ class ExecutionGroupOrchestrator(Orchestrator):
             anomaly_id=anomaly_id,
         )
 
-    def _cooperative_verify_plans(self, objective: MissionTask) -> list[ExecutionRolePlan]:
+    def _cooperative_verify_plans(
+        self, objective: MissionTask
+    ) -> list[ExecutionRolePlan]:
         geo = Geo(**objective.params["geo"])
         team_size = max(2, int(objective.params.get("team_size", 3)))
-        hover_s = float(objective.params.get("hover_s", self.cooperative_verify_hover_s))
+        hover_s = float(
+            objective.params.get("hover_s", self.cooperative_verify_hover_s)
+        )
         base_altitude_m = float(objective.params.get("base_altitude_m", 40.0))
         altitude_step_m = float(objective.params.get("altitude_step_m", 15.0))
         configured_roles = list(objective.params.get("roles", []))
@@ -217,13 +223,17 @@ class ExecutionGroupOrchestrator(Orchestrator):
             anomaly_id=anomaly_id,
             requested_members=len(plans),
         )
-        assignments: list[tuple[ExecutionRolePlan, str, float, dict[str, float]]] = []
+        assignments: list[
+            tuple[ExecutionRolePlan, str, float, dict[str, float]]
+        ] = []
         reserved: set[str] = set()
 
         # Plan the whole group before dispatching anything. If one required role
         # cannot be filled, fail closed with zero child missions launched.
         for plan in plans:
-            choice = self._select_group_candidate(plan.mission, excluded_agent_ids=reserved)
+            choice = self._select_group_candidate(
+                plan.mission, excluded_agent_ids=reserved
+            )
             if choice is None:
                 group.state = ExecutionGroupState.FAILED
                 group.failure_reason = "INSUFFICIENT_ELIGIBLE_CAPACITY"
@@ -255,7 +265,21 @@ class ExecutionGroupOrchestrator(Orchestrator):
         group.state = ExecutionGroupState.ACTIVE
         self._execution_groups[group.id] = group
         self._group_role_templates[group.id] = templates
-        await self._publish_group(group)
+
+        # Reserve every selected executor before the first await, so patrol or a
+        # concurrent anomaly cannot steal a member between planning and launch.
+        for (plan, agent_id, _score, _breakdown) in assignments:
+            self._busy.add(agent_id)
+            self._agent_mission_ids[agent_id] = plan.mission.id
+
+        try:
+            await self._publish_group(group)
+        except Exception:
+            for plan, agent_id, _score, _breakdown in assignments:
+                self._busy.discard(agent_id)
+                if self._agent_mission_ids.get(agent_id) == plan.mission.id:
+                    self._agent_mission_ids.pop(agent_id, None)
+            raise
 
         for (plan, agent_id, score, _breakdown), member in zip(
             assignments, members, strict=True
@@ -339,7 +363,9 @@ class ExecutionGroupOrchestrator(Orchestrator):
         member = group.members[member_index]
 
         if progress.phase == "DONE":
-            member = member.model_copy(update={"state": ExecutionGroupMemberState.COMPLETED})
+            member = member.model_copy(
+                update={"state": ExecutionGroupMemberState.COMPLETED}
+            )
             group.members[member_index] = member
             if self._all_group_roles_completed(group):
                 group.state = ExecutionGroupState.COMPLETED
@@ -350,7 +376,9 @@ class ExecutionGroupOrchestrator(Orchestrator):
             return
 
         if progress.phase == "FAILED":
-            member = member.model_copy(update={"state": ExecutionGroupMemberState.FAILED})
+            member = member.model_copy(
+                update={"state": ExecutionGroupMemberState.FAILED}
+            )
             group.members[member_index] = member
             group.state = ExecutionGroupState.DEGRADED
             await self._publish_group(group)
@@ -433,10 +461,9 @@ class ExecutionGroupOrchestrator(Orchestrator):
         )
 
     async def _publish_group(self, group: ExecutionGroup) -> None:
-        # model_copy gives every emitted lifecycle snapshot a fresh timestamp.
-        refreshed = group.model_copy(update={"ts": ExecutionGroup.model_fields["ts"].default_factory()})
-        self._execution_groups[group.id] = refreshed
-        await self.bus.publish(EXECUTION_GROUP_TOPIC, refreshed.model_dump_json())
+        group.ts = datetime.now(UTC)
+        self._execution_groups[group.id] = group
+        await self.bus.publish(EXECUTION_GROUP_TOPIC, group.model_dump_json())
 
     @staticmethod
     def _clone_mission(template: MissionTask) -> MissionTask:
