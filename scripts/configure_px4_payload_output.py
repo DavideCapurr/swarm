@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import struct
 import time
+from typing import Any
 
 from pymavlink import mavutil
 
@@ -19,18 +20,18 @@ OFFBOARD_ACTUATOR_SET_1 = 301
 DISABLED = 0
 
 
-def _param_name(message: object) -> str:
-    value = getattr(message, "param_id")
+def _param_name(message: Any) -> str:
+    value = message.param_id
     if isinstance(value, bytes):
         value = value.decode(errors="ignore")
     return str(value).rstrip("\x00")
 
 
-def _decode_int32(message: object) -> int:
-    param_type = getattr(message, "param_type")
+def _decode_int32(message: Any) -> int:
+    param_type = message.param_type
     if param_type != mavutil.mavlink.MAV_PARAM_TYPE_INT32:
         raise RuntimeError(f"unexpected MAV_PARAM type {param_type}")
-    value = float(getattr(message, "param_value"))
+    value = float(message.param_value)
     return struct.unpack("<i", struct.pack("<f", value))[0]
 
 
@@ -38,7 +39,7 @@ def _encode_int32(value: int) -> float:
     return struct.unpack("<f", struct.pack("<i", value))[0]
 
 
-def _read_param(connection: object, target_system: int, param: str, timeout_s: float) -> object:
+def _read_param(connection: Any, target_system: int, param: str, timeout_s: float) -> Any:
     connection.mav.param_request_read_send(target_system, 1, param.encode(), -1)
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -49,12 +50,12 @@ def _read_param(connection: object, target_system: int, param: str, timeout_s: f
 
 
 def _set_param(
-    connection: object,
+    connection: Any,
     target_system: int,
     param: str,
     value: int,
     timeout_s: float,
-) -> object:
+) -> Any:
     connection.mav.param_set_send(
         target_system,
         1,
