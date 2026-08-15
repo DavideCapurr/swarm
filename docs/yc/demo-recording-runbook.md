@@ -1,68 +1,209 @@
 # SWARM — YC demo video recording runbook
 
-> Closes gap #2 (critical) in [`readiness-and-gaps.md`](readiness-and-gaps.md):
-> the watchable proof. Founder-machine step (needs the full stack + a headed
-> browser for real WebGL — same constraint as the screenshot harness).
+> Updated 2026-08-15.
 >
-> **Why this supersedes [`m1-vo-script.md`](m1-vo-script.md) for the YC cut.**
-> That script is accurate but pitched at an *internal* audience — it says
-> "Phase 7 complete," "Console inversion," "Phase 10 ML." A YC reviewer doesn't
-> know or care about phase numbers; they need **problem → product → proof** in
-> a buyer's language, in under two minutes. Same demo, same verified beat
-> timing — different narration. Keep `m1-vo-script.md` as the internal
-> reference; record *this* for YC.
+> Purpose: make the coordination layer understandable in under two minutes without implying physical-aircraft proof.
+>
+> This runbook supersedes the old wildfire-specific YC cut. Existing wildfire/intrusion/search demos remain useful technical fixtures, but the YC-facing demo should be neutral and coordination-first.
 
-## Setup (≈5 min)
+## Core message
 
-1. Boot the stack so the demo is ready (one terminal): `docker compose up -d
-   postgres redis` → backend → frontend, or your usual `make demo` path.
-2. QuickTime Player → File → New Screen Recording → record the Console window
-   (1080p; hide the dock/menubar clutter).
-3. Have the narration below on a second screen / phone. Speak it **live** over
-   the run, or record voice separately and overlay in the QuickTime trim.
-4. **Press record first**, then in a second terminal run the boot command. The
-   first ~10s of standby is your intro runway.
+The reviewer must understand this immediately:
 
-Boot command (wildfire arc — the canonical YC cut):
-```
-make demo-wildfire-sim
-```
+> **The autopilot flies each aircraft. SWARM decides what the fleet should do.**
 
-## Narration — wildfire arc (target 75–90s, buyer voice)
+Everything in the demo should support that sentence.
 
-Verified beat timing (from the metrics artifact
-`docs/bench/artifacts/phase-7e-wildfire_owner_land-*.json`, `by_rule.R2 == 1`;
-re-confirm against your live run before the final cut).
+## Evidence rule
 
-| t (s) | On screen | Say (buyer voice — no phase numbers, no forbidden words) |
-|---|---|---|
-| 0–10 | Standby: 3 drones idle on owner land, no anomaly | "This is private high-value land — a vineyard estate with woodland that's a fire risk every dry season. Between rare guard rounds, nobody's watching it. SWARM keeps it observed with autonomous drones — and no fixed cameras or towers installed." |
-| 10–22 | SMOKE callout amber 62%; AUTO chip `r1 · verifying` (Orbital Blue) | "A fire-risk signal appears at low confidence. No operator has to react — SwarmOS dispatches a drone and verifies it. The AUTO chip means the system decided, not a human." |
-| 22–40 | FIRE 88% (a *second*, higher-confidence anomaly); auto-verify then `r2 · escalated` | "A stronger signature follows. SwarmOS verifies it, and once the hotspot holds, escalates it — handing the operator coordinates, captures, a timeline and a recommended action. The operator supervises; the system does the work." |
-| 40–60 | Hold on final escalated state / evidence | "From an uncertain signal to verified evidence in under a minute — without a single fixed sensor, and with every decision auditable." |
-| 60–75 | Truth table / honest close | "Everything you just saw is validated in simulation today, across wildfire, intrusion and search, with real computer-vision detection. Next: buyers, and real flight. We're honest about exactly what's proven — that table is on screen." |
+The demo uses **PX4 SITL / simulation**.
 
-> **Hard rules while recording:** the viewport must show `SIMULATED FEED`;
-> never imply a live camera or field/hardware proof. Voice stays
-> confidence-bound (no `intruder`, `manual`, `alarm`, etc. — CI greps these).
+Do not present simulated or stock footage as physical flight.
 
-## The separate <1-min founder video
+Do not imply that the system has been bench- or field-validated if it has not.
 
-YC also wants a short founder video (each founder, one take, look at camera,
-no slides). Script is in [`application-draft.md`](application-draft.md) →
-"Founder video script." Record it separately from the demo; authenticity beats
-production value.
+The strength of the demo is the real coordination path, not visual realism.
 
-## Output
+---
 
-- Demo: `docs/yc/videos/swarm-demo-wildfire.mov` (H.264, 1080p, ≤2 min).
-- Founder video: `docs/yc/videos/founder.mov` (≤60s).
-- Minimum 3 takes each; pick the cleanest audio. Trim tight — dead air kills a
-  YC video faster than anything.
+## Target duration
 
-## Optional intrusion/search cut
+**60–90 seconds**.
 
-If you want a second 30s clip showing the loop generalizes, boot
-`make demo-intrusion-sim` (3-beat arc: standby → R1 verify → VERIFIED, where
-the operator owns escalation). Use it only if it adds something the wildfire
-cut didn't — don't pad.
+Longer is acceptable only if every extra second demonstrates a distinct coordination capability.
+
+Avoid product-tour narration, roadmap language, internal phase numbers, and long founder explanations.
+
+---
+
+## Demo scenario
+
+Use a neutral synthetic large-site environment.
+
+Example task:
+
+`VERIFY anomaly at sector C7`
+
+Start with at least three PX4 SITL vehicles in different states.
+
+Example:
+
+| Unit | Position | Battery | State | Capability |
+|---|---|---:|---|---|
+| Unit 01 | nearest | 22% | available | RGB |
+| Unit 02 | medium | 87% | available | RGB + thermal |
+| Unit 03 | farthest | 74% | busy | RGB |
+
+SWARM should choose based on the actual allocator/mission logic rather than a scripted UI-only decision.
+
+---
+
+## Required beats
+
+### Beat 1 — fleet state
+
+Show multiple units and their different operational states.
+
+Narration:
+
+> “These are separate PX4 simulated aircraft. Each autopilot knows how to fly. SWARM is the layer above them that decides what the fleet should do.”
+
+### Beat 2 — task enters
+
+Create a neutral verification request.
+
+Narration:
+
+> “A task arrives at sector C7. SWARM evaluates the available fleet instead of asking an operator to choose an aircraft.”
+
+### Beat 3 — autonomous allocation
+
+Show the selected unit and the important reasons.
+
+Narration:
+
+> “It compares distance, battery, availability, mission priority and required capability, then selects the best unit.”
+
+The UI should expose enough reasoning to prove the choice is not arbitrary.
+
+### Beat 4 — PX4 mission dispatch
+
+Show mission transition / telemetry that demonstrates the selected SITL vehicle has received the task through the MAVLink/PX4 path.
+
+Narration:
+
+> “The mission is dispatched through the same MAVLink/PX4 integration already validated in SITL.”
+
+### Beat 5 — the situation changes
+
+This is the most important beat.
+
+While the first task is active, introduce one of:
+
+- a second higher-priority event;
+- a battery/availability change;
+- a unit becoming unavailable;
+- a requirement for a second viewpoint/capability.
+
+Narration:
+
+> “Now the world changes while the first mission is still running. SWARM recomputes the fleet plan.”
+
+### Beat 6 — re-task / replace / add / return
+
+Show SWARM changing the plan without the operator picking the aircraft.
+
+Narration:
+
+> “It reassigns the work, adds or replaces a unit, and returns an aircraft when continuing no longer makes sense.”
+
+Use whichever behavior is genuinely implemented and reliable. Do not narrate capabilities the demo does not actually execute.
+
+### Beat 7 — audit/result
+
+Show the final mission result and decision history.
+
+Narration:
+
+> “Every fleet-level decision is recorded, so the operator can see what happened and why.”
+
+### Beat 8 — honest close
+
+Narration:
+
+> “Everything shown here is PX4 SITL, not physical flight. The next company proof is taking the same coordination layer into the first real workflow that customer discovery proves is worth deploying.”
+
+---
+
+## Suggested full narration
+
+> “These are separate PX4 simulated aircraft. Each autopilot knows how to fly. SWARM is the layer above them that decides what the fleet should do. A verification task arrives at sector C7. SWARM compares the fleet — distance, battery, availability, capability and mission priority — and selects the best unit automatically. The mission is dispatched through our MAVLink/PX4 integration. Now a higher-priority task appears while the first mission is still active. SWARM recomputes the plan and reallocates the fleet instead of asking an operator to choose aircraft one by one. Every decision is recorded so the operator can see what happened and why. Everything shown here is PX4 SITL, not physical flight. Next we are taking this coordination layer into the first workflow that customer discovery proves is worth deploying.”
+
+Trim or modify this only to match what the final demo visibly proves.
+
+---
+
+## Recording checklist
+
+Before recording:
+
+- [ ] multi-vehicle PX4 SITL scenario runs reliably end-to-end;
+- [ ] no manual UI-only aircraft selection is required for the core allocation beat;
+- [ ] the selected-unit reasoning is visible;
+- [ ] the second event/state change reliably produces a coordination response;
+- [ ] the PX4/SITL label is visible;
+- [ ] no screen implies real flight footage;
+- [ ] no stale wildfire/vineyard positioning appears in the YC-facing cut;
+- [ ] test run completes without dead time that would make the video feel staged or broken.
+
+During recording:
+
+- record only the relevant Console / telemetry view;
+- keep cursor movement minimal;
+- avoid scrolling through documentation;
+- avoid explaining internal architecture before showing behavior;
+- let the autonomous decision happen visibly;
+- keep narration matter-of-fact.
+
+After recording:
+
+- trim setup/dead air;
+- verify every spoken claim against what is actually shown;
+- confirm SITL is clearly identified;
+- confirm no claim implies bench/field proof;
+- export H.264, 1080p, under two minutes.
+
+Suggested output:
+
+`docs/yc/videos/swarm-multi-agent-sitl-demo.mov`
+
+---
+
+## What not to optimize for
+
+Do not spend the next development cycle making the environment cinematic.
+
+Do not buy drones purely for the video.
+
+Do not add a new vendor integration solely for breadth.
+
+Do not add unrelated dashboard polish.
+
+Do not turn the demo into a generic “three dots moving on a map” animation.
+
+The differentiator to expose is **fleet-level decision-making under changing conditions**.
+
+---
+
+## Separate founder video
+
+The founder video should remain separate from the product demo.
+
+Use the current founder/company story from [`application-draft.md`](application-draft.md), updated with real customer evidence before submission.
+
+The founder video should emphasize:
+
+- built the coordination stack before university;
+- knows exactly what is proven and what is not;
+- is now moving from software proof to market and physical proof;
+- is not hiding behind a broad vision instead of doing the next concrete step.
