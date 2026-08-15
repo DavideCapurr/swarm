@@ -21,6 +21,10 @@ economics, and long-term vision. When any other document conflicts with it,
   operational truth. **SwarmOS is the entire backend of this repo**: every
   directory except `frontend/` is part of SwarmOS (`core/`, `swarm_os/`,
   `orchestrator/`, `adapters/`, `sim/`, `backend/`, `infra/`, `scripts/`).
+- **physical agent** — a drone/robot/autopilot endpoint. It executes
+  SwarmOS-issued objectives and reports telemetry/evidence. It may retain
+  bounded low-level flight/safety behavior, but it never owns fleet mission
+  decisions.
 - **Console** — the operator-facing surface. It lives **only** in
   `frontend/`. Console renders state and sends intent. Console **never
   decides**.
@@ -29,10 +33,26 @@ economics, and long-term vision. When any other document conflicts with it,
 
 ## The hard rule
 
-**SwarmOS decides. Console supervises.** No UI ever invents operational
-truth. Every number on screen comes from SwarmOS or the honest simulator.
-Any field temporarily derived client-side must be flagged `derived: true`
-and rendered with the eyebrow `DERIVED`.
+**SwarmOS decides. Physical agents execute. Console supervises.**
+
+Mission-level authority stays in SwarmOS: objective selection, event
+response, eligibility, allocation, mission ownership, retasking, abort/RTL,
+payload policy, escalation, and future multi-agent role composition. An
+adapter/aircraft must not elect itself, allocate peers, create a fleet action
+from a local observation, or run allocator/autonomy/scheduler logic.
+
+The onboard autopilot may still own the bounded behavior required to execute
+safely: stabilization, actuator control, waypoint following, local obstacle
+avoidance, geofence/altitude enforcement, low-battery and lost-link failsafes,
+and emergency RTL/landing when central control is unavailable. Those answer
+"how do I execute safely?", not "what should the fleet do next?".
+
+ADR [`docs/adr/0011-central-decision-authority.md`](docs/adr/0011-central-decision-authority.md)
+is the canonical architecture boundary for physical agents.
+
+No UI ever invents operational truth. Every number on screen comes from
+SwarmOS or the honest simulator. Any field temporarily derived client-side
+must be flagged `derived: true` and rendered with the eyebrow `DERIVED`.
 
 ## Source of truth for this project
 
@@ -129,8 +149,8 @@ to make a gate pass:
 swarm/
 ├── core/swarm_core/           # shared types, geometry, voice, fsm primitives
 ├── swarm_os/                  # Phase 1+ kernel package (state, fsm, scheduler, …)
-├── orchestrator/swarm_orchestrator/  # auction + dispatch loop
-├── adapters/                  # base + simulated + vendor stubs
+├── orchestrator/swarm_orchestrator/  # central allocation + dispatch loop
+├── adapters/                  # thin execution boundary + vendor integrations
 ├── sim/swarm_sim/             # world + perception + runner
 ├── backend/app/               # FastAPI + WS + security middleware
 ├── frontend/                  # Next.js Console (the ONLY non-SwarmOS area)
