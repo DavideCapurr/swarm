@@ -16,8 +16,7 @@ from __future__ import annotations
 from datetime import timedelta
 from enum import Enum
 
-from swarm_core.messages import _now, Geo, MissionTask, SensorKind, Waypoint
-
+from swarm_core.messages import Geo, MissionTask, SensorKind, Waypoint, _now
 
 COOPERATIVE_VERIFY_KIND = "COOPERATIVE_VERIFY"
 
