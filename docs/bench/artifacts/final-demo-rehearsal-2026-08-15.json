@@ -1,0 +1,138 @@
+{
+  "date": "2026-08-15",
+  "result": "READY_TO_RECORD",
+  "baseline_main_sha": "024fabda6d687599bf9455d133883c5f3fa31b81",
+  "rehearsal_head_sha": "780c7a8f1b218463f7a8e6c01b2c623a9720194c",
+  "github_actions": {
+    "run_id": 31901533790,
+    "job_id": 95052955813,
+    "artifact_id": 9251283081,
+    "artifact_name": "final-demo-live-rehearsal",
+    "artifact_sha256": "e55d6c9e6bc51e19a8a25472bbca1bd23254a1d8364b29dd1382e91e0a383aa3"
+  },
+  "environment": {
+    "runner": "ubuntu-24.04",
+    "redis_image": "redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99",
+    "px4_image": "jonasvautherin/px4-gazebo-headless@sha256:77f11913cbb2c4e9147a0ec0fdc4318e9575515e20e88d1f3cd9a21470ddcd21",
+    "mavlink_fleet": "mav-001=udpin:0.0.0.0:14541,mav-002=udpin:0.0.0.0:14542",
+    "presence_hold_s": 20,
+    "presence_min_confidence": 0.85,
+    "light_output_channel": 5,
+    "speaker_mode": "simulated",
+    "auth": "enabled",
+    "console_origin": "http://localhost:3000"
+  },
+  "truth_gates": {
+    "clean_startup": true,
+    "eligible_units_authoritative": true,
+    "excluded_units_authoritative": true,
+    "server_side_scores_and_breakdown": true,
+    "winner_matches_authoritative_award": true,
+    "mission_ownership": true,
+    "busy_exclusion_with_active_mission_id": true,
+    "different_second_owner": true,
+    "mission_item_reached": true,
+    "payload_events": true,
+    "px4_output_confirmed": true,
+    "speaker_explicitly_simulated": true,
+    "two_active_missions_visible_in_console": true,
+    "payload_cleanup": true,
+    "accepted_rtl_acknowledgement": true,
+    "authenticated_console": true
+  },
+  "takes": [
+    {
+      "take": 1,
+      "status": "pass",
+      "duration_s": 62.749,
+      "event_1": {
+        "anomaly_id": "537ff9257f814c168252bc5a1a2dbf3d",
+        "mission_id": "4c97f2f2127b454eae5cf76be2d20a5e",
+        "owner": "mav-002",
+        "winner_score": 2.2583144913504087,
+        "other_eligible_score": 2.2566123015039246,
+        "on_station_evidence": "mavlink_mission_item_reached",
+        "light_on": "mavlink_output_confirmed",
+        "speaker": "simulated",
+        "rtl_evidence": "mavlink_rtl_command_acknowledged"
+      },
+      "event_2": {
+        "anomaly_id": "5301ed74aefe43fe97101520db711e24",
+        "mission_id": "e768f1423a654f2bbb208330b62e578a",
+        "owner": "mav-001",
+        "winner_score": 2.292894501797253,
+        "excluded_owner": "mav-002",
+        "excluded_reason": "BUSY",
+        "excluded_active_mission_id": "4c97f2f2127b454eae5cf76be2d20a5e",
+        "on_station_evidence": "mavlink_mission_item_reached",
+        "rtl_evidence": "mavlink_rtl_command_acknowledged"
+      },
+      "browser": "pass",
+      "auth": "pass"
+    },
+    {
+      "take": 2,
+      "status": "pass",
+      "duration_s": 62.128,
+      "event_1": {
+        "anomaly_id": "71a0c9f00729430f806e1124faf1153a",
+        "mission_id": "f135a66b226542c4a75887acb9fc7c19",
+        "owner": "mav-002",
+        "winner_score": 2.2583257083428623,
+        "other_eligible_score": 2.2565950300403905,
+        "on_station_evidence": "mavlink_mission_item_reached",
+        "light_on": "mavlink_output_confirmed",
+        "speaker": "simulated",
+        "rtl_evidence": "mavlink_rtl_command_acknowledged"
+      },
+      "event_2": {
+        "anomaly_id": "c94056c426024f0abaf165d3b20adbd0",
+        "mission_id": "4ed37b6340e14013aac2f32ae3f3e4d2",
+        "owner": "mav-001",
+        "winner_score": 2.2928725591382966,
+        "excluded_owner": "mav-002",
+        "excluded_reason": "BUSY",
+        "excluded_active_mission_id": "f135a66b226542c4a75887acb9fc7c19",
+        "on_station_evidence": "mavlink_mission_item_reached",
+        "rtl_evidence": "mavlink_rtl_command_acknowledged"
+      },
+      "browser": "pass",
+      "auth": "pass"
+    },
+    {
+      "take": 3,
+      "status": "pass",
+      "duration_s": 62.685,
+      "event_1": {
+        "anomaly_id": "bc1903db304249fda798f1fd98e18229",
+        "mission_id": "9b260c9b4d3f40eeb668052547b7e239",
+        "owner": "mav-002",
+        "winner_score": 2.2583257083428623,
+        "other_eligible_score": 2.256599066461019,
+        "on_station_evidence": "mavlink_mission_item_reached",
+        "light_on": "mavlink_output_confirmed",
+        "speaker": "simulated",
+        "rtl_evidence": "mavlink_rtl_command_acknowledged"
+      },
+      "event_2": {
+        "anomaly_id": "3ee6397c8b70424891e3d3daf2873bdb",
+        "mission_id": "ee6aac3a9cdd4db1a39ee8a9c79e5ac6",
+        "owner": "mav-001",
+        "winner_score": 2.2928754585164866,
+        "excluded_owner": "mav-002",
+        "excluded_reason": "BUSY",
+        "excluded_active_mission_id": "9b260c9b4d3f40eeb668052547b7e239",
+        "on_station_evidence": "mavlink_mission_item_reached",
+        "rtl_evidence": "mavlink_rtl_command_acknowledged"
+      },
+      "browser": "pass",
+      "auth": "pass"
+    }
+  ],
+  "notes": [
+    "All three takes started from Redis FLUSHALL, a fresh two-instance PX4 SITL container, and a fresh backend process.",
+    "The Console used real dev authentication and an authenticated WebSocket; event 1 was not emitted until the Console showed CONNECTED.",
+    "At the two-mission assertion point, mission 1 was still active and LIGHT OFF had not yet occurred.",
+    "No production runtime, orchestrator, backend UI, or legacy / dashboard code was changed for this rehearsal."
+  ]
+}
