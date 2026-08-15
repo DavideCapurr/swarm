@@ -4,11 +4,19 @@ Every vendor adapter (DJI Cloud, MAVLink, Autel, Parrot, Skydio, …) implements
 this Protocol. The orchestrator NEVER imports a concrete adapter — it works with
 `DroneAdapter` instances retrieved through `AdapterRegistry`.
 
-Discipline rules (ADR-0003):
+Discipline rules (ADR-0003 + ADR-0011):
 1. Vendor-specific types NEVER leak past `adapters/<vendor>/`.
 2. Mission DSL primitives must be expressible by every vendor's autopilot. If
    a primitive is unsupported, the adapter raises `UnsupportedMission`.
 3. Telemetry minimum 1 Hz; video best-effort.
+4. Adapters are thin physical-execution boundaries. They execute SWARM-issued
+   missions and report observations/progress; they do not allocate missions,
+   choose fleet goals, coordinate peers, or retask other agents.
+
+The onboard autopilot may retain local flight-control and safety behavior
+(stabilization, waypoint following, obstacle avoidance, geofence, low-battery
+or lost-link failsafes). Those behaviors answer *how to fly safely*, not *what
+the fleet should do*. Mission-level decision authority remains in SwarmOS.
 """
 
 from __future__ import annotations
@@ -81,7 +89,12 @@ class Polygon:
 
 @runtime_checkable
 class DroneAdapter(Protocol):
-    """The contract between SWARM OS and a real (or simulated) drone."""
+    """The contract between SWARM OS and a real (or simulated) drone.
+
+    This is an execution contract, not a delegated decision engine. SwarmOS
+    chooses the mission and any retask; the adapter translates that intent into
+    the vendor/autopilot dialect and reports what actually happened.
+    """
 
     # ── identity & capability ────────────────────────────────────────────────
     vendor: str
@@ -103,10 +116,14 @@ class DroneAdapter(Protocol):
         rtl_battery_pct: int,
     ) -> None: ...
 
-    # ── mission-level autonomy ───────────────────────────────────────────────
+    # ── SWARM-issued mission execution ──────────────────────────────────────
     def execute_mission(self, mission: MissionTask) -> AsyncIterator[MissionProgress]:
-        """Run the mission. The async iterator yields progress until the mission
-        finishes, fails, or is cancelled by `cancel_mission()`."""
+        """Execute a mission selected by SwarmOS and report its progress.
+
+        Implementations may delegate low-level flight execution to the onboard
+        autopilot, but must not select their own mission, allocate themselves,
+        command peers, or turn observations into fleet-level actions.
+        """
         ...
 
     async def pause_mission(self) -> None: ...
@@ -114,7 +131,11 @@ class DroneAdapter(Protocol):
     async def cancel_mission(self) -> None: ...
 
     async def divert(self, new_waypoint: Waypoint) -> None:
-        """Mid-flight re-task: switch destination without aborting the mission."""
+        """Execute a SWARM-requested mid-flight destination change.
+
+        The adapter does not decide when or why to divert; it only applies the
+        new target and reports the resulting state.
+        """
         ...
 
     async def request_capture(self, sensor: SensorKind) -> CaptureResult: ...
