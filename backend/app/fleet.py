@@ -11,24 +11,18 @@ Defaults:
   - `SWARM_VENDORS=simulator,mavlink`→ both
   - `SWARM_VENDORS=mavlink`          → MAVLink only
 
-Unknown vendors are surfaced via `UnknownVendor` so a typo doesn't silently
-boot a no-op fleet. Requested vendor boot failures are surfaced via
-`VendorBootError`; Phase 5 is fail-fast for both `mavlink` and
-`simulator,mavlink` because silently dropping a requested real adapter would
-make the backend report a fake-complete fleet.
-
-Why in-process for MAVLink and out-of-process for simulator? The simulator
-needs a `World` tick at a steady rate; the MAVLink runner is just a thin
-adapter wrapping `pymavlink` — co-locating it with the backend avoids a
-second Redis hop for the demo bench and keeps the `make demo` graph
-simpler.
-
 Mission ownership is intentionally narrower than telemetry ownership. A
-MAVLink-only backend also owns one `BusFleetOrchestrator`, so anomalies can be
+MAVLink-only backend owns one bus-backed orchestrator, so anomalies can be
 auctioned against the registered real adapters and dispatched through their
 existing `execute_mission()` contract. Mixed `simulator,mavlink` mode does not
 start a second backend orchestrator because the simulator process already owns
 one; unified mixed-fleet routing remains a later explicit design step.
+
+Bounded presence response is an explicit opt-in on that same real runtime. It
+does not create another mission runner. When enabled, the fleet manager builds
+payload controllers for the already-registered MAVLink adapters and starts the
+payload-aware bus orchestrator. If no payload capability is configured, startup
+fails closed instead of advertising a response capability that cannot execute.
 """
 
 from __future__ import annotations
@@ -41,19 +35,19 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from adapters.base import AdapterRegistry
+from adapters.mavlink.adapter import MAVLinkAdapter
 from adapters.mavlink.fleet_runner import MAVLinkFleetRunner, boot_fleet_runner
+from adapters.mavlink.payload import MAVLinkPayloadController
+from adapters.payload import PayloadControllerRegistry
 from orchestrator.swarm_orchestrator.bus import Bus
 from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
+from orchestrator.swarm_orchestrator.presence_bus import (
+    PresenceResponseBusFleetOrchestrator,
+)
 
 logger = logging.getLogger("backend.fleet")
 
-#: Vendors recognized by `parse_vendors`. The simulator is always implicitly
-#: supported even when running standalone — it ships with the repo.
 SUPPORTED_VENDORS: frozenset[str] = frozenset({"simulator", "mavlink"})
-
-#: Vendors this module is responsible for booting **in-process** alongside
-#: the backend. The simulator is **not** in this set because its runner is
-#: a separate process; including it here would double-spawn it.
 IN_PROCESS_VENDORS: frozenset[str] = frozenset({"mavlink"})
 
 
@@ -83,7 +77,35 @@ def parse_vendors(raw: str | None) -> tuple[str, ...]:
     return tuple(seen)
 
 
-# ── Fleet manager ─────────────────────────────────────────────────────────────
+def _env_flag(name: str, *, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off", ""}:
+        return False
+    raise ValueError(f"{name} must be one of 1/0, true/false, yes/no, on/off")
+
+
+def _env_optional_nonnegative_int(name: str) -> int | None:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return None
+    value = int(raw)
+    if value < 0:
+        raise ValueError(f"{name} must be >= 0")
+    return value
+
+
+def _env_float(name: str, default: float, *, minimum: float, maximum: float | None = None) -> float:
+    raw = (os.getenv(name) or "").strip()
+    value = float(raw) if raw else default
+    if value < minimum or (maximum is not None and value > maximum):
+        suffix = f" and <= {maximum}" if maximum is not None else ""
+        raise ValueError(f"{name} must be >= {minimum}{suffix}")
+    return value
 
 
 VendorBooter = Callable[[Bus, AdapterRegistry], Awaitable[object]]
@@ -97,18 +119,29 @@ class FleetManager:
     registry: AdapterRegistry = field(default_factory=AdapterRegistry)
     vendors: tuple[str, ...] = ()
     mission_ready_timeout_s: float = 8.0
+
+    presence_response_enabled: bool = False
+    presence_min_confidence: float = 0.85
+    presence_hold_s: float = 5.0
+    light_relay_index: int | None = None
+    simulate_speaker: bool = False
+    payload_registry: PayloadControllerRegistry = field(
+        default_factory=PayloadControllerRegistry
+    )
+
     _runners: list[object] = field(default_factory=list)
     _mission_orchestrator: BusFleetOrchestrator | None = None
     _mission_task: asyncio.Task[None] | None = None
-    # Test-only seam: swap a vendor's boot function. Production code lets
-    # the defaults below take over via `_default_booters`.
     booters: dict[str, VendorBooter] = field(default_factory=dict)
 
     async def start(self) -> None:
         booters = {**_default_booters(), **self.booters}
         for vendor in self.vendors:
             if vendor not in IN_PROCESS_VENDORS:
-                logger.info("fleet: vendor %r is out-of-process — skipping in-process boot", vendor)
+                logger.info(
+                    "fleet: vendor %r is out-of-process — skipping in-process boot",
+                    vendor,
+                )
                 continue
             booter = booters.get(vendor)
             if booter is None:
@@ -124,11 +157,38 @@ class FleetManager:
             logger.info("fleet: %r runner online", vendor)
 
         try:
+            self._configure_payload_runtime()
             await self._start_mission_runtime()
         except Exception as exc:
             logger.exception("fleet: mission runtime boot failed")
             await self.stop()
             raise VendorBootError("MAVLink mission runtime boot failed") from exc
+
+    def _configure_payload_runtime(self) -> None:
+        if not self.presence_response_enabled:
+            return
+        if self.vendors != ("mavlink",):
+            raise ValueError(
+                "SWARM_PRESENCE_RESPONSE currently requires SWARM_VENDORS=mavlink"
+            )
+
+        for adapter in self.registry.all():
+            if not isinstance(adapter, MAVLinkAdapter):
+                continue
+            controller = MAVLinkPayloadController(
+                adapter=adapter,
+                light_relay_index=self.light_relay_index,
+                simulate_speaker=self.simulate_speaker,
+            )
+            if controller.capabilities:
+                self.payload_registry.register(controller)
+
+        if len(self.payload_registry) == 0:
+            raise ValueError(
+                "presence response enabled but no payload capability configured; "
+                "set MAVLINK_LIGHT_RELAY_INDEX and/or "
+                "SWARM_PRESENCE_SIMULATE_SPEAKER=1"
+            )
 
     async def _start_mission_runtime(self) -> None:
         if self.vendors != ("mavlink",):
@@ -142,11 +202,22 @@ class FleetManager:
         if self._mission_task is not None:
             raise RuntimeError("mission runtime already started")
 
-        orchestrator = BusFleetOrchestrator(
-            bus=self.bus,
-            registry=self.registry,
-            continuous_patrol=False,
-        )
+        if self.presence_response_enabled:
+            orchestrator: BusFleetOrchestrator = PresenceResponseBusFleetOrchestrator(
+                bus=self.bus,
+                registry=self.registry,
+                continuous_patrol=False,
+                payload_registry=self.payload_registry,
+                presence_min_confidence=self.presence_min_confidence,
+                presence_hold_s=self.presence_hold_s,
+            )
+        else:
+            orchestrator = BusFleetOrchestrator(
+                bus=self.bus,
+                registry=self.registry,
+                continuous_patrol=False,
+            )
+
         task = asyncio.create_task(orchestrator.run())
         self._mission_orchestrator = orchestrator
         self._mission_task = task
@@ -154,8 +225,9 @@ class FleetManager:
             timeout_s=self.mission_ready_timeout_s
         )
         logger.info(
-            "fleet: mission orchestrator ready for %d MAVLink adapter(s)",
+            "fleet: mission orchestrator ready for %d MAVLink adapter(s)%s",
             len(self.registry),
+            " with bounded presence response" if self.presence_response_enabled else "",
         )
 
     async def stop(self) -> None:
@@ -174,6 +246,7 @@ class FleetManager:
                 except Exception:  # pragma: no cover — defensive
                     logger.exception("fleet: runner stop failed")
         self._runners.clear()
+        self.payload_registry = PayloadControllerRegistry()
 
 
 def _default_booters() -> dict[str, VendorBooter]:
@@ -184,12 +257,27 @@ def _default_booters() -> dict[str, VendorBooter]:
 
 
 def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> FleetManager:
-    """Build a FleetManager from the `SWARM_VENDORS` env var."""
+    """Build a FleetManager from environment configuration."""
+
     vendors = parse_vendors(os.getenv("SWARM_VENDORS"))
     return FleetManager(
         bus=bus,
         registry=registry or AdapterRegistry(),
         vendors=vendors,
+        presence_response_enabled=_env_flag("SWARM_PRESENCE_RESPONSE"),
+        presence_min_confidence=_env_float(
+            "SWARM_PRESENCE_MIN_CONFIDENCE",
+            0.85,
+            minimum=0.0,
+            maximum=1.0,
+        ),
+        presence_hold_s=_env_float(
+            "SWARM_PRESENCE_HOLD_S",
+            5.0,
+            minimum=0.0,
+        ),
+        light_relay_index=_env_optional_nonnegative_int("MAVLINK_LIGHT_RELAY_INDEX"),
+        simulate_speaker=_env_flag("SWARM_PRESENCE_SIMULATE_SPEAKER"),
     )
 
 
