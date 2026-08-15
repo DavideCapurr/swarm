@@ -106,7 +106,7 @@ SWARM should therefore remain vendor-neutral wherever practical and avoid making
 
 ### Collective capability without local swarm brains
 
-When one mission needs several physical agents, SWARM should compose them centrally into a temporary **execution group**.
+When one mission needs several physical agents, SWARM composes them centrally into a temporary **ExecutionGroup**.
 
 For example:
 
@@ -119,7 +119,9 @@ SWARM forms execution group EG-42
   mav-006 → illumination
 ```
 
-The execution group is a SwarmOS-owned logical object, not another autonomous decision authority. The drones do not negotiate roles among themselves. If a member degrades or fails, its telemetry returns to SWARM and SWARM decides whether to replace, remove, rotate, or retask it.
+The execution group is a SwarmOS-owned logical object, not another autonomous decision authority. The drones do not negotiate roles among themselves. If a member degrades or fails, its telemetry/progress returns to SWARM and SWARM decides whether to replace, remove, rotate, or retask it.
+
+That model is implemented today. The current PX4 SITL proof validates one logical objective decomposed into three role-specific child missions across three of four available agents, plus central replacement of an active failed member with the unused spare.
 
 This is the intended meaning of “the union makes the strength”: intelligence belongs to the coordinated system, while individual physical units can remain comparatively simple and replaceable.
 
@@ -173,16 +175,20 @@ The repository contains an end-to-end coordination system with:
 - backend and real-time telemetry paths;
 - an operator Console;
 - autonomy and shadow-mode decision logic;
-- structured allocation, runtime and payload evidence;
+- structured allocation, runtime, execution-group and payload evidence;
 - security and operational controls.
 
-The live allocation path already computes eligibility, exclusions, scores and winner centrally in SwarmOS before dispatching the selected physical agent. Physical adapters execute the selected work and report reality back.
+The live allocation path computes eligibility, exclusions, scores and ownership centrally in SwarmOS before dispatching physical agents. Physical adapters execute selected child work and report reality back.
 
-The current runtime supports both simultaneous independent missions and first-class, SwarmOS-owned **ExecutionGroups** for one logical objective executed by multiple physical agents. SwarmOS forms the group, selects distinct members, assigns roles, creates per-agent child missions, aggregates completion, and can centrally replace a failed member without granting peer authority to the aircraft.
+The current runtime supports both simultaneous independent missions and first-class, SwarmOS-owned **ExecutionGroups** for one logical objective executed by multiple physical agents. SwarmOS forms the group, selects distinct members, assigns roles, creates per-agent child missions, aggregates completion, and centrally replaces a failed member without granting peer authority to the aircraft.
 
 This multi-agent path has been validated live against four independent PX4 SITL instances through the real MAVLink backend runtime: one `COOPERATIVE_VERIFY` objective was decomposed into `PRIMARY_OBSERVER`, `SECONDARY_OBSERVER`, and `OVERWATCH` child missions executed by three distinct PX4 agents while a fourth remained spare. Every selected child produced `ON_STATION` only after `MISSION_ITEM_REACHED` evidence and `DONE` with acknowledged RTL. The parent objective itself was never dispatched to a physical adapter.
 
-Live fault replacement has **not** yet been injected in that four-PX4 run; central replacement is currently validated by deterministic integration tests. The MAVLink/PX4 path remains SITL validation, not physical-aircraft bench or field proof.
+Live replacement has also been validated. The selected `SECONDARY_OBSERVER`, `mav-003`, was SIGKILLed while `EN_ROUTE`; SwarmOS observed explicit runtime failure, selected spare `mav-001` for the same role, dispatched a fresh child mission with replacement provenance, observed `MISSION_ITEM_REACHED`, received RTL acknowledgement, and completed the aggregate `ExecutionGroup`.
+
+The final `/demo/intrusion` recording path has passed three consecutive clean authenticated rehearsals at approximately 62 seconds each, including a second event while mission 1 remained active, exact `BUSY` exclusion with the active mission id, a different second owner, simultaneous missions, payload cleanup, and acknowledged RTL.
+
+The MAVLink/PX4 path remains SITL validation, not physical-aircraft bench or field proof.
 
 That distinction must remain explicit in every external claim.
 
@@ -190,21 +196,24 @@ That distinction must remain explicit in every external claim.
 
 ## The current proof: coordination without buying drones
 
-The investor-readable coordination proof does not require SWARM to purchase a fleet. The multi-PX4 SITL path now demonstrates both dynamic reallocation across simultaneous events and one logical objective composed across multiple role-specific physical executors.
+The investor-readable coordination proof does not require SWARM to purchase a fleet. The multi-PX4 SITL path demonstrates dynamic reallocation across simultaneous events, one logical objective composed across multiple role-specific physical executors, and live centrally controlled replacement after an active executor disappears.
 
-The recorded demo should therefore make the coordination layer, not the visual simulation, the main event.
+The definitive recording surface is `/demo/intrusion`, using the runbook in [`docs/bench/final-demo-rehearsal.md`](docs/bench/final-demo-rehearsal.md). The demo should make the coordination layer, not the simulated imagery, the main event.
 
-A strong demo should show:
+The validated demo flow shows:
 
-1. several autonomous-flight vehicles available at different locations and states;
-2. a neutral real-world task entering the system, for example `VERIFY anomaly at sector C7`;
-3. SWARM evaluating distance, battery, availability, capability, and constraints;
-4. central autonomous selection of the best unit;
-5. real mission dispatch through the MAVLink/PX4 path;
-6. a second event or changing condition while the first mission is active;
-7. reallocation, replacement, escalation, or RTL without the operator manually choosing the aircraft;
-8. an auditable explanation of why SWARM made each decision;
-9. mission completion and fleet recovery.
+1. PX4 SITL vehicles available to SwarmOS;
+2. an event entering the system;
+3. SwarmOS evaluating eligibility, availability and score;
+4. central selection and mission dispatch;
+5. verified `ON_STATION` only after `MISSION_ITEM_REACHED`;
+6. a bounded payload response with confirmed PX4 SITL light output and explicitly simulated speaker;
+7. a second event while the first mission remains active;
+8. the first owner excluded as `BUSY` with its exact active mission id;
+9. a different second owner selected and both missions active concurrently;
+10. cleanup and acknowledged RTL.
+
+Separate bench evidence demonstrates the four-PX4 `ExecutionGroup` and live member replacement paths.
 
 The demo must be labeled honestly as simulation/SITL. It should never imply physical flight when none occurred.
 
@@ -334,6 +343,8 @@ SWARM should expand in this order:
 6. **Add multi-site, multi-vendor, and higher central coordination capabilities only when demanded by real deployments.**
 7. **Expand into adjacent markets that reuse the same coordination primitive.**
 
+The current software/SITL coordination milestone in step 1 includes dynamic multi-event allocation, first-class `ExecutionGroup` composition, live member replacement, and a deterministic final demo rehearsal. The next technical evidence gap is the physical-hardware bridge, not another speculative coordination feature.
+
 More software is not automatically more progress. From the current state, field evidence and customer evidence are higher-value than adding speculative platform breadth.
 
 ---
@@ -344,11 +355,11 @@ For an accelerator or early investor, SWARM should be presented narrowly first a
 
 **What works today**
 
-> SWARM coordinates drone fleets from one mission-level decision layer. We have an end-to-end multi-agent system and a PX4 SITL-validated MAVLink path that allocates missions centrally from fleet state and adapts allocation while missions are running.
+> SWARM is a real-time orchestration layer for physical agents. SwarmOS is the sole mission-level decision authority. The current PX4 SITL path validates dynamic allocation across active missions, first-class multi-agent `ExecutionGroup` composition across four PX4 instances, and central replacement of an active failed member with a spare.
 
 **What we are proving next**
 
-> We are building a short multi-drone SITL demo that makes central autonomous allocation and re-tasking visible, while interviewing operators of large physical sites to identify the first high-frequency workflow worth deploying into.
+> The technical coordination demo is feature-frozen and rehearsed. The next engineering evidence gap is bridging the same control path to supervised physical hardware, while the first commercial workflow remains a customer-evidence question.
 
 **What it can become**
 
@@ -368,10 +379,10 @@ Every SWARM document, demo, application, and external claim must preserve these 
 - **customer interview** is not **pilot commitment**;
 - **pilot interest** is not **revenue**;
 - a **possible vertical** is not a **validated wedge**;
-- **multiple agents in one fleet** is not yet **first-class execution-group runtime support**;
+- multiple physical agents in a fleet are not automatically one `ExecutionGroup`; group claims require explicit SwarmOS-owned composition evidence;
 - **central decision authority** does not mean **a physical endpoint cannot be compromised**.
 
-When documents conflict, this thesis is the strategic source of truth.
+When documents conflict, this thesis is the strategic source of truth. Technical implementation/proof claims must be grounded in `docs/STATUS.md`, the accepted ADRs, and the corresponding `docs/bench/` evidence.
 
 ---
 
