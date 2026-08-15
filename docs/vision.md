@@ -1,176 +1,215 @@
 # SWARM — Vision
 
-*Distilled from the strategy documents in `docs/pdf/`. Single canonical source. When
-sentiment diverges between PDFs, the most recent version wins (`*_v2.pdf`).*
+> Strategic expansion of the canonical thesis in [`../swarm-thesis.md`](../swarm-thesis.md).
+>
+> This file is **not** a second source of truth. If it conflicts with `swarm-thesis.md`, the thesis wins.
 
 ## What SWARM is
 
-SWARM is the **operating system for autonomous drone operations** — vendor-
-neutral **autonomous coordination infrastructure**, not a drone company.
+SWARM is the coordination layer for autonomous physical response.
 
-The drones are replaceable; the coordination layer is the product. One OS,
-any airframe, generalizing across drone **task classes** — patrol, inspection,
-monitoring, environmental intelligence, disaster response, logistics and
-defense ISR — civilian and (ISR-only) non-civilian. Today it is executed
-deeply on **one** wedge (see below); the platform is earned, not declared.
+Today the agents are drones. The product sits above individual autopilots and decides which unit should respond, when, where, with what objective, and what should happen as conditions change.
 
-## The wedge
+The drones are replaceable. The coordination system is the durable product thesis.
 
-Initial market: **private high-value territories** — villas, vineyards, resorts,
-agricultural land, isolated luxury properties. Subscription-first.
+**Many units. One intention.**
 
-Initial product shape: **SWARM Patrol Cell** — mobile patrol and verification for
-private territories without requiring SWARM-owned fixed cameras, thermal towers,
-or proprietary ground sensors in the MVP.
+## The immediate company state
 
-Initial beachhead: **wildfire-risk patrol, verification and response
-coordination**. Wildfire is the first proof path, not the product boundary.
-The same Patrol Cell loop can support private-territory incidents such as
-intrusion, unknown person/vehicle, missing-person search inside a bounded site,
-post-storm damage checks, asset anomalies, manual verification requests and
-stale-sector checks when they reuse the same patrol, evidence and supervised
-decision path.
+The engineering system exists end-to-end in simulation and has a MAVLink/PX4 path validated against PX4 SITL.
 
-SWARM does not initially replace firefighters or first responders and does not
-promise continuous 24/7 detection without enough drones, docks and regulatory
-clearance. It reduces the time between a suspicious cue and an operator-visible
-evidence packet.
+SWARM does not yet have physical-aircraft proof, a validated first market, a pilot, or revenue.
 
-The wedge is wildfire because it is:
-- economically urgent
-- globally increasing
-- operationally measurable
-- socially accepted
-- technically coherent with the long-term architecture
+Those missing proofs matter more now than adding speculative platform breadth.
 
-The MVP input model is deliberately lightweight: weather and fire-risk feeds,
-public satellite or hotspot signals where available, human reports, guard/owner
-call-ins, previous drone patrol observations, and stale-sector routines. These
-inputs are cues, not truth; SWARM turns them into patrol priorities,
-verification missions and auditable decisions.
+## The first wedge
+
+The first commercial wedge is **not yet selected**.
+
+Earlier versions of the project assumed private high-value land and wildfire-risk patrol would be the beachhead. That remains a possible application, but the company no longer treats it as a canonical decision without buyer evidence.
+
+The wedge will be chosen through workflow-first customer discovery across environments such as:
+
+- industrial sites and logistics yards;
+- mines and quarries;
+- energy infrastructure;
+- ports and large compounds;
+- infrastructure inspection;
+- large private/semi-private sites;
+- existing manual drone-service workflows.
+
+The key question is:
+
+> What situations currently require a person to physically go and check what is happening?
+
+The best initial market should combine high frequency, real cost or urgency, a clear budget owner, feasible early operations, repeatability, and a meaningful advantage from coordinated mobile units.
+
+## The near-term product proof
+
+The next technical demonstration should make multi-agent coordination obvious without requiring SWARM to purchase drones.
+
+Use several PX4 SITL vehicles with different fleet states. Inject a neutral task. Show SWARM:
+
+- rank the available assets;
+- choose the best unit;
+- dispatch through the MAVLink/PX4 path;
+- respond to a second event or changing condition;
+- re-task, replace, add or return units;
+- expose why each decision was made;
+- complete the mission and restore fleet availability.
+
+The demo must be labeled honestly as simulation/SITL.
+
+The point is not to prove that PX4 can fly a drone. The point is to prove that SWARM can decide what a fleet should do.
+
+## The coordination thesis
+
+A single autonomous vehicle can execute a mission.
+
+A fleet creates a harder problem:
+
+- different positions;
+- different batteries;
+- different payloads;
+- different vendors;
+- multiple simultaneous objectives;
+- changing priorities;
+- failures and lost availability;
+- limited human attention;
+- the need to preserve coverage while tasks are active.
+
+SWARM exists to resolve that layer.
+
+The core loop is:
+
+**cue → understand → allocate → dispatch → adapt → verify → record → conclude/escalate**
+
+That loop should remain portable across markets.
 
 ## Long-term vision
 
-A distributed autonomous **coordination** infrastructure layer for
-time-critical territorial events. The same decide → verify → evidence →
-supervise loop is **dual-use** at the core:
+The long-term opportunity is not simply fleet-management software.
 
-- **Civilian resilience** — environmental monitoring, wildfire response,
-  disaster coordination, environmental intelligence, infrastructure sensing,
-  autonomous operational systems.
-- **Defense ISR** — perimeter and base/border security, counter-UAS
-  awareness, force protection: the same patrol → verify → evidence → escalate
-  loop, human-on-the-loop. Intelligence, surveillance and reconnaissance —
-  **not** weapons.
+SWARM aims to make **physical presence programmable**.
 
-One coordination core, many territories. The civilian wedge ships first on
-purpose (see "The wedge"); the dual-use platform is the long game, bounded by
-the permanent rule below.
+A future software system or AI agent should be able to request an objective such as:
 
-## Civilian long-term vision — the autonomous first-response layer
+`inspect(location, objective)`
 
-The civilian end-state is an **invisible, distributed first-response layer**
-for cities and territories: a strategic grid of docking stations, each with
-drones ready for immediate launch, coordinated by SwarmOS.
+or
 
-- **Trigger.** A resident or site opens the app (subscription) and presses one
-  button, or SwarmOS detects the event automatically from sensors and
-  environmental data.
-- **Arrival in 1-2 minutes.** SwarmOS chooses which unit(s) to send in real
-  time by distance, battery and emergency class, dispatches them, and they
-  return to a dock to recharge autonomously — always ready for the next
-  mission. Multiple drones coordinate as a swarm to cover several angles.
-- **On scene — presence, awareness, handoff (not force).** The drones make the
-  situation *seen and slower*: high-intensity lighting, siren and voice
-  presence as **deterrence**, and a live, verified awareness + evidence feed to
-  the supervising operator **and to the authorities**. For a fire, SwarmOS is
-  first on scene to **detect, verify and guide** responders to the ignition
-  point in its earliest phase.
-- **Augment, never replace.** A new security layer *parallel* to traditional
-  services that **arrives first and hands off**: it shortens time-to-evidence
-  and time-to-response and raises perceived safety, then passes a documented
-  situation to police, fire or medical services. It does **not** replace them,
-  and a human is always on the loop.
-- **Gets smarter with use.** Owned response data improves dispatch speed and
-  decision quality over time.
-- Other civilian classes reuse the same loop — e.g. **anti-poaching** patrol
-  and evidence in protected areas.
+`respond(event, constraints)`
 
-Bounded by the permanent rule below: active **suppression payloads** (e.g.
-fire retardant) are a deliberate *later*, partner-and-safety-gated step, not
-the MVP; and SWARM does not pursue, coerce or use force against people, and
-never carries weapons.
+and allow SWARM to determine which available physical agents should carry it out.
 
-## The moat
+At scale, that network could include:
 
-- **Coordination** — auction-based mission allocation across heterogeneous fleets.
-- **Interoperability** — uniform `DroneAdapter` across DJI, MAVLink/PX4, Autel,
-  Parrot, Skydio. Customers pay for outcomes, not for one vendor's lock-in.
-- **Telemetry & intelligence** — historical data per territory drives risk scoring
-  and adaptive patrol routes.
-- **Orchestration** — multi-drone cooperation (relay + scan, rotational coverage,
-  battery-aware swap).
-- **Mobile coverage** — drones act as movable sensors and response units, so the
-  first wedge can start without a fixed sensor buildout.
+- aerial drones;
+- docking and charging nodes;
+- mobile sensors;
+- ground robots;
+- specialized inspection platforms;
+- other autonomous machines exposed through compatible coordination interfaces.
 
-Hardware commoditizes. The network becomes the product.
+The end-state is a runtime for autonomous physical infrastructure: software intent translated into coordinated action in the real world.
 
-## What SWARM does NOT do (initially)
+## Why distributed fleets can matter
 
-- Replace firefighters or first responders.
-- Build proprietary drones.
-- Install a proprietary fixed sensor network as a prerequisite for the MVP.
-- Promise continuous detection before the hardware, staffing and regulatory
-  envelope make it true.
-- Operate in dense urban / highly occluded environments.
-- Government / defense ISR contracts **in the MVP**. Defense ISR is a
-  deliberate *later* lane (see Long-term vision), not an MVP target; the
-  civilian estate/wildfire wedge ships first.
-- Broad crime/public-safety/security marketplaces. Private-territory
-  intrusion can be a supported event class only when it reuses the same
-  Patrol Cell workflow.
+The system thesis is that coordination can create capabilities greater than a single premium asset:
 
-## Permanent boundary (every context, civilian or defense)
+- wider coverage;
+- faster response from the nearest available unit;
+- parallel tasks;
+- multiple viewpoints;
+- redundancy;
+- battery rotation;
+- graceful failure;
+- lower dependence on one vendor;
+- easier replacement and scaling.
 
-These hold regardless of customer or phase — they are **not** "initially":
+This does not mean cheap hardware always wins. It means the value can shift from the sophistication of one machine to the orchestration of many capable machines.
 
-- **No weaponization.** SWARM coordinates, patrols, verifies and produces
-  evidence. It is not a weapons system: no lethal autonomy, no autonomous
-  targeting, no weapons payload, no strike tasking.
-- **Human-on-the-loop, always.** Autonomy decides and executes; a human can
-  always intervene. No autonomy that isn't verifiable (the shadow-mode gate).
-- **Export-control discipline.** Any defense or dual-use engagement is
-  reviewed for ITAR/EAR and applicable law before it proceeds.
+## Platform expansion
 
-## Phased roadmap
+The platform must be earned in sequence:
 
-The long-range capability horizon below comes from
-`SWARM_execution_roadmap_0_to_100M.pdf`. Current execution from the
-Phase 7 state is tracked in
-[`docs/plan/swarm-roadmap-evidence-to-scale.md`](plan/swarm-roadmap-evidence-to-scale.md):
-finish the wildfire proof, validate the buyer and flight path, then earn
-pilot, capital and later platform scope.
+1. prove coordination in simulation/SITL;
+2. discover one painful recurring workflow;
+3. bridge the same control path to physical hardware;
+4. run a supervised pilot;
+5. prove repeatable customer value;
+6. expand across sites, vendors and adjacent workflows;
+7. generalize toward a broader physical-agent runtime.
 
-| Phase | Months | Focus |
-|---|---|---|
-| 0 | 0–3   | Study, simulation, capability accumulation |
-| 1 | 3–6   | First B-Lite prototype: dock v0 + 2–4 drones, scheduled patrol |
-| 2 | 6–12  | Territory understanding (geometry, obstacles, safe flight zones) |
-| 3 | 12–18 | Patrol intelligence (adaptive logic, risk scoring) |
-| 4 | 18–30 | Persistent awareness layer (rotation, relay, hybrid sensing) |
-| 5 | 30–42 | True swarm coordination (mission allocation, cooperative verify) |
-| 6 | 42–54 | Reliability — false positive reduction, weather, maintenance |
+Do not build the final platform before the first workflow earns it.
 
-B-Full ≠ zero humans. B-Full = minimal required human configuration.
+## Potential application families
 
-## Operating principles
+These are **possibilities**, not current market claims:
 
-- Capability before narrative.
-- Realism over aesthetics. "Operational, not cinematic."
-- One wedge, executed deeply.
-- The network is the product, not the drone.
+### Industrial / infrastructure
 
-## Voice
+- anomaly verification;
+- inspection;
+- site awareness;
+- post-incident checks;
+- large-area operations.
 
-> Quiet. Precise. Already arrived.
-> Many units. One intention.
+### Energy
+
+- solar / generation inspection;
+- remote asset verification;
+- event-driven checks.
+
+### Logistics / ports
+
+- yard visibility;
+- perimeter or operational verification;
+- simultaneous wide-area tasks.
+
+### Emergency / resilience
+
+- disaster mapping;
+- wildfire detection/verification;
+- search support;
+- post-storm assessment.
+
+### Conservation
+
+- reserve patrol;
+- anti-poaching observation;
+- environmental monitoring.
+
+### Defense / government
+
+Potential later use is limited to lawful non-weapon coordination roles such as ISR, perimeter awareness, force protection, and other supervised sensing/verification workflows.
+
+SWARM is not an autonomous weapons thesis.
+
+## Permanent boundaries
+
+- Never describe simulation as field evidence.
+- Never describe SITL as physical-aircraft proof.
+- Never call a possible market a validated wedge without customer evidence.
+- Do not let a demo scenario become company identity by accident.
+- Do not claim vendor neutrality is a moat by itself.
+- Do not treat regulation or safety as details that can be ignored later.
+- Do not build autonomous weapons or lethal targeting functionality.
+
+## The company in three layers
+
+### Today
+
+> Coordination software for autonomous drone fleets, with an end-to-end system and a PX4 SITL-validated integration path.
+
+### First business
+
+> A specific high-frequency physical-verification/response workflow selected from real customer evidence.
+
+### End-state
+
+> The runtime that lets software coordinate physical agents and create autonomous presence in the real world.
+
+---
+
+**Many units. One intention.**

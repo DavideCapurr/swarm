@@ -1,65 +1,227 @@
-# SWARM — competitive landscape & market (researched)
+# SWARM — competitive landscape & market research
 
-> Researched 2026-06-23 to upgrade the "competitors" and "how much could you
-> make" answers in [`application-draft.md`](application-draft.md) /
-> [`supporting-answers.md`](supporting-answers.md) from hunches to cited
-> figures. Verify every number at the source before quoting it in the
-> application — funding rounds and stats move.
+> **Status: research archive / non-canonical, updated 2026-08-15.**
+>
+> The original version of this file was researched around a wildfire/private-land wedge. That wedge is no longer canonical.
+>
+> Keep the historical competitor notes as useful context, but do **not** use this file as the current market thesis or copy old market numbers into an application without re-verifying them.
+>
+> Current strategy: [`../../swarm-thesis.md`](../../swarm-thesis.md)  
+> Current YC draft: [`application-draft.md`](application-draft.md)  
+> Current discovery plan: [`customer-discovery-kit.md`](customer-discovery-kit.md)
 
-## Competitive landscape — everyone real is *fixed*; SWARM is *mobile*
+## What changed
 
-| Player | Approach | Infra model | Funding / status | Where it leaves SWARM room |
-|---|---|---|---|---|
-| **Pano AI** | AI cameras on towers/peaks scanning for smoke | **Fixed** towers, ~30M acres covered | **$44M Series B (Jun 2025)**, ~$89M total, led by Giant Ventures | Tower capex only pencils for utilities/public land at landscape scale; can't watch a single private mid-size estate. Press also flags cloud false-positives + heavy human reliance. |
-| **Dryad Networks** | Solar mesh **gas sensors** on trees, ultra-early | **Fixed** ground sensor network | ~$6.1M convertible (Mar 2025); Series B (~$16–22M) pending | Dense per-hectare sensor install; great for remote forest, uneconomic + slow to deploy on private estates; detection only, no verification/response. |
-| **Percepto** | Drone-in-a-box, autonomous industrial inspection | **Fixed dock** per site (IP55+) | Field-proven, BVLOS approvals; industrial (mining, oil & gas, utilities) | Dock + drone is **$40k–$250k+ capex per site**; tied to one fixed location; sells the box, aimed at heavy industry, not seasonal private-land patrol. |
-| **Skydio** | Vision-autonomy drone + dock; DFR/inspection/defense | **Fixed dock** | Well funded; NDAA-compliant focus | Same single-site dock model; defense/public-safety + US-origin focus, not capex-free private territorial patrol. |
-| **Manual drone ops / guards** | Human-flown spot checks; patrols | None | Fragmented local services | Not autonomous, not coordinated, no auditable decision record, doesn't scale. |
+The previous thesis was:
 
-**The one-sentence wedge (now evidence-backed):** every credible incumbent
-requires **fixed infrastructure** — towers (Pano), ground sensors (Dryad), or a
-fixed dock (Percepto, Skydio) — with capex from tens of thousands up. That
-locks them to public land, utilities and heavy industry, and **leaves private
-mid-size high-value territory (estates, vineyards, forestry) structurally
-unserved.** SWARM's mobile, no-fixed-infra, capex-free patrol is the white
-space, and the defensible asset is the coordination OS, not the airframe.
+> private high-value land → wildfire-risk patrol → mobile/no-fixed-infrastructure wedge.
 
-> Also note the *honesty* contrast: a well-funded incumbent publicly "still
-> relies on humans" / gets fooled by clouds. SWARM's typed-claim discipline and
-> human-supervised loop is a credibility edge, not a weakness — say so.
+That was too specific relative to the amount of buyer evidence available.
 
-## Market — a real, rising demand tailwind (citable)
+The current company thesis is:
 
-- **Mediterranean basin = 86% of total EU burned area.** Wildfire is
-  structurally a Southern-Europe problem — exactly SWARM's geography.
-- **Extreme fire-weather area (FWI > 50) projected to rise from ~15% to
-  66–72%** of the region across scenarios for 2025–2049; **burned area
-  projected +40% to +100%** under warming. The problem is growing, fast — a
-  clean "why now."
-- **Piedmont alone: ~45,000 ha under vine**, predominantly **small
-  family-owned estates** (Barolo/Barbaresco average ~2 ha). Langhe-Roero-
-  Monferrato is a UNESCO site. → thousands of individual high-value
-  landholdings in the first region, before widening to NW Italy and the
-  wildfire-exposed Mediterranean EU.
+> SWARM is the coordination layer for autonomous drone fleets / autonomous physical response. The first commercial workflow must be discovered from repeated customer evidence.
 
-## Bottoms-up TAM frame (drop in researched numbers)
+Therefore the competitive set should now be researched **after** a recurring workflow starts to emerge.
 
-1. **Beachhead (Piedmont):** thousands of estates/vineyards/forestry holdings
-   × seasonal patrol price `[anchor from discovery interviews]` = first-region
-   SAM.
-2. **Region 2 (NW Italy + wildfire-exposed Mediterranean EU):** the 86%-of-EU-
-   burned-area geography — the same buyer, same loop.
-3. **Platform:** additional event classes on the same patrol loop + adjacent
-   verticals (utilities corridors, logistics, rural industrial) + SwarmOS
-   coordination-OS licensing to fleet operators.
+---
 
-Keep pricing the company on the **defensible wedge number** from real buyer
-conversations; name the platform TAM as the ladder, not today's revenue.
+## Platform-level competitor categories to keep watching
 
-## Sources
+These categories matter regardless of the first wedge.
 
-- [Pano AI $44M Series B — GlobeNewswire](https://www.globenewswire.com/news-release/2025/06/16/3099902/0/en/Wildfire-Tech-Comes-of-Age-Pano-AI-Raises-44M-Series-B-Led-by-Giant-Ventures-to-Scale-Early-Detection-Infrastructure.html) · [Built In SF](https://www.builtinsf.com/articles/pano-raises-44m-series-b-20250623) · [critical take, Futurism](https://futurism.com/ai-startup-pano-wildfires)
-- [Dryad Networks $6.1M — Latitude Media](https://www.latitudemedia.com/news/startup-dryad-networks-raises-6-1-million-for-ultra-early-wildfire-detection/)
-- [Percepto drone-in-a-box](https://percepto.co/drone-in-a-box/) · [Drone-in-a-box pricing deep dive ($40k–$250k+)](https://www.thedroneu.com/blog/drone-in-the-box-systems/) · [Skydio](https://www.skydio.com/)
-- [EU vineyards & wildfire — European Commission](https://agriculture.ec.europa.eu/media/stories/vineyards-wildfire-prevention_en) · [Mediterranean wildfire risk under climate change — MDPI Fire](https://www.mdpi.com/2571-6255/9/3/135) · [Copernicus European State of the Climate — wildfires](https://climate.copernicus.eu/esotc/2025/wildfires)
-- [Piedmont wine region (~45,000 ha) — Wine Enthusiast](https://www.wineenthusiast.com/region/piedmont/) · [Langhe-Roero-Monferrato UNESCO](https://whc.unesco.org/en/list/1390/)
+### 1. Drone-in-a-box / autonomous inspection platforms
+
+Examples historically researched include Percepto and Skydio.
+
+Relevant questions:
+
+- do they coordinate multiple vehicles or mostly operate one dock/aircraft at a time?;
+- are they tied to proprietary hardware?;
+- how do they schedule tasks across sites?;
+- how do they handle asset availability, battery and mission conflicts?;
+- how much of the operator workflow do they own?;
+- what APIs exist for external task generation?;
+- what parts of the coordination problem are already solved well enough that SWARM should not rebuild them?
+
+### 2. Autopilot / ground-control ecosystems
+
+Examples: PX4/ArduPilot ecosystems and vendor ground-control software.
+
+Relevant question:
+
+> Where does single-aircraft mission execution end and fleet-level autonomous allocation begin?
+
+SWARM must be clearly valuable above the autopilot rather than duplicating it.
+
+### 3. Fleet-management / robotics orchestration software
+
+Research products that schedule, monitor or coordinate heterogeneous robots/drones.
+
+The important comparison is not UI style. It is:
+
+- task allocation;
+- multi-agent behavior;
+- cross-vendor support;
+- dynamic re-tasking;
+- failure handling;
+- evidence/audit;
+- operational integrations;
+- deployment maturity.
+
+### 4. Manual drone-service operators
+
+In many real workflows, the competitor may not be software at all.
+
+It may be:
+
+- a person driving to the site;
+- an employee piloting one drone;
+- an external inspection contractor;
+- a security/maintenance round;
+- a fixed camera plus a human callout.
+
+For a first wedge, these current workflows may matter more than a venture-backed “competitor.”
+
+### 5. Fixed sensor/camera systems
+
+In some workflows the alternative will be fixed sensing rather than mobile robots.
+
+The relevant question is not “fixed bad, mobile good.” It is:
+
+> In which workflows does a mobile autonomous viewpoint create enough incremental value to justify the complexity of aircraft operations?
+
+That must be demonstrated market by market.
+
+---
+
+## Historical wildfire research
+
+The earlier file researched companies such as:
+
+- Pano AI;
+- Dryad Networks;
+- Percepto;
+- Skydio;
+- manual drone operations / guard patrols.
+
+It also collected wildfire and vineyard market statistics for Mediterranean Europe and Piedmont.
+
+Those notes may still be useful if wildfire re-emerges from customer discovery, but they are **not** current proof that wildfire should be the first wedge.
+
+Re-research all company status, funding, pricing and market statistics before using them externally. The original research date was 2026-06-23 and many of those facts are time-sensitive.
+
+---
+
+## New competitive-research process
+
+Once customer discovery produces a repeated workflow, create a wedge-specific competitive memo using this order:
+
+### A. Define the job
+
+Example format:
+
+> “When [event] happens at [site type], [role] must verify [thing] within [time], and currently does it by [workflow].”
+
+### B. Identify the real alternatives
+
+Include:
+
+- no action / delay;
+- person physically checking;
+- fixed camera/sensor;
+- manually operated drone;
+- drone contractor;
+- autonomous drone system;
+- incumbent robotics software;
+- internal custom workflow.
+
+### C. Compare on buyer metrics
+
+- response time;
+- labor;
+- coverage;
+- reliability;
+- deployment cost;
+- regulatory burden;
+- integration effort;
+- evidence quality;
+- ability to handle simultaneous tasks;
+- total annual cost.
+
+### D. Test whether multi-agent coordination matters
+
+The wedge is weaker for SWARM if one manually operated drone already solves the job cheaply and reliably.
+
+The wedge is stronger if the buyer experiences:
+
+- multiple simultaneous tasks;
+- large-area coverage;
+- battery rotation;
+- different payload requirements;
+- multiple launch locations;
+- asset availability conflicts;
+- need for rapid autonomous dispatch;
+- increasing fleet size that exceeds human attention.
+
+### E. Quantify switching and moat potential
+
+Ask what could become defensible through deployment:
+
+- operational data;
+- integrations;
+- adapter maturity;
+- reliability history;
+- workflow-specific automation;
+- audit/safety tooling;
+- customer process dependence;
+- coordination performance at scale.
+
+---
+
+## Market-sizing process
+
+Do not start from a broad global-drone TAM.
+
+Once a wedge is selected:
+
+1. Count realistic target sites / buyers.
+2. Estimate annual contract value from the existing workflow/budget.
+3. Calculate an initial serviceable market.
+4. Estimate realistic first-region penetration.
+5. Identify adjacent workflows on the same customer base.
+6. Identify adjacent verticals using the same coordination primitive.
+
+Formula:
+
+`target sites × annual contract value × realistic penetration`
+
+Then explain the expansion ladder separately.
+
+---
+
+## Long-term competitive thesis
+
+The long-term bet remains:
+
+> autonomous hardware becomes increasingly capable and replaceable; the coordination layer that allocates tasks across distributed physical agents can become strategically valuable.
+
+But that thesis is not enough by itself.
+
+SWARM must prove that customers have coordination problems worth paying for, and that incumbents/autopilots do not already solve those problems adequately.
+
+---
+
+## Research hygiene
+
+Before any YC/investor/customer-facing use:
+
+- verify every company is still active;
+- verify current product capabilities;
+- verify pricing from a credible source or mark it unknown;
+- verify funding/status if quoted;
+- prefer primary sources;
+- distinguish marketing claims from demonstrated capability;
+- never use the old wildfire statistics merely because they are already in the repo.
+
+The correct competitive memo is the one built around the workflow customers repeatedly tell us matters.

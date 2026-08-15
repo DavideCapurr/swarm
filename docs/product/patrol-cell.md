@@ -1,127 +1,88 @@
-# SWARM Patrol Cell
+# SWARM Patrol Cell — historical product hypothesis
 
-## Positioning
+> **Status: hypothesis / non-canonical.**
+>
+> This document records the earlier Patrol Cell concept. It is no longer the canonical first product or wedge.
+>
+> The current company strategy lives in [`../../swarm-thesis.md`](../../swarm-thesis.md): SWARM is the coordination layer for autonomous physical response, and the first commercial workflow is being discovered through customer evidence.
 
-SWARM Patrol Cell is the first product shape for SWARM: a mobile
-territorial-awareness and incident-verification service for private
-high-value land.
+## What Patrol Cell was
 
-It uses drones as mobile sensors and response units. It does not require
-SWARM-owned fixed cameras, fixed thermal towers, or proprietary ground
-sensors in the MVP.
+Patrol Cell was conceived as a mobile territorial-awareness and incident-verification product for private high-value land.
 
-The promise is not continuous omniscience. The promise is risk-based
-mobile coverage, rapid verification, and an auditable incident record
-without installing a fixed sensor network.
+The idea used drones as mobile sensors and response units without requiring SWARM-owned fixed camera towers or proprietary ground-sensor infrastructure in the MVP.
 
-## First Beachhead
+The core loop was:
 
-The first proof and buyer conversation start with wildfire-risk patrol
-because the problem is urgent, measurable, and coherent with territorial
-resilience. That is a beachhead, not a product boundary.
+1. patrol or receive a cue;
+2. prioritize the event;
+3. allocate the best available drone;
+4. dispatch;
+5. verify;
+6. create evidence;
+7. escalate to an operator;
+8. return / recharge.
 
-The same Patrol Cell loop should support other private-territory event
-classes when they reuse the same patrol, verification, evidence and
-operator-supervision path:
+That loop remains technically relevant because it exercises the same coordination primitives SWARM needs across other domains.
 
-- smoke, heat, flame or fire-risk cue;
-- perimeter intrusion or unknown person/vehicle;
-- missing person or welfare check inside a bounded property;
-- post-storm or post-incident damage check;
-- infrastructure or asset anomaly;
-- manual "go verify this point" request;
-- stale priority sector that needs a fresh observation.
+## Why it is no longer the default wedge
 
-The buyer does not pay for a drone to "look at a fire". The buyer pays
-for:
+The earlier plan assumed wildfire-risk patrol for vineyards, estates, resorts and other private land would be the first beachhead.
 
-- a recent view of the important parts of the territory;
-- faster conversion of an uncertain signal into operational evidence;
-- fewer unnecessary callouts from unverified signals;
-- a clear escalation package when an event is credible, whatever the
-  supported event class is;
-- a record of patrols, decisions, and response times.
+That assumption was not supported by enough real buyer evidence.
 
-## Input Model
+The company should not let a technically convenient demo scenario define the market.
 
-The MVP avoids proprietary fixed sensor infrastructure. SWARM can still
-prioritize patrols and verification from lightweight or already-available
-signals:
+Therefore:
 
-- weather and fire-risk feeds;
-- public satellite or hotspot signals where available;
-- human reports from a guard, owner, worker, guest, or neighbor;
-- phone/manual call-ins from the property team;
-- observations from previous drone patrols;
-- automatic "stale sector" routines when an important area has not been
-  seen recently.
+- wildfire is a **possible application**, not company identity;
+- private-land patrol is a **candidate workflow**, not the default first product;
+- existing wildfire / intrusion / search scenarios remain useful simulation fixtures;
+- no external material should describe Patrol Cell as a validated market unless new customer evidence earns that conclusion.
 
-External inputs are treated as cues, not truth. SWARM turns cues into
-verification missions, evidence packets, and operator-visible decisions.
+## What survives from the concept
 
-## Operating Loop
+Several ideas remain useful and portable:
 
-1. Onboard the territory into sectors, assets, safe flight areas, and
-   risk zones.
-2. Track coverage freshness for each sector: last seen, confidence,
-   risk, and priority.
-3. Schedule patrols from risk and freshness, not from a static route
-   alone.
-4. Create an anomaly from a patrol observation, external cue, manual
-   report, or stale-sector rule.
-5. Dispatch the best available drone to verify from one or more vantage
-   points.
-6. Build an evidence packet: coordinates, captures, source, confidence,
-   timeline, nearby assets, and recommended disposition.
-7. Let the operator escalate, dismiss, request another pass, or return
-   the unit.
-8. Produce customer-facing patrol and incident reports.
+- mobile observation instead of depending only on fixed sensors;
+- rapid verification of uncertain events;
+- fleet allocation based on location, battery and capability;
+- evidence packaging and auditability;
+- human supervision;
+- bounded operating environments as easier early deployment settings;
+- the ability to reuse one coordination loop across different event types.
 
-## MVP Metrics
+These are SWARM primitives, not wildfire-specific features.
 
-The MVP should be judged on these metrics before expanding scope:
+## Current replacement question
 
-- coverage freshness: percentage of priority sectors seen within the
-  target interval;
-- worst-sector staleness during high-risk windows;
-- cue-to-dispatch latency;
-- dispatch-to-first-capture latency;
-- cue-to-evidence-packet latency;
-- verified events versus dismissed/false-positive cues;
-- operator interventions and overrides;
-- evidence completeness for each incident.
+Instead of asking:
 
-## Cost Logic
+> How do we sell Patrol Cell?
 
-The first deployment stays lightweight by avoiding fixed infrastructure
-first.
+ask:
 
-- Manual/supervised MVP: one thermal-capable drone, spare batteries,
-  operator, SWARM Console, and reports. This validates buyer value with
-  the lowest hardware commitment.
-- Mobile cell: a vehicle-deployed or temporary patrol setup for seasonal
-  high-risk windows. This can support multiple nearby properties before a
-  permanent dock is justified.
-- Docked cell: later premium configuration when the buyer needs repeated
-  remote launches and the economics justify dock, power, connectivity,
-  maintenance, and regulatory overhead.
+> **What situations on a large physical site currently require a person to go and check what is happening, and where would coordinated autonomous units reduce that delay enough to create measurable value?**
 
-Fixed sensors can become integrations later, but they are not required
-for the Patrol Cell MVP and should not drive the first architecture.
+Candidate environments currently include industrial sites, logistics yards, mines/quarries, energy infrastructure, ports, inspection workflows, large private sites, and other bounded environments.
 
-## Non-Claims
+The first wedge should be selected from repeated customer evidence, not from this archived hypothesis.
 
-SWARM Patrol Cell does not initially claim:
+## Demo status
 
-- 24/7 continuous detection without enough drones, docks, power, and
-  regulatory clearance;
-- replacement of firefighters, first responders, or licensed operators;
-- guaranteed detection of every ignition, intrusion or incident at the
-  moment it starts;
-- proprietary drone hardware;
-- a fixed sensor network owned or installed by SWARM.
+Patrol Cell scenarios may still be used to exercise and test the codebase.
 
-The honest claim is narrower: SWARM reduces uncertainty by using mobile
-drones to keep priority land recently observed, verify suspicious cues
-across supported event classes, and produce evidence fast enough for a
-supervised response.
+For the next YC/investor demo, however, prefer a neutral multi-agent PX4 SITL scenario that highlights the coordination layer itself:
+
+- multiple available vehicles;
+- autonomous allocation;
+- mission dispatch through MAVLink/PX4;
+- a mid-mission priority or availability change;
+- re-tasking / replacement / RTL;
+- visible reasoning and audit trail.
+
+The demo should be labeled honestly as SITL/simulation.
+
+---
+
+This document remains in the repo for historical context and because some existing tests, scenarios and architecture references still use Patrol Cell terminology. It should not override the canonical thesis.
