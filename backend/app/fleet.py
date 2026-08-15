@@ -135,6 +135,7 @@ class FleetManager:
     presence_min_confidence: float = 0.85
     presence_hold_s: float = 5.0
     light_actuator_number: int | None = None
+    light_output_channel: int | None = None
     simulate_speaker: bool = False
     payload_registry: PayloadControllerRegistry = field(
         default_factory=PayloadControllerRegistry
@@ -189,6 +190,7 @@ class FleetManager:
             controller = MAVLinkPayloadController(
                 adapter=adapter,
                 light_actuator_number=self.light_actuator_number,
+                light_output_channel=self.light_output_channel,
                 simulate_speaker=self.simulate_speaker,
             )
             if controller.capabilities:
@@ -197,8 +199,8 @@ class FleetManager:
         if len(self.payload_registry) == 0:
             raise ValueError(
                 "presence response enabled but no payload capability configured; "
-                "set MAVLINK_LIGHT_ACTUATOR_NUMBER and/or "
-                "SWARM_PRESENCE_SIMULATE_SPEAKER=1"
+                "set MAVLINK_LIGHT_ACTUATOR_NUMBER + MAVLINK_LIGHT_OUTPUT_CHANNEL "
+                "and/or SWARM_PRESENCE_SIMULATE_SPEAKER=1"
             )
 
     async def _start_mission_runtime(self) -> None:
@@ -291,6 +293,11 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
             "MAVLINK_LIGHT_ACTUATOR_NUMBER",
             minimum=1,
             maximum=6,
+        ),
+        light_output_channel=_env_optional_int_range(
+            "MAVLINK_LIGHT_OUTPUT_CHANNEL",
+            minimum=1,
+            maximum=8,
         ),
         simulate_speaker=_env_flag("SWARM_PRESENCE_SIMULATE_SPEAKER"),
     )
