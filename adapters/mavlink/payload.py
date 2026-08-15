@@ -63,9 +63,10 @@ class MAVLinkPayloadController:
             assert self._light_relay_index is not None
             enabled = action.kind is PayloadActionKind.LIGHT_ON
             # Same ACK-validated command helper used by flight/safety commands.
-            # Protected access is deliberate: this controller is part of the
-            # same MAVLink adapter package and must reuse its one wire path.
-            await self.adapter._send_command_long(  # noqa: SLF001
+            # This controller lives in the same vendor package so it reuses
+            # the adapter's single MAVLink wire path instead of opening another
+            # connection or implementing a second ACK mechanism.
+            await self.adapter._send_command_long(
                 mavutil.mavlink.MAV_CMD_DO_SET_RELAY,
                 param1=float(self._light_relay_index),
                 param2=1.0 if enabled else 0.0,
