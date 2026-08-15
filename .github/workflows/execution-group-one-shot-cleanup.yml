@@ -1,0 +1,57 @@
+name: execution-group-one-shot-cleanup
+
+on:
+  push:
+    branches: ["agent/execution-groups"]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.event.head_commit.message == 'Run execution group branch cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: agent/execution-groups
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Normalize execution-group branch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          duplicate = "        progress = self._enrich_group_progress(progress, agent_id)\n"
+          failure_duplicate = "                failure = self._enrich_group_progress(failure, agent_id)\n"
+
+          for filename in (
+              "orchestrator/swarm_orchestrator/execution_groups.py",
+              "orchestrator/swarm_orchestrator/presence_bus.py",
+          ):
+              path = Path(filename)
+              text = path.read_text(encoding="utf-8")
+              while duplicate * 2 in text:
+                  text = text.replace(duplicate * 2, duplicate)
+              while failure_duplicate * 2 in text:
+                  text = text.replace(failure_duplicate * 2, failure_duplicate)
+              path.write_text(text, encoding="utf-8")
+
+          probe = Path("scripts/phase11_execution_group_probe.py")
+          text = probe.read_text(encoding="utf-8")
+          text = text.replace("await pubsub.close()", "await pubsub.aclose()")
+          text = text.replace("await client.close()", "await client.aclose()")
+          probe.write_text(text, encoding="utf-8")
+
+          # This workflow exists only to perform this deterministic cleanup once.
+          Path(".github/workflows/execution-group-one-shot-cleanup.yml").unlink()
+          PY
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Clean execution group validation artifacts"
+          git push origin HEAD:agent/execution-groups
