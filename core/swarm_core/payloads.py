@@ -2,8 +2,8 @@
 
 Flight and payload control remain separate. A flight adapter owns navigation;
 an optional payload controller owns non-flight capabilities for the same
-``agent_id``. Vendor details such as MAVLink relay indices never cross this
-boundary.
+``agent_id``. Vendor details such as MAVLink actuator/output mappings never
+cross this boundary.
 """
 
 from __future__ import annotations
@@ -41,10 +41,12 @@ class PayloadExecutionMode(str, Enum):
 
     SIMULATED = "simulated"
     MAVLINK_ACK = "mavlink_ack"
+    MAVLINK_OUTPUT_CONFIRMED = "mavlink_output_confirmed"
 
 
 class PayloadActionStatus(str, Enum):
     ACKNOWLEDGED = "acknowledged"
+    CONFIRMED = "confirmed"
     SIMULATED = "simulated"
     UNSUPPORTED = "unsupported"
     FAILED = "failed"
