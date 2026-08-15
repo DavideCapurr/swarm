@@ -1,0 +1,122 @@
+{
+  "evidence": {
+    "artifact_digest": "sha256:59df20f42c0b6951e7fd301fdb0e1c3f869c0d94ea67a8ab74e534135be59bed",
+    "artifact_id": 9239256725,
+    "head_sha": "24f788a14655c35cd2591e63798116887dd10356",
+    "recorded_at": "2026-08-15T01:32:14Z",
+    "workflow_run_id": 31856642970
+  },
+  "probe": {
+    "duration_s": 35.682,
+    "expected_agents": [
+      "mav-001",
+      "mav-002"
+    ],
+    "finished_at": "2026-08-15T01:32:12.798640+00:00",
+    "redis_url": "redis://127.0.0.1:6379/0",
+    "started_at": "2026-08-15T01:31:37.116258+00:00",
+    "status": "pass",
+    "steps": [
+      {
+        "detail": {
+          "agents": {
+            "mav-001": {
+              "agent_id": "mav-001",
+              "battery_pct": 100.0,
+              "current_mission_id": null,
+              "fsm_state": "DOCKED",
+              "geo": {
+                "alt_m": -0.015,
+                "lat": 47.3977689,
+                "lon": 8.5455938
+              },
+              "link_quality": 0.8342346946666623,
+              "model": "px4-iris-sitl",
+              "ts": "2026-08-15T01:31:37.485457Z",
+              "vendor": "mavlink"
+            },
+            "mav-002": {
+              "agent_id": "mav-002",
+              "battery_pct": 100.0,
+              "current_mission_id": null,
+              "fsm_state": "DOCKED",
+              "geo": {
+                "alt_m": 0.0,
+                "lat": 47.3977959,
+                "lon": 8.5455939
+              },
+              "link_quality": 0.6682603513333352,
+              "model": "px4-iris-sitl",
+              "ts": "2026-08-15T01:31:37.590986Z",
+              "vendor": "mavlink"
+            }
+          }
+        },
+        "name": "fleet_ready",
+        "status": "pass",
+        "ts": "2026-08-15T01:31:37.591752+00:00"
+      },
+      {
+        "detail": {
+          "anomaly_id": "1bd6713bc2634622b4755fac41775e07",
+          "confidence": 0.95
+        },
+        "name": "anomaly_published",
+        "status": "pass",
+        "ts": "2026-08-15T01:31:37.593209+00:00"
+      },
+      {
+        "detail": {
+          "mission_id": "e09a8b34e055423f85d11751a4313309",
+          "score": 2.2583257083428623,
+          "winner_agent_id": "mav-002"
+        },
+        "name": "auction",
+        "status": "pass",
+        "ts": "2026-08-15T01:32:12.797854+00:00"
+      },
+      {
+        "detail": {
+          "mission_id": "e09a8b34e055423f85d11751a4313309",
+          "phases": [
+            "EN_ROUTE",
+            "ON_STATION",
+            "DONE"
+          ],
+          "proof_semantics": {
+            "DONE": "RTL command accepted after final waypoint reach",
+            "EN_ROUTE": "mission upload + ARM + AUTO.MISSION + MISSION_START succeeded",
+            "ON_STATION": "ReachAwareMAVLinkAdapter observed final MISSION_ITEM_REACHED"
+          },
+          "winner_agent_id": "mav-002"
+        },
+        "name": "mission_execution",
+        "status": "pass",
+        "ts": "2026-08-15T01:32:12.797879+00:00"
+      }
+    ],
+    "target": {
+      "lat": 47.398,
+      "lon": 8.546
+    }
+  },
+  "px4_log_evidence": {
+    "mav-001": [
+      "PX4 instance 1 / MAV_SYS_ID 2",
+      "Onboard MAVLink UDP local 14581 -> remote 14541",
+      "Ready for takeoff"
+    ],
+    "mav-002": [
+      "PX4 instance 2 / MAV_SYS_ID 3",
+      "Onboard MAVLink UDP local 14582 -> remote 14542",
+      "partner IP 127.0.0.1",
+      "Armed by external command",
+      "Takeoff to 40.0 meters above home",
+      "Takeoff detected",
+      "Mission finished, loitering",
+      "Returning to launch",
+      "RTL HOME activated",
+      "RTL: landing at home position"
+    ]
+  }
+}

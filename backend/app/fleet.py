@@ -22,19 +22,28 @@ needs a `World` tick at a steady rate; the MAVLink runner is just a thin
 adapter wrapping `pymavlink` — co-locating it with the backend avoids a
 second Redis hop for the demo bench and keeps the `make demo` graph
 simpler.
+
+Mission ownership is intentionally narrower than telemetry ownership. A
+MAVLink-only backend also owns one `BusFleetOrchestrator`, so anomalies can be
+auctioned against the registered real adapters and dispatched through their
+existing `execute_mission()` contract. Mixed `simulator,mavlink` mode does not
+start a second backend orchestrator because the simulator process already owns
+one; unified mixed-fleet routing remains a later explicit design step.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from adapters.base import AdapterRegistry
-from adapters.mavlink.runner import MAVLinkRunner
-from adapters.mavlink.runner import boot_runner as boot_mavlink_runner
+from adapters.mavlink.fleet_runner import MAVLinkFleetRunner, boot_fleet_runner
 from orchestrator.swarm_orchestrator.bus import Bus
+from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
 
 logger = logging.getLogger("backend.fleet")
 
@@ -82,12 +91,15 @@ VendorBooter = Callable[[Bus, AdapterRegistry], Awaitable[object]]
 
 @dataclass
 class FleetManager:
-    """Owns the lifecycle of every in-process vendor runner."""
+    """Owns in-process vendor runners and their mission-dispatch runtime."""
 
     bus: Bus
     registry: AdapterRegistry = field(default_factory=AdapterRegistry)
     vendors: tuple[str, ...] = ()
+    mission_ready_timeout_s: float = 8.0
     _runners: list[object] = field(default_factory=list)
+    _mission_orchestrator: BusFleetOrchestrator | None = None
+    _mission_task: asyncio.Task[None] | None = None
     # Test-only seam: swap a vendor's boot function. Production code lets
     # the defaults below take over via `_default_booters`.
     booters: dict[str, VendorBooter] = field(default_factory=dict)
@@ -111,7 +123,49 @@ class FleetManager:
             self._runners.append(runner)
             logger.info("fleet: %r runner online", vendor)
 
+        try:
+            await self._start_mission_runtime()
+        except Exception as exc:
+            logger.exception("fleet: mission runtime boot failed")
+            await self.stop()
+            raise VendorBootError("MAVLink mission runtime boot failed") from exc
+
+    async def _start_mission_runtime(self) -> None:
+        if self.vendors != ("mavlink",):
+            if "mavlink" in self.vendors:
+                logger.warning(
+                    "fleet: backend orchestrator disabled for mixed vendors=%s; "
+                    "simulator process owns its own orchestrator",
+                    self.vendors,
+                )
+            return
+        if self._mission_task is not None:
+            raise RuntimeError("mission runtime already started")
+
+        orchestrator = BusFleetOrchestrator(
+            bus=self.bus,
+            registry=self.registry,
+            continuous_patrol=False,
+        )
+        task = asyncio.create_task(orchestrator.run())
+        self._mission_orchestrator = orchestrator
+        self._mission_task = task
+        await orchestrator.wait_for_registered_fleet(
+            timeout_s=self.mission_ready_timeout_s
+        )
+        logger.info(
+            "fleet: mission orchestrator ready for %d MAVLink adapter(s)",
+            len(self.registry),
+        )
+
     async def stop(self) -> None:
+        if self._mission_task is not None:
+            self._mission_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await self._mission_task
+            self._mission_task = None
+            self._mission_orchestrator = None
+
         for runner in self._runners:
             stop = getattr(runner, "stop", None)
             if stop is not None:
@@ -123,8 +177,8 @@ class FleetManager:
 
 
 def _default_booters() -> dict[str, VendorBooter]:
-    async def _mavlink(bus: Bus, registry: AdapterRegistry) -> MAVLinkRunner:
-        return await boot_mavlink_runner(bus, registry)
+    async def _mavlink(bus: Bus, registry: AdapterRegistry) -> MAVLinkFleetRunner:
+        return await boot_fleet_runner(bus, registry)
 
     return {"mavlink": _mavlink}
 
