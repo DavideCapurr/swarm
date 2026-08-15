@@ -23,6 +23,7 @@ live multi-SITL acceptance gate verifies the behavior against PX4.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 
 from pymavlink import mavutil
 from swarm_core.messages import MissionProgress, MissionTask
@@ -34,9 +35,7 @@ from adapters.mavlink.adapter import MAVLinkAdapter
 class ReachAwareMAVLinkAdapter(MAVLinkAdapter):
     """MAVLink adapter that requires ``MISSION_ITEM_REACHED`` for completion."""
 
-    def __init__(self, **kwargs: object) -> None:
-        super().__init__(**kwargs)  # type: ignore[arg-type]
-        self._mission_reached: int = -1
+    _mission_reached: int = -1
 
     def _dispatch(self, msg: object) -> None:
         get_type = getattr(msg, "get_type", None)
@@ -44,7 +43,10 @@ class ReachAwareMAVLinkAdapter(MAVLinkAdapter):
             self._mission_reached = int(getattr(msg, "seq", -1))
         super()._dispatch(msg)
 
-    async def _fly_waypoints(self, mission: MissionTask):  # type: ignore[override]
+    async def _fly_waypoints(  # type: ignore[override]
+        self,
+        mission: MissionTask,
+    ) -> AsyncIterator[MissionProgress]:
         waypoints = mission_waypoints(mission)
         if not waypoints:
             yield MissionProgress(
