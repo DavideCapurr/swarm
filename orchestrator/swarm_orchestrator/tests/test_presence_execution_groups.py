@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from swarm_core.messages import Anomaly, AnomalyKind, Geo, MissionProgress
+from swarm_core.messages import Anomaly, AnomalyKind, Geo, MissionProgress, MissionTask
 from swarm_core.missions import VERIFY
 from swarm_core.payloads import (
     PayloadAction,
@@ -85,7 +85,7 @@ def _bind_intrusion(
     orchestrator: PresenceResponseBusFleetOrchestrator,
     *,
     role: str,
-):
+) -> MissionTask:
     mission = VERIFY(geo=Geo(lat=45.0, lon=9.0), hover_s=0.0)
     mission.params["execution_group_id"] = "group-test"
     orchestrator._group_task_to_role[mission.id] = ("group-test", role)
