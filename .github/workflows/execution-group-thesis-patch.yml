@@ -1,0 +1,40 @@
+name: execution-group-thesis-patch
+on:
+  push:
+    branches: ["agent/execution-groups"]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Update SWARM thesis with validated execution groups'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: agent/execution-groups
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Patch thesis
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('swarm-thesis.md')
+          text = p.read_text()
+          old = '''The current runtime supports multiple physical agents and simultaneous independent missions. First-class dynamic execution groups for one logical mission are an architectural direction, not a validated runtime claim yet.\n\nThe MAVLink/PX4 path has been validated against PX4 SITL. It has **not** yet been validated on physical aircraft in bench or field operation.\n'''
+          new = '''The current runtime supports both simultaneous independent missions and first-class, SwarmOS-owned **ExecutionGroups** for one logical objective executed by multiple physical agents. SwarmOS forms the group, selects distinct members, assigns roles, creates per-agent child missions, aggregates completion, and can centrally replace a failed member without granting peer authority to the aircraft.\n\nThis multi-agent path has been validated live against four independent PX4 SITL instances through the real MAVLink backend runtime: one `COOPERATIVE_VERIFY` objective was decomposed into `PRIMARY_OBSERVER`, `SECONDARY_OBSERVER`, and `OVERWATCH` child missions executed by three distinct PX4 agents while a fourth remained spare. Every selected child produced `ON_STATION` only after `MISSION_ITEM_REACHED` evidence and `DONE` with acknowledged RTL. The parent objective itself was never dispatched to a physical adapter.\n\nLive fault replacement has **not** yet been injected in that four-PX4 run; central replacement is currently validated by deterministic integration tests. The MAVLink/PX4 path remains SITL validation, not physical-aircraft bench or field proof.\n'''
+          if old not in text:
+              raise SystemExit('outdated thesis block not found')
+          text = text.replace(old, new, 1)
+          old2 = '''## The next proof: coordination without buying drones\n\nThe next investor-readable proof does not require SWARM to purchase a fleet.\n\nThe immediate technical demo should use multiple PX4 SITL vehicles and make the coordination layer, not the visual simulation, the main event.\n'''
+          new2 = '''## The current proof: coordination without buying drones\n\nThe investor-readable coordination proof does not require SWARM to purchase a fleet. The multi-PX4 SITL path now demonstrates both dynamic reallocation across simultaneous events and one logical objective composed across multiple role-specific physical executors.\n\nThe recorded demo should therefore make the coordination layer, not the visual simulation, the main event.\n'''
+          if old2 not in text:
+              raise SystemExit('next proof heading block not found')
+          text = text.replace(old2, new2, 1)
+          p.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add swarm-thesis.md
+          git commit -m "Update SWARM thesis with validated execution groups"
+          git push origin HEAD:agent/execution-groups
