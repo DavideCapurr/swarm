@@ -49,6 +49,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = get_logger("backend.bus")
 
+# Mission phases that close out a duration sample. Anything else is
+# treated as in-flight and only records the start time.
 _TERMINAL_MISSION_PHASES = frozenset({MissionPhase.DONE, MissionPhase.FAILED})
 
 
@@ -59,7 +61,12 @@ class BusConsumer:
         self._tasks: list[asyncio.Task[None]] = []
         self._coordinator = COORDINATOR
         self._telemetry_limiter = TelemetryRateLimiter(max_hz=telemetry_rate_limit_hz)
+        # Monotonic start time per mission_id. Populated on first non-terminal
+        # sighting, popped on terminal sighting to feed the histogram.
         self._mission_started_at: dict[str, float] = {}
+        # Phase 7.B — track which autonomy commands have already been
+        # persisted to the DB so we don't re-write on every refresh tick.
+        # Bounded by `state.commands` retention, same as operator commands.
         self._persisted_autonomy_ids: set[str] = set()
 
     async def start(self) -> None:
@@ -89,6 +96,8 @@ class BusConsumer:
             await self._bus.connect()
             logger.info("backend bus: %s", type(self._bus).__name__)
 
+        # Phase 4: persist session bootstrap row so /events?from=...&to=...
+        # joins against a known session for audit.
         try:
             await get_repository().write_session(self._coordinator.state.session)
         except Exception:  # pragma: no cover — defensive
@@ -106,11 +115,11 @@ class BusConsumer:
     async def stop(self) -> None:
         import contextlib
 
-        for task in self._tasks:
-            task.cancel()
-        for task in self._tasks:
+        for t in self._tasks:
+            t.cancel()
+        for t in self._tasks:
             with contextlib.suppress(asyncio.CancelledError, Exception):
-                await task
+                await t
         if self._bus is not None:
             await self._bus.close()
 
@@ -120,18 +129,28 @@ class BusConsumer:
             raise RuntimeError("BusConsumer not started")
         return self._bus
 
+    # ── consumers ────────────────────────────────────────────────────────────
+
+    # ── Phase 2 cleanup note ──────────────────────────────────────────────────
+    # The dual-emit of raw `telemetry`/`fleet`/`anomaly`/`progress` frames was
+    # removed in Phase 2 once the Console started reading only the projected
+    # Phase 1 frames (`unit`, `dock`, `sector`, `awareness`, `mission`,
+    # `anomaly_view`, `event`, `operator`, `session`). Raw payloads still flow
+    # into the in-memory `STATE` for legacy REST endpoints (`/fleet`,
+    # `/telemetry/latest`, `/anomalies/raw`) used by external smoke tests.
+
     async def _consume_telemetry(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:telemetry:*"):
             try:
-                telemetry = Telemetry.model_validate_json(payload)
+                t = Telemetry.model_validate_json(payload)
             except Exception:
                 continue
-            if not self._telemetry_limiter.should_accept(telemetry.agent_id):
-                logger.warning("telemetry over backend cap", agent_id=telemetry.agent_id)
+            if not self._telemetry_limiter.should_accept(t.agent_id):
+                logger.warning("telemetry over backend cap", agent_id=t.agent_id)
                 continue
-            STATE.last_telemetry[telemetry.agent_id] = telemetry
-            await get_repository().write_telemetry(telemetry)
-            for frame in await self._coordinator.apply_telemetry(telemetry):
+            STATE.last_telemetry[t.agent_id] = t
+            await get_repository().write_telemetry(t)
+            for frame in await self._coordinator.apply_telemetry(t):
                 await self._hub.broadcast(frame)
             self._refresh_state_gauges()
             await self._persist_frames(frame_events=True)
@@ -139,11 +158,11 @@ class BusConsumer:
     async def _consume_fleet(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:fleet:state"):
             try:
-                fleet_state = FleetState.model_validate_json(payload)
+                fs = FleetState.model_validate_json(payload)
             except Exception:
                 continue
-            STATE.fleet[fleet_state.agent_id] = fleet_state
-            for frame in await self._coordinator.apply_fleet_state(fleet_state):
+            STATE.fleet[fs.agent_id] = fs
+            for frame in await self._coordinator.apply_fleet_state(fs):
                 await self._hub.broadcast(frame)
             self._refresh_state_gauges()
             await self._persist_frames(frame_events=True)
@@ -151,14 +170,16 @@ class BusConsumer:
     async def _consume_anomalies(self) -> None:
         async for _topic, payload in self.bus.subscribe("swarm:anomalies"):
             try:
-                anomaly = Anomaly.model_validate_json(payload)
+                a = Anomaly.model_validate_json(payload)
             except Exception:
                 continue
-            STATE.anomalies[anomaly.id] = anomaly
+            STATE.anomalies[a.id] = a
             STATE.add_event("anomaly", json.loads(payload))
-            for frame in await self._coordinator.apply_anomaly(anomaly):
+            for frame in await self._coordinator.apply_anomaly(a):
                 await self._hub.broadcast(frame)
-            view = self._coordinator.state.anomalies.get(anomaly.id)
+            # Persist the projected anomaly view, plus any events the
+            # coordinator generated as a side effect.
+            view = self._coordinator.state.anomalies.get(a.id)
             if view is not None:
                 await get_repository().write_anomaly(view)
             self._refresh_state_gauges()
@@ -180,18 +201,39 @@ class BusConsumer:
             await self._persist_frames(frame_events=True)
 
     def _observe_mission_duration(self, mission: MissionView) -> None:
+        """Feed the ``swarm_mission_duration_seconds`` histogram.
+
+        Records a monotonic start time on the first non-terminal sighting
+        of a mission and observes the elapsed seconds when the same
+        mission next appears in a terminal phase. Missions first seen
+        already terminal contribute no sample (we have no start to
+        subtract from) — better an empty bucket than a fabricated one.
+        """
+
         if mission.phase in _TERMINAL_MISSION_PHASES:
             start = self._mission_started_at.pop(mission.id, None)
             if start is not None:
-                get_metrics().mission_duration_seconds.observe(time.monotonic() - start)
+                elapsed = time.monotonic() - start
+                get_metrics().mission_duration_seconds.observe(elapsed)
         else:
             self._mission_started_at.setdefault(mission.id, time.monotonic())
 
     async def _consume_streams(self) -> None:
+        """Re-broadcast `StreamDescriptor` frames published by adapter runners.
+
+        Phase 5 separation of concerns: the adapter publishes the URL it
+        knows; the backend re-validates against the allowlist (defense in
+        depth) and forwards to every WS client. The Console renders a real
+        `<video>` element when `available=True`, otherwise keeps the
+        "VIEWPORT PENDING / STREAM OFFLINE" placard.
+        """
         async for _topic, payload in self.bus.subscribe("swarm:streams:*"):
             try:
                 descriptor = StreamDescriptor.model_validate_json(payload)
             except (ValueError, InvalidStreamURL):
+                # An adapter that misbehaves (or a malicious one) gets its
+                # frame dropped at the backend, not re-broadcast. We log
+                # the event so it surfaces in audit.
                 logger.warning("dropped malformed stream descriptor from bus: %s", payload[:200])
                 continue
             self._coordinator.state.streams[descriptor.agent_id] = descriptor
@@ -200,7 +242,12 @@ class BusConsumer:
             )
 
     async def _consume_external_events(self) -> None:
-        """Validate and bridge trusted subsystem events into the EventFeed."""
+        """Bridge trusted, typed subsystem events into the existing EventFeed.
+
+        Payload controllers publish only server-built ``Event`` objects on
+        ``swarm:events:*``. Re-validating the strict model here prevents a
+        producer from injecting arbitrary frame shapes into the Console.
+        """
 
         async for _topic, payload in self.bus.subscribe("swarm:events:*"):
             try:
@@ -214,27 +261,63 @@ class BusConsumer:
             )
             await self._persist_frames(frame_events=True)
 
+    # ── Metrics helpers ──────────────────────────────────────────────────────
+
     def _refresh_state_gauges(self) -> None:
+        """Re-sample the gauges that derive from coordinator state.
+
+        Cheap (two filtered counts) so we can do it on every relevant
+        bus event. Counters live elsewhere — this only refreshes gauges
+        that snapshot "current world".
+        """
         state = self._coordinator.state
         metrics = get_metrics()
+        # Units online: anything not currently OFFLINE. DOCKED units are
+        # still "online" (battery-charging but reachable on the link).
         units = state.units.values()
-        online = sum(1 for unit in units if unit.fsm_state is not AgentState.OFFLINE)
+        online = sum(1 for u in units if u.fsm_state is not AgentState.OFFLINE)
         metrics.units_online.set(online)
+        # Pending anomalies: anything not yet verified or dismissed.
         pending = sum(
             1
-            for anomaly in state.anomalies.values()
-            if anomaly.state not in (AnomalyState.VERIFIED, AnomalyState.DISMISSED)
+            for a in state.anomalies.values()
+            if a.state not in (AnomalyState.VERIFIED, AnomalyState.DISMISSED)
         )
         metrics.anomalies_pending.set(pending)
 
+    # ── Persistence helpers ──────────────────────────────────────────────────
+
     async def _persist_frames(self, *, frame_events: bool) -> None:
-        if not get_repository().enabled or not frame_events:
+        """Persist any new events the coordinator just appended.
+
+        Reading directly from `state.events` (a bounded deque) means we may
+        re-write events the DB already has — the upsert on primary key makes
+        this safe and the constant-factor cost is small relative to bus rate.
+        """
+        if not get_repository().enabled:
+            return
+        if not frame_events:
             return
         events = list(self._coordinator.state.events)
+        # Only persist the tail to bound write rate — older events are already
+        # in the DB from earlier ticks.
         await get_repository().write_events(events[-32:])
+        # Phase 7.B — autonomy commands are submitted in-process through
+        # `_apply_autonomy_decisions` (no HTTP path), so the audit row is
+        # only in `state.commands`. Persist them here so the DB carries
+        # the same `source="autonomy"` rows as the operator commands
+        # written by `backend/app/api/actions.py`. Without this the audit
+        # log loses every autonomy decision at backend restart, breaking
+        # the "every decision verifiable" invariant (PDF §10).
         await self._persist_new_autonomy_commands()
 
     async def _persist_new_autonomy_commands(self) -> None:
+        """Write any autonomy command not yet pushed to the DB this session.
+
+        The seen-set is bounded by the size of `state.commands` (the
+        kernel itself does not GC; this is in line with the existing
+        operator command audit retention).
+        """
         for command in list(self._coordinator.state.commands.values()):
             if command.source != "autonomy":
                 continue
