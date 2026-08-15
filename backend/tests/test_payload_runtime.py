@@ -19,13 +19,27 @@ from orchestrator.swarm_orchestrator.presence_bus import (
 )
 
 
+class ReachingFakeMAVLinkEndpoint(FakeMAVLinkEndpoint):
+    async def _advance_mission_loop(self) -> None:
+        try:
+            for seq in range(self.state.mission_total):
+                if not self._running:
+                    return
+                self.state.mission_current = seq
+                self._send(self._mav.mission_current_encode(seq=seq))
+                await asyncio.sleep(0.1)
+                self._send(self._mav.mission_item_reached_encode(seq=seq))
+        except asyncio.CancelledError:
+            raise
+
+
 @pytest.fixture
 async def payload_runtime() -> AsyncIterator[
     tuple[InMemoryBus, FleetManager, FakeMAVLinkEndpoint]
 ]:
     bus = InMemoryBus()
     await bus.connect()
-    endpoint = FakeMAVLinkEndpoint(heartbeat_hz=10.0, position_hz=20.0)
+    endpoint = ReachingFakeMAVLinkEndpoint(heartbeat_hz=10.0, position_hz=20.0)
     endpoint.state.geo = (45.0001, 10.0001, 0.0)
     await endpoint.start()
 
@@ -100,8 +114,14 @@ async def test_intrusion_runs_payload_before_verify_returns_done(
     assert any(frame["phase"] == "ON_STATION" for frame in progress)
     bodies = [str(event["body"]) for event in payload_events]
     assert any("light on · MAVLink ACK" in body for body in bodies)
-    assert any("restricted-area message active · SIMULATED PAYLOAD" in body for body in bodies)
-    assert any("restricted-area message stopped · SIMULATED PAYLOAD" in body for body in bodies)
+    assert any(
+        "restricted-area message active · SIMULATED PAYLOAD" in body
+        for body in bodies
+    )
+    assert any(
+        "restricted-area message stopped · SIMULATED PAYLOAD" in body
+        for body in bodies
+    )
     assert any("light off · MAVLink ACK" in body for body in bodies)
     assert endpoint.state.command_calls.count(mavutil.mavlink.MAV_CMD_DO_SET_RELAY) == 2
     assert mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH in endpoint.state.command_calls
