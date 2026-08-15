@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from pymavlink import mavutil
 from swarm_core.payloads import (
     PayloadAction,
     PayloadActionKind,
@@ -12,7 +11,7 @@ from swarm_core.payloads import (
 
 from adapters.mavlink.adapter import MAVLinkAdapter
 from adapters.mavlink.fake_endpoint import FakeMAVLinkEndpoint
-from adapters.mavlink.payload import MAVLinkPayloadController
+from adapters.mavlink.payload import MAV_CMD_DO_SET_ACTUATOR, MAVLinkPayloadController
 
 
 @pytest.mark.asyncio
@@ -30,7 +29,7 @@ async def test_light_command_uses_mavlink_actuator_and_waits_for_ack() -> None:
         result = await controller.execute(
             PayloadAction(agent_id="mav-1", kind=PayloadActionKind.LIGHT_ON)
         )
-        assert mavutil.mavlink.MAV_CMD_DO_SET_ACTUATOR in endpoint.state.command_calls
+        assert MAV_CMD_DO_SET_ACTUATOR in endpoint.state.command_calls
         assert result.status is PayloadActionStatus.ACKNOWLEDGED
         assert result.execution_mode is PayloadExecutionMode.MAVLINK_ACK
         assert result.light_on is True
@@ -77,7 +76,7 @@ async def test_demo_speaker_never_claims_mavlink_ack() -> None:
         assert result.status is PayloadActionStatus.SIMULATED
         assert result.execution_mode is PayloadExecutionMode.SIMULATED
         assert result.speaker_active is True
-        assert mavutil.mavlink.MAV_CMD_DO_SET_ACTUATOR not in endpoint.state.command_calls
+        assert MAV_CMD_DO_SET_ACTUATOR not in endpoint.state.command_calls
     finally:
         await adapter.disconnect()
         await endpoint.stop()
