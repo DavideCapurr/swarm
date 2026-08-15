@@ -1,0 +1,208 @@
+name: execution-group-semantics-patch
+
+on:
+  push:
+    branches: ["agent/execution-groups"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Make group completion authoritative for cooperative verification'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: agent/execution-groups
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Patch cooperative truth semantics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def once(text: str, old: str, new: str, label: str) -> str:
+              if old not in text:
+                  raise SystemExit(f"missing patch anchor: {label}")
+              return text.replace(old, new, 1)
+
+          # MissionProgress carries orchestration provenance added by SwarmOS,
+          # never by the physical adapter.
+          p = Path("core/swarm_core/messages.py")
+          text = p.read_text()
+          if "execution_group_id: str | None = None" not in text:
+              text = once(
+                  text,
+                  "    mission_id: str\n    # ACCEPTED | EN_ROUTE | ON_STATION | RETURNING | DONE | FAILED.\n",
+                  "    mission_id: str\n    # SwarmOS enriches adapter progress with ownership provenance before it\n    # reaches the truth projection. Physical adapters do not choose these.\n    agent_id: str | None = None\n    execution_group_id: str | None = None\n    execution_role: str | None = None\n    parent_objective_id: str | None = None\n    # ACCEPTED | EN_ROUTE | ON_STATION | RETURNING | DONE | FAILED.\n",
+                  "mission progress provenance",
+              )
+              p.write_text(text)
+
+          # Put execution groups in canonical SwarmState.
+          p = Path("swarm_os/state.py")
+          text = p.read_text()
+          if "from swarm_core.execution_groups import ExecutionGroup" not in text:
+              text = once(
+                  text,
+                  "from swarm_core.allocations import AllocationDecision\n",
+                  "from swarm_core.allocations import AllocationDecision\nfrom swarm_core.execution_groups import ExecutionGroup\n",
+                  "state group import",
+              )
+              text = once(
+                  text,
+                  "    allocations: dict[str, AllocationDecision] = field(default_factory=dict)\n    mission_runtime: dict[str, MissionRuntimeEvent] = field(default_factory=dict)\n",
+                  "    allocations: dict[str, AllocationDecision] = field(default_factory=dict)\n    execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)\n    mission_runtime: dict[str, MissionRuntimeEvent] = field(default_factory=dict)\n",
+                  "state group field",
+              )
+              p.write_text(text)
+
+          # Coordinator: group children cannot complete the parent objective;
+          # ExecutionGroup lifecycle owns cooperative anomaly state.
+          p = Path("swarm_os/coordinator.py")
+          text = p.read_text()
+          if "from swarm_core.execution_groups import" not in text:
+              text = once(
+                  text,
+                  "from swarm_core.geometry import haversine_m\n",
+                  "from swarm_core.execution_groups import ExecutionGroup, ExecutionGroupMemberState, ExecutionGroupState\nfrom swarm_core.geometry import haversine_m\n",
+                  "coordinator group import",
+              )
+          text = text.replace(
+              "            assigned = existing.assigned_agent if existing else self.state.verifier_id\n",
+              "            assigned = (\n                progress.agent_id\n                or (existing.assigned_agent if existing else self.state.verifier_id)\n            )\n",
+              1,
+          )
+          text = text.replace(
+              '            if phase is MissionPhase.DONE and mission.kind == "VERIFY":\n',
+              '            if (\n                phase is MissionPhase.DONE\n                and mission.kind == "VERIFY"\n                and progress.execution_group_id is None\n            ):\n',
+              1,
+          )
+          if "async def apply_execution_group" not in text:
+              anchor = "    async def apply_command(self, command: OperatorCommand) -> tuple[CommandResult, list[dict[str, Any]]]:\n"
+              method = '''    async def apply_execution_group(\n        self, group: ExecutionGroup\n    ) -> list[dict[str, Any]]:\n        """Project a SwarmOS-owned group and aggregate cooperative outcome.\n\n        Child VERIFY completion is intentionally insufficient. Only the parent\n        group lifecycle may transition its anomaly to VERIFIED (or back to\n        PENDING after an unrecoverable group failure).\n        """\n\n        async with self.state.lock:\n            now = datetime.now(UTC)\n            previous = self.state.execution_groups.get(group.id)\n            self.state.execution_groups[group.id] = group\n            frames = [self._frame("execution_group", group)]\n\n            anomaly = (\n                self.state.anomalies.get(group.anomaly_id)\n                if group.anomaly_id is not None\n                else None\n            )\n            if anomaly is not None:\n                primary = next(\n                    (\n                        member\n                        for member in reversed(group.members)\n                        if member.role == "PRIMARY_OBSERVER"\n                        and member.state is not ExecutionGroupMemberState.REPLACED\n                    ),\n                    None,\n                )\n                updates: dict[str, Any] = {}\n                active_states = {\n                    ExecutionGroupState.FORMING,\n                    ExecutionGroupState.ACTIVE,\n                    ExecutionGroupState.DEGRADED,\n                }\n                if group.state in active_states:\n                    if anomaly.state is AnomalyState.PENDING:\n                        updates["state"] = AnomalyState.VERIFYING\n                    if primary is not None:\n                        updates["verifying_agent"] = primary.agent_id\n                elif (\n                    group.state is ExecutionGroupState.COMPLETED\n                    and anomaly.state in {AnomalyState.PENDING, AnomalyState.VERIFYING}\n                ):\n                    updates["state"] = AnomalyState.VERIFIED\n                    if primary is not None:\n                        updates["verifying_agent"] = primary.agent_id\n                elif (\n                    group.state is ExecutionGroupState.FAILED\n                    and anomaly.state is AnomalyState.VERIFYING\n                ):\n                    updates["state"] = AnomalyState.PENDING\n                    updates["verifying_agent"] = None\n\n                if updates:\n                    updates["ts"] = now\n                    anomaly = anomaly.model_copy(update=updates)\n                    self.state.anomalies[anomaly.id] = anomaly\n                    frames.append(self._frame("anomaly_view", anomaly))\n\n            # Run derived-state refresh only for a meaningful lifecycle update.\n            # Duplicate frames are still stored/broadcast but cannot repeatedly\n            # fire autonomy transitions.\n            if previous != group:\n                new_events, autonomy_cmds = await self._refresh_async(now)\n                frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)\n                frames.extend(self._frame("event", event) for event in new_events)\n            return frames\n\n'''
+              text = once(text, anchor, method + anchor, "coordinator group method")
+          if 'self._frame("execution_group"' not in text.split("async def snapshot_frames", 1)[1]:
+              text = once(
+                  text,
+                  "                *[self._frame(\"mission\", mission) for mission in self.state.missions.values()],\n",
+                  "                *[self._frame(\"mission\", mission) for mission in self.state.missions.values()],\n                *[\n                    self._frame(\"execution_group\", group)\n                    for group in self.state.execution_groups.values()\n                ],\n",
+                  "coordinator snapshot groups",
+              )
+          old_prop = '''        verifier = self.state.verifier_id\n        for aid, anomaly in list(self.state.anomalies.items()):\n'''
+          if old_prop in text and "group_owned_anomalies" not in text:
+              new_prop = '''        verifier = self.state.verifier_id\n        group_owned_anomalies = {\n            group.anomaly_id\n            for group in self.state.execution_groups.values()\n            if group.anomaly_id is not None\n            and group.state in {\n                ExecutionGroupState.FORMING,\n                ExecutionGroupState.ACTIVE,\n                ExecutionGroupState.DEGRADED,\n            }\n        }\n        for aid, anomaly in list(self.state.anomalies.items()):\n            if aid in group_owned_anomalies:\n                continue\n'''
+              text = once(text, old_prop, new_prop, "coordinator verifier guard")
+          p.write_text(text)
+
+          # Group child progress is enriched centrally before publication.
+          p = Path("orchestrator/swarm_orchestrator/execution_groups.py")
+          text = p.read_text()
+          if "def _enrich_group_progress" not in text:
+              anchor = "    async def _publish_group_child_progress(\n"
+              helper = '''    def _enrich_group_progress(\n        self, progress: MissionProgress, agent_id: str\n    ) -> MissionProgress:\n        mapping = self._group_task_to_role.get(progress.mission_id)\n        if mapping is None:\n            return progress.model_copy(update={"agent_id": agent_id})\n        group_id, role = mapping\n        group = self._execution_groups.get(group_id)\n        return progress.model_copy(\n            update={\n                "agent_id": agent_id,\n                "execution_group_id": group_id,\n                "execution_role": role,\n                "parent_objective_id": (\n                    group.objective_mission_id if group is not None else None\n                ),\n            }\n        )\n\n'''
+              text = once(text, anchor, helper + anchor, "group progress helper")
+          old_publish = '''        await self.bus.publish(\n            f"swarm:missions:progress:{progress.mission_id}",\n            progress.model_dump_json(),\n        )\n        evidence = None\n'''
+          if old_publish in text:
+              new_publish = '''        progress = self._enrich_group_progress(progress, agent_id)\n        await self.bus.publish(\n            f"swarm:missions:progress:{progress.mission_id}",\n            progress.model_dump_json(),\n        )\n        evidence = None\n'''
+              text = once(text, old_publish, new_publish, "group progress publish")
+          p.write_text(text)
+
+          # Presence runtime uses the same enrichment for both normal progress
+          # and synthesized terminal failures.
+          p = Path("orchestrator/swarm_orchestrator/presence_bus.py")
+          text = p.read_text()
+          old = '''                await self.bus.publish(\n                    f"swarm:missions:progress:{mission.id}",\n                    progress.model_dump_json(),\n                )\n                await self._publish_runtime_event(\n                    agent_id=agent_id,\n                    adapter=adapter,\n                    progress=progress,\n                )\n'''
+          if old in text:
+              new = '''                progress = self._enrich_group_progress(progress, agent_id)\n                await self.bus.publish(\n                    f"swarm:missions:progress:{mission.id}",\n                    progress.model_dump_json(),\n                )\n                await self._publish_runtime_event(\n                    agent_id=agent_id,\n                    adapter=adapter,\n                    progress=progress,\n                )\n'''
+              text = once(text, old, new, "presence progress enrichment")
+          old_failure = '''                await self.bus.publish(\n                    f"swarm:missions:progress:{mission.id}",\n                    failure.model_dump_json(),\n                )\n                await self._publish_runtime_event(\n                    agent_id=agent_id,\n                    adapter=adapter,\n                    progress=failure,\n                )\n'''
+          if old_failure in text:
+              new_failure = '''                failure = self._enrich_group_progress(failure, agent_id)\n                await self.bus.publish(\n                    f"swarm:missions:progress:{mission.id}",\n                    failure.model_dump_json(),\n                )\n                await self._publish_runtime_event(\n                    agent_id=agent_id,\n                    adapter=adapter,\n                    progress=failure,\n                )\n'''
+              text = once(text, old_failure, new_failure, "presence failure enrichment")
+          p.write_text(text)
+
+          # BusConsumer is the single projection path for group truth.
+          p = Path("backend/app/bus_consumer.py")
+          text = p.read_text()
+          if "from swarm_core.execution_groups import ExecutionGroup" not in text:
+              text = once(
+                  text,
+                  "from swarm_core.allocations import AllocationDecision\n",
+                  "from swarm_core.allocations import AllocationDecision\nfrom swarm_core.execution_groups import ExecutionGroup\n",
+                  "bus group import",
+              )
+          if "self._consume_execution_groups()" not in text:
+              text = once(
+                  text,
+                  "            asyncio.create_task(self._consume_allocations()),\n",
+                  "            asyncio.create_task(self._consume_allocations()),\n            asyncio.create_task(self._consume_execution_groups()),\n",
+                  "bus group task",
+              )
+          if "async def _consume_execution_groups" not in text:
+              anchor = "    async def _consume_mission_runtime(self) -> None:\n"
+              method = '''    async def _consume_execution_groups(self) -> None:\n        """Project authoritative multi-agent composition and aggregate outcome."""\n\n        async for _topic, payload in self.bus.subscribe("swarm:execution-groups"):\n            try:\n                group = ExecutionGroup.model_validate_json(payload)\n            except Exception:\n                logger.warning("dropped malformed execution-group frame from bus")\n                continue\n            for frame in await self._coordinator.apply_execution_group(group):\n                await self._hub.broadcast(frame)\n\n'''
+              text = once(text, anchor, method + anchor, "bus group consumer")
+          p.write_text(text)
+
+          # Remove the duplicate FleetManager projection path; FleetManager only
+          # configures/owns vendor runtime again.
+          p = Path("backend/app/fleet.py")
+          text = p.read_text()
+          text = text.replace("from swarm_core.execution_groups import ExecutionGroup\n\n", "")
+          text = text.replace("from backend.app.hub import HUB\n", "")
+          text = text.replace("from backend.app.state import STATE\n", "")
+          text = text.replace(
+              "from orchestrator.swarm_orchestrator.execution_groups import EXECUTION_GROUP_TOPIC\n",
+              "",
+          )
+          text = text.replace(
+              "    _execution_group_projection_task: asyncio.Task[None] | None = None\n",
+              "",
+          )
+          start_block = '''        if self._execution_group_projection_task is not None:\n            raise RuntimeError("fleet manager already started")\n        self._execution_group_projection_task = asyncio.create_task(\n            self._project_execution_groups()\n        )\n\n'''
+          text = text.replace(start_block, "")
+          method_start = text.find("    async def _project_execution_groups(self) -> None:\n")
+          if method_start != -1:
+              method_end = text.find("    def _configure_payload_runtime(self) -> None:\n", method_start)
+              if method_end == -1:
+                  raise SystemExit("missing FleetManager projection end")
+              text = text[:method_start] + text[method_end:]
+          stop_block = '''        if self._execution_group_projection_task is not None:\n            self._execution_group_projection_task.cancel()\n            with contextlib.suppress(asyncio.CancelledError, Exception):\n                await self._execution_group_projection_task\n            self._execution_group_projection_task = None\n\n'''
+          text = text.replace(stop_block, "")
+          p.write_text(text)
+
+          # Remove the duplicate non-canonical backend state field.
+          p = Path("backend/app/state.py")
+          text = p.read_text()
+          text = text.replace("from swarm_core.execution_groups import ExecutionGroup\n", "")
+          text = text.replace(
+              "    execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)\n",
+              "",
+          )
+          p.write_text(text)
+
+          # REST reads canonical SwarmState.
+          p = Path("backend/app/api/routes.py")
+          text = p.read_text()
+          text = text.replace(
+              '        "execution_groups": len(STATE.execution_groups),\n',
+              '        "execution_groups": len(SWARM_STATE.execution_groups),\n',
+          )
+          text = text.replace(
+              "    ordered = sorted(STATE.execution_groups.values(), key=lambda group: group.ts)\n",
+              "    ordered = sorted(SWARM_STATE.execution_groups.values(), key=lambda group: group.ts)\n",
+          )
+          p.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add core/swarm_core/messages.py swarm_os/state.py swarm_os/coordinator.py orchestrator/swarm_orchestrator/execution_groups.py orchestrator/swarm_orchestrator/presence_bus.py backend/app/bus_consumer.py backend/app/fleet.py backend/app/state.py backend/app/api/routes.py
+          if git diff --cached --quiet; then
+            echo "No semantic patch needed"
+            exit 0
+          fi
+          git commit -m "Make group completion authoritative for cooperative verification"
+          git push origin HEAD:agent/execution-groups
