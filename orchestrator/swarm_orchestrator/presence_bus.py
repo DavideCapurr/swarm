@@ -17,7 +17,14 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 
-from swarm_core.messages import Anomaly, AnomalyKind, Event, EventKind, MissionTask
+from swarm_core.messages import (
+    Anomaly,
+    AnomalyKind,
+    Event,
+    EventKind,
+    MissionProgress,
+    MissionTask,
+)
 from swarm_core.missions import VERIFY
 from swarm_core.payloads import (
     PayloadAction,
@@ -28,6 +35,7 @@ from swarm_core.payloads import (
     PayloadExecutionMode,
     PayloadMessage,
 )
+from swarm_core.runtime_events import MissionRuntimeEvent
 
 from adapters.payload import PayloadController, PayloadControllerRegistry
 from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
@@ -120,6 +128,35 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
             if self._agent_tasks.get(agent_id) is asyncio.current_task():
                 self._agent_tasks.pop(agent_id, None)
                 self._agent_mission_ids.pop(agent_id, None)
+
+    async def _publish_runtime_event(
+        self,
+        *,
+        agent_id: str,
+        adapter: object,
+        progress: MissionProgress,
+    ) -> None:
+        evidence = None
+        evidence_for_phase = getattr(adapter, "runtime_evidence_for_phase", None)
+        if callable(evidence_for_phase):
+            try:
+                evidence = evidence_for_phase(progress.phase)
+            except Exception:
+                logger.exception(
+                    "runtime evidence projection failed for %s %s",
+                    agent_id,
+                    progress.phase,
+                )
+        event = MissionRuntimeEvent(
+            mission_id=progress.mission_id,
+            agent_id=agent_id,
+            phase=progress.phase,
+            progress_pct=progress.progress_pct,
+            evidence=evidence,
+            error=progress.error,
+            ts=progress.ts,
+        )
+        await self.bus.publish("swarm:missions:runtime", event.model_dump_json())
 
     async def _maybe_presence_response(self, agent_id: str, mission: MissionTask) -> None:
         anomaly = self._mission_anomalies.get(mission.id)
