@@ -123,8 +123,9 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
         *,
         is_verify: bool,
     ) -> None:
-        """Publish normal progress and pause verified primary role for payload."""
+        """Publish progress and pause verified primary role for payload."""
 
+        terminal_seen = False
         try:
             async for progress in adapter.execute_mission(mission):  # type: ignore[attr-defined]
                 if not is_verify:
@@ -149,11 +150,32 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                     await self._maybe_presence_response(agent_id, mission)
 
                 if progress.phase in ("DONE", "FAILED"):
+                    terminal_seen = True
                     return
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             logger.exception("mission %s failed: %s", mission.id, exc)
+            if (
+                is_verify
+                and mission.id in self._group_task_to_role
+                and not terminal_seen
+            ):
+                failure = MissionProgress(
+                    mission_id=mission.id,
+                    phase="FAILED",
+                    progress_pct=0.0,
+                    error=f"{type(exc).__name__}: {exc}"[:240],
+                )
+                await self.bus.publish(
+                    f"swarm:missions:progress:{mission.id}",
+                    failure.model_dump_json(),
+                )
+                await self._publish_runtime_event(
+                    agent_id=agent_id,
+                    adapter=adapter,
+                    progress=failure,
+                )
         finally:
             self._busy.discard(agent_id)
             self._verifying.discard(agent_id)
