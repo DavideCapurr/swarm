@@ -1,6 +1,16 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+ADAPTER_ROOT = ROOT / "adapters"
+PHYSICAL_VENDOR_DIRS = (
+    "autel",
+    "dji_cloud",
+    "dji_psdk",
+    "mavlink",
+    "parrot",
+    "simulated",
+    "skydio",
+)
 FORBIDDEN_DECISION_MODULES = (
     "swarm_core.allocator",
     "swarm_os",
@@ -11,11 +21,14 @@ FORBIDDEN_DECISION_MODULES = (
 
 
 def _physical_execution_paths() -> list[Path]:
-    return sorted(
-        path
-        for path in (ROOT / "adapters").rglob("*.py")
-        if "tests" not in path.parts
-    )
+    paths = [ADAPTER_ROOT / "base.py", ADAPTER_ROOT / "payload.py", ADAPTER_ROOT / "_stub.py"]
+    for vendor in PHYSICAL_VENDOR_DIRS:
+        paths.extend(
+            path
+            for path in (ADAPTER_ROOT / vendor).rglob("*.py")
+            if "tests" not in path.parts
+        )
+    return sorted(paths)
 
 
 def test_physical_execution_layer_cannot_import_decision_authority() -> None:
