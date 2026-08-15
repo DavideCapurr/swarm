@@ -10,16 +10,17 @@ FORBIDDEN_DECISION_MODULES = (
 )
 
 
-def _physical_execution_adapter_paths() -> list[Path]:
-    return [
-        ROOT / "adapters" / "base.py",
-        *sorted((ROOT / "adapters").glob("*/adapter.py")),
-    ]
+def _physical_execution_paths() -> list[Path]:
+    return sorted(
+        path
+        for path in (ROOT / "adapters").rglob("*.py")
+        if "tests" not in path.parts
+    )
 
 
-def test_physical_execution_adapters_cannot_import_decision_authority() -> None:
-    adapter_paths = _physical_execution_adapter_paths()
-    assert len(adapter_paths) > 1
+def test_physical_execution_layer_cannot_import_decision_authority() -> None:
+    adapter_paths = _physical_execution_paths()
+    assert adapter_paths
 
     for path in adapter_paths:
         source = path.read_text(encoding="utf-8")
@@ -28,8 +29,11 @@ def test_physical_execution_adapters_cannot_import_decision_authority() -> None:
             assert f"import {module}" not in source
 
 
-def test_physical_execution_adapters_cannot_emit_bidding_as_progress() -> None:
-    for path in _physical_execution_adapter_paths():
+def test_physical_execution_layer_cannot_create_fleet_decisions() -> None:
+    for path in _physical_execution_paths():
         source = path.read_text(encoding="utf-8")
         assert 'phase="BIDDING"' not in source
         assert "phase='BIDDING'" not in source
+        assert "swarm:missions:bid" not in source
+        assert "Bid(" not in source
+        assert "MissionTask(" not in source
