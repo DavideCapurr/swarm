@@ -132,10 +132,6 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
                     continue
 
                 progress = self._enrich_group_progress(progress, agent_id)
-                progress = self._enrich_group_progress(progress, agent_id)
-                progress = self._enrich_group_progress(progress, agent_id)
-                progress = self._enrich_group_progress(progress, agent_id)
-                progress = self._enrich_group_progress(progress, agent_id)
                 await self.bus.publish(
                     f"swarm:missions:progress:{mission.id}",
                     progress.model_dump_json(),
