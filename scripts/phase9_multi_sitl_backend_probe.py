@@ -9,11 +9,18 @@ Redis bus as any external perception producer would:
 3. observe SWARM's auction award;
 4. observe the winning adapter's mission progress through DONE.
 
-For a MAVLink VERIFY mission, `EN_ROUTE` is emitted only after the adapter has
-completed mission upload, ARM, AUTO.MISSION and MAV_CMD_MISSION_START. `DONE`
-is emitted only after the adapter sends MAV_CMD_NAV_RETURN_TO_LAUNCH and gets an
-accepted COMMAND_ACK. Against live PX4 SITL this therefore proves the complete
-backend-owned dispatch path without importing backend internals into the probe.
+For the backend's reach-aware MAVLink VERIFY path:
+
+- `EN_ROUTE` is emitted only after mission upload, ARM, AUTO.MISSION and
+  MAV_CMD_MISSION_START have succeeded;
+- `ON_STATION` is emitted only after PX4 sends `MISSION_ITEM_REACHED` for the
+  final waypoint;
+- `DONE` is emitted only after SWARM then sends RTL and receives an accepted
+  COMMAND_ACK.
+
+Against live PX4 SITL this therefore proves the complete backend-owned dispatch,
+arrival and return-command path without importing backend internals into the
+probe.
 """
 
 from __future__ import annotations
@@ -211,7 +218,8 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     "mission_id": award.mission_id,
                     "phases": phases,
                     "proof": (
-                        "EN_ROUTE follows mission upload+ARM+AUTO.MISSION+MISSION_START ACK; "
+                        "EN_ROUTE follows mission upload+ARM+AUTO.MISSION+MISSION_START; "
+                        "ON_STATION follows final MISSION_ITEM_REACHED; "
                         "DONE follows RTL COMMAND_ACK"
                     ),
                 },
