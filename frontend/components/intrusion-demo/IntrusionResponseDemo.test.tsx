@@ -239,7 +239,7 @@ describe("IntrusionResponseDemo", () => {
     mockUseSwarm.mockReturnValue(liveState());
     render(<IntrusionResponseDemo />);
 
-    expect(screen.getByText("2.710")).toBeInTheDocument();
+    expect(screen.getAllByText("2.710").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/BUSY · mission mission-one/i)).toBeInTheDocument();
     expect(screen.getAllByText("mav-001").length).toBeGreaterThan(0);
     expect(screen.getAllByText("mav-002").length).toBeGreaterThan(0);
@@ -250,8 +250,8 @@ describe("IntrusionResponseDemo", () => {
     mockUseSwarm.mockReturnValue(liveState());
     render(<IntrusionResponseDemo />);
 
-    expect(screen.getByText(/INTRUSION · mission-one/i)).toBeInTheDocument();
-    expect(screen.getByText(/HEAT_SPOT · mission-two/i)).toBeInTheDocument();
+    expect(screen.getByText(/INTRUSION · mission-o…/i)).toBeInTheDocument();
+    expect(screen.getByText(/HEAT_SPOT · mission-t…/i)).toBeInTheDocument();
     expect(screen.getByText("MISSION_ITEM_REACHED")).toBeInTheDocument();
     expect(screen.getAllByText("EN ROUTE").length).toBeGreaterThan(0);
   });
