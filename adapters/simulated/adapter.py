@@ -22,7 +22,12 @@ from swarm_core.messages import (
     Telemetry,
     Waypoint,
 )
-from swarm_core.missions import MissionKind, mission_waypoints
+from swarm_core.missions import (
+    COOPERATIVE_VERIFY_KIND,
+    MissionKind,
+    UnsupportedMission,
+    mission_waypoints,
+)
 
 from adapters.base import (
     Capabilities,
@@ -48,14 +53,6 @@ class SimulatedAdapter:
         self_tick: bool = True,
         tick_hz: float = 50.0,
     ) -> None:
-        # `drone` is `sim.swarm_sim.drone.Drone` but typed as Any here to keep
-        # `adapters/` free of `sim/` imports. The dependency is one-way: sim
-        # never imports adapters.
-        #
-        # `self_tick=True` (default) spawns a background task that steps the
-        # drone — useful for tests and standalone adapter usage. Set False when
-        # an external world ticker owns time (e.g. in `sim.swarm_sim.runner`,
-        # which steps the World atomically so all drones advance in lockstep).
         self.agent_id = agent_id
         self.model = model
         self._drone = drone
@@ -73,8 +70,6 @@ class SimulatedAdapter:
         self._self_tick = self_tick
         self._tick_hz = tick_hz
         self._tick_task: asyncio.Task[None] | None = None
-
-    # ── lifecycle ────────────────────────────────────────────────────────────
 
     async def connect(self) -> None:
         self._connected = True
@@ -105,16 +100,12 @@ class SimulatedAdapter:
             last_telemetry_age_s=0.0,
         )
 
-    # ── safety envelope ──────────────────────────────────────────────────────
-
     async def set_safety(
         self, geofence: Polygon, max_alt_m: float, rtl_battery_pct: int
     ) -> None:
         self._drone.geofence = geofence.points
         self._drone.max_alt_m = max_alt_m
         self._drone.rtl_battery_pct = float(rtl_battery_pct)
-
-    # ── mission ──────────────────────────────────────────────────────────────
 
     async def execute_mission(self, mission: MissionTask) -> AsyncIterator[MissionProgress]:  # type: ignore[override]
         if not self._connected:
@@ -126,8 +117,19 @@ class SimulatedAdapter:
 
     async def _execute(self, mission: MissionTask) -> AsyncIterator[MissionProgress]:
         kind = mission.kind
+        if kind in {COOPERATIVE_VERIFY_KIND, MissionKind.COVER.value}:
+            raise UnsupportedMission(
+                f"{kind} is a SwarmOS-owned parent objective and must be decomposed before dispatch"
+            )
+        executable = {
+            MissionKind.PATROL.value,
+            MissionKind.VERIFY.value,
+            MissionKind.RELAY.value,
+            MissionKind.RTL_DOCK.value,
+        }
+        if kind not in executable:
+            raise UnsupportedMission(f"unknown mission kind: {kind}")
 
-        # Take off if currently docked.
         if self._drone.is_docked:
             self._drone.command_takeoff()
             while not self._drone.is_airborne and not self._cancelled:
@@ -155,7 +157,6 @@ class SimulatedAdapter:
                 progress_pct=(i + 1) / total * 80.0,
             )
 
-            # Hover & capture for VERIFY.
             if kind == MissionKind.VERIFY.value:
                 hover_s = float(mission.params.get("hover_s", 0.0))
                 self._drone.command_hover()
@@ -175,7 +176,6 @@ class SimulatedAdapter:
                 while time.monotonic() - t0 < duration_s and not self._cancelled:
                     await asyncio.sleep(0.1)
 
-        # Return to dock.
         if not self._cancelled:
             self._drone.command_rtl()
             while not self._drone.is_docked and not self._cancelled:
@@ -208,10 +208,12 @@ class SimulatedAdapter:
         return CaptureResult(
             sensor=sensor,
             uri=f"sim://{self.agent_id}/{sensor.value}/{int(time.time() * 1000)}",
-            geo=Geo(lat=self._drone.geo.lat, lon=self._drone.geo.lon, alt_m=self._drone.geo.alt_m),
+            geo=Geo(
+                lat=self._drone.geo.lat,
+                lon=self._drone.geo.lon,
+                alt_m=self._drone.geo.alt_m,
+            ),
         )
-
-    # ── streams ──────────────────────────────────────────────────────────────
 
     async def stream_telemetry(self) -> AsyncIterator[Telemetry]:  # type: ignore[override]
         while self._connected:
@@ -227,13 +229,11 @@ class SimulatedAdapter:
                 battery_pct=self._drone.battery_pct,
                 link_quality=1.0,
             )
-            await asyncio.sleep(0.1)  # 10 Hz
+            await asyncio.sleep(0.1)
 
     async def stream_video(self) -> AsyncIterator[VideoFrame]:  # type: ignore[override]
-        # Simulated adapter does not emit real video frames.
         if False:
             yield VideoFrame(self.agent_id, 0, 0, 0, "raw_rgb", b"")
 
-    # Ensure we satisfy the Protocol — quick runtime check.
     def __post_init__(self) -> None:  # pragma: no cover
         assert isinstance(self, DroneAdapter)
