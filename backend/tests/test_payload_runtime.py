@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest
 from pymavlink import mavutil
@@ -33,6 +34,18 @@ class ReachingFakeMAVLinkEndpoint(FakeMAVLinkEndpoint):
         except asyncio.CancelledError:
             raise
 
+    def _handle(self, msg: Any) -> None:
+        super()._handle(msg)
+        if msg.get_type() != "COMMAND_LONG":
+            return
+        if int(getattr(msg, "command", -1)) != MAV_CMD_DO_SET_ACTUATOR:
+            return
+        value = float(getattr(msg, "param1", 0.0))
+        raw = 2000 if value >= 0.5 else 1000 if value <= -0.5 else 1500
+        outputs = [1500] * 8
+        outputs[4] = raw
+        self._send(self._mav.servo_output_raw_encode(0, 0, *outputs))
+
 
 @pytest.fixture
 async def payload_runtime() -> AsyncIterator[
@@ -40,7 +53,11 @@ async def payload_runtime() -> AsyncIterator[
 ]:
     bus = InMemoryBus()
     await bus.connect()
-    endpoint = ReachingFakeMAVLinkEndpoint(heartbeat_hz=10.0, position_hz=20.0)
+    endpoint = ReachingFakeMAVLinkEndpoint(
+        heartbeat_hz=10.0,
+        position_hz=20.0,
+        drop_command_acks={MAV_CMD_DO_SET_ACTUATOR},
+    )
     endpoint.state.geo = (45.0001, 10.0001, 0.0)
     await endpoint.start()
 
@@ -62,6 +79,7 @@ async def payload_runtime() -> AsyncIterator[
         presence_min_confidence=0.85,
         presence_hold_s=0.0,
         light_actuator_number=1,
+        light_output_channel=5,
         simulate_speaker=True,
     )
     await fleet.start()
@@ -114,7 +132,7 @@ async def test_intrusion_runs_payload_before_verify_returns_done(
     assert progress[-1]["phase"] == "DONE"
     assert any(frame["phase"] == "ON_STATION" for frame in progress)
     bodies = [str(event["body"]) for event in payload_events]
-    assert any("light on · MAVLink ACK" in body for body in bodies)
+    assert any("light on · PX4 OUTPUT CONFIRMED" in body for body in bodies)
     assert any(
         "restricted-area message active · SIMULATED PAYLOAD" in body
         for body in bodies
@@ -123,7 +141,7 @@ async def test_intrusion_runs_payload_before_verify_returns_done(
         "restricted-area message stopped · SIMULATED PAYLOAD" in body
         for body in bodies
     )
-    assert any("light off · MAVLink ACK" in body for body in bodies)
+    assert any("light off · PX4 OUTPUT CONFIRMED" in body for body in bodies)
     assert endpoint.state.command_calls.count(MAV_CMD_DO_SET_ACTUATOR) == 2
     assert mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH in endpoint.state.command_calls
 
