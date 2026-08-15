@@ -104,6 +104,7 @@ jobs:
       - name: Capture diagnostics
         if: always()
         run: |
+          mkdir -p artifacts
           docker logs px4-multi > artifacts/px4-multi.log 2>&1 || true
           if [ -f artifacts/backend.pid ]; then
             kill -TERM "$(cat artifacts/backend.pid)" || true
