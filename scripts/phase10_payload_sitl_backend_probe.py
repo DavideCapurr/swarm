@@ -11,9 +11,9 @@ like a perception producer / audit observer would:
 5. observe the bounded payload event sequence;
 6. require cleanup before mission DONE.
 
-A passing light event must explicitly report ``MAVLink ACK``. Speaker events
-must explicitly report ``SIMULATED PAYLOAD``. This keeps protocol proof and
-demo-only side effects separate in the captured evidence.
+A passing light event must explicitly report ``PX4 OUTPUT CONFIRMED``. Speaker
+events must explicitly report ``SIMULATED PAYLOAD``. This keeps flight-
+controller output proof and demo-only side effects separate in the evidence.
 """
 
 from __future__ import annotations
@@ -267,10 +267,10 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             return 2, report
 
         expected_bodies = (
-            "light on · MAVLink ACK",
+            "light on · PX4 OUTPUT CONFIRMED",
             "restricted-area message active · SIMULATED PAYLOAD",
             "restricted-area message stopped · SIMULATED PAYLOAD",
-            "light off · MAVLink ACK",
+            "light off · PX4 OUTPUT CONFIRMED",
         )
         bodies = [event.body for event in payload_events]
         missing_bodies = [
@@ -309,7 +309,7 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 index
                 for index, item in enumerate(sequence)
                 if item["kind"] == "payload"
-                and "light off · MAVLink ACK" in str(item.get("body", ""))
+                and "light off · PX4 OUTPUT CONFIRMED" in str(item.get("body", ""))
             ),
             None,
         )
@@ -349,8 +349,9 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                         event.model_dump(mode="json") for event in payload_events
                     ],
                     "proof": (
-                        "light ON/OFF events report MAVLink COMMAND_ACK; "
-                        "speaker events remain explicitly simulated"
+                        "light ON/OFF events require the configured PX4 PWM output "
+                        "to be observed in the requested state; speaker events remain "
+                        "explicitly simulated"
                     ),
                 },
             )
@@ -381,8 +382,8 @@ async def run_probe(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         )
         return 2, report
     finally:
-        await pubsub.close()
-        await client.close()
+        await pubsub.aclose()
+        await client.aclose()
         report["finished_at"] = _utc_now()
         report["duration_s"] = round(time.monotonic() - started, 3)
 
