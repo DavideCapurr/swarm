@@ -9,6 +9,7 @@ import pytest
 from swarm_core.messages import Anomaly, AnomalyKind, Geo
 
 from adapters.base import AdapterRegistry
+from adapters.mavlink.adapter import MAVLinkAdapter
 from adapters.mavlink.fake_endpoint import FakeMAVLinkEndpoint
 from adapters.mavlink.fleet_runner import boot_fleet_runner
 from adapters.mavlink.reach_adapter import ReachAwareMAVLinkAdapter
@@ -52,7 +53,7 @@ async def dynamic_runtime() -> AsyncIterator[
     await near.start()
     await far.start()
 
-    adapters = [
+    adapters: list[MAVLinkAdapter] = [
         ReachAwareMAVLinkAdapter(
             agent_id="mav-near",
             connection=f"udpout:127.0.0.1:{near.port}",
