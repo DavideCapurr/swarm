@@ -8,6 +8,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from swarm_core.allocations import AllocationDecision
 from swarm_core.messages import (
     AnomalyView,
     AwarenessBreakdown,
@@ -24,7 +25,9 @@ from swarm_core.messages import (
     Session,
     UnitState,
 )
+from swarm_core.payloads import PayloadEvent
 from swarm_core.runtime import env_flag
+from swarm_core.runtime_events import MissionRuntimeEvent
 from swarm_core.streams import StreamDescriptor
 
 from swarm_os.policy import PolicyEngine
@@ -70,6 +73,14 @@ class SwarmState:
     sectors: dict[str, Sector] = field(default_factory=dict)
     missions: dict[str, MissionView] = field(default_factory=dict)
     anomalies: dict[str, AnomalyView] = field(default_factory=dict)
+    # Console demo truth is server-owned just like the normal projections.
+    # Decisions are keyed by mission; runtime keeps the latest phase/evidence;
+    # payload events retain their ordered action history.
+    allocations: dict[str, AllocationDecision] = field(default_factory=dict)
+    mission_runtime: dict[str, MissionRuntimeEvent] = field(default_factory=dict)
+    payload_events: deque[PayloadEvent] = field(
+        default_factory=lambda: deque(maxlen=500)
+    )
     tracks: dict[str, deque[Geo]] = field(default_factory=dict)
     events: deque[Event] = field(default_factory=lambda: deque(maxlen=500))
     commands: dict[str, OperatorCommand] = field(default_factory=dict)
