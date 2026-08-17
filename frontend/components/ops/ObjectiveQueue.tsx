@@ -203,7 +203,7 @@ export function ImageryAside({ src, story }: { src: string; story: ObjectiveStor
 
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between px-2 pb-2">
           <span className="bg-absolute-black/85 px-[6px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-launch-amber">
-            SIMULATED VISUAL · NOT EVIDENCE
+            SIMULATED IMAGERY · NOT EVIDENCE
           </span>
           <span className="bg-absolute-black/85 px-[6px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-ash">
             NOT A LIVE FEED
