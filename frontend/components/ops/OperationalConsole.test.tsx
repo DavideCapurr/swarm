@@ -184,7 +184,7 @@ describe("TAKE A — readable without a voice-over", () => {
     expect(screen.queryByLabelText("Simulated drone view")).not.toBeInTheDocument();
   });
 
-  it("renders TAKE B's execution group, roles and failover in the same language", () => {
+  it("renders TAKE B's validated execution-group failover in the same language", () => {
     const slice = foldTakeA(30_000, FRAMES);
     render(
       <OperationalConsole
@@ -197,44 +197,54 @@ describe("TAKE A — readable without a voice-over", () => {
           ...slice,
           executionGroups: [
             {
-              id: "group-1",
-              objective_mission_id: "objective-1",
+              id: "4efceb04bdda4f3e88f9da18dbb158c6",
+              objective_mission_id: "8582edb3f2984289ab756602ac03aad5",
               objective_kind: "COOPERATIVE_VERIFY",
-              anomaly_id: TAKE_A.anomalyOne,
+              anomaly_id: "d3e97452bda44cbc99cd5e16d67aed2f",
               requested_members: 3,
               state: "DEGRADED",
               failure_reason: null,
-              ts: "2026-08-15T12:00:30Z",
+              ts: "2026-08-15T17:29:14.245648Z",
               members: [
                 {
-                  agent_id: "mav-001",
+                  agent_id: "mav-004",
                   role: "PRIMARY_OBSERVER",
-                  mission_id: "child-primary",
+                  mission_id: "0a224497d6384724aa3ee4043dcffc26",
                   state: "ACTIVE",
-                  score: 2.812,
+                  score: 2.2613507126,
                   score_breakdown: {},
                   replaces_agent_id: null,
-                  ts: "2026-08-15T12:00:30Z",
+                  ts: "2026-08-15T17:29:14.245648Z",
                 },
                 {
                   agent_id: "mav-003",
                   role: "SECONDARY_OBSERVER",
-                  mission_id: "child-secondary-old",
+                  mission_id: "b9a64ed080bc47e498ea18e4d8655069",
                   state: "REPLACED",
-                  score: 2.641,
+                  score: 2.2599093608,
                   score_breakdown: {},
                   replaces_agent_id: null,
-                  ts: "2026-08-15T12:00:30Z",
+                  ts: "2026-08-15T17:29:14.245648Z",
                 },
                 {
-                  agent_id: "mav-004",
+                  agent_id: "mav-001",
                   role: "SECONDARY_OBSERVER",
-                  mission_id: "child-secondary-new",
+                  mission_id: "a03fd8ddc5c140e89ec0eeb717296c42",
                   state: "ASSIGNED",
-                  score: 2.432,
+                  score: 2.2566069734,
                   score_breakdown: {},
                   replaces_agent_id: "mav-003",
-                  ts: "2026-08-15T12:00:31Z",
+                  ts: "2026-08-15T17:29:14.245648Z",
+                },
+                {
+                  agent_id: "mav-002",
+                  role: "OVERWATCH",
+                  mission_id: "3dbd3eeaee6f43d29f6498a8042990ab",
+                  state: "ACTIVE",
+                  score: 2.2583201001,
+                  score_breakdown: {},
+                  replaces_agent_id: null,
+                  ts: "2026-08-15T17:29:14.245648Z",
                 },
               ],
             },
@@ -246,8 +256,16 @@ describe("TAKE A — readable without a voice-over", () => {
     expect(screen.getByText("Execution group")).toBeInTheDocument();
     expect(screen.getByText("COOPERATIVE VERIFY")).toBeInTheDocument();
     expect(screen.getByText("3 REQUIRED ROLES")).toBeInTheDocument();
-    expect(screen.getByTestId("group-member-child-secondary-old")).toHaveTextContent("REPLACED");
-    expect(screen.getByTestId("group-member-child-secondary-new")).toHaveTextContent(
+    expect(screen.getByTestId("group-member-b9a64ed080bc47e498ea18e4d8655069")).toHaveTextContent(
+      "mav-003"
+    );
+    expect(screen.getByTestId("group-member-b9a64ed080bc47e498ea18e4d8655069")).toHaveTextContent(
+      "REPLACED"
+    );
+    expect(screen.getByTestId("group-member-a03fd8ddc5c140e89ec0eeb717296c42")).toHaveTextContent(
+      "mav-001"
+    );
+    expect(screen.getByTestId("group-member-a03fd8ddc5c140e89ec0eeb717296c42")).toHaveTextContent(
       "REPLACES mav-003"
     );
     expect(
