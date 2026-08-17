@@ -74,6 +74,16 @@ export type SwarmState = {
   allocations: AllocationDecision[];
   executionGroups: ExecutionGroup[];
   missionRuntime: MissionRuntimeEvent[];
+  /**
+   * Append-only record of the runtime frames this session observed.
+   *
+   * `missionRuntime` — like the backend's own projection — keeps only the
+   * latest frame per mission, so the discrete execution ladder (ALLOCATED →
+   * … → DONE) would be unreadable from it alone. This buffers the frames as
+   * they arrive, de-duplicated by their server-issued id. It stores server
+   * truth; it derives nothing.
+   */
+  missionRuntimeLog: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
   // Phase 5: stream descriptors per agent_id. `null` ≡ no descriptor yet
   // received; in that case the Console falls back to the placard.
@@ -132,6 +142,7 @@ export function SwarmStateProvider({
   const [allocations, setAllocations] = useState<AllocationDecision[]>([]);
   const [executionGroups, setExecutionGroups] = useState<ExecutionGroup[]>([]);
   const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);
+  const [missionRuntimeLog, setMissionRuntimeLog] = useState<MissionRuntimeEvent[]>([]);
   const [payloadEvents, setPayloadEvents] = useState<PayloadEvent[]>([]);
   const [streams, setStreams] = useState<Record<string, StreamDescriptor>>({});
   const [awareness, setAwareness] = useState<AwarenessBreakdown>(() => fallbackAwareness(new Date()));
@@ -175,6 +186,9 @@ export function SwarmStateProvider({
         setAllocations(al.allocations);
         setExecutionGroups(eg.execution_groups);
         setMissionRuntime(mr.mission_runtime);
+        // The REST snapshot is latest-per-mission, so it seeds the log with
+        // whatever the backend currently holds; live frames extend it.
+        setMissionRuntimeLog(mr.mission_runtime);
         setPayloadEvents(pe.payload_events);
       } catch {
         /* backend not up yet — WS will fill in once it connects */
@@ -201,6 +215,7 @@ export function SwarmStateProvider({
     setAllocations([]);
     setExecutionGroups([]);
     setMissionRuntime([]);
+    setMissionRuntimeLog([]);
     setPayloadEvents([]);
     setStreams({});
     setAwareness(fallbackAwareness(new Date()));
@@ -276,6 +291,10 @@ export function SwarmStateProvider({
           return;
         case "mission_runtime":
           setMissionRuntime((prev) => upsertById(prev, msg.data, "mission_id"));
+          setMissionRuntimeLog((prev) => {
+            if (prev.some((e) => e.id === msg.data.id)) return prev;
+            return [...prev.slice(-499), msg.data];
+          });
           return;
         case "payload":
           setPayloadEvents((prev) => {
@@ -343,6 +362,7 @@ export function SwarmStateProvider({
       allocations,
       executionGroups,
       missionRuntime,
+      missionRuntimeLog,
       payloadEvents,
       streams,
       awareness,
@@ -368,6 +388,7 @@ export function SwarmStateProvider({
       allocations,
       executionGroups,
       missionRuntime,
+      missionRuntimeLog,
       payloadEvents,
       streams,
       awareness,

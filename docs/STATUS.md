@@ -151,6 +151,23 @@ The Console browser check was independent of the backend/bus truth probe.
 
 Stock CCTV/drone footage is visualization only and must remain clearly labeled simulated. The frontend must not calculate winners, synthesize mission state, upgrade a simulated payload to physical, or infer `ON_STATION` from a timer.
 
+### Console surface — 2026-08-17
+
+`/demo/intrusion` was rebuilt as a full-viewport operational console: site map as the primary surface, objective queue and fleet state on the left, the SwarmOS decision rail on the right, and a per-mission timeline along the bottom. The information architecture, the truth inventory behind every field, and the 2560 × 1440 recording layout are in [`design/operational-console-ia.md`](design/operational-console-ia.md).
+
+The redesign changed presentation only. Backend, allocator, mission logic, PX4 integration, probes and data semantics are untouched; the rehearsal truth gates are unchanged.
+
+What changed on the truth boundary:
+
+- the map projects real PX4 `UnitState.geo`, `AnomalyView.geo` and `MissionView.track` into a local east/north site frame anchored on the observed home, using the same spherical model as `swarm_core.geometry.haversine_m`;
+- execution is rendered as discrete steps (`ALLOCATED → DISPATCHED → EN ROUTE → ON STATION → RTL → DONE`); `progress_pct` is no longer displayed;
+- a step is `observed` only on a frame that proves it. A Console that booted mid-mission marks earlier steps `implied` — drawn hollow, with no timestamp and no evidence claim;
+- the Console keeps a bounded append-only log of observed `mission_runtime` frames (`SwarmState.missionRuntimeLog`), because both the backend projection and the existing store keep only the latest frame per mission. It buffers server frames; it derives nothing;
+- evidence is rendered in three visually distinct tiers — verified (stamped `PX4 SITL`), reported, simulated — so confirmed PX4 output can never be read as the same thing as simulated speaker playback;
+- the stock drone-view video was removed. The perimeter clip is a small aside permanently stamped `SIMULATED IMAGERY · NOT EVIDENCE` and `NOT A LIVE FEED`.
+
+The ten-beat comprehension acceptance test runs in CI as `frontend/components/ops/OperationalConsole.test.tsx`, driven by the recorded take-1 frames in `frontend/lib/demo-frames.ts`. The same frame script backs the development-only `/dev/replay` route, which is 404 in a production build and stamps every frame `REPLAY · RECORDED FRAMES · NOT LIVE`.
+
 The legacy dashboard at `/` is separate from the definitive demo surface and is not part of the final-demo presentation path.
 
 ## Multi-agent collective capability
