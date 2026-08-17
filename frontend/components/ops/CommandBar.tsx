@@ -18,8 +18,6 @@ import { Eyebrow } from "./primitives";
 export function CommandBar({
   link,
   sessionLabel,
-  operatorId,
-  role,
   fleetTotal,
   fleetOwning,
   objectivesOpen,
@@ -42,7 +40,7 @@ export function CommandBar({
     link === "connected" ? "text-signal-green" : "text-launch-amber";
 
   return (
-    <header className="flex h-[64px] shrink-0 items-stretch whitespace-nowrap border border-gunmetal bg-obsidian shadow-inset-highlight">
+    <header className="flex h-[64px] shrink-0 items-stretch overflow-hidden whitespace-nowrap border border-gunmetal bg-obsidian shadow-inset-highlight">
       <div className="flex items-center gap-3 border-r border-gunmetal px-4">
         <span className="swarm-ring text-orbital-blue" />
         <span className="swarm-wordmark text-platinum" style={{ fontSize: 17 }}>
@@ -81,31 +79,21 @@ export function CommandBar({
 
       <Cell label="objectives">{String(objectivesOpen).padStart(2, "0")} OPEN</Cell>
 
-      <Cell label="decision authority" tone="orbital">
-        SWARMOS
-      </Cell>
-
-      <div className="flex flex-1 items-center justify-end gap-6 px-4">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-4 px-3">
         {replay ? (
-          <span className="border border-launch-amber px-2 py-[3px] font-mono text-[13px] tracking-[0.18em] text-launch-amber">
+          <span className="shrink-0 border border-launch-amber px-2 py-[3px] font-mono text-[11px] tracking-[0.16em] text-launch-amber">
             REPLAY · RECORDED FRAMES · NOT LIVE
           </span>
         ) : null}
-        <div className="flex flex-col items-end gap-[3px]">
+        <div className="flex min-w-0 flex-col items-end gap-[3px]">
           <Eyebrow>runtime truth</Eyebrow>
-          <span className="font-mono text-[13px] tracking-[0.12em] text-muted-silver">
+          <span className="truncate font-mono text-[12px] tracking-[0.1em] text-muted-silver">
             PX4 SITL TELEMETRY · IMAGERY SIMULATED
           </span>
         </div>
-        <div className="flex flex-col items-end gap-[3px]">
-          <Eyebrow>operator</Eyebrow>
-          <span className="font-mono text-[13px] tracking-[0.12em] text-platinum">
-            {role ?? "—"} · {operatorId || "—"}
-          </span>
-        </div>
-        <div className="flex flex-col items-end gap-[3px]">
+        <div className="flex shrink-0 flex-col items-end gap-[3px]">
           <Eyebrow>utc</Eyebrow>
-          <span className="font-mono text-[15px] tabular-nums text-platinum">{clockText}</span>
+          <span className="font-mono text-[14px] tabular-nums text-platinum">{clockText}</span>
         </div>
       </div>
     </header>
