@@ -1,8 +1,9 @@
 import { IntrusionResponseDemo } from "@/components/intrusion-demo/IntrusionResponseDemo";
 
 export const metadata = {
-  title: "SWARM · Intrusion response demo",
-  description: "Camera detection, fleet decision and bounded response demo.",
+  title: "SWARM · Perimeter response",
+  description:
+    "SwarmOS objective allocation, mission ownership and verified physical execution.",
 };
 
 export default function IntrusionDemoPage() {

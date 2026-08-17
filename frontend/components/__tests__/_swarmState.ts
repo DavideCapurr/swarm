@@ -58,6 +58,8 @@ export function makeSwarmState(overrides: Partial<SwarmState> = {}): SwarmState 
     allocations: overrides.allocations ?? ([] as AllocationDecision[]),
     executionGroups: overrides.executionGroups ?? ([] as ExecutionGroup[]),
     missionRuntime: overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
+    missionRuntimeLog:
+      overrides.missionRuntimeLog ?? overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
     payloadEvents: overrides.payloadEvents ?? ([] as PayloadEvent[]),
     streams: overrides.streams ?? ({} as Record<string, StreamDescriptor>),
     awareness: overrides.awareness ?? DEFAULT_AWARENESS,
