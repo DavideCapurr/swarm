@@ -108,12 +108,14 @@ jobs:
             if (!readyFile) throw new Error("BROWSER_READY_FILE is required");
             writeFileSync(readyFile, "connected\n", "utf8");
 
-            await expect(page.getByText("INTRUSION DETECTED")).toBeVisible({ timeout: 60_000 });
-            await expect(page.getByText("MISSION_ITEM_REACHED").first()).toBeVisible({ timeout: 60_000 });
+            const objectives = page.locator('[data-testid^="objective-"]');
+            await expect(objectives).toHaveCount(1, { timeout: 60_000 });
+            await expect(objectives.nth(0)).toContainText("INTRUSION");
+            await expect(objectives.nth(0)).toContainText("MISSION_ITEM_REACHED", { timeout: 60_000 });
             await expect(page.getByText("PX4 OUTPUT CONFIRMED").first()).toBeVisible({ timeout: 20_000 });
 
-            const missions = page.locator('[data-testid^="mission-"]');
-            await expect(missions).toHaveCount(2, { timeout: 45_000 });
+            await expect(objectives).toHaveCount(2, { timeout: 45_000 });
+            await expect(objectives.nth(1)).toContainText("HEAT_SPOT");
             await expect(page.getByTestId("fleet-excluded-mav-002")).toContainText("BUSY");
             await expect(page.getByTestId("fleet-mav-001")).toContainText("EN_ROUTE", { timeout: 20_000 });
 
@@ -127,9 +129,9 @@ jobs:
             expect(visibleMotionPx).toBeGreaterThan(10);
             await page.screenshot({ path: "../artifacts/yc-second-flight-mid.png", fullPage: true });
 
-            await expect(page.getByText("MISSION_ITEM_REACHED").nth(1)).toBeVisible({ timeout: 75_000 });
+            await expect(objectives.nth(1)).toContainText("DONE", { timeout: 75_000 });
+            await expect(objectives.nth(1)).toContainText("RTL COMMAND ACKNOWLEDGED");
             await page.screenshot({ path: "../artifacts/yc-second-flight-arrival.png", fullPage: true });
-            await expect(page.getByText("RTL COMMAND ACKNOWLEDGED").first()).toBeVisible({ timeout: 75_000 });
           });
           TS
 
