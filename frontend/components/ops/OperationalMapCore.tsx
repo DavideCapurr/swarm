@@ -27,6 +27,7 @@ import {
   type MapGeo,
 } from "@/lib/opsmap";
 import type { FleetRow, ObjectiveStory } from "@/lib/mission-story";
+import { tokens } from "@/lib/tokens";
 
 import { Eyebrow } from "./primitives";
 
@@ -38,17 +39,21 @@ const LABEL_DY = 34;
 const LABEL_H = 36;
 const LABEL_W = 150;
 
+// Map chrome colours. Anything that exists in the design tokens is read from
+// there rather than re-typed, so a palette change cannot leave the map behind —
+// this block previously pinned the pre-AA ash for `label` and drifted.
+// `grid` and `axis` are map-only structure tints with no token equivalent.
 const C = {
-  frame: "#1A2026",
+  frame: tokens.color.gunmetal,
   grid: "#12171C",
-  coarse: "#1A2026",
+  coarse: tokens.color.gunmetal,
   axis: "#232B33",
-  label: "#6B7480",
-  silver: "#A8AFB8",
-  platinum: "#EEF0F3",
-  orbital: "#7BE7FF",
-  green: "#B8FF66",
-  amber: "#FFB45C",
+  label: tokens.color.ash,
+  silver: tokens.color.mutedSilver,
+  platinum: tokens.color.platinum,
+  orbital: tokens.color.orbitalBlue,
+  green: tokens.color.signalGreen,
+  amber: tokens.color.launchAmber,
 };
 
 /** Measured size of the map box. Falls back to the design size before layout. */
@@ -304,7 +309,7 @@ function Rings({ projection }: { projection: NonNullable<ReturnType<typeof build
             x={centre.x + 5}
             y={centre.y - projection.toPx(r) - 5}
             fill={C.label}
-            fontFamily="IBM Plex Mono, monospace"
+            fontFamily={tokens.font.mono}
             fontSize={14}
             letterSpacing="0.08em"
           >
@@ -333,7 +338,7 @@ function Home({ projection }: { projection: NonNullable<ReturnType<typeof buildP
         x={p.x + 12}
         y={p.y + 4}
         fill={C.label}
-        fontFamily="IBM Plex Mono, monospace"
+        fontFamily={tokens.font.mono}
         fontSize={15}
         letterSpacing="0.16em"
       >
@@ -402,7 +407,7 @@ function Assignment({
         y={(from.y + to.y) / 2 - 7}
         textAnchor="middle"
         fill={arrived ? C.green : C.orbital}
-        fontFamily="IBM Plex Mono, monospace"
+        fontFamily={tokens.font.mono}
         fontSize={15}
         letterSpacing="0.16em"
         opacity={focused ? 1 : 0.6}
@@ -443,7 +448,7 @@ function ObjectiveMark({
         y={p.y - r - 26}
         textAnchor="middle"
         fill={C.amber}
-        fontFamily="IBM Plex Mono, monospace"
+        fontFamily={tokens.font.mono}
         fontSize={20}
         letterSpacing="0.16em"
       >
@@ -454,7 +459,7 @@ function ObjectiveMark({
         y={p.y - r - 9}
         textAnchor="middle"
         fill={focused ? C.platinum : C.silver}
-        fontFamily="IBM Plex Mono, monospace"
+        fontFamily={tokens.font.mono}
         fontSize={17}
         letterSpacing="0.1em"
       >
@@ -524,7 +529,7 @@ function AgentMark({
         y={p.y + LABEL_DY + labelOffset}
         textAnchor="middle"
         fill={C.platinum}
-        fontFamily="IBM Plex Mono, monospace"
+        fontFamily={tokens.font.mono}
         fontSize={18}
         letterSpacing="0.1em"
       >
@@ -535,7 +540,7 @@ function AgentMark({
         y={p.y + LABEL_DY + 16 + labelOffset}
         textAnchor="middle"
         fill={colour}
-        fontFamily="IBM Plex Mono, monospace"
+        fontFamily={tokens.font.mono}
         fontSize={15}
         letterSpacing="0.14em"
       >

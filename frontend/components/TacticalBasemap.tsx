@@ -16,6 +16,7 @@ import type { Map as MaplibreMap } from "maplibre-gl";
 import maplibregl from "maplibre-gl";
 
 import { buildTactical, type LngLat } from "@/lib/tactical";
+import { tokens } from "@/lib/tokens";
 
 const SRC = {
   grid: "swarm-tac-grid",
@@ -114,7 +115,7 @@ export function TacticalBasemap({ map, center }: Props) {
     for (const f of geo.ringLabels.features) {
       const el = document.createElement("div");
       el.textContent = (f.properties?.label as string) ?? "";
-      el.style.fontFamily = '"IBM Plex Mono", monospace';
+      el.style.fontFamily = tokens.font.mono;
       el.style.fontSize = "8px";
       el.style.letterSpacing = "0.18em";
       el.style.color = "#3F4348";

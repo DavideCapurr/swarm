@@ -19,7 +19,17 @@ export const tokens = {
     obsidian: "#0B0E11",
     gunmetal: "#1A2026",
     graphite: "#2A3138",
-    ash: "#6B7480",
+    // ash carries the label tier — `text-ash` is the second most used text
+    // colour in the console (97 call sites) and every one of them renders at
+    // 9–13px, which WCAG never treats as large text. The brand-book value
+    // #6B7480 measured 4.09:1 on obsidian and 3.34:1 on a graphite/60 hovered
+    // row, i.e. under the 4.5:1 floor everywhere. #7F8A98 is the same cool
+    // grey lightened along its own hue until the worst surface it lands on
+    // clears AA: 5.85:1 on absolute-black, 5.52:1 on obsidian, 4.52:1 on
+    // graphite/60. It stays firmly recessive — relative luminance 0.250
+    // against muted-silver 0.425 and platinum 0.870 — so the three text tiers
+    // still read as three tiers.
+    ash: "#7F8A98",
     mutedSilver: "#A8AFB8",
     bone: "#C8CDD3",
     platinum: "#EEF0F3",
@@ -46,7 +56,7 @@ export const tokens = {
     line: "#1A2026",          // gunmetal — hairline borders
     inkPrimary: "#EEF0F3",    // platinum
     inkSecondary: "#A8AFB8",  // mutedSilver
-    inkMuted: "#6B7480",      // ash
+    inkMuted: "#7F8A98",      // ash
     rest: "#EEF0F3",          // platinum — neutral state dot
     connected: "#7BE7FF",     // orbitalBlue
     operational: "#B8FF66",   // signalGreen
@@ -68,6 +78,16 @@ export const tokens = {
   // Inter is also the only candidate carrying an `opsz` axis, so
   // `font-optical-sizing: auto` in styles/globals.css lets the face open its
   // apertures and letter spacing as type gets smaller.
+  //
+  // Mono is JetBrains Mono, which carries every operational number on the
+  // surface at 9–13px. Measured x-height 0.550 em against IBM Plex Mono's
+  // 0.516 — 6.6% more apparent size at the same px, the largest single gain
+  // available in this stack. Both faces already disambiguate zero with an
+  // interior dot, so that is a wash; the x-height is the reason.
+  //
+  // JetBrains Mono ships `calt` code ligatures (`->`, `!=`, `==`). Telemetry
+  // is not code, so globals.css disables them — a fused arrow inside a
+  // coordinate or an ID would misreport state.
   font: {
     editorial:
       "'Cormorant Garamond', 'EB Garamond', Georgia, serif",
@@ -76,7 +96,7 @@ export const tokens = {
     body:
       "'Inter', system-ui, -apple-system, sans-serif",
     mono:
-      "'IBM Plex Mono', 'SF Mono', ui-monospace, monospace",
+      "'JetBrains Mono', 'SF Mono', ui-monospace, monospace",
     grotesk:
       "'Space Grotesk', system-ui, sans-serif",
   },

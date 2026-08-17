@@ -11,20 +11,22 @@ export const metadata: Metadata = {
 // SWARM brand fonts — loaded from Google Fonts.
 // Editorial · Cormorant Garamond · for headings + the wordmark
 // Display/body · Inter · UI
-// Mono · IBM Plex Mono · for telemetry, coordinates, numerals
+// Mono · JetBrains Mono · for telemetry, coordinates, numerals
 // Grotesk · Space Grotesk · for eyebrows + structural labels
 //
 // Inter is requested as one variable font carrying both its `opsz` (14–32)
 // and `wght` (300–700) axes. `font-optical-sizing: auto` in
 // styles/globals.css activates opsz, so the console's dense 11–13px labels
 // get the face's wider spacing and more open apertures automatically.
-// Asking for the variable range also ships fewer bytes than the five static
-// weights it replaces.
+//
+// Both Inter and JetBrains Mono are requested as variable weight ranges
+// rather than discrete weights, so this loads fewer bytes than the static
+// Geist + Inter + IBM Plex Mono set it replaces.
 const FONTS_HREF =
   "https://fonts.googleapis.com/css2" +
   "?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500" +
   "&family=Inter:opsz,wght@14..32,300..700" +
-  "&family=IBM+Plex+Mono:wght@300;400;500;600" +
+  "&family=JetBrains+Mono:wght@300..600" +
   "&family=Space+Grotesk:wght@400;500;600" +
   "&display=swap";
 

@@ -350,14 +350,14 @@ export function MapView({
 
         const idRow = document.createElement("span");
         idRow.setAttribute("data-id", "");
-        idRow.style.fontFamily = '"IBM Plex Mono", monospace';
+        idRow.style.fontFamily = tokens.font.mono;
         idRow.style.fontSize = "10px";
         idRow.style.letterSpacing = "0.2em";
         idRow.style.lineHeight = "1.1";
 
         const subRow = document.createElement("span");
         subRow.setAttribute("data-sub", "");
-        subRow.style.fontFamily = '"IBM Plex Mono", monospace';
+        subRow.style.fontFamily = tokens.font.mono;
         subRow.style.fontSize = "8px";
         subRow.style.letterSpacing = "0.12em";
         subRow.style.textTransform = "uppercase";
@@ -492,7 +492,7 @@ export function MapView({
         callout.style.display = "inline-flex";
         callout.style.alignItems = "center";
         callout.style.gap = "5px";
-        callout.style.fontFamily = '"IBM Plex Mono", monospace';
+        callout.style.fontFamily = tokens.font.mono;
         callout.style.fontSize = "9px";
         callout.style.letterSpacing = "0.22em";
         callout.style.textTransform = "uppercase";

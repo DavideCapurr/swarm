@@ -10,16 +10,16 @@
      video. Confidence-bound voice. Every claim typed (sim today). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Geist:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Inter:opsz,wght@14..32,400..600&family=JetBrains+Mono:wght@400..500&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet" />
 <style>
   :root{
     --absolute-black:#030406; --obsidian:#0B0E11; --gunmetal:#1A2026;
-    --graphite:#2A3138; --ash:#6B7480; --muted-silver:#A8AFB8;
+    --graphite:#2A3138; --ash:#7F8A98; --muted-silver:#A8AFB8;
     --bone:#C8CDD3; --platinum:#EEF0F3;
     --orbital-blue:#7BE7FF; --signal-green:#B8FF66; --launch-amber:#FFB45C;
     --editorial:'Cormorant Garamond',Georgia,serif;
-    --display:'Geist','Inter',system-ui,sans-serif;
-    --mono:'IBM Plex Mono','SF Mono',ui-monospace,monospace;
+    --display:'Inter',system-ui,sans-serif;
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
     --grotesk:'Space Grotesk',system-ui,sans-serif;
     --hairline:1px solid var(--gunmetal);
     --inset:inset 0 1px 0 rgba(238,240,243,0.06);
@@ -30,7 +30,14 @@
     background:var(--absolute-black); color:var(--platinum);
     font-family:var(--display); font-size:15px; line-height:1.5;
     -webkit-font-smoothing:antialiased; letter-spacing:0;
+    font-optical-sizing:auto;
+    /* JetBrains Mono ships calt code ligatures and telemetry is not code, so
+       suppress them page-wide rather than per mono selector — nothing here can
+       reintroduce them by adding a new element. Ligatures are restored below
+       on the editorial face, which is the only place they are wanted. */
+    font-variant-ligatures:none;
   }
+  .wordmark,h1,h2,.viewport .center .v{font-variant-ligatures:common-ligatures}
   a{color:inherit;text-decoration:none}
   .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
   .eyebrow{

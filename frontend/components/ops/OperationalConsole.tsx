@@ -187,8 +187,11 @@ function LoopValue({
   );
 }
 
+// The field separator sits at the label tier. It was graphite, which measured
+// 1.47:1 on obsidian — below even the 3:1 non-text floor, so the arrow that
+// carries the left-to-right reading order was effectively invisible.
 function Arrow() {
-  return <span className="shrink-0 font-mono text-[14px] text-graphite">→</span>;
+  return <span className="shrink-0 font-mono text-[14px] text-ash">→</span>;
 }
 
 export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {

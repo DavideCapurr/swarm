@@ -29,7 +29,7 @@ frontend/lib/tokens.ts            — token extraction (palette, fonts,
 |---|---|---|
 | Palette · monochrome | 08 (Color · Mono) | 14 grays from `absolute-black` to `platinum` + dual ink ramps |
 | Palette · activation | 09 (Color · Activation) | `orbital-blue` lime, `signal-green` purple, `launch-amber` magenta — names are brand poetry, hex is the truth |
-| Type families | 13 (Body & UI) | Cormorant Garamond (editorial), Inter (display/body), IBM Plex Mono (telemetry), Space Grotesk (eyebrow) |
+| Type families | 13 (Body & UI) | Cormorant Garamond (editorial), Inter (display/body), JetBrains Mono (telemetry), Space Grotesk (eyebrow) |
 | Type scale | 13 | Hero 144 / H1 64 / H2 40 / H3 28 / Lede 17 / Body 15 / UI 13 / Eyebrow 11 |
 | Spacing | 17 (Layout) | 4 / 8 px scale up to 128 px |
 | Radius | 18 (Cards) | 6 px cards · 4 px inputs · 2 px chips · 999 px pills |
@@ -64,6 +64,50 @@ spacing and opens its apertures on its own as type gets smaller. Note that the
 Google-hosted Inter does not expose the `cv**`/`ss**` character variants — only
 `calt`, `tnum`, `pnum`, `frac` — so do not write `font-feature-settings` rules
 against those; they are no-ops here.
+
+### Why JetBrains Mono for telemetry
+
+The mono face carries every operational number, at 9–13px. Same metric, same
+reasoning:
+
+| Face | x-height / em | zero | ligatures |
+|---|---|---|---|
+| **JetBrains Mono** | **0.550** | dotted | `calt` — must be suppressed |
+| IBM Plex Mono | 0.516 | dotted | none |
+| Roboto Mono | 0.528 | plain oval | none |
+
+JetBrains Mono gives 6.6% more apparent size than IBM Plex Mono at the same px.
+Both already disambiguate zero with an interior dot, so that is a wash — the
+x-height is the whole reason. IBM Plex Mono also draws `0` and `O` at identical
+ink widths (0.488 em each), leaving the dot as the only cue; JetBrains Mono
+separates them (0.440 / 0.424 em) as well as dotting the zero.
+
+JetBrains Mono does ship `calt` code ligatures (`->`, `!=`, `==`). Telemetry is
+not code, and a fused glyph inside a coordinate, unit ID or timestamp would
+misreport operational state, so `styles/globals.css` sets
+`font-variant-ligatures: none` on every selector that reaches the mono face.
+
+### Label contrast
+
+`ash` is the label tier and the second most used text colour in the Console (97
+`text-ash` call sites), all of it at 9–13px — never "large text" under WCAG. The
+brand-book value `#6B7480` did not clear the 4.5:1 AA floor on any surface it
+renders on, so it was lightened along its own hue to `#7F8A98`:
+
+| Surface | `#6B7480` (was) | `#7F8A98` (now) |
+|---|---|---|
+| absolute-black `#030406` | 4.33:1 | 5.85:1 |
+| obsidian `#0B0E11` | 4.09:1 | 5.52:1 |
+| graphite/30 hover `#14181D` | 3.76:1 | 5.09:1 |
+| graphite/40 hover `#171C21` | 3.62:1 | 4.89:1 |
+| graphite/60 selected `#1E2328` | 3.34:1 | 4.52:1 |
+
+The hovered row, not the card, was the binding constraint. `ash` stays clearly
+recessive after the change — relative luminance 0.250 against muted-silver's
+0.425 and platinum's 0.870 — so the three text tiers still read as three tiers.
+
+Anything below `ash` on the ramp (`graphite` at 1.47:1, `mist-lo`/`ink-2` at
+1.94:1) is a border, fill or divider colour. Do not set text in them.
 
 ## State mapping (SWARM-OS ↔ brand)
 

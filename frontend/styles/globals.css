@@ -24,6 +24,22 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* JetBrains Mono ships `calt` code ligatures (-> != == ...). Telemetry is
+     not code: a fused arrow or equals inside a coordinate, unit ID or
+     timestamp would misreport operational state, so switch ligatures off
+     everywhere the mono face is reached. `none` covers contextual alternates
+     per CSS Fonts 3, which is the feature that drives them. */
+  .font-mono,
+  .eyebrow-mono,
+  .mono-num,
+  .pill,
+  code,
+  kbd,
+  samp,
+  pre {
+    font-variant-ligatures: none;
+  }
+
   /* Focus ring — Orbital Blue, only allowed color for focus state. */
   :focus-visible {
     outline: 1px solid #7BE7FF;
@@ -65,18 +81,18 @@
     letter-spacing: 0.18em;
     text-transform: uppercase;
     font-weight: 500;
-    color: #6B7480; /* ash */
+    color: #7F8A98; /* ash */
   }
 
   /* Eyebrow mono — for telemetry-style labels. */
   .eyebrow-mono {
-    font-family: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+    font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
     font-size: 10px;
     line-height: 1.2;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     font-weight: 500;
-    color: #6B7480; /* ash */
+    color: #7F8A98; /* ash */
   }
 
   /* Hairline divider. */
@@ -114,7 +130,7 @@
     padding: 4px 10px;
     border: 1px solid #1A2026;
     border-radius: 2px;
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -125,12 +141,12 @@
   .pill-attention   { border-color: #FFB45C; color: #FFB45C; }
 
   /* Mono numeric — telemetry numerals, padded with leading zeros.
-     Tracking is neutral, not negative: these run at 11–13px and IBM Plex Mono
+     Tracking is neutral, not negative: these run at 11–13px and the mono face
      already sets digits on a fixed advance, so pulling them together only
      crowded the glyph inside its own cell. tabular-nums keeps columns aligned
      as values change. */
   .mono-num {
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     letter-spacing: 0;
     font-variant-numeric: tabular-nums;
   }
@@ -191,8 +207,8 @@
 /* MapLibre — soften the default attribution styling to match the brand. */
 .maplibregl-ctrl-attrib {
   background: rgba(11, 14, 17, 0.7) !important;
-  color: #6B7480 !important;
-  font-family: "IBM Plex Mono", ui-monospace, monospace !important;
+  color: #7F8A98 !important;
+  font-family: "JetBrains Mono", ui-monospace, monospace !important;
   font-size: 9px !important;
   letter-spacing: 0.06em !important;
 }

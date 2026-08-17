@@ -15,6 +15,7 @@ import maplibregl from "maplibre-gl";
 import { useSwarm } from "@/lib/state";
 import type { Sector } from "@/lib/api";
 import { SECTOR_STATE_COPY } from "@/lib/copy";
+import { tokens } from "@/lib/tokens";
 
 const SRC_ID = "swarm-sectors";
 const LAYER_FILL = "swarm-sectors-fill";
@@ -161,7 +162,7 @@ export function SectorLayer({ map }: Props) {
         if (lbl) lbl.textContent = `${s.label} · ${SECTOR_STATE_COPY[s.state]}`;
       } else {
         const el = document.createElement("div");
-        el.style.fontFamily = '"IBM Plex Mono", monospace';
+        el.style.fontFamily = tokens.font.mono;
         el.style.fontSize = "9px";
         el.style.letterSpacing = "0.22em";
         el.style.textTransform = "uppercase";
