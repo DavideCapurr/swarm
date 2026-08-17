@@ -1,0 +1,79 @@
+name: UI visual verification
+
+on:
+  push:
+    branches:
+      - ui/swarmos-operational-console-redesign
+    paths:
+      - "frontend/**"
+      - ".github/workflows/ui-visual-verify.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  visual-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.1.2 --activate
+
+      - name: Install frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck operational console
+        working-directory: frontend
+        run: pnpm typecheck
+
+      - name: Install Chromium for visual QA
+        run: npx -y playwright@1.55.0 install --with-deps chromium
+
+      - name: Start development replay surface
+        working-directory: frontend
+        run: |
+          pnpm dev --hostname 0.0.0.0 > /tmp/swarm-ui.log 2>&1 &
+          echo $! > /tmp/swarm-ui.pid
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/dev/replay >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/swarm-ui.log
+          exit 1
+
+      - name: Capture TAKE A at 2560x1440
+        run: |
+          mkdir -p artifacts/ui-visual
+          npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1200 "http://127.0.0.1:3000/dev/replay?at=2500" artifacts/ui-visual/01-first-decision.png
+          npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1200 "http://127.0.0.1:3000/dev/replay?at=21250" artifacts/ui-visual/02-first-proof.png
+          npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1200 "http://127.0.0.1:3000/dev/replay?at=25500" artifacts/ui-visual/03-busy-reallocation.png
+          npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1200 "http://127.0.0.1:3000/dev/replay?at=30000" artifacts/ui-visual/04-concurrent-execution.png
+          npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1200 "http://127.0.0.1:3000/dev/replay?at=44500" artifacts/ui-visual/05-second-proof.png
+
+      - name: Save browser surface text
+        run: |
+          curl --silent http://127.0.0.1:3000/dev/replay?at=25500 > artifacts/ui-visual/replay.html
+          cp /tmp/swarm-ui.log artifacts/ui-visual/dev-server.log
+
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarmos-operational-console-visual-qa
+          path: artifacts/ui-visual
+          if-no-files-found: error
+          retention-days: 7
