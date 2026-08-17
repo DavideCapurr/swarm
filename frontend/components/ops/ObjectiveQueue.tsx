@@ -24,6 +24,14 @@ function latestVerifiedProof(story: ObjectiveStory): string | null {
   return (mission.at(-1) ?? verified.at(-1))?.proof ?? null;
 }
 
+function activityState(story: ObjectiveStory): { label: string; tone: string } {
+  if (!story.active) return { label: "CLOSED", tone: "text-ash" };
+  if (story.latestStep === "ALLOCATED" && !story.serverPhase) {
+    return { label: "OWNED", tone: "text-orbital-blue" };
+  }
+  return { label: "EXECUTING", tone: "text-signal-green" };
+}
+
 export function ObjectiveQueue({
   stories,
   focusMissionId,
@@ -54,88 +62,87 @@ export function ObjectiveQueue({
           </span>
         </div>
       ) : (
-        stories.map((story) => (
-          <button
-            key={story.missionId}
-            type="button"
-            onClick={() => onFocus(story.missionId)}
-            data-testid={`objective-${story.missionId}`}
-            className={`block w-full border-b border-gunmetal px-3 py-3 text-left transition-colors duration-press ease-swarm ${
-              story.missionId === focusMissionId
-                ? "border-l-2 border-l-orbital-blue bg-orbital-blue/[0.05]"
-                : "border-l-2 border-l-transparent hover:bg-obsidian"
-            }`}
-          >
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="flex items-baseline gap-3">
-                <span className="font-mono text-[13px] tracking-[0.16em] text-launch-amber">
-                  {story.label}
+        stories.map((story) => {
+          const activity = activityState(story);
+          return (
+            <button
+              key={story.missionId}
+              type="button"
+              onClick={() => onFocus(story.missionId)}
+              data-testid={`objective-${story.missionId}`}
+              className={`block w-full border-b border-gunmetal px-3 py-3 text-left transition-colors duration-press ease-swarm ${
+                story.missionId === focusMissionId
+                  ? "border-l-2 border-l-orbital-blue bg-orbital-blue/[0.05]"
+                  : "border-l-2 border-l-transparent hover:bg-obsidian"
+              }`}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex items-baseline gap-3">
+                  <span className="font-mono text-[13px] tracking-[0.16em] text-launch-amber">
+                    {story.label}
+                  </span>
+                  <Value size="md">{story.kind}</Value>
                 </span>
-                <Value size="md">{story.kind}</Value>
-              </span>
-              <Value size="sm" tone="ash">
-                {clock(story.detectedAt ?? story.decisionTs)}
-              </Value>
-            </div>
-
-            <div className="mt-[6px] flex items-baseline justify-between gap-3">
-              <span className="font-mono text-[13px] tracking-[0.1em] text-ash">
-                confidence{" "}
-                <span className="text-muted-silver">
-                  {story.confidence != null ? `${(story.confidence * 100).toFixed(0)}%` : "—"}
-                </span>
-              </span>
-              <span className="font-mono text-[13px] tracking-[0.1em] text-ash">
-                owner{" "}
-                <span className="text-orbital-blue">{story.owner ?? "unassigned"}</span>
-              </span>
-            </div>
-
-            <div className="mt-[10px] flex items-center gap-[3px]">
-              {story.ladder.map((slot, index) => (
-                <span key={slot.step} className="flex flex-1 items-center gap-[3px]">
-                  <LadderTick
-                    source={slot.source}
-                    tone={slot.proof && slot.source === "observed" ? "green" : "orbital"}
-                  />
-                  {index < story.ladder.length - 1 ? (
-                    <span
-                      className={`h-px flex-1 ${
-                        story.ladder[index + 1].source === "pending"
-                          ? "bg-graphite"
-                          : "bg-orbital-blue/60"
-                      }`}
-                    />
-                  ) : null}
-                </span>
-              ))}
-            </div>
-            <div className="mt-[6px] flex items-baseline justify-between">
-              <span className="font-mono text-[15px] uppercase tracking-[0.14em] text-platinum">
-                {story.latestStep ?? "AWAITING RUNTIME"}
-              </span>
-              <span
-                className={`font-mono text-[15px] uppercase tracking-[0.14em] ${
-                  story.active ? "text-signal-green" : "text-ash"
-                }`}
-              >
-                {story.active ? "EXECUTING" : "CLOSED"}
-              </span>
-            </div>
-
-            {/* The rail follows the newest objective, so each row keeps its own
-                latest proof: an earlier mission's verified arrival must not
-                leave the screen when a second objective arrives. */}
-            {latestVerifiedProof(story) ? (
-              <div className="mt-[8px] flex items-baseline gap-2 border-l-2 border-signal-green pl-2">
-                <span className="font-mono text-[12px] uppercase tracking-[0.1em] text-signal-green">
-                  {latestVerifiedProof(story)}
-                </span>
-                <span className="font-mono text-[11px] tracking-[0.1em] text-ash">PX4 SITL</span>
+                <Value size="sm" tone="ash">
+                  {clock(story.detectedAt ?? story.decisionTs)}
+                </Value>
               </div>
-            ) : null}
-          </button>
-        ))
+
+              <div className="mt-[6px] flex items-baseline justify-between gap-3">
+                <span className="font-mono text-[13px] tracking-[0.1em] text-ash">
+                  confidence{" "}
+                  <span className="text-muted-silver">
+                    {story.confidence != null ? `${(story.confidence * 100).toFixed(0)}%` : "—"}
+                  </span>
+                </span>
+                <span className="font-mono text-[13px] tracking-[0.1em] text-ash">
+                  owner{" "}
+                  <span className="text-orbital-blue">{story.owner ?? "unassigned"}</span>
+                </span>
+              </div>
+
+              <div className="mt-[10px] flex items-center gap-[3px]">
+                {story.ladder.map((slot, index) => (
+                  <span key={slot.step} className="flex flex-1 items-center gap-[3px]">
+                    <LadderTick
+                      source={slot.source}
+                      tone={slot.proof && slot.source === "observed" ? "green" : "orbital"}
+                    />
+                    {index < story.ladder.length - 1 ? (
+                      <span
+                        className={`h-px flex-1 ${
+                          story.ladder[index + 1].source === "pending"
+                            ? "bg-graphite"
+                            : "bg-orbital-blue/60"
+                        }`}
+                      />
+                    ) : null}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-[6px] flex items-baseline justify-between">
+                <span className="font-mono text-[15px] uppercase tracking-[0.14em] text-platinum">
+                  {story.latestStep ?? "AWAITING RUNTIME"}
+                </span>
+                <span className={`font-mono text-[15px] uppercase tracking-[0.14em] ${activity.tone}`}>
+                  {activity.label}
+                </span>
+              </div>
+
+              {/* The rail follows the newest objective, so each row keeps its own
+                  latest proof: an earlier mission's verified arrival must not
+                  leave the screen when a second objective arrives. */}
+              {latestVerifiedProof(story) ? (
+                <div className="mt-[8px] flex items-baseline gap-2 border-l-2 border-signal-green pl-2">
+                  <span className="font-mono text-[12px] uppercase tracking-[0.1em] text-signal-green">
+                    {latestVerifiedProof(story)}
+                  </span>
+                  <span className="font-mono text-[11px] tracking-[0.1em] text-ash">PX4 SITL</span>
+                </div>
+              ) : null}
+            </button>
+          );
+        })
       )}
     </Panel>
   );
