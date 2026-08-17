@@ -7,12 +7,18 @@
  * no operational decision and holds no operational state: allocation,
  * ownership, runtime phase, evidence and payload results all arrive from
  * SwarmOS. The Console renders them.
+ *
+ * The operating scenario itself is simulated for the recording. The standing
+ * CommandBar separately preserves the PX4 SITL runtime-truth boundary, while
+ * the imagery panel remains explicitly marked as simulated and not evidence.
  */
 
 import { useMemo } from "react";
 
 import { OperationalConsole, type ConsoleFrame } from "@/components/ops/OperationalConsole";
 import { useSwarm } from "@/lib/state";
+
+const RECORDING_SCENARIO_LABEL = "SIMULATED OPERATING SCENARIO";
 
 export function IntrusionResponseDemo() {
   const {
@@ -28,13 +34,12 @@ export function IntrusionResponseDemo() {
     clock,
     operatorId,
     role,
-    session,
   } = useSwarm();
 
   const frame = useMemo<ConsoleFrame>(
     () => ({
       link,
-      sessionLabel: session?.label ?? "session",
+      sessionLabel: RECORDING_SCENARIO_LABEL,
       operatorId,
       role,
       clockText: `${clock.time} UTC`,
@@ -49,7 +54,6 @@ export function IntrusionResponseDemo() {
     }),
     [
       link,
-      session,
       operatorId,
       role,
       clock.time,
