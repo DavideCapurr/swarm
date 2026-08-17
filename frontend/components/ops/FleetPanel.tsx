@@ -69,7 +69,7 @@ export function FleetPanel({
               </span>
             </div>
 
-            <div className="mt-[6px] font-mono text-[12px] tracking-[0.1em]">
+            <div className="mt-[6px] font-mono text-[13px] tracking-[0.08em]">
               {row.missionId ? (
                 <span className="text-muted-silver">
                   owns{" "}
@@ -92,11 +92,11 @@ export function FleetPanel({
             {row.excludedFrom ? (
               <div
                 data-testid={`fleet-excluded-${row.agentId}`}
-                className="mt-2 border-l-2 border-launch-amber bg-launch-amber/[0.04] px-2 py-[6px] font-mono text-[12px] tracking-[0.12em] text-launch-amber"
+                className="mt-2 border-l-2 border-launch-amber bg-launch-amber/[0.05] px-2 py-2 font-mono text-[15px] font-medium tracking-[0.1em] text-launch-amber"
               >
                 EXCLUDED FROM {row.excludedFrom.label} · {row.excludedFrom.reason}
                 {row.excludedFrom.activeMissionId ? (
-                  <span className="block text-ash">
+                  <span className="mt-[2px] block text-[13px] font-normal text-ash">
                     already holds mission {shortId(row.excludedFrom.activeMissionId)}
                   </span>
                 ) : null}
