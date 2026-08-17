@@ -1,0 +1,229 @@
+name: YC demo live verification temp
+
+on:
+  push:
+    branches:
+      - ui/swarmos-operational-console-redesign
+    paths:
+      - "scripts/yc_demo_recording_probe.py"
+      - "frontend/components/intrusion-demo/IntrusionResponseDemo.tsx"
+      - ".github/workflows/yc-demo-live-verify-temp.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      redis:
+        image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      REDIS_URL: redis://127.0.0.1:6379/0
+      SWARM_ENV: dev
+      SWARM_ALLOWED_ORIGINS: http://localhost:3000
+      SWARM_VENDORS: mavlink
+      MAVLINK_FLEET: mav-001=udpin:0.0.0.0:14541,mav-002=udpin:0.0.0.0:14542
+      MAVLINK_MODEL: px4-iris-sitl
+      SWARM_PRESENCE_RESPONSE: 1
+      SWARM_PRESENCE_MIN_CONFIDENCE: 0.85
+      SWARM_PRESENCE_HOLD_S: 20
+      MAVLINK_LIGHT_ACTUATOR_NUMBER: 1
+      MAVLINK_LIGHT_OUTPUT_CHANNEL: 5
+      SWARM_PRESENCE_SIMULATE_SPEAKER: 1
+      SWARM_COOPERATIVE_VERIFY: 0
+      NEXT_PUBLIC_API_URL: http://localhost:8765
+      NEXT_PUBLIC_WS_URL: ws://localhost:8765/ws/telemetry
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "24"
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install and static verify
+        run: |
+          uv sync --frozen --extra dev --extra mavlink --extra dji
+          uv run ruff check scripts/final_demo_rehearsal_probe.py scripts/yc_demo_recording_probe.py scripts/configure_px4_payload_output.py
+          uv run python scripts/yc_demo_recording_probe.py --help >/dev/null
+          corepack enable
+          cd frontend
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm typecheck
+          pnpm exec vitest run components/ops/OperationalConsole.test.tsx components/ops/OperationalInputCausality.test.tsx components/ops/OperationalNarrative.test.tsx lib/__tests__/mission-story.test.ts lib/__tests__/opsmap.test.ts
+          pnpm add --save-dev --ignore-workspace-root-check @playwright/test@1.55.0
+          pnpm exec playwright install chromium
+
+      - name: Bootstrap auth
+        run: |
+          make bootstrap-auth-dev
+          secret="$(sed -n 's/^SWARM_JWT_SECRET=//p' .env | tail -1)"
+          test -n "$secret"
+          echo "SWARM_JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          echo "SWARM_OPERATORS_CONFIG=$GITHUB_WORKSPACE/infra/config/operators.yaml" >> "$GITHUB_ENV"
+
+      - name: Start Console and write YC observer
+        run: |
+          cat > frontend/yc-demo-live.temp.spec.ts <<'TS'
+          import { writeFileSync } from "node:fs";
+          import { expect, test } from "@playwright/test";
+
+          function point(transform: string | null) {
+            if (!transform) throw new Error("missing agent transform");
+            const match = transform.match(/translate\(([-0-9.]+) ([-0-9.]+)\)/);
+            if (!match) throw new Error(`unparseable transform: ${transform}`);
+            return { x: Number(match[1]), y: Number(match[2]) };
+          }
+
+          test("YC scenario keeps truth boundaries and makes second execution visibly move", async ({ page }) => {
+            test.setTimeout(180_000);
+            await page.setViewportSize({ width: 2560, height: 1440 });
+            await page.goto("http://localhost:3000/login?next=/demo/intrusion");
+            await page.getByTestId("login-operator-id").fill("op-viewer01");
+            await page.getByTestId("login-password").fill("swarm-dev");
+            await page.getByTestId("login-submit").click();
+            await expect(page).toHaveURL(/\/demo\/intrusion$/, { timeout: 15_000 });
+            await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible({ timeout: 20_000 });
+            await expect(page.getByText("SIMULATED OPERATING SCENARIO", { exact: true })).toBeVisible();
+            await expect(page.getByText(/PX4 SITL TELEMETRY/)).toBeVisible();
+
+            const readyFile = process.env.BROWSER_READY_FILE;
+            if (!readyFile) throw new Error("BROWSER_READY_FILE is required");
+            writeFileSync(readyFile, "connected\n", "utf8");
+
+            await expect(page.getByText("INTRUSION DETECTED")).toBeVisible({ timeout: 60_000 });
+            await expect(page.getByText("MISSION_ITEM_REACHED").first()).toBeVisible({ timeout: 60_000 });
+            await expect(page.getByText("PX4 OUTPUT CONFIRMED").first()).toBeVisible({ timeout: 20_000 });
+
+            const missions = page.locator('[data-testid^="mission-"]');
+            await expect(missions).toHaveCount(2, { timeout: 45_000 });
+            await expect(page.getByTestId("fleet-excluded-mav-002")).toContainText("BUSY");
+            await expect(page.getByTestId("fleet-mav-001")).toContainText("EN_ROUTE", { timeout: 20_000 });
+
+            const agentGlyph = page.getByTestId("map-agent-mav-001").locator("g[transform]").first();
+            const start = point(await agentGlyph.getAttribute("transform"));
+            await page.screenshot({ path: "../artifacts/yc-second-flight-start.png", fullPage: true });
+            await page.waitForTimeout(3_000);
+            const end = point(await agentGlyph.getAttribute("transform"));
+            const visibleMotionPx = Math.hypot(end.x - start.x, end.y - start.y);
+            console.log(`YC second-flight visible motion over 3s: ${visibleMotionPx.toFixed(1)} px`);
+            expect(visibleMotionPx).toBeGreaterThan(10);
+            await page.screenshot({ path: "../artifacts/yc-second-flight-mid.png", fullPage: true });
+
+            await expect(page.getByText("MISSION_ITEM_REACHED").nth(1)).toBeVisible({ timeout: 75_000 });
+            await page.screenshot({ path: "../artifacts/yc-second-flight-arrival.png", fullPage: true });
+            await expect(page.getByText("RTL COMMAND ACKNOWLEDGED").first()).toBeVisible({ timeout: 75_000 });
+          });
+          TS
+
+          nohup bash -lc 'cd frontend && pnpm dev --hostname localhost' > frontend-yc-demo.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -fsS --max-time 1 http://localhost:3000/demo/intrusion >/dev/null && exit 0
+            sleep 1
+          done
+          cat frontend-yc-demo.log >&2
+          exit 1
+
+      - name: Pull pinned PX4 image
+        run: docker pull jonasvautherin/px4-gazebo-headless@sha256:77f11913cbb2c4e9147a0ec0fdc4318e9575515e20e88d1f3cd9a21470ddcd21
+
+      - name: Run one clean YC recording scenario
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          ready_file="$GITHUB_WORKSPACE/artifacts/browser-ready"
+
+          cleanup() {
+            if [ -f artifacts/backend.pid ]; then
+              kill -TERM "$(cat artifacts/backend.pid)" >/dev/null 2>&1 || true
+            fi
+            docker rm -f px4-yc-demo >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          uv run python - <<'PY'
+          import os
+          import redis
+          client = redis.Redis.from_url(os.environ["REDIS_URL"])
+          client.flushall()
+          client.close()
+          PY
+
+          docker run -d --name px4-yc-demo --network host \
+            --entrypoint /bin/bash -e DISPLAY=:99 \
+            jonasvautherin/px4-gazebo-headless@sha256:77f11913cbb2c4e9147a0ec0fdc4318e9575515e20e88d1f3cd9a21470ddcd21 \
+            -lc 'rm -f /tmp/.X99-lock; Xvfb :99 -screen 0 1600x1200x24+32 & cd /root/Firmware && Tools/simulation/gazebo-classic/sitl_multiple_run.sh -m iris -n 2 -w empty' \
+            >/dev/null
+          sleep 8
+          test "$(docker inspect -f '{{.State.Running}}' px4-yc-demo)" = true
+
+          uv run python scripts/configure_px4_payload_output.py \
+            --connections udpin:0.0.0.0:14541,udpin:0.0.0.0:14542 \
+            --output-channel 5
+
+          nohup uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8765 > artifacts/backend.log 2>&1 &
+          echo $! > artifacts/backend.pid
+          for i in $(seq 1 60); do
+            curl -fsS --max-time 1 http://localhost:8765/health >/dev/null && break
+            if [ "$i" -eq 60 ]; then cat artifacts/backend.log >&2; exit 1; fi
+            sleep 1
+          done
+
+          (cd frontend && BROWSER_READY_FILE="$ready_file" pnpm exec playwright test yc-demo-live.temp.spec.ts --reporter=line > ../artifacts/browser.log 2>&1) &
+          browser_pid=$!
+          for i in $(seq 1 120); do
+            if [ -s "$ready_file" ]; then break; fi
+            if ! kill -0 "$browser_pid" >/dev/null 2>&1; then cat artifacts/browser.log >&2; exit 1; fi
+            if [ "$i" -eq 120 ]; then cat artifacts/browser.log >&2; exit 1; fi
+            sleep 0.5
+          done
+          sleep 1
+
+          set +e
+          uv run python scripts/yc_demo_recording_probe.py \
+            --redis-url "$REDIS_URL" \
+            --expected-agents mav-001,mav-002 \
+            --timeout-s 220 \
+            --json-out artifacts/yc-demo.json
+          probe_status=$?
+          wait "$browser_pid"
+          browser_status=$?
+          set -e
+
+          docker logs px4-yc-demo > artifacts/px4.log 2>&1 || true
+          if [ "$probe_status" -ne 0 ] || [ "$browser_status" -ne 0 ]; then
+            echo "probe_status=$probe_status browser_status=$browser_status" >&2
+            cat artifacts/browser.log >&2 || true
+            cat artifacts/backend.log >&2 || true
+            exit 1
+          fi
+
+      - name: Upload YC verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: yc-demo-visible-second-flight
+          path: |
+            artifacts/
+            frontend-yc-demo.log
+          if-no-files-found: error
+          retention-days: 7
