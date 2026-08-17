@@ -15,6 +15,7 @@ import {
   boundsCenter,
   boundsHalfSpan,
   buildProjection,
+  distanceM,
   localBounds,
   snapExtent,
   type LocalPoint,
@@ -202,6 +203,48 @@ function Basemap({
   );
 }
 
+function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveStory }) {
+  const rangeM = story.geo ? distanceM(unit.geo, story.geo) : null;
+  return (
+    <div
+      data-testid="focused-executor-telemetry"
+      className="pointer-events-none absolute left-3 top-[78px] z-20 min-w-[255px] border border-orbital-blue/45 bg-absolute-black/90 px-3 py-2 font-mono shadow-inset-highlight"
+    >
+      <div className="flex items-center justify-between gap-5">
+        <span className="text-[11px] uppercase tracking-[0.14em] text-ash">EXECUTOR TELEMETRY</span>
+        <span className="text-[12px] tracking-[0.1em] text-orbital-blue">{story.label}</span>
+      </div>
+      <div className="mt-1 flex items-baseline justify-between gap-5">
+        <span className="text-[16px] font-medium tracking-[0.08em] text-platinum">{unit.agentId}</span>
+        <span className="text-[14px] tracking-[0.08em] text-orbital-blue">
+          {unit.fsmState.replaceAll("_", " ")}
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 border-t border-gunmetal pt-2">
+        <div>
+          <div className="text-[10px] tracking-[0.13em] text-ash">ALTITUDE</div>
+          <div
+            data-testid="focused-executor-altitude"
+            className="mt-0.5 text-[20px] tabular-nums tracking-[0.04em] text-platinum"
+          >
+            {unit.altitudeAglM.toFixed(0)} m AGL
+          </div>
+        </div>
+        <div className="border-l border-gunmetal pl-2">
+          <div className="text-[10px] tracking-[0.13em] text-ash">RANGE TO OBJ</div>
+          <div
+            data-testid="focused-executor-range"
+            className="mt-0.5 text-[20px] tabular-nums tracking-[0.04em] text-platinum"
+          >
+            {rangeM == null ? "—" : `${rangeM.toFixed(1)} m`}
+          </div>
+        </div>
+      </div>
+      <div className="mt-1.5 text-[10px] tracking-[0.1em] text-ash">OBSERVED PX4 SITL TELEMETRY</div>
+    </div>
+  );
+}
+
 export function OperationalMap({
   units,
   stories,
@@ -225,6 +268,10 @@ export function OperationalMap({
         : null,
     [origin, extentM, box.width, box.height, center]
   );
+  const focusedStory = stories.find((story) => story.missionId === focusMissionId) ?? null;
+  const focusedUnit = focusedStory?.owner
+    ? units.find((unit) => unit.agentId === focusedStory.owner) ?? null
+    : null;
 
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden bg-absolute-black">
@@ -239,6 +286,10 @@ export function OperationalMap({
           focusMissionId={focusMissionId}
         />
       </div>
+
+      {focusedStory && focusedUnit ? (
+        <ExecutorTelemetry unit={focusedUnit} story={focusedStory} />
+      ) : null}
 
       {origin ? (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 bg-absolute-black/70 px-2 py-1 font-mono text-[10px] tracking-[0.08em] text-ash">
