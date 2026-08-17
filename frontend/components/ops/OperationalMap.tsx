@@ -181,7 +181,7 @@ function Basemap({
       <div
         className="absolute inset-0"
         data-testid="real-basemap"
-        style={{ filter: "grayscale(1) brightness(0.62) contrast(1.08)", opacity: 0.94 }}
+        style={{ filter: "grayscale(1) brightness(1.35) contrast(1.08)", opacity: 0.96 }}
       >
         {tiles.map((tile) => (
           <div
@@ -197,7 +197,7 @@ function Basemap({
           />
         ))}
       </div>
-      <div className="absolute inset-0 bg-absolute-black/25" />
+      <div className="absolute inset-0 bg-absolute-black/15" />
     </div>
   );
 }
@@ -232,7 +232,7 @@ export function OperationalMap({
         <Basemap origin={origin} center={center} mPerPx={projection.mPerPx} box={box} />
       ) : null}
 
-      <div className="absolute inset-0 z-10">
+      <div className="absolute inset-0 z-10" style={{ mixBlendMode: "screen" }}>
         <LocalOperationalMap
           units={units}
           stories={stories}
@@ -245,12 +245,6 @@ export function OperationalMap({
           REAL BASEMAP · © OPENSTREETMAP CONTRIBUTORS · © CARTO · CONTEXT ONLY
         </div>
       ) : null}
-
-      <style jsx global>{`
-        [data-testid="operational-map"] {
-          background-color: transparent !important;
-        }
-      `}</style>
     </div>
   );
 }
