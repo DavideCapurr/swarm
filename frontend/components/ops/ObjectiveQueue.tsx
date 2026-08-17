@@ -2,7 +2,8 @@
 
 /**
  * ObjectiveQueue — every objective SwarmOS is currently answering, in arrival
- * order, each carrying its owner and how far its mission has actually got.
+ * order, each carrying its reported source, owner and how far its mission has
+ * actually got.
  *
  * This is where the second event has to become obvious: a new objective
  * appears while the first is still mid-ladder.
@@ -81,7 +82,7 @@ export function ObjectiveQueue({
                   <span className="font-mono text-[13px] tracking-[0.16em] text-launch-amber">
                     {story.label}
                   </span>
-                  <Value size="md">{story.kind}</Value>
+                  <Value size="md">{story.missionKind} {story.kind}</Value>
                 </span>
                 <Value size="sm" tone="ash">
                   {clock(story.detectedAt ?? story.decisionTs)}
@@ -99,6 +100,16 @@ export function ObjectiveQueue({
                   owner{" "}
                   <span className="text-orbital-blue">{story.owner ?? "unassigned"}</span>
                 </span>
+              </div>
+
+              <div className="mt-[5px] flex items-baseline justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.12em]">
+                <span className="text-ash">
+                  reported input{" "}
+                  <span className="text-launch-amber">
+                    {story.detectedBy ?? "swarm anomaly bus"}
+                  </span>
+                </span>
+                <span className="text-muted-silver">→ {story.label}</span>
               </div>
 
               <div className="mt-[10px] flex items-center gap-[3px]">
@@ -149,26 +160,31 @@ export function ObjectiveQueue({
 }
 
 /**
- * The stock perimeter clip, demoted to a small labelled asset.
+ * A small, permanently labelled scene reference for the first reported input.
  *
- * It is a visualisation of the scene, never operational evidence and never a
- * live camera. The MAVLink path publishes no video, so the Console must not
- * imply one. The label is permanent, not a hover state.
+ * The bundled clip is simulated and is never operational evidence or a live
+ * camera. The source name and objective labels below come from the server story;
+ * the imagery remains only visual context for that reported input.
  */
-export function ImageryAside({ src, present }: { src: string; present: boolean }) {
+export function ImageryAside({ src, story }: { src: string; story: ObjectiveStory | null }) {
+  const source = story?.detectedBy ?? "sensor input";
+  const intent = story ? `${story.missionKind} ${story.kind}` : "AWAITING INPUT";
+  const confidence =
+    story?.confidence != null ? `${(story.confidence * 100).toFixed(0)}%` : "—";
+
   return (
     <section className="border border-gunmetal bg-absolute-black">
       <header className="flex h-[30px] items-center justify-between border-b border-gunmetal bg-obsidian px-3">
-        <Eyebrow>scene imagery</Eyebrow>
+        <Eyebrow>sensor input context</Eyebrow>
         <span className="font-mono text-[12px] tracking-[0.16em] text-launch-amber">
-          SIMULATED
+          SIMULATED IMAGERY
         </span>
       </header>
-      <div className="relative h-[104px] w-full overflow-hidden bg-obsidian">
-        {present ? (
+      <div className="relative h-[116px] w-full overflow-hidden bg-obsidian">
+        {story ? (
           <video
-            aria-label="Simulated perimeter imagery"
-            className="h-full w-full object-cover opacity-60"
+            aria-label="Simulated scene reference for reported sensor input"
+            className="h-full w-full object-cover opacity-55"
             src={src}
             autoPlay
             muted
@@ -176,11 +192,20 @@ export function ImageryAside({ src, present }: { src: string; present: boolean }
             playsInline
           />
         ) : null}
-        <div className="absolute inset-0 flex items-end justify-between px-2 pb-2">
-          <span className="bg-absolute-black/80 px-[6px] py-[3px] font-mono text-[11px] tracking-[0.14em] text-launch-amber">
-            SIMULATED IMAGERY · NOT EVIDENCE
+
+        {story ? (
+          <div className="absolute left-2 top-2 bg-absolute-black/85 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.12em]">
+            <div className="text-launch-amber">REPORTED SOURCE · {source}</div>
+            <div className="mt-[2px] text-platinum">{intent} · {confidence}</div>
+            <div className="mt-[2px] text-orbital-blue">REPORTED INPUT → {story.label}</div>
+          </div>
+        ) : null}
+
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between px-2 pb-2">
+          <span className="bg-absolute-black/85 px-[6px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-launch-amber">
+            SIMULATED VISUAL · NOT EVIDENCE
           </span>
-          <span className="bg-absolute-black/80 px-[6px] py-[3px] font-mono text-[11px] tracking-[0.14em] text-ash">
+          <span className="bg-absolute-black/85 px-[6px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-ash">
             NOT A LIVE FEED
           </span>
         </div>
