@@ -93,12 +93,12 @@ function useWallClock(enabled: boolean): number {
 function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
   if (!story) {
     return (
-      <div className="flex h-[42px] shrink-0 items-center border border-gunmetal bg-obsidian px-3">
-        <span className="font-mono text-[12px] tracking-[0.16em] text-ash">CONTROL LOOP</span>
-        <span className="ml-4 font-mono text-[13px] tracking-[0.12em] text-muted-silver">
+      <div className="flex h-[48px] shrink-0 items-center border border-gunmetal bg-obsidian px-3">
+        <span className="font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
+        <span className="ml-4 font-mono text-[14px] tracking-[0.08em] text-muted-silver">
           SENSOR INPUT → OBJECTIVE → SWARMOS DECIDES → PHYSICAL AGENTS EXECUTE → VERIFIED EVIDENCE RETURNS
         </span>
-        <span className="ml-auto font-mono text-[12px] tracking-[0.14em] text-orbital-blue">
+        <span className="ml-auto font-mono text-[13px] tracking-[0.1em] text-orbital-blue">
           SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
         </span>
       </div>
@@ -112,10 +112,10 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
 
   return (
     <div
-      className="flex h-[42px] shrink-0 items-center gap-3 overflow-hidden border border-gunmetal bg-obsidian px-3 shadow-inset-highlight"
+      className="flex h-[50px] shrink-0 items-center gap-3 overflow-hidden border border-gunmetal bg-obsidian px-3 shadow-inset-highlight"
       data-testid="control-loop-strip"
     >
-      <span className="shrink-0 font-mono text-[12px] tracking-[0.16em] text-ash">CONTROL LOOP</span>
+      <span className="shrink-0 font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
       <LoopValue
         label="input → objective"
         value={`${source} → ${story.label} · ${story.kind} · ${story.missionKind}`}
@@ -155,9 +155,6 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
         value={verified?.proof ?? "PENDING"}
         tone={verified ? "green" : "silver"}
       />
-      <span className="ml-auto shrink-0 border-l border-gunmetal pl-3 font-mono text-[12px] tracking-[0.14em] text-orbital-blue">
-        SWARMOS DECIDES · <span className="text-muted-silver">PHYSICAL AGENTS EXECUTE</span>
-      </span>
     </div>
   );
 }
@@ -180,15 +177,15 @@ function LoopValue({
   }[tone];
 
   return (
-    <span className="flex min-w-0 shrink items-baseline gap-2 whitespace-nowrap">
-      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ash">{label}</span>
-      <span className={`truncate font-mono text-[13px] tracking-[0.1em] ${toneClass}`}>{value}</span>
+    <span className="flex min-w-0 shrink flex-col gap-[2px] whitespace-nowrap">
+      <span className="font-mono text-[11px] uppercase leading-none tracking-[0.12em] text-ash">{label}</span>
+      <span className={`truncate font-mono text-[14px] leading-none tracking-[0.07em] ${toneClass}`}>{value}</span>
     </span>
   );
 }
 
 function Arrow() {
-  return <span className="shrink-0 font-mono text-[13px] text-graphite">→</span>;
+  return <span className="shrink-0 font-mono text-[14px] text-graphite">→</span>;
 }
 
 export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
@@ -254,6 +251,9 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
 
   const owning = fleetRows.filter((row) => row.missionId).length;
   const objectivesOpen = stories.filter((story) => story.active).length;
+  const separateTakeBBench = Boolean(
+    group && frame.sessionLabel.trim().toLowerCase().includes("take b")
+  );
 
   return (
     <main className="flex h-screen min-h-0 flex-col gap-2 bg-absolute-black p-2 text-platinum">
@@ -271,7 +271,21 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
 
       <ControlLoopStrip story={focusStory} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(340px,16%)_minmax(0,1fr)_minmax(470px,26%)] gap-2">
+      {separateTakeBBench ? (
+        <div
+          data-testid="take-b-bench-boundary"
+          className="flex h-[34px] shrink-0 items-center justify-between border border-launch-amber/55 bg-launch-amber/[0.04] px-3 font-mono uppercase"
+        >
+          <span className="text-[13px] font-medium tracking-[0.12em] text-launch-amber">
+            TAKE B · SEPARATE PX4 SITL BENCH
+          </span>
+          <span className="text-[12px] tracking-[0.1em] text-muted-silver">
+            NOT CONTINUOUS WITH TAKE A · SITL ONLY
+          </span>
+        </div>
+      ) : null}
+
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(380px,17%)_minmax(0,1fr)_minmax(540px,28%)] gap-2">
         <div className="flex min-h-0 flex-col gap-2">
           <ObjectiveQueue
             className="max-h-[46%] shrink-0"
