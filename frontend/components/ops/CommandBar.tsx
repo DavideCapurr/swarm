@@ -3,9 +3,9 @@
 /**
  * CommandBar — the standing header of the operational surface.
  *
- * It carries only facts that are true of the whole session: who is connected,
- * how many agents SwarmOS holds, how many objectives are open, and where the
- * claim boundary of this surface sits.
+ * It carries only facts that are true of the whole session: what SwarmOS is
+ * doing at mission level, who is connected, how many agents SwarmOS holds, how
+ * many objectives are open, and where the claim boundary of this surface sits.
  *
  * The literal word CONNECTED is the recording runbook's start signal
  * (`docs/bench/final-demo-rehearsal.md` §5) — it must stay exact.
@@ -51,7 +51,11 @@ export function CommandBar({
         <span className="font-mono text-[13px] tracking-[0.18em] text-ash">SwarmOS</span>
       </div>
 
-      <Cell label="surface">PERIMETER RESPONSE · {sessionLabel}</Cell>
+      <Cell label="mission layer" tone="orbital">
+        DECIDES WHAT THE FLEET SHOULD DO
+      </Cell>
+
+      <Cell label="operation">PERIMETER RESPONSE · {sessionLabel}</Cell>
 
       <div className="flex items-center gap-2 border-r border-gunmetal px-4">
         <span
