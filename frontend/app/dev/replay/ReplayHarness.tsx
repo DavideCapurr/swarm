@@ -10,21 +10,13 @@ import { TAKE_A, foldTakeA, takeAFrames } from "@/lib/demo-frames";
  *
  * Everything the console renders here is stamped REPLAY by the command bar, so
  * it can never be mistaken for live SwarmOS truth.
- *
- * `?at=<milliseconds>` is intentionally supported for deterministic visual
- * verification. It only selects which already-recorded server frames are folded
- * into the replay; it creates no runtime truth and never reaches production.
  */
-export function ReplayHarness() {
+export function ReplayHarness({ initialAtMs = 30_000 }: { initialAtMs?: number }) {
   const frames = useMemo(() => takeAFrames(), []);
-  const [atMs, setAtMs] = useState(30_000);
+  const [atMs, setAtMs] = useState(() =>
+    Math.max(0, Math.min(TAKE_A.durationMs, initialAtMs))
+  );
   const [playing, setPlaying] = useState(false);
-
-  useEffect(() => {
-    const requested = Number(new URLSearchParams(window.location.search).get("at"));
-    if (!Number.isFinite(requested)) return;
-    setAtMs(Math.max(0, Math.min(TAKE_A.durationMs, requested)));
-  }, []);
 
   useEffect(() => {
     if (!playing) return;
