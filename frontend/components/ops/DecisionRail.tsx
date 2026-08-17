@@ -74,7 +74,7 @@ export function DecisionRail({
         <div className="flex flex-col">
           <Step n={1} title="Objective">
             <div className="flex items-baseline justify-between gap-4">
-              <Value size="xl">{story.kind}</Value>
+              <Value size="lg">{story.kind}</Value>
               <Value size="sm" tone="ash">
                 {clock(story.detectedAt ?? story.decisionTs)}
               </Value>
@@ -116,7 +116,7 @@ export function DecisionRail({
 
           <Step n={3} title="Selected by SwarmOS">
             <div className="flex items-baseline justify-between gap-4">
-              <Value size="xl" tone="orbital" className="tracking-[0.04em]">
+              <Value size="lg" tone="orbital" className="tracking-[0.04em]">
                 {story.owner ?? "NO AWARD"}
               </Value>
               <div className="text-right">
@@ -265,13 +265,13 @@ function Step({
   last?: boolean;
 }) {
   return (
-    <div className="relative grid grid-cols-[28px_minmax(0,1fr)] gap-x-3 px-4 pb-4 pt-3">
+    <div className="relative grid grid-cols-[28px_minmax(0,1fr)] gap-x-3 px-4 pb-3 pt-2">
       <div className="flex flex-col items-center">
         <StepNumber n={n} />
         {!last ? <div className="mt-2 w-px flex-1 bg-gunmetal" /> : null}
       </div>
       <div className="min-w-0">
-        <div className="mb-2 flex items-center gap-3">
+        <div className="mb-1.5 flex items-center gap-3">
           <Eyebrow tone="platinum">{title}</Eyebrow>
           <div className="h-px flex-1 bg-gunmetal" />
         </div>
