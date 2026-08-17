@@ -102,7 +102,7 @@ jobs:
             await expect(page).toHaveURL(/\/demo\/intrusion$/, { timeout: 15_000 });
             await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible({ timeout: 20_000 });
             await expect(page.getByText(/SIMULATED OPERATING SCENARIO/)).toBeVisible();
-            await expect(page.getByText(/PX4 SITL TELEMETRY/)).toBeVisible();
+            await expect(page.getByText("PX4 SITL TELEMETRY · IMAGERY SIMULATED", { exact: true })).toBeVisible();
 
             const readyFile = process.env.BROWSER_READY_FILE;
             if (!readyFile) throw new Error("BROWSER_READY_FILE is required");
