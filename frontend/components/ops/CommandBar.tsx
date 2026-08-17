@@ -55,7 +55,7 @@ export function CommandBar({
         DECIDES WHAT THE FLEET SHOULD DO
       </Cell>
 
-      <Cell label="operation">PERIMETER RESPONSE · {sessionLabel}</Cell>
+      <Cell label="operation">MISSION CONTROL · {sessionLabel}</Cell>
 
       <div className="flex items-center gap-2 border-r border-gunmetal px-4">
         <span
