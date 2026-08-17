@@ -155,6 +155,9 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
         value={verified?.proof ?? "PENDING"}
         tone={verified ? "green" : "silver"}
       />
+      <span className="ml-auto shrink-0 border-l border-gunmetal pl-3 font-mono text-[11px] leading-tight tracking-[0.08em] text-orbital-blue">
+        SWARMOS DECIDES · <span className="text-muted-silver">PHYSICAL AGENTS EXECUTE</span>
+      </span>
     </div>
   );
 }
