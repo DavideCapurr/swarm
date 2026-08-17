@@ -9,7 +9,7 @@
  * other.
  *
  * Reading order enforced by the layout:
- *   objective (left) → fleet state (left) → SwarmOS decision (right)
+ *   sensor input → objective (left) → fleet state (left) → SwarmOS decision (right)
  *   → mission ownership (right) → physical execution (map + right)
  *   → verified evidence (right) → adaptation (bottom timeline).
  */
@@ -86,8 +86,9 @@ function useWallClock(enabled: boolean): number {
  *
  * This is intentionally redundant with the richer panels. A first-time viewer
  * should be able to understand what SwarmOS does before learning how to read
- * the entire Console: objective → central decision → ownership → physical
- * execution → evidence. Every value is already present in the focused story.
+ * the entire Console: reported sensor input → objective → central decision →
+ * ownership → physical execution → evidence. Every value is already present in
+ * the focused story.
  */
 function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
   if (!story) {
@@ -95,7 +96,7 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
       <div className="flex h-[42px] shrink-0 items-center border border-gunmetal bg-obsidian px-3">
         <span className="font-mono text-[12px] tracking-[0.16em] text-ash">CONTROL LOOP</span>
         <span className="ml-4 font-mono text-[13px] tracking-[0.12em] text-muted-silver">
-          OBJECTIVE → SWARMOS DECIDES → PHYSICAL AGENTS EXECUTE → VERIFIED EVIDENCE RETURNS
+          SENSOR INPUT → OBJECTIVE → SWARMOS DECIDES → PHYSICAL AGENTS EXECUTE → VERIFIED EVIDENCE RETURNS
         </span>
         <span className="ml-auto font-mono text-[12px] tracking-[0.14em] text-orbital-blue">
           SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
@@ -107,6 +108,7 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
   const excluded = story.candidates.find((candidate) => candidate.kind === "excluded");
   const verified = story.evidence.filter((row) => row.tier === "verified").at(-1);
   const phase = serverPhaseLabel(story.serverPhase);
+  const source = story.detectedBy ?? "swarm anomaly bus";
 
   return (
     <div
@@ -114,7 +116,11 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
       data-testid="control-loop-strip"
     >
       <span className="shrink-0 font-mono text-[12px] tracking-[0.16em] text-ash">CONTROL LOOP</span>
-      <LoopValue label="objective" value={`${story.label} · ${story.kind}`} tone="amber" />
+      <LoopValue
+        label="input → objective"
+        value={`${source} → ${story.label} · ${story.missionKind} ${story.kind}`}
+        tone="amber"
+      />
       <Arrow />
       {excluded ? (
         <>
@@ -227,6 +233,11 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
     pinned && stories.some((story) => story.missionId === pinned) ? pinned : newestMissionId;
   const focusStory = stories.find((story) => story.missionId === focusMissionId) ?? null;
 
+  // The scene clip is a permanently labelled simulated reference, not evidence.
+  // Prefer the intrusion source because the bundled clip depicts that first
+  // objective; never relabel it as the later thermal input.
+  const imageryStory = stories.find((story) => story.kind === "INTRUSION") ?? focusStory;
+
   // Fleet-wide, not focus-scoped: the light is on because of the *first*
   // objective while SwarmOS is already allocating the second, and that overlap
   // is exactly what the surface has to show.
@@ -269,7 +280,7 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
             onFocus={setPinned}
           />
           <FleetPanel className="min-h-0 flex-1" rows={fleetRows} />
-          <ImageryAside src={SCENE_IMAGERY} present={stories.length > 0} />
+          <ImageryAside src={SCENE_IMAGERY} story={imageryStory} />
         </div>
 
         <OperationalMap units={fleetRows} stories={stories} focusMissionId={focusMissionId} />
