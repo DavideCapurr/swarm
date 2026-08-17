@@ -33,6 +33,7 @@ const DEG = Math.PI / 180;
 const TILE_SIZE = 256;
 const MAX_TILE_ZOOM = 19;
 const MAX_MERCATOR_LAT = 85.05112878;
+const ALTITUDE_SCALE_MAX_M = 50;
 
 type Tile = {
   key: string;
@@ -205,10 +206,14 @@ function Basemap({
 
 function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveStory }) {
   const rangeM = story.geo ? distanceM(unit.geo, story.geo) : null;
+  const altitudeScalePct = Math.max(
+    0,
+    Math.min(100, (unit.altitudeAglM / ALTITUDE_SCALE_MAX_M) * 100)
+  );
   return (
     <div
       data-testid="focused-executor-telemetry"
-      className="pointer-events-none absolute left-3 top-[78px] z-20 min-w-[255px] border border-orbital-blue/45 bg-absolute-black/90 px-3 py-2 font-mono shadow-inset-highlight"
+      className="pointer-events-none absolute left-3 top-[78px] z-20 min-w-[275px] border border-orbital-blue/45 bg-absolute-black/90 px-3 py-2 font-mono shadow-inset-highlight"
     >
       <div className="flex items-center justify-between gap-5">
         <span className="text-[11px] uppercase tracking-[0.14em] text-ash">EXECUTOR TELEMETRY</span>
@@ -238,6 +243,19 @@ function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveSt
           >
             {rangeM == null ? "—" : `${rangeM.toFixed(1)} m`}
           </div>
+        </div>
+      </div>
+      <div className="mt-2">
+        <div className="mb-1 flex justify-between text-[9px] tracking-[0.1em] text-ash">
+          <span>OBSERVED ALTITUDE</span>
+          <span>0–{ALTITUDE_SCALE_MAX_M} m SCALE</span>
+        </div>
+        <div className="h-[5px] w-full overflow-hidden border border-gunmetal bg-absolute-black">
+          <div
+            data-testid="focused-executor-altitude-bar"
+            className="h-full bg-orbital-blue transition-[width] duration-300 ease-linear"
+            style={{ width: `${altitudeScalePct}%` }}
+          />
         </div>
       </div>
       <div className="mt-1.5 text-[10px] tracking-[0.1em] text-ash">OBSERVED PX4 SITL TELEMETRY</div>
