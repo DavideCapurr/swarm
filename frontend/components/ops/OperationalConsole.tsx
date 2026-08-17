@@ -30,6 +30,9 @@ import {
   buildPayloadChannels,
   buildStories,
   buildTimeline,
+  serverPhaseLabel,
+  shortId,
+  type ObjectiveStory,
 } from "@/lib/mission-story";
 import type { LinkState } from "@/lib/state";
 
@@ -76,6 +79,110 @@ function useWallClock(enabled: boolean): number {
     return () => window.clearInterval(id);
   }, [enabled]);
   return now;
+}
+
+/**
+ * One-line causal readout of the focused objective.
+ *
+ * This is intentionally redundant with the richer panels. A first-time viewer
+ * should be able to understand what SwarmOS does before learning how to read
+ * the entire Console: objective → central decision → ownership → physical
+ * execution → evidence. Every value is already present in the focused story.
+ */
+function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
+  if (!story) {
+    return (
+      <div className="flex h-[42px] shrink-0 items-center border border-gunmetal bg-obsidian px-3">
+        <span className="font-mono text-[12px] tracking-[0.16em] text-ash">CONTROL LOOP</span>
+        <span className="ml-4 font-mono text-[13px] tracking-[0.12em] text-muted-silver">
+          OBJECTIVE → SWARMOS DECIDES → PHYSICAL AGENTS EXECUTE → VERIFIED EVIDENCE RETURNS
+        </span>
+        <span className="ml-auto font-mono text-[12px] tracking-[0.14em] text-orbital-blue">
+          SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
+        </span>
+      </div>
+    );
+  }
+
+  const excluded = story.candidates.find((candidate) => candidate.kind === "excluded");
+  const verified = story.evidence.filter((row) => row.tier === "verified").at(-1);
+  const phase = serverPhaseLabel(story.serverPhase);
+
+  return (
+    <div
+      className="flex h-[42px] shrink-0 items-center gap-3 overflow-hidden border border-gunmetal bg-obsidian px-3 shadow-inset-highlight"
+      data-testid="control-loop-strip"
+    >
+      <span className="shrink-0 font-mono text-[12px] tracking-[0.16em] text-ash">CONTROL LOOP</span>
+      <LoopValue label="objective" value={`${story.label} · ${story.kind}`} tone="amber" />
+      <Arrow />
+      {excluded ? (
+        <>
+          <LoopValue
+            label="constraint"
+            value={`${excluded.agentId} EXCLUDED · ${excluded.reason}`}
+            tone="amber"
+          />
+          <Arrow />
+        </>
+      ) : null}
+      <LoopValue
+        label="SwarmOS decision"
+        value={story.owner ? `SELECT ${story.owner}` : "NO AWARD"}
+        tone="orbital"
+      />
+      <Arrow />
+      <LoopValue
+        label="mission ownership"
+        value={`${shortId(story.missionId)} → ${story.owner ?? "—"}`}
+        tone="platinum"
+      />
+      <Arrow />
+      <LoopValue
+        label="physical execution"
+        value={phase}
+        tone={story.serverPhase === "ON_STATION" || story.serverPhase === "DONE" ? "green" : "orbital"}
+      />
+      <Arrow />
+      <LoopValue
+        label="verified evidence"
+        value={verified?.proof ?? "PENDING"}
+        tone={verified ? "green" : "silver"}
+      />
+      <span className="ml-auto shrink-0 border-l border-gunmetal pl-3 font-mono text-[12px] tracking-[0.14em] text-orbital-blue">
+        SWARMOS DECIDES · <span className="text-muted-silver">PHYSICAL AGENTS EXECUTE</span>
+      </span>
+    </div>
+  );
+}
+
+function LoopValue({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "amber" | "orbital" | "green" | "platinum" | "silver";
+}) {
+  const toneClass = {
+    amber: "text-launch-amber",
+    orbital: "text-orbital-blue",
+    green: "text-signal-green",
+    platinum: "text-platinum",
+    silver: "text-muted-silver",
+  }[tone];
+
+  return (
+    <span className="flex min-w-0 shrink items-baseline gap-2 whitespace-nowrap">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ash">{label}</span>
+      <span className={`truncate font-mono text-[13px] tracking-[0.1em] ${toneClass}`}>{value}</span>
+    </span>
+  );
+}
+
+function Arrow() {
+  return <span className="shrink-0 font-mono text-[13px] text-graphite">→</span>;
 }
 
 export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
@@ -151,6 +258,8 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
         replay={frame.replay}
       />
 
+      <ControlLoopStrip story={focusStory} />
+
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(340px,16%)_minmax(0,1fr)_minmax(470px,26%)] gap-2">
         <div className="flex min-h-0 flex-col gap-2">
           <ObjectiveQueue
@@ -168,7 +277,7 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
         <DecisionRail story={focusStory} group={group} payloadChannels={payloadChannels} />
       </div>
 
-      <MissionTimeline className="h-[280px] shrink-0" timeline={timeline} />
+      <MissionTimeline className="h-[260px] shrink-0" timeline={timeline} />
     </main>
   );
 }
