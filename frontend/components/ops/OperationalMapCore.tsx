@@ -334,16 +334,11 @@ function Home({ projection }: { projection: NonNullable<ReturnType<typeof buildP
         stroke={C.silver}
         strokeWidth={1.5}
       />
-      <text
-        x={p.x + 12}
-        y={p.y + 4}
-        fill={C.label}
-        fontFamily={tokens.font.mono}
-        fontSize={15}
-        letterSpacing="0.16em"
-      >
-        HOME
-      </text>
+      {/* The square alone marks home. Its caption used to float beside it at a
+          fixed offset and collided with whichever objective caption happened to
+          sit near the origin — and the origin is already stated exactly, as
+          lat/lon, in the site-frame block at the top left. Redundant chrome
+          competing with live data is what made this map hard to read. */}
     </g>
   );
 }
@@ -390,6 +385,11 @@ function Assignment({
   const from = projection.project(owner.geo);
   const to = projection.project(story.geo);
   const arrived = story.latestStep === "ON STATION" || story.latestStep === "RTL";
+  // The assignment is drawn, not captioned. A `owner → label` caption used to
+  // sit at the midpoint of this line, which lands directly on both endpoints'
+  // own captions whenever the agent is close to its objective — exactly the
+  // moment the map matters most. The line, its colour and the legend already
+  // say which agent is assigned where, and both ends are labelled.
   return (
     <g>
       <line
@@ -402,18 +402,6 @@ function Assignment({
         strokeWidth={focused ? 1.5 : 1}
         strokeDasharray={arrived ? undefined : "5 5"}
       />
-      <text
-        x={(from.x + to.x) / 2}
-        y={(from.y + to.y) / 2 - 7}
-        textAnchor="middle"
-        fill={arrived ? C.green : C.orbital}
-        fontFamily={tokens.font.mono}
-        fontSize={15}
-        letterSpacing="0.16em"
-        opacity={focused ? 1 : 0.6}
-      >
-        {`${story.owner} → ${story.label}`}
-      </text>
     </g>
   );
 }
@@ -443,11 +431,13 @@ function ObjectiveMark({
       {/* Objective labels always sit above the marker; agent labels always sit
           below theirs. The two can be metres apart on this site frame, so the
           separation has to come from the layout, not from luck. */}
+      {/* 21px of baseline separation for a 20px face. At the previous 17px the
+          objective label's own em box ran into its confidence line. */}
       <text
         x={p.x}
-        y={p.y - r - 26}
+        y={p.y - r - 32}
         textAnchor="middle"
-        fill={C.amber}
+        fill={C.silver}
         fontFamily={tokens.font.mono}
         fontSize={20}
         letterSpacing="0.16em"
@@ -456,7 +446,7 @@ function ObjectiveMark({
       </text>
       <text
         x={p.x}
-        y={p.y - r - 9}
+        y={p.y - r - 11}
         textAnchor="middle"
         fill={focused ? C.platinum : C.silver}
         fontFamily={tokens.font.mono}
@@ -589,7 +579,7 @@ function MapChrome({
         <span className="font-mono text-[12px] tracking-[0.18em] text-ash">N</span>
       </div>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 flex items-end gap-3">
+      <div className="pointer-events-none absolute bottom-7 left-3 flex items-end gap-3">
         <div className="flex flex-col gap-1">
           <span className="font-mono text-[12px] tracking-[0.12em] text-ash">
             GRID {step} m · FRAME ±{extentM} m
@@ -608,7 +598,7 @@ function MapChrome({
 
 function Legend() {
   return (
-    <div className="pointer-events-none absolute bottom-3 right-3 flex flex-col items-end gap-[5px] font-mono text-[12px] tracking-[0.1em] text-ash">
+    <div className="pointer-events-none absolute bottom-7 right-3 flex flex-col items-end gap-[5px] font-mono text-[12px] tracking-[0.1em] text-ash">
       <span className="flex items-center gap-2">
         <span className="block h-[9px] w-[9px] rotate-45 border border-launch-amber" />
         OBJECTIVE

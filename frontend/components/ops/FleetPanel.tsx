@@ -69,36 +69,51 @@ export function FleetPanel({
               </span>
             </div>
 
-            <div className="mt-[6px] font-mono text-[13px] tracking-[0.08em]">
+            {/* One line per fact, each truncating on its own. Packing objective,
+                mission id and step into a single wrapping line put the wrapped
+                tail on top of the row beneath it. */}
+            <div className="mt-[6px] font-mono text-[13px] leading-5 tracking-[0.08em]">
               {row.missionId ? (
-                <span className="text-muted-silver">
-                  owns{" "}
-                  <span className="text-platinum">{row.objectiveLabel}</span>
-                  {" · mission "}
-                  <span className="text-platinum">{shortId(row.missionId)}</span>
-                  {row.step ? <span className="text-ash">{` · ${row.step}`}</span> : null}
-                </span>
+                <>
+                  <div className="truncate text-ash">
+                    owns <span className="text-platinum">{row.objectiveLabel}</span>
+                    {" · mission "}
+                    <span className="text-muted-silver">{shortId(row.missionId)}</span>
+                  </div>
+                  {row.step ? (
+                    <div className="truncate text-ash">step {row.step}</div>
+                  ) : null}
+                </>
               ) : (
                 <span className="text-ash">no mission · available</span>
               )}
             </div>
 
             {row.role ? (
-              <div className="mt-[4px] font-mono text-[12px] tracking-[0.12em] text-orbital-blue">
-                role {row.role.replaceAll("_", " ")}
+              <div className="mt-[4px] truncate font-mono text-[12px] tracking-[0.12em] text-ash">
+                role <span className="text-muted-silver">{row.role.replaceAll("_", " ")}</span>
               </div>
             ) : null}
 
+            {/* Exclusion is a real decision state, so it keeps the amber — but
+                only on the verdict. The reason and the mission id behind it are
+                explanation, and explanation in escalation colour is why nothing
+                on this surface used to stand out. */}
             {row.excludedFrom ? (
               <div
                 data-testid={`fleet-excluded-${row.agentId}`}
-                className="mt-2 border-l-2 border-launch-amber bg-launch-amber/[0.05] px-2 py-2 font-mono text-[15px] font-medium tracking-[0.1em] text-launch-amber"
+                className="mt-2 border-l-2 border-launch-amber bg-launch-amber/[0.05] px-2 py-2 font-mono tracking-[0.1em]"
               >
-                EXCLUDED FROM {row.excludedFrom.label} · {row.excludedFrom.reason}
-                {row.excludedFrom.activeMissionId ? (
-                  <span className="mt-[2px] block text-[13px] font-normal text-ash">
-                    already holds mission {shortId(row.excludedFrom.activeMissionId)}
+                <div className="truncate text-[15px] leading-5">
+                  <span className="font-medium text-launch-amber">EXCLUDED</span>
+                  <span className="text-muted-silver">
+                    {` FROM ${row.excludedFrom.label} · ${row.excludedFrom.reason}`}
                   </span>
+                </div>
+                {row.excludedFrom.activeMissionId ? (
+                  <div className="mt-[2px] truncate text-[13px] leading-5 text-ash">
+                    already holds mission {shortId(row.excludedFrom.activeMissionId)}
+                  </div>
                 ) : null}
               </div>
             ) : null}

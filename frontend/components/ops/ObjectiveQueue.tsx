@@ -78,11 +78,16 @@ export function ObjectiveQueue({
               }`}
             >
               <div className="flex items-baseline justify-between gap-3">
-                <span className="flex items-baseline gap-3">
-                  <span className="font-mono text-[13px] tracking-[0.16em] text-launch-amber">
+                <span className="flex min-w-0 items-baseline gap-3">
+                  {/* The objective label is an identifier, not a state. It used
+                      to be amber, which spent the escalation colour on every
+                      row and left real attention with nothing to say. */}
+                  <span className="shrink-0 font-mono text-[13px] tracking-[0.16em] text-muted-silver">
                     {story.label}
                   </span>
-                  <Value size="md">{story.missionKind} {story.kind}</Value>
+                  <Value size="md" className="truncate">
+                    {story.missionKind} {story.kind}
+                  </Value>
                 </span>
                 <Value size="sm" tone="ash">
                   {clock(story.detectedAt ?? story.decisionTs)}
@@ -98,18 +103,20 @@ export function ObjectiveQueue({
                 </span>
                 <span className="font-mono text-[13px] tracking-[0.1em] text-ash">
                   owner{" "}
-                  <span className="text-orbital-blue">{story.owner ?? "unassigned"}</span>
+                  <span className="text-platinum">{story.owner ?? "unassigned"}</span>
                 </span>
               </div>
 
+              {/* Sensor id and objective label are both data. Neither is a
+                  state, so neither takes an accent. */}
               <div className="mt-[5px] flex items-baseline justify-between gap-3 font-mono text-[12px] uppercase tracking-[0.1em]">
-                <span className="text-ash">
+                <span className="min-w-0 truncate text-ash">
                   reported input{" "}
-                  <span className="text-launch-amber">
+                  <span className="text-muted-silver">
                     {story.detectedBy ?? "swarm anomaly bus"}
                   </span>
                 </span>
-                <span className="text-muted-silver">→ {story.label}</span>
+                <span className="shrink-0 text-ash">→ {story.label}</span>
               </div>
 
               <div className="mt-[10px] flex items-center gap-[3px]">
@@ -173,14 +180,25 @@ export function ImageryAside({ src, story }: { src: string; story: ObjectiveStor
     story?.confidence != null ? `${(story.confidence * 100).toFixed(0)}%` : "—";
 
   return (
-    <section className="border border-gunmetal bg-absolute-black">
+    <section className="shrink-0 border border-gunmetal bg-absolute-black">
       <header className="flex h-[30px] items-center justify-between border-b border-gunmetal bg-obsidian px-3">
         <Eyebrow>sensor input context</Eyebrow>
-        <span className="font-mono text-[12px] tracking-[0.16em] text-launch-amber">
+        <span className="font-mono text-[12px] tracking-[0.16em] text-ash">
           SIMULATED IMAGERY
         </span>
       </header>
-      <div className="relative h-[116px] w-full overflow-hidden bg-obsidian">
+      {/* The caption used to be absolutely positioned over a 116px clip, so its
+          third line landed on top of the bottom stamps. Caption and stamps now
+          sit in normal flow above and below the imagery: nothing overlaps, and
+          the honesty stamp can never be covered by scene content. */}
+      {story ? (
+        <div className="border-b border-gunmetal px-2 py-1 font-mono text-[11px] uppercase leading-[1.3] tracking-[0.08em]">
+          <div className="truncate text-ash">REPORTED SOURCE · {source}</div>
+          <div className="truncate text-platinum">{intent} · {confidence}</div>
+          <div className="truncate text-muted-silver">REPORTED INPUT → {story.label}</div>
+        </div>
+      ) : null}
+      <div className="relative h-[76px] w-full overflow-hidden bg-obsidian">
         {story ? (
           <video
             aria-label="Simulated scene reference for reported sensor input"
@@ -192,23 +210,14 @@ export function ImageryAside({ src, story }: { src: string; story: ObjectiveStor
             playsInline
           />
         ) : null}
-
-        {story ? (
-          <div className="absolute left-2 top-2 bg-absolute-black/88 px-2 py-1 font-mono text-[12px] uppercase tracking-[0.1em]">
-            <div className="text-launch-amber">REPORTED SOURCE · {source}</div>
-            <div className="mt-[2px] text-platinum">{intent} · {confidence}</div>
-            <div className="mt-[2px] text-orbital-blue">REPORTED INPUT → {story.label}</div>
-          </div>
-        ) : null}
-
-        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between px-2 pb-2">
-          <span className="bg-absolute-black/90 px-[7px] py-[4px] font-mono text-[12px] font-medium tracking-[0.1em] text-launch-amber">
-            SIMULATED IMAGERY · NOT EVIDENCE
-          </span>
-          <span className="bg-absolute-black/90 px-[7px] py-[4px] font-mono text-[12px] tracking-[0.1em] text-ash">
-            NOT A LIVE FEED
-          </span>
-        </div>
+      </div>
+      {/* The one place amber is spent on this panel: the claim boundary that
+          keeps simulated imagery from ever reading as operational evidence. */}
+      <div className="flex items-center justify-between gap-2 border-t border-gunmetal px-2 py-[3px] font-mono text-[11px] tracking-[0.06em]">
+        <span className="whitespace-nowrap font-medium text-launch-amber">
+          SIMULATED IMAGERY · NOT EVIDENCE
+        </span>
+        <span className="shrink-0 whitespace-nowrap text-ash">NOT A LIVE FEED</span>
       </div>
     </section>
   );

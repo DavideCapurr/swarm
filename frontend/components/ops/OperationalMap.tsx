@@ -213,7 +213,10 @@ function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveSt
   return (
     <div
       data-testid="focused-executor-telemetry"
-      className="pointer-events-none absolute left-3 top-[78px] z-20 min-w-[275px] border border-orbital-blue/45 bg-absolute-black/90 px-3 py-2 font-mono shadow-inset-highlight"
+      /* Fully opaque, not 90%: this panel sits over the site frame, and a
+         translucent readout lets grid lines and ring labels show through its
+         numbers. It is also the design system's no-glassmorphism rule. */
+      className="pointer-events-none absolute left-3 top-[78px] z-20 min-w-[275px] border border-orbital-blue/45 bg-absolute-black px-3 py-2 font-mono shadow-inset-highlight"
     >
       <div className="flex items-center justify-between gap-5">
         <span className="text-[11px] uppercase tracking-[0.14em] text-ash">EXECUTOR TELEMETRY</span>
@@ -309,8 +312,12 @@ export function OperationalMap({
         <ExecutorTelemetry unit={focusedUnit} story={focusedStory} />
       ) : null}
 
+      {/* Attribution owns the bottom edge outright as a full-width strip. It
+          used to be centred at the same offset as the scale bar, so the two met
+          and overprinted on a narrow map. The scale and legend are lifted clear
+          of it in OperationalMapCore. */}
       {origin ? (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 bg-absolute-black/70 px-2 py-1 font-mono text-[10px] tracking-[0.08em] text-ash">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 truncate bg-absolute-black/70 px-2 py-1 text-center font-mono text-[10px] tracking-[0.08em] text-ash">
           REAL BASEMAP · © OPENSTREETMAP CONTRIBUTORS · © CARTO · CONTEXT ONLY
         </div>
       ) : null}

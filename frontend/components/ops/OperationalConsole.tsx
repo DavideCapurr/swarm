@@ -95,10 +95,10 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
     return (
       <div className="flex h-[48px] shrink-0 items-center border border-gunmetal bg-obsidian px-3">
         <span className="font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
-        <span className="ml-4 font-mono text-[14px] tracking-[0.08em] text-muted-silver">
+        <span className="ml-4 min-w-0 truncate font-mono text-[14px] tracking-[0.08em] text-muted-silver">
           SENSOR INPUT → OBJECTIVE → SWARMOS DECIDES → PHYSICAL AGENTS EXECUTE → VERIFIED EVIDENCE RETURNS
         </span>
-        <span className="ml-auto font-mono text-[13px] tracking-[0.1em] text-orbital-blue">
+        <span className="ml-auto shrink-0 pl-3 font-mono text-[13px] tracking-[0.1em] text-ash">
           SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
         </span>
       </div>
@@ -116,10 +116,13 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
       data-testid="control-loop-strip"
     >
       <span className="shrink-0 font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
+      {/* The strip is a causal chain of facts. Only two links are genuinely
+          state — the exclusion that constrained the decision, and whether
+          evidence came back — so only those carry colour. */}
       <LoopValue
         label="input → objective"
         value={`${source} → ${story.label} · ${story.kind} · ${story.missionKind}`}
-        tone="amber"
+        tone="silver"
       />
       <Arrow />
       {excluded ? (
@@ -155,8 +158,10 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
         value={verified?.proof ?? "PENDING"}
         tone={verified ? "green" : "silver"}
       />
-      <span className="ml-auto shrink-0 border-l border-gunmetal pl-3 font-mono text-[11px] leading-tight tracking-[0.08em] text-orbital-blue">
-        SWARMOS DECIDES · <span className="text-muted-silver">PHYSICAL AGENTS EXECUTE</span>
+      {/* A standing legend for the architecture boundary, not a live reading —
+          so it sits at label weight rather than in the live-channel accent. */}
+      <span className="ml-auto shrink-0 border-l border-gunmetal pl-3 font-mono text-[11px] leading-tight tracking-[0.08em] text-ash">
+        SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
       </span>
     </div>
   );
@@ -292,14 +297,19 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
       ) : null}
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(380px,17%)_minmax(0,1fr)_minmax(540px,28%)] gap-2">
+        {/* The rail is a height budget, not three stacked boxes. Objectives and
+            fleet share the flexible space and scroll inside it; the imagery
+            aside is the only fixed-size element. `max-h-[46%] shrink-0`
+            previously froze the queue at a height that cut its second card
+            through the middle of a line, with no way to scroll to the rest. */}
         <div className="flex min-h-0 flex-col gap-2">
           <ObjectiveQueue
-            className="max-h-[46%] shrink-0"
+            className="min-h-0 flex-[5]"
             stories={stories}
             focusMissionId={focusMissionId}
             onFocus={setPinned}
           />
-          <FleetPanel className="min-h-0 flex-1" rows={fleetRows} />
+          <FleetPanel className="min-h-0 flex-[4]" rows={fleetRows} />
           <ImageryAside src={SCENE_IMAGERY} story={imageryStory} />
         </div>
 
@@ -308,7 +318,10 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
         <DecisionRail story={focusStory} group={group} payloadChannels={payloadChannels} />
       </div>
 
-      <MissionTimeline className="h-[260px] shrink-0" timeline={timeline} />
+      {/* 288px, not 260: the panel header, the axis row and two 100px lanes add
+          up past 260, and the body clips — which cut the second lane's owner and
+          mission id off the bottom of the screen. */}
+      <MissionTimeline className="h-[288px] shrink-0" timeline={timeline} />
     </main>
   );
 }

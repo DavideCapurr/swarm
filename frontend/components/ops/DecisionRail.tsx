@@ -53,7 +53,7 @@ export function DecisionRail({
       title="SwarmOS decision"
       right={
         story ? (
-          <span className="font-mono text-[12px] tracking-[0.16em] text-orbital-blue">
+          <span className="font-mono text-[12px] tracking-[0.16em] text-ash">
             FOCUS {story.label}
           </span>
         ) : null
@@ -128,15 +128,20 @@ export function DecisionRail({
                 </div>
               </div>
             </div>
+            {/* The exclusion line keeps an amber marker, but the sentence that
+                explains it stays monochrome. A whole line of escalation colour
+                for a reason the operator only reads once is what drowned out
+                the states that actually need noticing. */}
             <ul data-testid="decision-summary" className="mt-2 flex flex-col gap-[3px]">
               {decisionSummary(story).map((line) => (
                 <li
                   key={line}
-                  className={`font-mono text-[13px] leading-5 tracking-[0.04em] ${
-                    line.includes("excluded") ? "text-launch-amber" : "text-muted-silver"
-                  }`}
+                  className="flex gap-2 font-mono text-[13px] leading-5 tracking-[0.04em] text-muted-silver"
                 >
-                  {line}
+                  {line.includes("excluded") ? (
+                    <span aria-hidden="true" className="mt-[7px] block h-[6px] w-[6px] shrink-0 bg-launch-amber" />
+                  ) : null}
+                  <span className="min-w-0">{line}</span>
                 </li>
               ))}
             </ul>

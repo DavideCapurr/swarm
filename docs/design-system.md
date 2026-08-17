@@ -109,6 +109,46 @@ recessive after the change — relative luminance 0.250 against muted-silver's
 Anything below `ash` on the ramp (`graphite` at 1.47:1, `mist-lo`/`ink-2` at
 1.94:1) is a border, fill or divider colour. Do not set text in them.
 
+### The accent budget, and how to stay inside it
+
+"85% monochrome" is measurable, so measure it. Counting characters of visible
+text on `/dev/replay?at=30000`, the operational console read:
+
+| | before | after |
+|---|---|---|
+| monochrome | 69.6% | **85.9%** |
+| launch-amber | 14.8% | 6.2% |
+| orbital-blue | 9.4% | 3.3% |
+| signal-green | 6.2% | 4.5% |
+| **accent total** | **30.4%** | **14.1%** |
+
+Amber alone had been consuming almost the entire 15% budget. The cause was not
+volume but category error — accent was being spent on things that are not
+states:
+
+- **identifiers** — `OBJ 01`, `thermal-array-02`, `perimeter-cam-04`, owner and
+  mission ids, timeline lane labels
+- **standing statements** — `DECIDES WHAT THE FLEET SHOULD DO`,
+  `SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE`
+- **panel headers and counts** — `FOCUS OBJ 02`,
+  `CONCURRENT MISSION OWNERSHIP · 2 EXECUTING`
+- **explanations** — the sentence describing *why* an agent was excluded
+
+The test to apply before colouring anything: **would this text change colour if
+the fleet's state changed?** If not, it is monochrome. When a state needs
+calling out but its explanation does not, colour the verdict and leave the
+sentence monochrome — `EXCLUDED` in amber, `FROM OBJ 02 · BUSY` in silver — or
+mark the line with a small amber square and keep the words neutral.
+
+What legitimately keeps an accent: link state, the agent SwarmOS selected,
+execution phase, verified PX4 evidence, exclusion verdicts, and the
+simulated-imagery and replay claim boundaries.
+
+The audit that produces the table above is worth re-running after any change to
+this surface, alongside a clip-aware check for text painted over text — note
+that SVG elements report a lowercase `tagName`, so a case-sensitive filter
+silently skips the entire map.
+
 ## State mapping (SWARM-OS ↔ brand)
 
 The `AgentState` enum in `core/swarm_core/messages.py` maps to brand state
