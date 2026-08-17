@@ -39,7 +39,7 @@ jobs:
 
       - name: Run operational console tests
         working-directory: frontend
-        run: pnpm exec vitest run components/ops/OperationalConsole.test.tsx components/intrusion-demo/IntrusionResponseDemo.test.tsx
+        run: pnpm exec vitest run components/ops/OperationalConsole.test.tsx lib/__tests__/mission-story.test.ts lib/__tests__/opsmap.test.ts
 
       - name: Install Chromium for visual QA
         run: npx -y playwright@1.55.0 install --with-deps chromium
