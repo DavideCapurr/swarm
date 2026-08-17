@@ -118,7 +118,7 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
       <span className="shrink-0 font-mono text-[12px] tracking-[0.16em] text-ash">CONTROL LOOP</span>
       <LoopValue
         label="input → objective"
-        value={`${source} → ${story.label} · ${story.missionKind} ${story.kind}`}
+        value={`${source} → ${story.label} · ${story.kind} · ${story.missionKind}`}
         tone="amber"
       />
       <Arrow />
