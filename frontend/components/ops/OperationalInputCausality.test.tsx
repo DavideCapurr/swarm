@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { foldTakeA, takeAFrames } from "@/lib/demo-frames";
@@ -27,7 +27,7 @@ describe("reported input → objective causality", () => {
     renderAt(2.5);
 
     expect(screen.getByTestId("control-loop-strip")).toHaveTextContent(
-      "perimeter-cam-04 → OBJ 01 · VERIFY INTRUSION"
+      "perimeter-cam-04 → OBJ 01 · INTRUSION · VERIFY"
     );
 
     const objective = screen.getByTestId(
@@ -39,7 +39,7 @@ describe("reported input → objective causality", () => {
     expect(screen.getByText("REPORTED SOURCE · perimeter-cam-04")).toBeInTheDocument();
     expect(screen.getByText("VERIFY INTRUSION · 95%")).toBeInTheDocument();
     expect(screen.getByText("REPORTED INPUT → OBJ 01")).toBeInTheDocument();
-    expect(screen.getByText("SIMULATED VISUAL · NOT EVIDENCE")).toBeInTheDocument();
+    expect(screen.getByText("SIMULATED IMAGERY · NOT EVIDENCE")).toBeInTheDocument();
     expect(screen.getByText("NOT A LIVE FEED")).toBeInTheDocument();
   });
 
@@ -47,7 +47,7 @@ describe("reported input → objective causality", () => {
     renderAt(25.5);
 
     expect(screen.getByTestId("control-loop-strip")).toHaveTextContent(
-      "thermal-array-02 → OBJ 02 · VERIFY HEAT_SPOT"
+      "thermal-array-02 → OBJ 02 · HEAT_SPOT · VERIFY"
     );
 
     const second = screen.getByTestId(
