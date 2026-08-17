@@ -18,6 +18,9 @@ import { shortId } from "@/lib/mission-story";
 import { Panel } from "./primitives";
 
 const MIN_WINDOW_MS = 30_000;
+// Visual headroom only. Event timestamps stay exact; the axis simply extends
+// past the newest frame so its label never clips against the viewport edge.
+const RIGHT_PAD_MS = 3_500;
 const GUTTER = 210;
 
 function axisStepS(spanS: number): number {
@@ -34,7 +37,8 @@ export function MissionTimeline({
   timeline: Timeline;
   className?: string;
 }) {
-  const window = Math.max(timeline.to - timeline.from, MIN_WINDOW_MS);
+  const visibleTo = timeline.to + RIGHT_PAD_MS;
+  const window = Math.max(visibleTo - timeline.from, MIN_WINDOW_MS);
   const spanS = window / 1000;
   const step = axisStepS(spanS);
   const marks: number[] = [];
