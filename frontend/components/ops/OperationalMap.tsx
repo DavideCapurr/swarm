@@ -150,7 +150,7 @@ function buildTiles(
       const wrappedX = ((x % tileCount) + tileCount) % tileCount;
       tiles.push({
         key: `${zoom}/${x}/${y}`,
-        url: `https://basemaps.cartocdn.com/dark_all/${zoom}/${wrappedX}/${y}@2x.png`,
+        url: `https://a.basemaps.cartocdn.com/dark_all/${zoom}/${wrappedX}/${y}@2x.png`,
         left: box.width / 2 + (x * TILE_SIZE - centerWorld.x) * scale,
         top: box.height / 2 + (y * TILE_SIZE - centerWorld.y) * scale,
         size: TILE_SIZE * scale + 1,
@@ -181,7 +181,7 @@ function Basemap({
       <div
         className="absolute inset-0"
         data-testid="real-basemap"
-        style={{ filter: "grayscale(1) brightness(0.34) contrast(1.2)", opacity: 0.86 }}
+        style={{ filter: "grayscale(1) brightness(0.62) contrast(1.08)", opacity: 0.94 }}
       >
         {tiles.map((tile) => (
           <div
@@ -197,7 +197,7 @@ function Basemap({
           />
         ))}
       </div>
-      <div className="absolute inset-0 bg-absolute-black/45" />
+      <div className="absolute inset-0 bg-absolute-black/25" />
     </div>
   );
 }
@@ -242,7 +242,7 @@ export function OperationalMap({
 
       {origin ? (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2 bg-absolute-black/70 px-2 py-1 font-mono text-[10px] tracking-[0.08em] text-ash">
-          REAL BASEMAP · CARTO DARK / OSM · CONTEXT ONLY · LOCAL GRID REMAINS AUTHORITATIVE
+          REAL BASEMAP · © OPENSTREETMAP CONTRIBUTORS · © CARTO · CONTEXT ONLY
         </div>
       ) : null}
 
