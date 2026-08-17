@@ -102,7 +102,7 @@ export function ObjectiveQueue({
                 </span>
               </div>
 
-              <div className="mt-[5px] flex items-baseline justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.12em]">
+              <div className="mt-[5px] flex items-baseline justify-between gap-3 font-mono text-[12px] uppercase tracking-[0.1em]">
                 <span className="text-ash">
                   reported input{" "}
                   <span className="text-launch-amber">
@@ -144,11 +144,11 @@ export function ObjectiveQueue({
                   latest proof: an earlier mission's verified arrival must not
                   leave the screen when a second objective arrives. */}
               {latestVerifiedProof(story) ? (
-                <div className="mt-[8px] flex items-baseline gap-2 border-l-2 border-signal-green pl-2">
-                  <span className="font-mono text-[12px] uppercase tracking-[0.1em] text-signal-green">
+                <div className="mt-[8px] flex items-baseline gap-2 border-l-2 border-signal-green bg-signal-green/[0.025] py-[3px] pl-2">
+                  <span className="font-mono text-[14px] font-medium uppercase tracking-[0.08em] text-signal-green">
                     {latestVerifiedProof(story)}
                   </span>
-                  <span className="font-mono text-[11px] tracking-[0.1em] text-ash">PX4 SITL</span>
+                  <span className="font-mono text-[12px] tracking-[0.08em] text-ash">PX4 SITL</span>
                 </div>
               ) : null}
             </button>
@@ -194,7 +194,7 @@ export function ImageryAside({ src, story }: { src: string; story: ObjectiveStor
         ) : null}
 
         {story ? (
-          <div className="absolute left-2 top-2 bg-absolute-black/85 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.12em]">
+          <div className="absolute left-2 top-2 bg-absolute-black/88 px-2 py-1 font-mono text-[12px] uppercase tracking-[0.1em]">
             <div className="text-launch-amber">REPORTED SOURCE · {source}</div>
             <div className="mt-[2px] text-platinum">{intent} · {confidence}</div>
             <div className="mt-[2px] text-orbital-blue">REPORTED INPUT → {story.label}</div>
@@ -202,10 +202,10 @@ export function ImageryAside({ src, story }: { src: string; story: ObjectiveStor
         ) : null}
 
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between px-2 pb-2">
-          <span className="bg-absolute-black/85 px-[6px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-launch-amber">
+          <span className="bg-absolute-black/90 px-[7px] py-[4px] font-mono text-[12px] font-medium tracking-[0.1em] text-launch-amber">
             SIMULATED IMAGERY · NOT EVIDENCE
           </span>
-          <span className="bg-absolute-black/85 px-[6px] py-[3px] font-mono text-[10px] tracking-[0.12em] text-ash">
+          <span className="bg-absolute-black/90 px-[7px] py-[4px] font-mono text-[12px] tracking-[0.1em] text-ash">
             NOT A LIVE FEED
           </span>
         </div>
