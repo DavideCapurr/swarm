@@ -58,9 +58,14 @@ jobs:
           cat /tmp/swarm-ui.log
           exit 1
 
-      - name: Capture TAKE A at 2560x1440
+      - name: Verify basemap tile provider
         run: |
           mkdir -p artifacts/ui-visual
+          curl --fail --silent --show-error --location "https://a.basemaps.cartocdn.com/dark_all/19/274589/183553@2x.png" -o artifacts/ui-visual/basemap-smoke.png
+          file artifacts/ui-visual/basemap-smoke.png
+
+      - name: Capture TAKE A at 2560x1440
+        run: |
           npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1600 "http://127.0.0.1:3000/dev/replay?at=2500" artifacts/ui-visual/01-first-decision.png
           npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1600 "http://127.0.0.1:3000/dev/replay?at=21250" artifacts/ui-visual/02-first-proof.png
           npx -y playwright@1.55.0 screenshot --viewport-size="2560,1440" --wait-for-timeout=1600 "http://127.0.0.1:3000/dev/replay?at=25500" artifacts/ui-visual/03-busy-reallocation.png
