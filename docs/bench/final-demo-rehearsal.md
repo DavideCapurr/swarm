@@ -166,68 +166,49 @@ The trigger order is fixed and must not be improvised:
 
 ## What `/demo/intrusion` must show
 
-The surface is the operational console described in
-[`../design/operational-console-ia.md`](../design/operational-console-ia.md):
-command bar, objective queue and fleet on the left, site map in the middle,
-SwarmOS decision rail on the right, mission timeline along the bottom. Record it
-at 2560 × 1440 with the browser at device pixel ratio 1, so the CSS viewport is
-2560 × 1440 and the layout is the one the surface is designed for.
-
 ### Before event 1
 
-- command bar link state reads exactly `CONNECTED`;
-- fleet panel lists `mav-001` and `mav-002`, both `DOCKED` and `no mission · available`;
-- objective queue reads `NO OBJECTIVE PUBLISHED BY SWARMOS` — no stale story from a previous take.
+- top connection status: `CONNECTED`;
+- fleet includes `mav-001` and `mav-002` clean/available;
+- no stale mission story from a previous take.
 
 ### Event 1 allocation
 
-- objective queue gains `OBJ 01` / `INTRUSION` with its confidence;
-- decision rail step 02 `FLEET EVALUATED BY SWARMOS`, mode `auction`, header `SERVER REASONS`;
-- both `mav-001` and `mav-002` appear as candidates, one `ELIGIBLE` and one `SELECTED`;
-- each candidate row shows the server score and the full breakdown (distance, battery, priority);
-- step 03 `SELECTED BY SWARMOS` names `mav-002` with the winner score;
-- step 04 `MISSION OWNERSHIP` shows mission 1's id `owned by mav-002`, and the
-  fleet row for `mav-002` shows the same ownership.
+- `INTRUSION DETECTED`;
+- `Fleet auction`;
+- `SERVER REASONS`;
+- both `mav-001` and `mav-002` marked `ELIGIBLE`;
+- server score and score-breakdown values;
+- `mav-002` marked `WINNER`;
+- mission ledger owner is `mav-002`.
 
 ### Dispatch and arrival
 
-- step 05 `PHYSICAL EXECUTION` ladder fills `ALLOCATED → DISPATCHED → EN ROUTE → ON STATION`;
-- `SERVER PHASE` shows the raw runtime phase (`EN ROUTE`, then `ON STATION`);
-- step 06 `EVIDENCE` shows `MISSION_ITEM_REACHED` stamped `PX4 SITL` in the verified tier.
+- mission 1 reaches `EN_ROUTE`;
+- then mission 1 shows `MISSION_ITEM_REACHED` as the evidence behind `ON_STATION`.
 
 ### Payload active
 
-- `LIGHT ON` with `PX4 OUTPUT CONFIRMED` in the verified (green) tier;
-- `SPEAKER ACTIVE` with `SIMULATED` in the simulated (amber) tier;
-- both also appear in the `BOUNDED PHYSICAL RESPONSE · FLEET` channels.
+- `LIGHT ON`;
+- `PX4 OUTPUT CONFIRMED`;
+- `SPEAKER ACTIVE`;
+- `SIMULATED` beside the speaker behavior.
 
 ### Event 2 while mission 1 is still active
 
-- objective queue gains `OBJ 02` / `HEAT_SPOT` while `OBJ 01` still reads `EXECUTING`;
-- the decision rail follows the new objective automatically;
-- `mav-002` is visibly `EXCLUDED · BUSY` and the row carries mission 1's active mission id;
-- the same exclusion appears on `mav-002`'s own fleet row as `EXCLUDED FROM OBJ 02 · BUSY`;
-- `mav-001` is `SELECTED` with its score, and the restatement under it reads
-  `mav-002 excluded · BUSY · already owns mission <id>`;
-- both fleet rows show ownership at the same time, one per mission;
-- the mission timeline shows two lanes and the badge `CONCURRENT MISSION OWNERSHIP · 2 EXECUTING`;
+- a second auction/story is present;
+- `mav-002` is visibly `EXCLUDED · BUSY`;
+- the exclusion includes mission 1's active mission id;
+- `mav-001` is eligible and becomes the different winner;
+- mission ledger contains exactly two simultaneous mission cards, one owned by `mav-002` and one by `mav-001`;
 - at this concurrency point, mission 1 payload is still active and `LIGHT OFF` has not occurred yet.
 
 ### Cleanup and RTL
 
 - `SPEAKER STOPPED` and still explicitly `SIMULATED`;
 - `LIGHT OFF` with `PX4 OUTPUT CONFIRMED`;
-- mission 1's ladder reaches `RTL` and `DONE`, with `RTL COMMAND ACKNOWLEDGED` as the proof;
-- mission 2 also shows `MISSION_ITEM_REACHED` and later `RTL COMMAND ACKNOWLEDGED`;
-- the objective queue keeps each objective's own latest mission proof on its row,
-  so an earlier verified arrival stays on screen after focus moves on.
-
-### Simulation boundary on screen
-
-- the perimeter clip is a small aside stamped `SIMULATED IMAGERY · NOT EVIDENCE`
-  and `NOT A LIVE FEED`;
-- there is no drone-view video anywhere on the surface;
-- everything in the verified tier carries the `PX4 SITL` claim bound.
+- mission 1 shows `RTL COMMAND ACKNOWLEDGED`;
+- mission 2 also shows `MISSION_ITEM_REACHED` and later `RTL COMMAND ACKNOWLEDGED`.
 
 ## Reset between takes
 
