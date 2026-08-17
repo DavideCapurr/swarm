@@ -148,7 +148,7 @@ export function EvidenceStamp({
         : "border-gunmetal";
   return (
     <span
-      className={`inline-flex items-center gap-2 border ${border} px-2 py-[3px] font-mono text-[12px] uppercase leading-none tracking-[0.14em] ${TIER_TEXT[tier]}`}
+      className={`inline-flex items-center gap-2 border ${border} px-2 py-[4px] font-mono text-[14px] uppercase leading-none tracking-[0.12em] ${TIER_TEXT[tier]}`}
     >
       {tier === "verified" ? <VerifiedGlyph /> : null}
       {tier === "simulated" ? <SimulatedGlyph /> : null}
