@@ -54,15 +54,27 @@ export const tokens = {
   },
 
   // ── Typography ──────────────────────────────────────────────────────────
-  // The SWARM stack uses five families. Loaded from Google Fonts in
+  // The SWARM stack uses four families. Loaded from Google Fonts in
   // `app/layout.tsx`.
+  //
+  // Display/body is Inter, which is what the brand book actually renders:
+  // `docs/design-system/v1.html` asks for 'Satoshi','Inter' and Google Fonts
+  // does not serve Satoshi, so Inter is the face on those spreads.
+  //
+  // Inter is also the most legible option at the 11–13px sizes this console
+  // is built from. Measured x-height, as a fraction of the em:
+  //   Inter 0.546 · Geist 0.530 · Public Sans 0.517 · IBM Plex Sans 0.516 ·
+  //   Roboto Flex 0.514 · Atkinson Hyperlegible 0.496
+  // Inter is also the only candidate carrying an `opsz` axis, so
+  // `font-optical-sizing: auto` in styles/globals.css lets the face open its
+  // apertures and letter spacing as type gets smaller.
   font: {
     editorial:
       "'Cormorant Garamond', 'EB Garamond', Georgia, serif",
     display:
-      "'Geist', 'Inter', system-ui, -apple-system, sans-serif",
+      "'Inter', system-ui, -apple-system, sans-serif",
     body:
-      "'Geist', 'Inter', system-ui, -apple-system, sans-serif",
+      "'Inter', system-ui, -apple-system, sans-serif",
     mono:
       "'IBM Plex Mono', 'SF Mono', ui-monospace, monospace",
     grotesk:

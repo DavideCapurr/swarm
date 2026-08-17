@@ -29,13 +29,41 @@ frontend/lib/tokens.ts            — token extraction (palette, fonts,
 |---|---|---|
 | Palette · monochrome | 08 (Color · Mono) | 14 grays from `absolute-black` to `platinum` + dual ink ramps |
 | Palette · activation | 09 (Color · Activation) | `orbital-blue` lime, `signal-green` purple, `launch-amber` magenta — names are brand poetry, hex is the truth |
-| Type families | 13 (Body & UI) | Cormorant Garamond (editorial), Satoshi/Inter (display/body), IBM Plex Mono (telemetry), Space Grotesk (eyebrow) |
+| Type families | 13 (Body & UI) | Cormorant Garamond (editorial), Inter (display/body), IBM Plex Mono (telemetry), Space Grotesk (eyebrow) |
 | Type scale | 13 | Hero 144 / H1 64 / H2 40 / H3 28 / Lede 17 / Body 15 / UI 13 / Eyebrow 11 |
 | Spacing | 17 (Layout) | 4 / 8 px scale up to 128 px |
 | Radius | 18 (Cards) | 6 px cards · 4 px inputs · 2 px chips · 999 px pills |
 | Motion | 16 (Motion) | `cubic-bezier(0.2, 0.7, 0.1, 1)` · 900ms loader · 4000ms breath · brightness on hover |
 | Iconography | 15 | 24×24 grid · stroke-only 1.5px · round caps · platinum at rest |
 | Voice | 20 / 21 / 22 | Sentence case · periods are weapons · use orbit/node/unit · avoid drone/AI/platform |
+
+### Why Inter for display/body
+
+Spread 13 declares `--font-display:'Satoshi','Inter',system-ui,sans-serif`.
+Google Fonts does not serve Satoshi (`css2?family=Satoshi` → HTTP 400), so
+**Inter is the face the brand book actually renders**, and the Console now
+matches it rather than substituting Geist.
+
+Inter is also the right call on legibility grounds. The Console is built almost
+entirely from 11–13px labels, and at that size the deciding metric is x-height
+as a fraction of the em (measured from the latin subsets Google serves):
+
+| Face | x-height / em | `opsz` axis |
+|---|---|---|
+| **Inter** | **0.546** | **yes (14–32)** |
+| Geist | 0.530 | no |
+| Public Sans | 0.517 | no |
+| IBM Plex Sans | 0.516 | no |
+| Roboto Flex | 0.514 | yes (8–144) |
+| Atkinson Hyperlegible | 0.496 | no |
+
+Inter has the largest x-height of the candidates *and* an optical-sizing axis.
+`app/layout.tsx` requests the variable `Inter:opsz,wght@14..32,300..700` and
+`styles/globals.css` sets `font-optical-sizing: auto`, so the face widens its
+spacing and opens its apertures on its own as type gets smaller. Note that the
+Google-hosted Inter does not expose the `cv**`/`ss**` character variants — only
+`calt`, `tnum`, `pnum`, `frac` — so do not write `font-feature-settings` rules
+against those; they are no-ops here.
 
 ## State mapping (SWARM-OS ↔ brand)
 

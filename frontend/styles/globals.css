@@ -14,8 +14,12 @@
   body {
     background: #030406; /* absolute-black */
     color: #EEF0F3;      /* platinum */
-    font-family: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
     font-weight: 400;
+    /* Inter is loaded with its opsz axis (see app/layout.tsx). Optical sizing
+       is the readability lever for this console: most of the surface is 11–13px
+       labels, and opsz widens spacing and opens apertures as size drops. */
+    font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -120,10 +124,14 @@
   .pill-operational { border-color: #B8FF66; color: #B8FF66; }
   .pill-attention   { border-color: #FFB45C; color: #FFB45C; }
 
-  /* Mono numeric — telemetry numerals, padded with leading zeros. */
+  /* Mono numeric — telemetry numerals, padded with leading zeros.
+     Tracking is neutral, not negative: these run at 11–13px and IBM Plex Mono
+     already sets digits on a fixed advance, so pulling them together only
+     crowded the glyph inside its own cell. tabular-nums keeps columns aligned
+     as values change. */
   .mono-num {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     font-variant-numeric: tabular-nums;
   }
 }
