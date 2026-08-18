@@ -74,6 +74,20 @@ DEFAULT_SAMPLES = [
 # painted over text.
 MIN_OVERLAP_PX2 = 4.0
 
+# Area alone over-reports. `Range.getClientRects()` returns the font's line box,
+# which is taller than the ink inside it: JetBrains Mono at 11px occupies about
+# 13.2px of em box for roughly 8px of uppercase ink. Two rows 13px apart graze
+# by a fifth of a pixel and, over a long label, that graze clears any area
+# threshold while nothing is painted over anything.
+#
+# So a collision also has to be *deep on both axes*: the overlap must cover this
+# fraction of the shorter box horizontally *and* vertically. Grazing one axis is
+# not ink over ink, however long the run — two stacked timeline labels overlap
+# 79% horizontally and 1.5% vertically, and nothing is painted over anything.
+# The real defects measured on this surface — an agent's id line over its own
+# state line — are deep on both.
+MIN_OVERLAP_DEPTH = 0.2
+
 
 def chromium_executable() -> str | None:
     """Resolve a Chromium the sandbox already has, rather than downloading one."""
@@ -92,6 +106,7 @@ def chromium_executable() -> str | None:
 MEASURE_JS = r"""
 () => {
   const MIN_OVERLAP = %(min_overlap)s;
+  const MIN_DEPTH = %(min_depth)s;
 
   // A rect is only real where its clipping ancestors let it show. Without this
   // an item scrolled out of a panel reads as overprinting whatever is below.
@@ -187,6 +202,10 @@ MEASURE_JS = r"""
       if (w <= 0 || h <= 0) continue;
       const area = w * h;
       if (area < MIN_OVERLAP) continue;
+      // Deep enough to be ink over ink, not two line boxes grazing.
+      const depthY = h / Math.min(a.bottom - a.top, b.bottom - b.top);
+      const depthX = w / Math.min(a.right - a.left, b.right - b.left);
+      if (Math.min(depthX, depthY) < MIN_DEPTH) continue;
       collisions.push({
         area: Math.round(area),
         a: boxes[i].text.slice(0, 70),
@@ -272,7 +291,7 @@ MEASURE_JS = r"""
     panelBody: swatch('[data-testid="decision-rail"]'),
   };
 }
-""" % {"min_overlap": MIN_OVERLAP_PX2}
+""" % {"min_overlap": MIN_OVERLAP_PX2, "min_depth": MIN_OVERLAP_DEPTH}
 
 
 @dataclass

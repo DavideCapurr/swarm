@@ -34,9 +34,31 @@ import { Eyebrow } from "./primitives";
 const DEFAULT_BOX = { width: 1600, height: 1100 };
 const PADDING = 44;
 
-// Agent caption block: offset below the glyph, line height, collision width.
+// Map captions are two lines: what the thing is, then what state it is in.
+//
+// Both were spaced by hand, and both were too tight — the descenders of the
+// upper line ran into the ascenders of the lower one, which is text painted
+// over text however small the overlap. Measured at the recording viewport, this
+// was every collision on the map: an entity's own id line over its own state
+// line, never one entity's label over another's.
+//
+// So the separation is derived from the face rather than typed. 1.3 is the
+// ratio a normal line box uses, and the two captions had 0.89 (agent, 16px for
+// an 18px face) and 1.05 (objective, 21px for 20px — already raised once, from
+// 17px, and still colliding).
+const CAPTION_LEADING = 1.3;
+const captionGap = (fontSize: number) => Math.round(fontSize * CAPTION_LEADING);
+
+const AGENT_ID_SIZE = 18;
+const AGENT_STATE_SIZE = 15;
+const OBJECTIVE_LABEL_SIZE = 20;
+const OBJECTIVE_KIND_SIZE = 17;
+
+// Agent caption block: offset below the glyph, collision width, and the block
+// height the stacking solver reserves — which has to follow the caption, or
+// two agents that launch metres apart stack into each other again.
 const LABEL_DY = 34;
-const LABEL_H = 36;
+const LABEL_H = captionGap(AGENT_ID_SIZE) + AGENT_STATE_SIZE + 6;
 const LABEL_W = 150;
 
 // Map chrome colours. Anything that exists in the design tokens is read from
@@ -431,15 +453,13 @@ function ObjectiveMark({
       {/* Objective labels always sit above the marker; agent labels always sit
           below theirs. The two can be metres apart on this site frame, so the
           separation has to come from the layout, not from luck. */}
-      {/* 21px of baseline separation for a 20px face. At the previous 17px the
-          objective label's own em box ran into its confidence line. */}
       <text
         x={p.x}
-        y={p.y - r - 32}
+        y={p.y - r - 11 - captionGap(OBJECTIVE_LABEL_SIZE)}
         textAnchor="middle"
         fill={C.silver}
         fontFamily={tokens.font.mono}
-        fontSize={20}
+        fontSize={OBJECTIVE_LABEL_SIZE}
         letterSpacing="0.16em"
       >
         {story.label}
@@ -450,7 +470,7 @@ function ObjectiveMark({
         textAnchor="middle"
         fill={focused ? C.platinum : C.silver}
         fontFamily={tokens.font.mono}
-        fontSize={17}
+        fontSize={OBJECTIVE_KIND_SIZE}
         letterSpacing="0.1em"
       >
         {story.confidence != null
@@ -520,18 +540,18 @@ function AgentMark({
         textAnchor="middle"
         fill={C.platinum}
         fontFamily={tokens.font.mono}
-        fontSize={18}
+        fontSize={AGENT_ID_SIZE}
         letterSpacing="0.1em"
       >
         {unit.agentId}
       </text>
       <text
         x={p.x}
-        y={p.y + LABEL_DY + 16 + labelOffset}
+        y={p.y + LABEL_DY + captionGap(AGENT_ID_SIZE) + labelOffset}
         textAnchor="middle"
         fill={colour}
         fontFamily={tokens.font.mono}
-        fontSize={15}
+        fontSize={AGENT_STATE_SIZE}
         letterSpacing="0.14em"
       >
         {unit.fsmState}
