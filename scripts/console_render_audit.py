@@ -261,14 +261,14 @@ MEASURE_JS = r"""
   }
   clipped.sort((x, y) => y.hiddenPct - x.hiddenPct);
 
-  // The decision rail's causal chain is only "exposed" as far as it is on
-  // screen. Steps 1-4 close the argument: objective, evaluation, selection,
-  // ownership. Report the last step whose number is fully inside the rail.
+  // The composition is only "exposed" as far as it is on screen. Every role
+  // SwarmOS assigned has to be readable, or the panel is claiming a group the
+  // recording cannot show. Report the last role slot fully inside the panel.
   let lastVisibleStep = null;
-  const rail = document.querySelector('[data-testid="decision-rail"]');
+  const rail = document.querySelector('[data-testid="mission-authority"]');
   if (rail) {
     const body = rail.querySelector(':scope > div:last-child');
-    const view = (body || rail).getBoundingClientRect();
+    const view = rail.getBoundingClientRect();
     const walk = document.createTreeWalker(rail, NodeFilter.SHOW_TEXT);
     for (let node = walk.nextNode(); node; node = walk.nextNode()) {
       const text = (node.textContent || '').trim();
@@ -293,8 +293,8 @@ MEASURE_JS = r"""
     truncated,
     clipped,
     lastVisibleStep,
-    ground: swatch('main'),
-    panelBody: swatch('[data-testid="decision-rail"]'),
+    ground: swatch('[data-testid="console-surface"]'),
+    panelBody: swatch('[data-testid="mission-authority"]'),
   };
 }
 """
@@ -313,9 +313,9 @@ class Sample:
 
 async def measure(page, url: str) -> dict:
     await page.goto(url, wait_until="networkidle")
-    # The console composes from frames; the control loop is the last thing to
-    # settle. Wait for the surface, not for a timer.
-    await page.wait_for_selector('[data-testid="control-loop-strip"]', timeout=20_000)
+    # The console composes from frames; the authority panel is the last thing
+    # to settle. Wait for the surface, not for a timer.
+    await page.wait_for_selector('[data-testid="mission-authority"]', timeout=20_000)
     await page.wait_for_timeout(400)
     return await page.evaluate(MEASURE_JS)
 
