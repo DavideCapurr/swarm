@@ -103,3 +103,60 @@ and produces numbers that describe a rendering nobody will record.
 - **The panel body and the page ground are the same colour**, `rgb(3, 4, 6)`, at
   every frame. Only a 1 px hairline separates a panel from the ground, which is
   the first thing a video encoder destroys.
+
+
+## After the layout work
+
+Same script, same viewport, same four frames, both surfaces.
+
+| frame | collisions | truncated readouts | decision rail in frame |
+|---|---|---|---|
+| T+12s calm | 0 | 0 | 01–05 |
+| T+30s second event | 0 | 0 | 01–04 |
+| T+44s evidence lands | 0 | 0 | 01–04 |
+| T+62s final frame | 0 | 0 | 01–04 |
+
+Step 04 clears the fold with 14 px to spare at the three late frames and 47 px
+at the calm one. `ground / panel body` reads `rgb(11, 14, 17) / rgb(19, 25, 32)`
+instead of `rgb(3, 4, 6) / rgb(3, 4, 6)`.
+
+### A correction to the detector
+
+The first pass counted overlap area alone and reported 62 px² between two
+timeline labels stacked 13 px apart. Nothing was painted over anything: the
+labels are uppercase 11 px mono, whose ink is about 8 px tall inside a 13.2 px
+line box, so the boxes grazed by a fifth of a pixel and a long label turned that
+into area. A collision now has to be deep on **both** axes — 20% of the shorter
+box — because grazing one axis is not ink over ink however long the run.
+
+Checked against the defect it exists to find rather than assumed: with the old
+caption leading restored, the stricter detector still reports 269, 245 and
+111 px². It also agrees with the earlier `387e689` judgement, catching the 17 px
+objective separation it fixed and clearing the 21 px result.
+
+### A correction to the compression claim
+
+The surface ramp was argued on the grounds that values under code value 16 are
+crushed to black. That is wrong: Rec.709 limited range *rescales* full-range
+0–255 into 16–235, it does not clip. The real defect was simpler and worse — the
+page ground and the panel body were the **same colour**, so their separation was
+zero code values and no encoder could preserve a distinction that did not exist.
+Everything that marked a panel edge was a 1 px hairline, which is the
+high-frequency detail a block transform smears first.
+
+In limited-range code values the ramp now reads ground 28, panel body 37, raised
+chrome 43.
+
+### What is not verified here
+
+**The compressed-file check has not been run.** The ffmpeg bundled with
+Playwright in this environment is a screencast build with no H.264 encoder and
+no PNG decoder, so a delivered-bitrate encode could not be produced. The numbers
+above are page measurements and colourimetry, both deterministic; how the ramp
+survives a real encode remains a founder-machine step, like
+`scripts/m1_capture_screenshots.py`. Record a take, encode it at the delivery
+bitrate, and confirm the panel edges still read.
+
+The ramp's top step is capped by accessibility, not taste: `ash` measures 4.69:1
+on `surface2`, and the next step up the ramp drops it to 4.37 and breaks the AA
+floor `fbb26bd` established.

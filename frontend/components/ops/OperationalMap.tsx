@@ -216,7 +216,7 @@ function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveSt
       /* Fully opaque, not 90%: this panel sits over the site frame, and a
          translucent readout lets grid lines and ring labels show through its
          numbers. It is also the design system's no-glassmorphism rule. */
-      className="pointer-events-none absolute left-3 top-[78px] z-20 min-w-[275px] border border-orbital-blue/45 bg-absolute-black px-3 py-2 font-mono shadow-inset-highlight"
+      className="pointer-events-none absolute left-3 top-[78px] z-20 min-w-[275px] border border-orbital-blue/45 bg-surface-1 px-3 py-2 font-mono shadow-inset-highlight"
     >
       <div className="flex items-center justify-between gap-5">
         <span className="text-[11px] uppercase tracking-[0.14em] text-ash">EXECUTOR TELEMETRY</span>

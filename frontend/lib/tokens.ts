@@ -49,6 +49,44 @@ export const tokens = {
     launchAmber: "#FFB45C",   // ATTENTION · pre-launch · warning
   },
 
+  // ── Surface ramp ────────────────────────────────────────────────────────
+  //
+  // The console is delivered as a compressed video, and it used to paint panel
+  // bodies in `absoluteBlack` on a page ground of `absoluteBlack` — the same
+  // colour, separated only by a 1px hairline, which is the first thing an
+  // encoder destroys. Measured in the page: ground and panel body both
+  // rgb(3, 4, 6), at every frame.
+  //
+  // Three steps now, all greyscale, so the 85% monochrome rule is untouched.
+  // They are chosen in Rec.709 luma rather than by eye, and stated below in the
+  // limited-range code values a delivered video actually carries:
+  //
+  //                        luma   tv code
+  //   surface0  ground     13.6      28     the gaps between panels
+  //   surface1  panel body 24.2      37     +9 — content sits here
+  //   surface2  raised     31.2      43     +6 — panel headers, command bar
+  //
+  // The defect was never a floor to clear: limited range rescales 0-255 into
+  // 16-235, it does not clip. It was that ground and panel body were the *same
+  // colour*, so the separation between them was zero code values and no encoder
+  // could preserve a distinction that did not exist. All that carried a panel
+  // edge was a 1px hairline, which is exactly the high-frequency detail block
+  // transforms smear first.
+  //
+  // surface2 is capped by accessibility, not taste. `ash` — the label tier, 97
+  // call sites at 9-13px — measures 4.69:1 here. The next step up the ramp
+  // (#1E262E) drops it to 4.37 and breaks the AA floor that `fbb26bd`
+  // established. The ramp stops where the text stops clearing.
+  //
+  // The map keeps `absoluteBlack`. It is a canvas, not a panel: being darker
+  // than the ground is what bounds it, its marks are drawn in light tones, and
+  // its graticule keeps an 18-point luma margin over it.
+  surfaceRamp: {
+    s0: "#0B0E11",            // ground — obsidian
+    s1: "#131920",            // panel body
+    s2: "#1A2026",            // raised chrome — gunmetal
+  },
+
   // ── Semantic aliases used across the dashboard ────────────────────────────
   semantic: {
     bg: "#030406",            // absoluteBlack

@@ -180,7 +180,7 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
 function LoopFrame({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="flex h-[68px] shrink-0 flex-col justify-center gap-[6px] overflow-hidden border border-gunmetal bg-obsidian px-3 shadow-inset-highlight"
+      className="flex h-[68px] shrink-0 flex-col justify-center gap-[6px] overflow-hidden border border-gunmetal bg-surface-2 px-3 shadow-inset-highlight"
       data-testid="control-loop-strip"
     >
       {children}
@@ -298,7 +298,7 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
   // to close its causal chain on screen. Column separation inside the grid
   // keeps 8px — that gap is doing real work.
   return (
-    <main className="flex h-screen min-h-0 flex-col gap-[6px] bg-absolute-black p-1 text-platinum">
+    <main className="flex h-screen min-h-0 flex-col gap-[6px] bg-surface-0 p-1 text-platinum">
       <CommandBar
         link={frame.link}
         sessionLabel={frame.sessionLabel}

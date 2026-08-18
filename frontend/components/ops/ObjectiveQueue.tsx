@@ -74,7 +74,7 @@ export function ObjectiveQueue({
               className={`block w-full border-b border-gunmetal px-3 py-3 text-left transition-colors duration-press ease-swarm ${
                 story.missionId === focusMissionId
                   ? "border-l-2 border-l-orbital-blue bg-orbital-blue/[0.05]"
-                  : "border-l-2 border-l-transparent hover:bg-obsidian"
+                  : "border-l-2 border-l-transparent hover:bg-surface-2"
               }`}
             >
               <div className="flex items-baseline justify-between gap-3">
@@ -180,8 +180,8 @@ export function ImageryAside({ src, story }: { src: string; story: ObjectiveStor
     story?.confidence != null ? `${(story.confidence * 100).toFixed(0)}%` : "—";
 
   return (
-    <section className="shrink-0 border border-gunmetal bg-absolute-black">
-      <header className="flex h-[30px] items-center justify-between border-b border-gunmetal bg-obsidian px-3">
+    <section className="shrink-0 border border-gunmetal bg-surface-1">
+      <header className="flex h-[30px] items-center justify-between border-b border-gunmetal bg-surface-2 px-3">
         <Eyebrow>sensor input context</Eyebrow>
         <span className="font-mono text-[12px] tracking-[0.16em] text-ash">
           SIMULATED IMAGERY
@@ -198,7 +198,7 @@ export function ImageryAside({ src, story }: { src: string; story: ObjectiveStor
           <div className="truncate text-muted-silver">REPORTED INPUT → {story.label}</div>
         </div>
       ) : null}
-      <div className="relative h-[76px] w-full overflow-hidden bg-obsidian">
+      <div className="relative h-[76px] w-full overflow-hidden bg-surface-1">
         {story ? (
           <video
             aria-label="Simulated scene reference for reported sensor input"
