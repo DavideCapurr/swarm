@@ -29,6 +29,14 @@
  * two. The true position is always the mark at the bottom of the leader; the
  * lift is what makes the role ladder — the composition itself — visible.
  *
+ * A fourth mark sits on top of an executor holding station with an active
+ * bounded-response channel — the light on, the speaker playing. This is the
+ * one place on the map that shows physical execution rather than composition:
+ * a small badge, coloured by the same verified/simulated tier the panels use,
+ * appears the instant a real `PayloadEvent` frame says the channel is active
+ * and disappears the instant one says it stopped. It never infers action from
+ * `ON_STATION` alone — an executor can hold station with nothing switched on.
+ *
  * Geometry is SVG; captions are HTML. Small operational type is the thing this
  * surface is mostly made of, and HTML is where the type system actually lives.
  */
@@ -37,6 +45,7 @@ import { useMemo } from "react";
 
 import type { CapacityRow, CompositionSlot, ObjectiveAuthority } from "@/lib/authority";
 import { roleLabel } from "@/lib/authority";
+import type { PayloadChannel } from "@/lib/mission-story";
 import type { ScreenPoint } from "@/lib/opsmap";
 
 import type { ConsoleProjection } from "./projection";
@@ -113,6 +122,40 @@ function AltitudeLeader({
         strokeDasharray="1 3"
       />
       <circle cx={ground.x} cy={ground.y} r={2.2} fill="none" stroke={tone} strokeWidth={1} />
+    </g>
+  );
+}
+
+/**
+ * The action badge.
+ *
+ * Two small marks at most — one per bounded-response channel — sitting above
+ * and clear of the executor's own caption, so the two never fight for the same
+ * pixels. Steady, not pulsing: CLAUDE.md's motion rule is explicit that
+ * nothing on this surface repeats forever, and a channel that is on stays on
+ * without needing to keep announcing it.
+ */
+function ActionBadges({
+  point,
+  channels,
+}: {
+  point: ScreenPoint;
+  channels: PayloadChannel[];
+}) {
+  if (channels.length === 0) return null;
+  return (
+    <g>
+      {channels.map((channel, i) => {
+        const tone = channel.tier === "simulated" ? "#FFB45C" : "#B8FF66";
+        const cx = point.x - 11 + i * 9;
+        const cy = point.y - 13;
+        return (
+          <g key={channel.channel}>
+            <circle cx={cx} cy={cy} r={4} fill="none" stroke={tone} strokeWidth={1.1} />
+            <circle cx={cx} cy={cy} r={1.6} fill={tone} />
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -355,6 +398,8 @@ export function MapOverlay({
   capacity,
   focusKey,
   selectedExecutor,
+  /** Bounded-response channels for the focused objective, latest frame each. */
+  channels = [],
   onSelectObjective,
   onSelectExecutor,
 }: {
@@ -363,10 +408,25 @@ export function MapOverlay({
   capacity: CapacityRow[];
   focusKey: string | null;
   selectedExecutor: string | null;
+  channels?: PayloadChannel[];
   onSelectObjective: (key: string) => void;
   onSelectExecutor: (agentId: string | null) => void;
 }) {
   const focused = objectives.find((o) => o.key === focusKey) ?? null;
+
+  // Only a channel a server frame actually reported as active earns a badge —
+  // "LIGHT ON" / "SPEAKER ACTIVE" specifically, never inferred from station.
+  const activeByAgent = useMemo(() => {
+    const out = new Map<string, PayloadChannel[]>();
+    for (const channel of channels) {
+      if (!channel.agentId) continue;
+      if (channel.state !== "LIGHT ON" && channel.state !== "SPEAKER ACTIVE") continue;
+      const bucket = out.get(channel.agentId);
+      if (bucket) bucket.push(channel);
+      else out.set(channel.agentId, [channel]);
+    }
+    return out;
+  }, [channels]);
 
   const marks = useMemo<ExecutorMark[]>(() => {
     const slotByAgent = new Map<string, CompositionSlot>();
@@ -480,6 +540,11 @@ export function MapOverlay({
               ground={mark.ground}
               point={mark.point}
               tone={toneFor(mark.row, mark.focused)}
+            />
+            {/* 4 — what it is doing, when it is doing something. */}
+            <ActionBadges
+              point={mark.point}
+              channels={activeByAgent.get(mark.row.agentId) ?? []}
             />
             {selectedExecutor === mark.row.agentId ? (
               <circle

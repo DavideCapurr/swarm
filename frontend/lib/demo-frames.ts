@@ -543,11 +543,12 @@ export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): Ta
 //   Each agent's distance from the objective is inverted out of its recorded
 //   score under the real allocator formula (`score_bid`, priority
 //   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100), giving
-//   34.83 m, 36.37 m, 38.08 m and 39.93 m, and those are then scaled by a
-//   common factor for legibility — see PRESENTATION_SCALE. The ratios, and so
-//   the ranking the allocator decided on, are exact; the absolute distance is
-//   a presentation choice. The approach bearing is not recorded anywhere and is
-//   likewise chosen — see HOME_B.
+//   34.83 m, 36.37 m, 38.08 m and 39.93 m, scaled by a common factor for
+//   legibility (see PRESENTATION_SCALE) and then averaged into one shared dock
+//   distance, because the real deployment launches every aircraft from one
+//   physical pad — see DOCK_B. The four individual distances therefore do not
+//   survive into the geometry; what does is their ranking, which is carried by
+//   the roles SwarmOS actually assigned, not by where a dart sits on the map.
 //
 //   SCRIPTED — the intra-take timing. The bench recorded a 7.08 s detection
 //   latency and 47.51 s from kill to recovered completion; the ordering here is
@@ -608,24 +609,47 @@ function offsetGeo(from: Geo, distanceM: number, bearingDeg: number): Geo {
 const PRIORITY_B = 99; // 80 + int(0.99 * 20)
 
 /**
- * Approach bearings.
+ * The dock.
  *
- * Free parameters: the bench recorded scores, not coordinates, so the distance
- * from the objective is pinned by `distanceFromScore` and the direction is not.
+ * The real deployment this take stands in for launches every aircraft from one
+ * physical pad — every scenario YAML gives `n_drones` a single shared
+ * `dock_offset_m`, and the earlier draft of this take, which put each aircraft
+ * on its own bearing at its own distance, drew four independent sites instead
+ * of one fleet. That was a demo fiction the architecture does not have.
  *
- * The four launch points sit south of the objective across a 51° arc. Two
- * things follow, and both are the reason for the choice. The aircraft are far
- * enough apart at launch to read as four aircraft rather than one stack of
- * darts. And the transit runs along the frame's short axis, so the journey is
- * the long dimension of what the camera holds instead of a short hop into the
- * middle of a ring — the objective is somewhere the fleet goes, not somewhere
- * it is already standing.
+ * `DOCK_B` sits south of the objective at the *average* of the four ground
+ * distances the recorded scores imply — an honest single number derived from
+ * real data, not picked for effect. Each aircraft's exact pad is a small,
+ * fixed offset from that one point (see `DOCK_SLOT_M`), the way four aircraft
+ * actually sit on adjacent charging slots of one dock.
  */
+const RECORDED_DISTANCES_M = [
+  distanceFromScore(TAKE_B.primary.score, 100, PRIORITY_B),
+  distanceFromScore(TAKE_B.secondary.score, 100, PRIORITY_B),
+  distanceFromScore(TAKE_B.overwatch.score, 100, PRIORITY_B),
+  distanceFromScore(TAKE_B.replacement.score, 100, PRIORITY_B),
+];
+const DOCK_DISTANCE_M =
+  RECORDED_DISTANCES_M.reduce((a, b) => a + b, 0) / RECORDED_DISTANCES_M.length;
+const DOCK_B = offsetGeo(OBJECTIVE_B, DOCK_DISTANCE_M, 180);
+
+/** Metres east of `DOCK_B`, one slot per aircraft, 3 m apart on the pad. */
+const DOCK_SLOT_M: Record<string, number> = {
+  "mav-004": -4.5,
+  "mav-003": -1.5,
+  "mav-002": 1.5,
+  "mav-001": 4.5,
+};
+
+function dockSlot(eastM: number): Geo {
+  return offsetGeo(DOCK_B, Math.abs(eastM), eastM >= 0 ? 90 : 270);
+}
+
 const HOME_B: Record<string, Geo> = {
-  "mav-004": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.primary.score, 100, PRIORITY_B), 155),
-  "mav-003": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.secondary.score, 100, PRIORITY_B), 172),
-  "mav-002": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.overwatch.score, 100, PRIORITY_B), 189),
-  "mav-001": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.replacement.score, 100, PRIORITY_B), 206),
+  "mav-004": dockSlot(DOCK_SLOT_M["mav-004"]),
+  "mav-003": dockSlot(DOCK_SLOT_M["mav-003"]),
+  "mav-002": dockSlot(DOCK_SLOT_M["mav-002"]),
+  "mav-001": dockSlot(DOCK_SLOT_M["mav-001"]),
 };
 
 const isoB = (at: number) => new Date(TAKE_B.t0 + at).toISOString();

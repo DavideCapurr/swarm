@@ -213,6 +213,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
             capacity={view.capacity}
             focusKey={focusKey}
             selectedExecutor={selectedExecutor}
+            channels={channels}
             onSelectObjective={setHeldFocus}
             onSelectExecutor={setSelectedExecutor}
           />
