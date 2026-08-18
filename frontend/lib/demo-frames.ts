@@ -506,9 +506,9 @@ export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): Ta
 //   RECONSTRUCTED — the positions. The bench recorded scores, not coordinates,
 //   so each agent is placed at the exact ground distance its recorded score
 //   implies under the real allocator formula (`score_bid`, priority
-//   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100). The
-//   objective sits at the PX4 SITL default home's north-east, and the four
-//   aircraft fan out behind it at 34.83 m, 36.37 m, 38.08 m and 39.93 m.
+//   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100): 34.83 m,
+//   36.37 m, 38.08 m and 39.93 m. Distance is therefore derived; the approach
+//   bearing is not recorded anywhere and is chosen — see HOME_B.
 //
 //   SCRIPTED — the intra-take timing. The bench recorded a 7.08 s detection
 //   latency and 47.51 s from kill to recovered completion; the ordering here is
@@ -546,11 +546,25 @@ function offsetGeo(from: Geo, distanceM: number, bearingDeg: number): Geo {
 
 const PRIORITY_B = 99; // 80 + int(0.99 * 20)
 
+/**
+ * Approach bearings.
+ *
+ * Free parameters: the bench recorded scores, not coordinates, so the distance
+ * from the objective is pinned by `distanceFromScore` and the direction is not.
+ *
+ * The four launch points sit south of the objective across a 51° arc. Two
+ * things follow, and both are the reason for the choice. The aircraft are far
+ * enough apart at launch to read as four aircraft rather than one stack of
+ * darts. And the transit runs along the frame's short axis, so the journey is
+ * the long dimension of what the camera holds instead of a short hop into the
+ * middle of a ring — the objective is somewhere the fleet goes, not somewhere
+ * it is already standing.
+ */
 const HOME_B: Record<string, Geo> = {
-  "mav-004": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.primary.score, 100, PRIORITY_B), 212),
-  "mav-003": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.secondary.score, 100, PRIORITY_B), 219),
-  "mav-002": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.overwatch.score, 100, PRIORITY_B), 226),
-  "mav-001": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.replacement.score, 100, PRIORITY_B), 233),
+  "mav-004": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.primary.score, 100, PRIORITY_B), 155),
+  "mav-003": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.secondary.score, 100, PRIORITY_B), 172),
+  "mav-002": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.overwatch.score, 100, PRIORITY_B), 189),
+  "mav-001": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.replacement.score, 100, PRIORITY_B), 206),
 };
 
 const isoB = (at: number) => new Date(TAKE_B.t0 + at).toISOString();
@@ -676,11 +690,11 @@ const legsFor = (agentId: string, start: number, arrive: number, rtl: number): L
 ];
 
 const LEGS_B: Record<string, Leg[]> = {
-  "mav-004": legsFor("mav-004", 8, 26, 44),
-  "mav-003": legsFor("mav-003", 8, 27, 44),
-  "mav-002": legsFor("mav-002", 8, 28, 46),
+  "mav-004": legsFor("mav-004", 8, 30, 44),
+  "mav-003": legsFor("mav-003", 8, 31, 44),
+  "mav-002": legsFor("mav-002", 8, 32, 46),
   // The replacement launches only when SwarmOS selects it.
-  "mav-001": legsFor("mav-001", 24, 40, 48),
+  "mav-001": legsFor("mav-001", 24, 42, 48),
 };
 
 /** `mav-003` is killed at T+20; its last reported position is held from there. */
@@ -793,21 +807,21 @@ export function takeBFrames(): DemoFrame[] {
   });
 
   // Arrival is accepted only on final MISSION_ITEM_REACHED, for every member.
-  frames.push({ at: 26_000, kind: "runtime", data: runtimeB(TAKE_B.primary.mission, TAKE_B.primary.agent, "ON_STATION", 26, "mavlink_mission_item_reached") });
-  frames.push({ at: 28_000, kind: "runtime", data: runtimeB(TAKE_B.overwatch.mission, TAKE_B.overwatch.agent, "ON_STATION", 28, "mavlink_mission_item_reached") });
-  frames.push({ at: 40_000, kind: "runtime", data: runtimeB(TAKE_B.replacement.mission, TAKE_B.replacement.agent, "ON_STATION", 40, "mavlink_mission_item_reached") });
+  frames.push({ at: 30_000, kind: "runtime", data: runtimeB(TAKE_B.primary.mission, TAKE_B.primary.agent, "ON_STATION", 30, "mavlink_mission_item_reached") });
+  frames.push({ at: 32_000, kind: "runtime", data: runtimeB(TAKE_B.overwatch.mission, TAKE_B.overwatch.agent, "ON_STATION", 32, "mavlink_mission_item_reached") });
+  frames.push({ at: 42_000, kind: "runtime", data: runtimeB(TAKE_B.replacement.mission, TAKE_B.replacement.agent, "ON_STATION", 42, "mavlink_mission_item_reached") });
 
   // Bounded presence response. The light is confirmed at the PX4 output; the
   // speaker stays explicitly simulated.
   frames.push({
-    at: 30_000,
+    at: 33_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 30),
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 33),
   });
   frames.push({
-    at: 31_000,
+    at: 34_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 31),
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 34),
   });
   frames.push({
     at: 44_000,

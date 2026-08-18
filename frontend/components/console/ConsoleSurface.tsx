@@ -139,7 +139,11 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
     return out.filter((p) => Number.isFinite(p.lat) && p.lat !== 0);
   }, [view]);
 
-  const solved = solveFrame(camera.current, points);
+  const solved = solveFrame(
+    camera.current,
+    points,
+    Math.max(1, (box.width - INSET.left - INSET.right) / (box.height - INSET.top - INSET.bottom))
+  );
   camera.current = { origin: solved.origin, center: solved.center, extentM: solved.extentM };
 
   const projection = useMemo(

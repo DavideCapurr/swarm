@@ -16,10 +16,9 @@
 
 import {
   boundsCenter,
-  boundsHalfSpan,
   buildProjection,
   localBounds,
-  snapExtent,
+  type LocalBounds,
   type LocalPoint,
   type MapGeo,
   type ScreenPoint,
@@ -46,7 +45,55 @@ const DEG = Math.PI / 180;
  * aircraft holding station metres apart still read as two aircraft, while a
  * full city block of context stays in shot.
  */
-export const MIN_EXTENT_M = 55;
+export const MIN_EXTENT_M = 16;
+
+/**
+ * The extent ladder this camera snaps to.
+ *
+ * `opsmap.EXTENT_STEPS_M` doubles roughly every step above 100 m, which is
+ * right for a map that has to hold an unknown site and wrong for a camera
+ * framing one objective: a scene needing 46 m was pushed to 60, and after the
+ * square fit and the headroom the fleet ended up spanning barely a third of the
+ * frame. This ladder is fine-grained where a cooperative objective actually
+ * lives — a transit of a few tens of metres should read as a transit — and
+ * coarsens only once the fleet is genuinely spread out.
+ *
+ * It is a camera, not a coordinate. Every position is still projected from the
+ * geo SwarmOS published.
+ */
+const EXTENT_LADDER_M = [
+  16, 18, 20, 22, 25, 28, 32, 36, 41, 47, 54, 62, 71, 82, 94, 108, 124, 143, 165,
+  190, 230, 280, 340, 420, 520, 650, 820, 1050, 1350, 1750, 2300, 3000,
+] as const;
+
+function snapConsoleExtent(requiredM: number, floorM: number): number {
+  const need = Math.max(requiredM, floorM, MIN_EXTENT_M);
+  for (const step of EXTENT_LADDER_M) {
+    if (step >= need) return step;
+  }
+  return EXTENT_LADDER_M[EXTENT_LADDER_M.length - 1];
+}
+
+/**
+ * Half-extent needed to hold `bounds` around `center`.
+ *
+ * `opsmap.boundsHalfSpan` takes the larger of the two axes and adds 12%. On a
+ * 16:9 viewport the projection then inscribes that square in the *shorter*
+ * side, so a scene that is wide and shallow — which is what a fleet converging
+ * on one objective looks like — pays for vertical space it never uses. This
+ * measures the axes against the box it is actually being drawn into.
+ */
+function halfSpanFor(
+  bounds: LocalBounds,
+  center: LocalPoint,
+  aspect: number
+): number {
+  const e = Math.max(Math.abs(bounds.maxE - center.e), Math.abs(center.e - bounds.minE));
+  const n = Math.max(Math.abs(bounds.maxN - center.n), Math.abs(center.n - bounds.minN));
+  // The projection scales by the shorter side, so the east axis only needs the
+  // extent it exceeds the aspect ratio by.
+  return Math.max(n, e / Math.max(aspect, 1)) * 1.04;
+}
 
 export type Box = { width: number; height: number };
 
@@ -80,8 +127,10 @@ export function buildConsoleProjection(
   if (!frame.origin) return null;
   const offset = safeOffset(box, inset);
   // The usable square is measured inside the inset so the scene is solved for
-  // the clear area, then drawn across the whole viewport.
-  const padding = 56;
+  // the clear area, then drawn across the whole viewport. The padding is the
+  // margin captions need past the outermost glyph, nothing more — at 56 it was
+  // taking 112 px out of a 620 px usable height, which the transit paid for.
+  const padding = 26;
   const usable = {
     width: Math.max(1, box.width - inset.left - inset.right),
     height: Math.max(1, box.height - inset.top - inset.bottom),
@@ -120,7 +169,9 @@ export function buildConsoleProjection(
  */
 export function solveFrame(
   held: { origin: MapGeo | null; center: LocalPoint | null; extentM: number },
-  points: readonly MapGeo[]
+  points: readonly MapGeo[],
+  /** Width / height of the area the scene is composed into. */
+  aspect = 1
 ): Frame & { center: LocalPoint } {
   const anchor = points.find((p) => Number.isFinite(p.lat) && p.lat !== 0) ?? null;
   const origin = held.origin ?? (anchor ? { lat: anchor.lat, lon: anchor.lon } : null);
@@ -136,8 +187,8 @@ export function solveFrame(
         Math.max(10, held.extentM * 0.32);
     if (drifted) center = wanted;
   }
-  const needed = bounds ? boundsHalfSpan(bounds, center) : 0;
-  const extentM = snapExtent(Math.max(needed, MIN_EXTENT_M), held.extentM);
+  const needed = bounds ? halfSpanFor(bounds, center, aspect) : 0;
+  const extentM = snapConsoleExtent(needed, held.extentM);
   return { origin, center, extentM };
 }
 
