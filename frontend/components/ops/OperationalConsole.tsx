@@ -93,15 +93,14 @@ function useWallClock(enabled: boolean): number {
 function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
   if (!story) {
     return (
-      <div className="flex h-[48px] shrink-0 items-center border border-gunmetal bg-obsidian px-3">
-        <span className="font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
-        <span className="ml-4 min-w-0 truncate font-mono text-[14px] tracking-[0.08em] text-muted-silver">
-          SENSOR INPUT → OBJECTIVE → SWARMOS DECIDES → PHYSICAL AGENTS EXECUTE → VERIFIED EVIDENCE RETURNS
-        </span>
-        <span className="ml-auto shrink-0 pl-3 font-mono text-[13px] tracking-[0.1em] text-ash">
-          SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
-        </span>
-      </div>
+      <LoopFrame>
+        <div className="flex items-center">
+          <span className="font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
+          <span className="ml-4 min-w-0 truncate font-mono text-[14px] tracking-[0.08em] text-muted-silver">
+            SENSOR INPUT → OBJECTIVE → SWARMOS DECIDES → PHYSICAL AGENTS EXECUTE → VERIFIED EVIDENCE RETURNS
+          </span>
+        </div>
+      </LoopFrame>
     );
   }
 
@@ -111,11 +110,9 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
   const source = story.detectedBy ?? "swarm anomaly bus";
 
   return (
-    <div
-      className="flex h-[50px] shrink-0 items-center gap-3 overflow-hidden border border-gunmetal bg-obsidian px-3 shadow-inset-highlight"
-      data-testid="control-loop-strip"
-    >
-      <span className="shrink-0 font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
+    <LoopFrame>
+      <div className="flex items-center gap-3">
+        <span className="shrink-0 font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
       {/* The strip is a causal chain of facts. Only two links are genuinely
           state — the exclusion that constrained the decision, and whether
           evidence came back — so only those carry colour. */}
@@ -158,11 +155,40 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
         value={verified?.proof ?? "PENDING"}
         tone={verified ? "green" : "silver"}
       />
-      {/* A standing legend for the architecture boundary, not a live reading —
-          so it sits at label weight rather than in the live-channel accent. */}
-      <span className="ml-auto shrink-0 border-l border-gunmetal pl-3 font-mono text-[11px] leading-tight tracking-[0.08em] text-ash">
-        SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
-      </span>
+      </div>
+    </LoopFrame>
+  );
+}
+
+/**
+ * The strip's frame: the causal chain on its own row, the standing architecture
+ * claim on a second one.
+ *
+ * The claim used to close the chain's row as an `ml-auto shrink-0` span about
+ * 320px wide. Being `shrink-0` it never yielded, so the live values beside it —
+ * `min-w-0 shrink` + `truncate` — paid for it. From T+44s, when verified arrival
+ * lands and lengthens the last link, five readouts lost their tail and stayed
+ * cut for the final third of the take: the exclusion that constrained the
+ * decision, the agent SwarmOS selected, and the mission it owns. Those are the
+ * rationale, which is the one thing this strip exists to carry.
+ *
+ * Deleting the claim would have fixed the measurement and lost a requirement —
+ * `OperationalNarrative.test.tsx` asserts this surface states the boundary, and
+ * it is right to. Eighteen pixels of height buys both: the chain gets the full
+ * width, the sentence stays whole.
+ */
+function LoopFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="flex h-[68px] shrink-0 flex-col justify-center gap-[6px] overflow-hidden border border-gunmetal bg-obsidian px-3 shadow-inset-highlight"
+      data-testid="control-loop-strip"
+    >
+      {children}
+      <div className="flex shrink-0 items-center border-t border-gunmetal pt-[6px]">
+        <span className="font-mono text-[11px] leading-none tracking-[0.08em] text-ash">
+          SWARMOS DECIDES · PHYSICAL AGENTS EXECUTE
+        </span>
+      </div>
     </div>
   );
 }
