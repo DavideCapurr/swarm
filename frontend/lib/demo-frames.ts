@@ -101,9 +101,39 @@ function lerpGeo(from: Geo, to: Geo, t: number, altM: number): Geo {
 
 type Leg = { from: number; to: number; a: Geo; b: Geo; state: UnitState["fsm_state"]; alt: number };
 
-function positionAt(legs: Leg[], home: Geo, atS: number): { geo: Geo; state: UnitState["fsm_state"] } {
+/** Compass bearing from one point to another. 0 is north. */
+function bearingDeg(from: Geo, to: Geo): number {
+  const dLat = to.lat - from.lat;
+  const dLon = (to.lon - from.lon) * Math.cos((from.lat * Math.PI) / 180);
+  return ((Math.atan2(dLon, dLat) * 180) / Math.PI + 360) % 360;
+}
+
+function samePoint(a: Geo, b: Geo): boolean {
+  return a.lat === b.lat && a.lon === b.lon;
+}
+
+/** Rotate `from` a fraction `k` of the way to `to`, the short way round. */
+function turnToward(from: number, to: number, k: number): number {
+  const delta = ((to - from + 540) % 360) - 180;
+  return (from + delta * k + 360) % 360;
+}
+
+/** Seconds an aircraft takes to come round onto a new leg. */
+const TURN_S = 2.5;
+
+function positionAt(
+  legs: Leg[],
+  home: Geo,
+  atS: number
+): { geo: Geo; state: UnitState["fsm_state"]; headingDeg: number } {
   let geo = home;
   let state: UnitState["fsm_state"] = "DOCKED";
+  // Heading follows the leg being flown, so an aircraft on RTL points at the
+  // home it is returning to rather than at the objective it has left. Before
+  // launch it already faces its first leg, which is what a dart on a pad
+  // should do. Turns are taken over TURN_S rather than snapped: a 180 that
+  // happens between two 1 Hz samples reads as a glitch, not a turn.
+  let headingDeg = legs.length > 0 ? bearingDeg(legs[0].a, legs[0].b) : 0;
   for (const leg of legs) {
     if (atS < leg.from) break;
     const k = atS >= leg.to ? 1 : (atS - leg.from) / (leg.to - leg.from);
@@ -115,8 +145,14 @@ function positionAt(legs: Leg[], home: Geo, atS: number): { geo: Geo; state: Uni
           : leg.alt; // holding station
     geo = lerpGeo(leg.a, leg.b, k, altitude);
     state = leg.state;
+    // A leg that holds station has no direction of travel, so it leaves the
+    // heading where the last flown leg put it.
+    if (!samePoint(leg.a, leg.b)) {
+      const turn = Math.min(1, Math.max(0, (atS - leg.from) / TURN_S));
+      headingDeg = turnToward(headingDeg, bearingDeg(leg.a, leg.b), turn);
+    }
   }
-  return { geo, state };
+  return { geo, state, headingDeg };
 }
 
 const LEGS_002: Leg[] = [
@@ -140,7 +176,7 @@ function unitFrame(
   missionId: string | null,
   batteryPct: number
 ): UnitState {
-  const { geo, state } = positionAt(legs, home, atS);
+  const { geo, state, headingDeg } = positionAt(legs, home, atS);
   return {
     agent_id: agentId,
     vendor: "mavlink",
@@ -151,7 +187,7 @@ function unitFrame(
     current_mission_id: missionId,
     current_sector_id: null,
     link_quality: 1,
-    heading_deg: agentId === "mav-002" ? 42 : 318,
+    heading_deg: headingDeg,
     altitude_agl_m: geo.alt_m,
     dock_id: "dock-sitl-01",
     ts: iso(atS * 1000),
@@ -639,10 +675,9 @@ function unitB(
   missionId: string | null,
   legs: Leg[],
   batteryPct: number,
-  headingDeg: number,
   fixedState?: UnitState["fsm_state"]
 ): UnitState {
-  const { geo, state } = positionAt(legs, HOME_B[agentId], atS);
+  const { geo, state, headingDeg } = positionAt(legs, HOME_B[agentId], atS);
   return {
     agent_id: agentId,
     vendor: "mavlink",
@@ -699,15 +734,6 @@ function missionB(missionId: string, agentId: string, legs: Leg[], atS: number):
   };
 }
 
-/** Bearing from an agent's home toward the objective, so darts point where they fly. */
-function headingToObjective(agentId: string): number {
-  const home = HOME_B[agentId];
-  const dLat = OBJECTIVE_B.lat - home.lat;
-  const dLon =
-    (OBJECTIVE_B.lon - home.lon) * Math.cos((home.lat * Math.PI) / 180);
-  return (((Math.atan2(dLon, dLat) * 180) / Math.PI) + 360) % 360;
-}
-
 const legsFor = (agentId: string, start: number, arrive: number, rtl: number): Leg[] => [
   { from: start, to: arrive, a: HOME_B[agentId], b: OBJECTIVE_B, state: "EN_ROUTE", alt: CRUISE_ALT_M },
   { from: arrive, to: rtl, a: OBJECTIVE_B, b: OBJECTIVE_B, state: "ON_STATION", alt: CRUISE_ALT_M },
@@ -748,7 +774,6 @@ export function takeBFrames(): DemoFrame[] {
           t >= entry.from ? entry.mission : null,
           LEGS_B[entry.agent],
           Math.max(58, 100 - t * 0.35),
-          headingToObjective(entry.agent),
           dead ? "OFFLINE" : undefined
         ),
       });
