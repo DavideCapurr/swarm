@@ -130,6 +130,23 @@ Open:
 http://localhost:3000/login?next=/demo/intrusion
 ```
 
+**Record at 1920 × 1080, browser zoom 100%, device pixel ratio 1.**
+
+This is not a preference. The Console's layout budgets are horizontal: the
+control-loop strip, the command bar and the decision rail all shrink their live
+readouts before they overflow, so at a narrower window the causal chain starts
+losing its tail to an ellipsis and the decision rail drops a step below the
+fold — silently, with nothing on screen to say it happened. Every layout
+criterion in `console-render-audit.md` is stated at this size, and a take
+recorded at another one has not been measured.
+
+Verify the viewport before the first take rather than after:
+
+```bash
+# in the page console
+innerWidth + '×' + innerHeight + ' @' + devicePixelRatio
+```
+
 Log in with the dev viewer created by `make bootstrap-auth-dev`, then wait until `/demo/intrusion` visibly says exactly `CONNECTED`.
 
 **Do not trigger event 1 before `CONNECTED`.** The final deterministic rehearsal waited for that signal and then allowed a 1-second settle before publishing event 1.

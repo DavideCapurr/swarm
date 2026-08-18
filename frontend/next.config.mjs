@@ -12,6 +12,10 @@ import { fileURLToPath } from "node:url";
  *     diagnostics so `make demo` remains interactive.
  *   - style-src 'self' 'unsafe-inline' — Tailwind emits inline style attrs
  *     for hover/transition utilities. Tighten to nonce-based in Phase 6.
+ *     fonts.googleapis.com was allowed here, and fonts.gstatic.com in
+ *     font-src, while the brand faces were fetched at runtime. The faces are
+ *     self-hosted now (styles/fonts.css), so both hosts are gone and the
+ *     Console reaches no external origin for its typography.
  *   - img-src 'self' data: blob: https: — MapLibre raster basemaps (CARTO
  *     dark + Esri World Imagery satellite) + inline SVG icons. connect-src
  *     pins the exact tile hosts (MAP_CONNECT_SRC); we tighten img-src to
@@ -77,9 +81,9 @@ const CSP = [
   // The CV-live simulated viewport clip is a same-origin bundled asset under
   // /sim-feed/. Pin media to 'self' — no external video origins are allowed.
   "media-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   `script-src ${SCRIPT_SRC}`,
-  "font-src 'self' data: https://fonts.gstatic.com",
+  "font-src 'self' data:",
   "worker-src 'self' blob:",
 ].join("; ");
 
