@@ -382,14 +382,29 @@ make lint
 make test
 make audit
 cd frontend && pnpm dev            # leave running
-uv run --with playwright python scripts/console_render_audit.py
+uv run python scripts/console_render_audit.py
 ```
 
 The render audit must report 0 glyph collisions, 0 truncated readouts, and
-decision-rail steps 01–06 in frame at 2560 × 1440. Its Playwright dependency is
-deliberately not in `uv.lock`: the audit is a bench tool, not a runtime or CI
-dependency, so it is pulled per-invocation rather than added to the pinned
-dependency set every deployment inherits.
+decision-rail steps 01–06 in frame at 2560 × 1440.
+
+Its Playwright dependency is pinned in the `dev` extra, so `make setup` — which
+the `make lint` / `make test` lines above already require — installs it. The
+wheel carries no browser, so on a machine that has never run the audit, download
+Chromium once:
+
+```bash
+uv run python -m playwright install chromium
+```
+
+That is a one-time per-machine step, not a per-session one; skip it if
+`SWARM_CHROMIUM_PATH` or `PLAYWRIGHT_BROWSERS_PATH` already points at a build.
+Nothing outside dev/bench inherits the dependency — extras are opt-in and
+`backend/Dockerfile` syncs `--extra mavlink` only — so the deployed image is
+unchanged. It was previously pulled per-invocation with
+`uv run --with playwright`, which left it unpinned and absent from `uv.lock`;
+on a clean checkout the plain command in this gate then failed with
+`ModuleNotFoundError`.
 
 ## Known limitations
 

@@ -27,12 +27,20 @@ criterion.
 
 ```bash
 cd frontend && pnpm dev            # in one terminal
-python scripts/console_render_audit.py
-python scripts/console_render_audit.py --viewport 1920x1080   # degradation check only
+uv run python scripts/console_render_audit.py
+uv run python scripts/console_render_audit.py --viewport 1920x1080   # degradation check only
 ```
 
-Chromium comes from `SWARM_CHROMIUM_PATH`, else `PLAYWRIGHT_BROWSERS_PATH`, else
-Playwright's own download.
+Playwright is pinned in the `dev` extra, so `make setup` installs the library.
+The wheel carries no browser; on a machine that has never run this audit,
+download Chromium once:
+
+```bash
+uv run python -m playwright install chromium
+```
+
+One time per machine, not per session. Chromium comes from
+`SWARM_CHROMIUM_PATH`, else `PLAYWRIGHT_BROWSERS_PATH`, else that download.
 
 ## What it measures, and why it measures it that way
 
