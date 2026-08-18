@@ -162,22 +162,7 @@ function buildTiles(
   return tiles;
 }
 
-function Basemap({
-  origin,
-  center,
-  mPerPx,
-  box,
-}: {
-  origin: MapGeo;
-  center: LocalPoint;
-  mPerPx: number;
-  box: { width: number; height: number };
-}) {
-  const tiles = useMemo(
-    () => buildTiles(origin, center, mPerPx, box),
-    [origin, center, mPerPx, box]
-  );
-
+function Basemap({ tiles }: { tiles: Tile[] }) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
       <div
@@ -203,6 +188,44 @@ function Basemap({
     </div>
   );
 }
+
+/**
+ * Whether the CARTO tile host actually answered.
+ *
+ * The tiles are CSS background images, which report neither load nor error, so
+ * one representative tile is fetched separately just to learn the answer. It
+ * changes nothing about what the map draws — the site frame, agents,
+ * objectives and tracks are local and stay authoritative either way. It exists
+ * so the attribution strip cannot claim a real basemap over an empty one when
+ * the recording machine has no route to the tile host.
+ */
+function useBasemapReachable(sampleUrl: string | null): "pending" | "ok" | "unavailable" {
+  const [state, setState] = useState<"pending" | "ok" | "unavailable">("pending");
+
+  useEffect(() => {
+    if (!sampleUrl) {
+      setState("pending");
+      return;
+    }
+    let cancelled = false;
+    const probe = new window.Image();
+    probe.onload = () => {
+      if (!cancelled) setState("ok");
+    };
+    probe.onerror = () => {
+      if (!cancelled) setState("unavailable");
+    };
+    probe.src = sampleUrl;
+    return () => {
+      cancelled = true;
+      probe.onload = null;
+      probe.onerror = null;
+    };
+  }, [sampleUrl]);
+
+  return state;
+}
+
 
 function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveStory }) {
   const rangeM = story.geo ? distanceM(unit.geo, story.geo) : null;
@@ -289,6 +312,12 @@ export function OperationalMap({
         : null,
     [origin, extentM, box.width, box.height, center]
   );
+  const tiles = useMemo(
+    () =>
+      origin && projection ? buildTiles(origin, center, projection.mPerPx, box) : [],
+    [origin, projection, center, box]
+  );
+  const basemap = useBasemapReachable(tiles[0]?.url ?? null);
   const focusedStory = stories.find((story) => story.missionId === focusMissionId) ?? null;
   const focusedUnit = focusedStory?.owner
     ? units.find((unit) => unit.agentId === focusedStory.owner) ?? null
@@ -296,9 +325,7 @@ export function OperationalMap({
 
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden bg-absolute-black">
-      {origin && projection ? (
-        <Basemap origin={origin} center={center} mPerPx={projection.mPerPx} box={box} />
-      ) : null}
+      {tiles.length > 0 ? <Basemap tiles={tiles} /> : null}
 
       <div className="absolute inset-0 z-10" style={{ mixBlendMode: "screen" }}>
         <LocalOperationalMap
@@ -317,8 +344,18 @@ export function OperationalMap({
           and overprinted on a narrow map. The scale and legend are lifted clear
           of it in OperationalMapCore. */}
       {origin ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 truncate bg-absolute-black/70 px-2 py-1 text-center font-mono text-[10px] tracking-[0.08em] text-ash">
-          REAL BASEMAP · © OPENSTREETMAP CONTRIBUTORS · © CARTO · CONTEXT ONLY
+        <div
+          data-testid="basemap-attribution"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-20 truncate bg-absolute-black/70 px-2 py-1 text-center font-mono text-[10px] tracking-[0.08em] text-ash"
+        >
+          {/* Attribution is owed only for tiles that actually painted, and the
+              surface may not claim a basemap it does not have. Same strip,
+              same single line, so the layout budget is unchanged. */}
+          {basemap === "ok"
+            ? "REAL BASEMAP · © OPENSTREETMAP CONTRIBUTORS · © CARTO · CONTEXT ONLY"
+            : basemap === "unavailable"
+              ? "BASEMAP UNAVAILABLE · SITE FRAME ONLY · NO EXTERNAL CONTEXT"
+              : "BASEMAP PENDING · SITE FRAME ONLY"}
         </div>
       ) : null}
     </div>

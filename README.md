@@ -165,4 +165,16 @@ Permanent distinctions:
 - central mission authority ≠ an unhackable endpoint;
 - local autopilot safety reflexes ≠ fleet-level mission autonomy.
 
+## Documentation map
+
+| Area | Document |
+| --- | --- |
+| Architecture | [`docs/architecture/overview.md`](docs/architecture/overview.md) · [`docs/adr/0011-central-decision-authority.md`](docs/adr/0011-central-decision-authority.md) |
+| Contracts | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) · [`docs/api/ws-contract.md`](docs/api/ws-contract.md) |
+| Operator | [`docs/operator/manual.md`](docs/operator/manual.md) · [`docs/operator/training.md`](docs/operator/training.md) · [`docs/operator/acceptance.md`](docs/operator/acceptance.md) |
+| Operations | [`docs/ops/runbook.md`](docs/ops/runbook.md) · [`docs/ops/deploy.md`](docs/ops/deploy.md) |
+| Security | [`docs/security/threat-model.md`](docs/security/threat-model.md) · [`docs/security/disclosure.md`](docs/security/disclosure.md) · [`docs/security/pentest-scope.md`](docs/security/pentest-scope.md) |
+| Compliance | [`docs/compliance/gdpr.md`](docs/compliance/gdpr.md) · [`docs/compliance/retention.md`](docs/compliance/retention.md) · [`docs/compliance/dpa-template.md`](docs/compliance/dpa-template.md) · [`docs/compliance/drone-regulations.md`](docs/compliance/drone-regulations.md) |
+| Contributing | [`docs/dev/onboarding.md`](docs/dev/onboarding.md) · [`docs/dev/release-process.md`](docs/dev/release-process.md) |
+
 For the current execution state, see [`docs/STATUS.md`](docs/STATUS.md). For the authoritative demo evidence, start with [`docs/bench/final-demo-rehearsal.md`](docs/bench/final-demo-rehearsal.md), [`docs/bench/phase11-execution-group-validation.md`](docs/bench/phase11-execution-group-validation.md), and [`docs/bench/phase12-execution-group-live-failover.md`](docs/bench/phase12-execution-group-live-failover.md).

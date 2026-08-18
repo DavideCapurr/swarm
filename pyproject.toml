@@ -143,8 +143,18 @@ testpaths = [
     "tests/fuzz",
     "tests/load",
     "tests/e2e",
+    # Every module under tests/ is named explicitly because the directory also
+    # holds the fuzz/load/e2e packages listed above. Leaving one out is silent:
+    # the docs, compliance, brand and voice gates sat uncollected here for
+    # months, and the CLAUDE.md forbidden-word gate was among them.
     "tests/test_phase6e_deploy.py",
+    "tests/test_phase6g_dr.py",
+    "tests/test_phase6h_docs.py",
+    "tests/test_phase6i_compliance_docs.py",
     "tests/test_phase6j_testing.py",
+    "tests/test_phase7c_brand.py",
+    "tests/test_phase7c_voice.py",
+    "tests/test_phase7e_demo.py",
     "tests/test_phase9_sitl_probe.py",
 ]
 markers = [
