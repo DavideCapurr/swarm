@@ -76,6 +76,11 @@ class AllocationDecision(BaseModel):
     excluded_units: list[AllocationExcludedUnit] = Field(default_factory=list)
     winner_agent_id: str | None = None
     winner_score: float | None = None
+    # Set only under `mode="diversion"`: the mission the selected unit was
+    # pulled off. The diverted unit is never also listed in `excluded_units` —
+    # it is the executor, so stating both would describe one agent two
+    # contradictory ways.
+    diverted_from_mission_id: str | None = None
     ts: datetime = Field(default_factory=_now)
 
 

@@ -36,6 +36,8 @@ import {
 } from "@/lib/mission-story";
 import type { LinkState } from "@/lib/state";
 
+import { telemetrySourceLabel } from "@/lib/telemetry-source";
+
 import { CommandBar } from "./CommandBar";
 import { DecisionRail } from "./DecisionRail";
 import { FleetPanel } from "./FleetPanel";
@@ -262,6 +264,8 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
 
   const owning = fleetRows.filter((row) => row.missionId).length;
   const objectivesOpen = stories.filter((story) => story.active).length;
+  // Provenance is read off the units, not asserted by the surface.
+  const telemetrySource = telemetrySourceLabel(frame.units);
   const separateTakeBBench = Boolean(
     group && frame.sessionLabel.trim().toLowerCase().includes("take b")
   );
@@ -277,6 +281,7 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
         fleetOwning={owning}
         objectivesOpen={objectivesOpen}
         clockText={frame.clockText}
+        telemetrySource={telemetrySource}
         replay={frame.replay}
       />
 
@@ -313,7 +318,12 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
           <ImageryAside src={SCENE_IMAGERY} story={imageryStory} />
         </div>
 
-        <OperationalMap units={fleetRows} stories={stories} focusMissionId={focusMissionId} />
+        <OperationalMap
+          units={fleetRows}
+          stories={stories}
+          focusMissionId={focusMissionId}
+          telemetrySource={telemetrySource}
+        />
 
         <DecisionRail story={focusStory} group={group} payloadChannels={payloadChannels} />
       </div>

@@ -58,8 +58,14 @@ def test_anomaly_summary_auto_chip_is_orbital_blue() -> None:
     text = _read("frontend/components/AnomalySummary.tsx")
     assert "AUTO" in text
     assert "text-orbital-blue" in text
-    # Re-uses the shared selector — no inline filter heuristic.
-    assert "findActiveAutonomyCommand" in text
+    # Re-uses a shared selector from lib/autonomy — no inline filter heuristic.
+    # Not pinned to `findActiveAutonomyCommand`: Phase 7 (WS1d) deliberately
+    # moved this chip to `findLatestAutonomyCommand` so AUTO attribution
+    # persists after the command COMPLETES. The invariant is that the selector
+    # is shared, not which of the two it is.
+    assert "@/lib/autonomy" in text
+    assert re.search(r"find(Active|Latest)AutonomyCommand\(", text)
+    assert 'source === "autonomy"' not in text
 
 
 def test_no_red_accent_in_phase7c_files() -> None:

@@ -291,14 +291,34 @@ class Orchestrator:
         if self.continuous_patrol:
             victim = self._nearest_airborne(fleet, mission)
             if victim is not None:
+                # The diverted unit was excluded a moment ago for holding a
+                # patrol, and `_divert_to_verify` drops that hold on the very
+                # next line. Publishing it as both the winner and an exclusion
+                # states two contradictory things about one agent, and the
+                # Console renders exactly that: a row reading `owns OBJ 02` and
+                # `EXCLUDED FROM OBJ 02` at once. It is the executor here; the
+                # mission it was pulled off is kept as its own field.
+                diverted_from = next(
+                    (
+                        row.active_mission_id
+                        for row in excluded_units
+                        if row.agent_id == victim
+                    ),
+                    None,
+                )
                 await self._publish_allocation_decision(
                     mission=mission,
                     anomaly_id=anomaly_id,
                     mode="diversion",
                     eligible_units=eligible_units,
-                    excluded_units=excluded_units,
+                    excluded_units=[
+                        row for row in excluded_units if row.agent_id != victim
+                    ],
                     winner_agent_id=victim,
-                    winner_score=0.0,
+                    # A diverted unit never bid, so it has no score. 0.0 renders
+                    # as a real auction result; absent renders as absent.
+                    winner_score=None,
+                    diverted_from_mission_id=diverted_from,
                 )
                 await self._divert_to_verify(victim, mission)
                 return
@@ -324,6 +344,7 @@ class Orchestrator:
         excluded_units: list[AllocationExcludedUnit],
         winner_agent_id: str | None,
         winner_score: float | None,
+        diverted_from_mission_id: str | None = None,
     ) -> None:
         decision = AllocationDecision(
             mission_id=mission.id,
@@ -334,6 +355,7 @@ class Orchestrator:
             excluded_units=excluded_units,
             winner_agent_id=winner_agent_id,
             winner_score=winner_score,
+            diverted_from_mission_id=diverted_from_mission_id,
         )
         await self.bus.publish("swarm:allocations", decision.model_dump_json())
 

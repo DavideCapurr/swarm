@@ -2,11 +2,42 @@
 
 Status: **READY TO RECORD**
 
-Date: 2026-08-15  
-Baseline: `main` at `024fabda6d687599bf9455d133883c5f3fa31b81`  
+Recorded takes: 2026-08-15, on `2685736` — the merge of PR #132, which is the first commit on `main` that carries the probe this runbook tells you to run. The earlier `024fabda` this file used to name predates the probe, so it never reproduced these instructions.  
+Re-verified: 2026-08-18, on `b586663` plus the two fixes shipped with this update.  
 Authoritative evidence: `docs/bench/artifacts/final-demo-rehearsal-2026-08-15.json`
 
 This is the recording runbook for `/demo/intrusion`. It exercises the real Redis bus, backend/orchestrator, authenticated Console, and two PX4 SITL instances. It does not change or use the legacy `/` dashboard.
+
+## What changed since the takes were recorded
+
+The three takes below were recorded before the operational-console redesign
+(`8292420` and the UI commits after it). That redesign did not touch the side of
+the system the takes proved:
+
+```bash
+git diff --name-only 2685736..HEAD -- core swarm_os orchestrator adapters sim backend tests infra pyproject.toml uv.lock
+# empty
+```
+
+Allocator, bus, mission runtime, PX4 path, payload policy and RTL semantics are
+byte-identical to the run that produced the artifact, so the recorded truth
+evidence still stands. What changed is the surface that renders it. That was
+re-verified separately on 2026-08-18:
+
+- `scripts/console_render_audit.py` at 2560 × 1440 over the four sampled frames:
+  0 glyph collisions, 0 truncated readouts, decision-rail steps 01–06 in frame,
+  on both the replay harness and the recorded-surface widths;
+- a live authenticated boot of `/demo/intrusion` against a real backend and
+  Redis: login → `CONNECTED`, no page scroll at 2560 × 1440, and an honest empty
+  state (`No allocator frame yet`, `WAITING FOR FLEET STATE`) before any event;
+- the on-screen checklist in [What `/demo/intrusion` must show](#what-demointrusion-must-show)
+  below, rewritten against the current surface. It previously named labels
+  (`INTRUSION DETECTED`, `Fleet auction`, `WINNER`) that the redesign replaced —
+  following the old list would have read as a failed take.
+
+Not re-run on 2026-08-18: the two-PX4 SITL sequence itself, which needs Docker
+and a host the verification environment did not have. The take evidence for it
+is the 2026-08-15 artifact, against unchanged code.
 
 ## Verified recording flow
 
@@ -40,6 +71,19 @@ The final successful GitHub Actions rehearsal was run `31901533790`, job `950529
 ## Exact startup
 
 The validated host is Ubuntu 24.04 with Docker host networking. Keep `localhost` for the browser/API/WS origins; do not substitute `127.0.0.1:3000` for the Console origin.
+
+Two host prerequisites, both silent when missing:
+
+- **Node 24.** `frontend/.nvmrc` and `frontend/package.json` pin `>=24 <25`. An
+  older Node still installs and still runs `pnpm dev` — it only prints an
+  `Unsupported engine` warning — so a take can be recorded on the wrong runtime
+  without anything on screen saying so. Run `node --version` before step 5.
+- **A route to `a.basemaps.cartocdn.com`.** The map draws CARTO tiles under the
+  local site frame as visual context. Tile failure never removes operational
+  state — the site frame, agents, objectives and tracks are local — but the
+  bottom attribution strip switches to `BASEMAP UNAVAILABLE · SITE FRAME ONLY ·
+  NO EXTERNAL CONTEXT`, and that is what the recording will show. Check the host
+  can reach the tile CDN, or record knowing the map band has no aerial context.
 
 ### 1. Prepare repo, dependencies, infrastructure, and real dev auth
 
@@ -168,6 +212,32 @@ uv run python scripts/final_demo_rehearsal_probe.py \
 
 The probe emits the two events at the verified points in the mission lifecycle and fails non-zero if any required truth gate is missing or inconsistent.
 
+### For a YC recording, use the recording scenario instead
+
+`scripts/final_demo_rehearsal_probe.py` is the authoritative rehearsal: it is
+what the artifact and the three takes were produced with, and it is what proves
+the gates. It is not the best thing to point a camera at. Its event 2 sits about
+2.1 m from `mav-001`'s SITL home, so the second aircraft's flight is essentially
+invisible on screen.
+
+`scripts/yc_demo_recording_probe.py` reuses `final_demo_rehearsal_probe.run`
+unchanged — same gates, same failure behaviour — and moves event 2 only: 15 m
+west and 20 m south of the recorded `mav-001` home, 25 m of displacement on a
+different axis from event 1, so the second dispatch reads on camera.
+
+```bash
+sleep 1
+uv run python scripts/yc_demo_recording_probe.py \
+  --redis-url "$REDIS_URL" \
+  --expected-agents mav-001,mav-002 \
+  --timeout-s 220 \
+  --json-out artifacts/yc-demo-take.json
+```
+
+Use the rehearsal probe to prove readiness, the recording probe to record. Do
+not edit either one's geometry during a session; `/dev/replay` and the
+2026-08-15 artifact are the fixed reference for the original recorded geometry.
+
 ## Trigger order
 
 The trigger order is fixed and must not be improvised:
@@ -185,49 +255,88 @@ The trigger order is fixed and must not be improvised:
 
 ## What `/demo/intrusion` must show
 
+Every string below was read off the rendered surface on 2026-08-18 at
+2560 × 1440. The console was redesigned after the takes were recorded, so this
+list is written against the surface as it is now, not as it was.
+
 ### Before event 1
 
-- top connection status: `CONNECTED`;
-- fleet includes `mav-001` and `mav-002` clean/available;
-- no stale mission story from a previous take.
+- command bar reads `LINK CONNECTED`;
+- `FLEET 002 AGENTS · 00 OWNING`, with `mav-001` and `mav-002` both `DOCKED`,
+  100%, `no mission · available`;
+- `OBJECTIVES 00 OPEN` and the decision rail says `No allocator frame yet` — no
+  stale story from a previous take.
 
 ### Event 1 allocation
 
-- `INTRUSION DETECTED`;
-- `Fleet auction`;
-- `SERVER REASONS`;
-- both `mav-001` and `mav-002` marked `ELIGIBLE`;
-- server score and score-breakdown values;
-- `mav-002` marked `WINNER`;
-- mission ledger owner is `mav-002`.
+- objective queue grows `OBJ 01 · VERIFY INTRUSION`, `confidence 95%`,
+  `owner mav-002`;
+- decision rail step `01 OBJECTIVE` shows `INTRUSION`, `CONFIDENCE 95%`, the
+  event id and the position;
+- step `02 FLEET EVALUATED BY SWARMOS` shows `MODE · AUCTION` and `SERVER
+  REASONS`;
+- the winner row reads `mav-002 · SELECTED`, the other `mav-001 · ELIGIBLE` —
+  the redesign marks the winner `SELECTED` rather than `WINNER`, and only the
+  losing candidate carries `ELIGIBLE`;
+- each row shows the score and its breakdown (`dist … · batt … · priority …`);
+- step `03 SELECTED BY SWARMOS` shows `mav-002` with `WINNER SCORE 2.258` and
+  the sentence `mav-002 selected · highest score of 2 eligible agents`;
+- step `04 MISSION OWNERSHIP` shows `mission 4c97f2f2 owned by mav-002`.
 
 ### Dispatch and arrival
 
-- mission 1 reaches `EN_ROUTE`;
-- then mission 1 shows `MISSION_ITEM_REACHED` as the evidence behind `ON_STATION`.
+- step `05 PHYSICAL EXECUTION` ticks `ALLOCATED` → `DISPATCHED` → `EN ROUTE`,
+  with `SERVER PHASE EN ROUTE`;
+- step `06 EVIDENCE` holds at `NO EXECUTION EVIDENCE PUBLISHED` until arrival,
+  then shows `ON STATION` with `MISSION_ITEM_REACHED · PX4 SITL`.
 
 ### Payload active
 
-- `LIGHT ON`;
-- `PX4 OUTPUT CONFIRMED`;
-- `SPEAKER ACTIVE`;
-- `SIMULATED` beside the speaker behavior.
+Under `BOUNDED PHYSICAL RESPONSE · FLEET`, headed `VERIFIED VS SIMULATED`:
+
+- `LIGHT` — `mav-002`, `LIGHT ON`, `PX4 OUTPUT CONFIRMED`;
+- `SPEAKER` — `mav-002`, `SPEAKER ACTIVE`, `SIMULATED`.
+
+The two channels are fleet-wide, not focus-scoped: they stay on screen while the
+rail follows objective 2.
 
 ### Event 2 while mission 1 is still active
 
-- a second auction/story is present;
-- `mav-002` is visibly `EXCLUDED · BUSY`;
-- the exclusion includes mission 1's active mission id;
-- `mav-001` is eligible and becomes the different winner;
-- mission ledger contains exactly two simultaneous mission cards, one owned by `mav-002` and one by `mav-001`;
-- at this concurrency point, mission 1 payload is still active and `LIGHT OFF` has not occurred yet.
+- the rail follows the new objective by itself — `FOCUS OBJ 02`, `HEAT_SPOT`,
+  `CONFIDENCE 99%`;
+- step 02 shows `mav-002 · EXCLUDED · BUSY` with
+  `ON_STATION · batt 97% · holds active mission 4c97f2f2`;
+- `mav-001 · SELECTED` with its own score and breakdown;
+- step 03 restates it in words: `mav-002 excluded · BUSY · already owns mission
+  4c97f2f2` / `mav-001 selected · highest score of 1 eligible agent`;
+- the mission timeline reads `CONCURRENT MISSION OWNERSHIP · 2 EXECUTING` with
+  two swimlanes, one owned by `mav-002` and one by `mav-001` — this is where
+  concurrency is proved, not in a card ledger;
+- at this point the light channel still reads `LIGHT ON`.
 
 ### Cleanup and RTL
 
-- `SPEAKER STOPPED` and still explicitly `SIMULATED`;
-- `LIGHT OFF` with `PX4 OUTPUT CONFIRMED`;
-- mission 1 shows `RTL COMMAND ACKNOWLEDGED`;
-- mission 2 also shows `MISSION_ITEM_REACHED` and later `RTL COMMAND ACKNOWLEDGED`.
+- `SPEAKER STOPPED`, still `SIMULATED`;
+- `LIGHT OFF`, still `PX4 OUTPUT CONFIRMED`;
+- mission 1's lane ticks `RTL` then `DONE`, and its evidence shows
+  `RTL COMMAND ACKNOWLEDGED · PX4 SITL`;
+- mission 2 shows `ON STATION` with `MISSION_ITEM_REACHED · PX4 SITL`, then
+  `RTL COMMAND ACKNOWLEDGED · PX4 SITL`.
+
+### Labels that must never disappear
+
+- `RUNTIME TRUTH · PX4 SITL TELEMETRY · IMAGERY SIMULATED` in the command bar;
+- `SIMULATED IMAGERY · NOT EVIDENCE` and `NOT A LIVE FEED` on the CCTV thumbnail;
+- `SIMULATED` beside the speaker channel, in its own lane, never in the verified
+  lane;
+- `PROJECTED FROM PX4 SITL TELEMETRY` on the site frame, and the same source in
+  the command bar's `RUNTIME TRUTH` and beside the focused executor's telemetry.
+  These read `PX4 SITL TELEMETRY` because the units report `vendor: mavlink` and
+  a model containing `sitl` — the label is derived, not asserted. If a take shows
+  anything else there, the fleet is not the bench you think it is.
+
+If any of these is missing from a take, the take is not usable — they are the
+claim boundary, not decoration.
 
 ## Reset between takes
 
@@ -257,9 +366,30 @@ Then repeat:
 5. open a fresh browser/login session on `/demo/intrusion`;
 6. wait for exact `CONNECTED`;
 7. wait 1 second;
-8. start `scripts/final_demo_rehearsal_probe.py`.
+8. start `scripts/final_demo_rehearsal_probe.py` — or, for a take you intend to
+   keep, `scripts/yc_demo_recording_probe.py`.
 
 Do not reuse a previous take's backend process, Redis state, PX4 container, or already-open story state when validating a fresh take.
+
+## Pre-session gate
+
+Run this once before the first take of a session, not after. It is the cheap
+half of the readiness question and it catches the failures that are invisible
+in the viewfinder:
+
+```bash
+make lint
+make test
+make audit
+cd frontend && pnpm dev            # leave running
+uv run --with playwright python scripts/console_render_audit.py
+```
+
+The render audit must report 0 glyph collisions, 0 truncated readouts, and
+decision-rail steps 01–06 in frame at 2560 × 1440. Its Playwright dependency is
+deliberately not in `uv.lock`: the audit is a bench tool, not a runtime or CI
+dependency, so it is pulled per-invocation rather than added to the pinned
+dependency set every deployment inherits.
 
 ## Known limitations
 
@@ -274,3 +404,15 @@ Do not reuse a previous take's backend process, Redis state, PX4 container, or a
 ## Remaining blockers
 
 None in the validated environment.
+
+Open items that are not blockers, stated so a take is not recorded in ignorance
+of them:
+
+- the two-PX4 SITL sequence has not been re-run since 2026-08-15. The code it
+  exercises is unchanged (see [What changed since the takes were recorded](#what-changed-since-the-takes-were-recorded)),
+  but a session on a new host should treat its first take as a rehearsal;
+- the basemap under the site frame comes from a public tile CDN. On a host that
+  cannot reach it the map band carries the local site frame alone and says so;
+- `/dev/replay` replays the original recorded geometry, not the YC recording
+  scenario's event 2. Do not use it to preview where the second aircraft will
+  fly.

@@ -2,7 +2,7 @@
 
 Live status for the current technical state. Historical phase notes live in [`STATUS-archive.md`](STATUS-archive.md).
 
-## Current state — 2026-08-15
+## Current state — 2026-08-18
 
 SWARM has an end-to-end PX4 SITL coordination path, first-class SwarmOS-owned multi-agent `ExecutionGroup`s, live member replacement, and an operator Console that renders backend-owned allocation/runtime/payload truth.
 
@@ -32,7 +32,7 @@ The MAVLink/PX4 path remains **SITL-validated, not bench- or field-validated on 
 | First-class one-mission multi-agent `ExecutionGroup` | **implemented and live four-PX4 SITL-validated** |
 | Live execution-group member failure/replacement | **validated with PX4 process SIGKILL while `EN_ROUTE`** |
 | Intrusion demo Console `/demo/intrusion` | **final demo surface; truth renderer** |
-| Final demo rehearsal | **3 consecutive clean PASS takes, ~62 s each** |
+| Final demo rehearsal | **3 consecutive clean PASS takes, ~62 s each (2026-08-15); Console surface re-verified 2026-08-18** |
 | Same-aircraft preemption/diversion | **not implemented / not claimed** |
 | Physical bench / field proof | **not yet done** |
 | Pilot / revenue | **none yet** |
@@ -135,6 +135,58 @@ Three consecutive clean authenticated rehearsals passed at approximately 62 seco
 - acknowledged RTL.
 
 The Console browser check was independent of the backend/bus truth probe.
+
+### Recording readiness at the redesigned Console — 2026-08-18
+
+The rehearsal takes predate the operational-console redesign. The redesign
+changed no backend code:
+
+```bash
+git diff --name-only 2685736..HEAD -- core swarm_os orchestrator adapters sim backend tests infra pyproject.toml uv.lock
+# empty
+```
+
+so the recorded bus/allocator/PX4 evidence still holds. The surface that renders
+it was re-verified instead:
+
+- `scripts/console_render_audit.py` at 2560 × 1440, four sampled frames, both
+  the replay harness and recorded-surface widths: 0 glyph collisions, 0
+  truncated readouts, decision-rail steps 01–06 in frame;
+- live authenticated boot of `/demo/intrusion` against a real backend and Redis:
+  login → `CONNECTED`, no page scroll, honest empty state before any event;
+- the runbook's on-screen checklist rewritten against the current surface — it
+  still named pre-redesign labels (`INTRUSION DETECTED`, `Fleet auction`,
+  `WINNER`) that no longer exist, so following it would have read as a failed
+  take.
+
+Five defects were fixed rather than documented around:
+
+- `make test` was red: the README rewrite dropped the doc links
+  `tests/test_phase6j_testing.py` asserts;
+- `pyproject.toml` `testpaths` listed `tests/` modules one by one and omitted
+  six of them, so the docs, compliance, brand and **CLAUDE.md forbidden-word**
+  gates were never collected. All six now run; the two README-link failures and
+  one assertion that named a selector Phase 7 deliberately replaced were fixed
+  at the source;
+- the map's attribution strip claimed `REAL BASEMAP` even when the CARTO tile
+  host was unreachable and nothing was painted. It now states
+  `BASEMAP UNAVAILABLE · SITE FRAME ONLY` in that case;
+- under `mode="diversion"` the allocator published the selected unit inside its
+  own `excluded_units`, with a fabricated `winner_score` of `0.0`. The Console
+  rendered that faithfully as one agent both owning and excluded from the same
+  objective. A diverted unit is the executor: it is no longer published as an
+  exclusion, it carries no auction score, and the mission it was pulled off is
+  stated in `diverted_from_mission_id`. The Console no longer describes a
+  diversion as "highest score of N eligible agents" — that competition never
+  ran;
+- the surface asserted `PX4 SITL TELEMETRY` as a literal in three places, which
+  is false in every configuration except the recorded bench — `make demo-*-sim`
+  runs the simulated adapter and the caption still claimed PX4. The label is now
+  derived from the units' own `vendor`/`model`, and never upgrades a non-SITL
+  MAVLink model to a SITL claim. On the recording path the rendered strings are
+  unchanged.
+
+Not re-run on 2026-08-18: the two-PX4 SITL sequence, which needs Docker.
 
 ## Console truth boundary
 

@@ -338,6 +338,8 @@ export type AllocationDecision = {
   excluded_units: AllocationExcludedUnit[];
   winner_agent_id: string | null;
   winner_score: number | null;
+  /** Set only under mode "diversion": the mission the winner was pulled off. */
+  diverted_from_mission_id?: string | null;
   ts: string;
 };
 
