@@ -15,7 +15,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { buildAuthorityView, latestPayloadProof } from "@/lib/authority";
+import { buildAuthorityView } from "@/lib/authority";
+import { buildPayloadChannels } from "@/lib/mission-story";
 import type { MapGeo } from "@/lib/opsmap";
 import { telemetrySourceLabel } from "@/lib/telemetry-source";
 import type { LinkState } from "@/lib/state";
@@ -31,6 +32,7 @@ import type {
 
 import { MapCanvas, useImageryStatus } from "./MapCanvas";
 import { MapOverlay } from "./MapOverlay";
+import { DetectionPanel, DETECTION_WIDTH } from "./DetectionPanel";
 import { MissionAuthorityPanel, AUTHORITY_WIDTH } from "./MissionAuthorityPanel";
 import { MissionTrace, TRACE_WIDTH } from "./MissionTrace";
 import { NavigationRail, RAIL_WIDTH } from "./NavigationRail";
@@ -62,7 +64,7 @@ export type SurfaceFrame = {
 
 /** Pixels the floating surfaces claim, so geography composes into what is left. */
 const INSET: SafeInset = {
-  left: RAIL_WIDTH + 28,
+  left: RAIL_WIDTH + DETECTION_WIDTH + 34,
   right: AUTHORITY_WIDTH + 44,
   top: STATUS_HEIGHT + 12,
   bottom: 132,
@@ -174,12 +176,16 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
   );
   const imagery = useImageryStatus(tiles[0]?.url ?? null);
 
-  const evidence = useMemo(() => {
-    if (!focused) return null;
+  // Bounded-response channels for the focused objective only: the light and the
+  // speaker are separate claims and stay separate all the way to the panel.
+  const channels = useMemo(() => {
+    if (!focused) return [];
     const missionIds = new Set(
       focused.slots.map((slot) => slot.missionId).filter((id): id is string => Boolean(id))
     );
-    return latestPayloadProof(frame.payloadEvents, missionIds);
+    return buildPayloadChannels(
+      frame.payloadEvents.filter((event) => missionIds.has(event.mission_id))
+    );
   }, [focused, frame.payloadEvents]);
 
   const telemetrySource = useMemo(
@@ -215,6 +221,15 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
 
       <NavigationRail active="map" />
 
+      {focused?.detection ? (
+        <div
+          className="pointer-events-none absolute z-30"
+          style={{ left: RAIL_WIDTH + 16, top: STATUS_HEIGHT + 12 }}
+        >
+          <DetectionPanel objective={focused} />
+        </div>
+      ) : null}
+
       <SystemStatus
         link={frame.link}
         telemetrySource={telemetrySource}
@@ -232,7 +247,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
           objectives={view.objectives}
           focused={focused}
           capacity={view.capacity}
-          evidence={evidence}
+          channels={channels}
           onSelectObjective={setHeldFocus}
         />
       </div>

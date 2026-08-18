@@ -734,11 +734,33 @@ function missionB(missionId: string, agentId: string, legs: Leg[], atS: number):
   };
 }
 
-const legsFor = (agentId: string, start: number, arrive: number, rtl: number): Leg[] => [
-  { from: start, to: arrive, a: HOME_B[agentId], b: OBJECTIVE_B, state: "EN_ROUTE", alt: CRUISE_ALT_M },
-  { from: arrive, to: rtl, a: OBJECTIVE_B, b: OBJECTIVE_B, state: "ON_STATION", alt: CRUISE_ALT_M },
-  { from: rtl, to: rtl + 12, a: OBJECTIVE_B, b: HOME_B[agentId], state: "RTL", alt: CRUISE_ALT_M },
-];
+/**
+ * The altitude ladder SwarmOS actually builds.
+ *
+ * `_cooperative_verify_plans` decomposes one objective into child VERIFY
+ * missions against the *same* geo at `base_altitude_m + altitude_step_m * idx`
+ * — 40 m, 55 m, 70 m by default. Separation between the roles is vertical, not
+ * lateral, which is why the map lifts each executor off its ground mark and why
+ * the height is stated next to the role rather than filed under telemetry.
+ *
+ * A replacement inherits the altitude of the role it takes over, not of the
+ * machine it replaces.
+ */
+const ROLE_ALT_M: Record<string, number> = {
+  "mav-004": 40, // PRIMARY_OBSERVER
+  "mav-003": 55, // SECONDARY_OBSERVER
+  "mav-001": 55, // SECONDARY_OBSERVER, after replacement
+  "mav-002": 70, // OVERWATCH
+};
+
+const legsFor = (agentId: string, start: number, arrive: number, rtl: number): Leg[] => {
+  const alt = ROLE_ALT_M[agentId] ?? CRUISE_ALT_M;
+  return [
+    { from: start, to: arrive, a: HOME_B[agentId], b: OBJECTIVE_B, state: "EN_ROUTE", alt },
+    { from: arrive, to: rtl, a: OBJECTIVE_B, b: OBJECTIVE_B, state: "ON_STATION", alt },
+    { from: rtl, to: rtl + 12, a: OBJECTIVE_B, b: HOME_B[agentId], state: "RTL", alt },
+  ];
+};
 
 const LEGS_B: Record<string, Leg[]> = {
   "mav-004": legsFor("mav-004", 8, 30, 44),
@@ -780,6 +802,11 @@ export function takeBFrames(): DemoFrame[] {
     }
   }
 
+  // The detection that starts everything. Shaped exactly as the runtime ships
+  // it — `AnomalyView.evidence` with source, sensor, label, score and the
+  // server's confidence-bound headline — and flagged `simulated`, because on
+  // this take the triggering signal is injected on the bus rather than read off
+  // a sensor. The Console reads that flag; it does not decide it.
   frames.push({
     at: 6_000,
     kind: "anomaly",
@@ -787,6 +814,18 @@ export function takeBFrames(): DemoFrame[] {
       ...anomaly(TAKE_B.anomaly, "INTRUSION", OBJECTIVE_B, 0.99, 6, "mav-004"),
       ts: isoB(6_000),
       detected_at: isoB(6_000),
+      evidence: {
+        source: "drone_cv",
+        sensor: "RGB",
+        label: "person",
+        metric: "score",
+        value: 0.99,
+        baseline: null,
+        unit: null,
+        headline:
+          "Elevated anomaly — onboard CV classified a person at 0.99 confidence. Sector requires verification.",
+        simulated: true,
+      },
     },
   });
 
