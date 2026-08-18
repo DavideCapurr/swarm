@@ -105,9 +105,21 @@ export type TraceStageName =
   | "ADAPTED"
   | "VERIFIED";
 
+/**
+ * A stage's state.
+ *
+ * `pending` and `not_required` look alike and are not: `pending` is a
+ * milestone every objective will reach — the surface just has not seen the
+ * frame yet. `not_required` is the honest reading of ADAPTED specifically,
+ * which is the one stage in this ladder that is conditional rather than
+ * guaranteed. A clean objective was never going to need it; saying `pending`
+ * reads as a step SwarmOS forgot to finish, when nothing was owed here at all.
+ */
+export type TraceStageState = "done" | "active" | "pending" | "not_required";
+
 export type TraceStage = {
   name: TraceStageName;
-  state: "done" | "active" | "pending";
+  state: TraceStageState;
   at: string | null;
 };
 
@@ -395,7 +407,12 @@ function buildTrace(
     },
     {
       name: "ADAPTED",
-      state: !adapted ? "pending" : state === "ADAPTING" ? "active" : "done",
+      // Never "pending": ADAPTED does not sit in a queue waiting its turn the
+      // way COMPOSED/EXECUTING/VERIFIED do. It is either actively resolving a
+      // failure, closed because it resolved one, or not required because none
+      // has occurred — and the surface can say that last one as a fact of the
+      // present, live-updating the instant it stops being true.
+      state: !adapted ? "not_required" : state === "ADAPTING" ? "active" : "done",
       at: adaptedAt,
     },
     {

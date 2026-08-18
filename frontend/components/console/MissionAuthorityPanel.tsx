@@ -9,6 +9,13 @@
  *
  *   objective → ownership → composition → roles → executors → spare → evidence
  *
+ * Ownership sits directly under the objective identity, above the fold, not
+ * as a footnote after the roster. The first thing a viewer who has never seen
+ * this product has to register is not "four drones on a map" — it is that
+ * something decided this. The map caption already says `OWNED · SWARMOS` the
+ * instant SwarmOS accepts an objective; this panel makes the same claim the
+ * moment the reading order gets to it.
+ *
  * Every line is a server field. Roles are the roles SwarmOS assigned
  * (`PRIMARY_OBSERVER`, `SECONDARY_OBSERVER`, `OVERWATCH`); a replacement is
  * drawn from the runtime's own `replaces_agent_id`; an exclusion carries the
@@ -86,7 +93,7 @@ export function MissionAuthorityPanel({
 
           <ObjectiveIdentity objective={focused} />
 
-          <Divider />
+          <OwnershipStamp objective={focused} />
 
           <Composition objective={focused} beat={beat} capacity={capacity} />
 
@@ -102,7 +109,7 @@ export function MissionAuthorityPanel({
               ) : (
                 spare.map((row) => (
                   <div key={row.agentId} className="flex items-center gap-2">
-                    <Mono size={11} tone="silver">
+                    <Mono size={12} tone="silver">
                       {row.agentId}
                     </Mono>
                     <Mono size={10} tone="ash">
@@ -122,7 +129,7 @@ export function MissionAuthorityPanel({
                 <div className="mt-[7px] flex flex-col gap-[6px]">
                   {excluded.map((row) => (
                     <div key={row.agentId} className="flex items-baseline justify-between gap-3">
-                      <Mono size={11} tone="silver">
+                      <Mono size={12} tone="silver">
                         {row.agentId}
                       </Mono>
                       <div className="flex items-baseline gap-2">
@@ -141,15 +148,6 @@ export function MissionAuthorityPanel({
               </div>
             </>
           ) : null}
-
-          <Divider />
-
-          <div className="flex items-baseline justify-between gap-3 px-3 py-[10px]">
-            <Label>mission owner</Label>
-            <Mono size={12} tone="orbital">
-              SWARMOS
-            </Mono>
-          </div>
 
           {channels.some((channel) => channel.ts) ? (
             <>
@@ -244,6 +242,32 @@ function ObjectiveSwitch({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The ownership stamp.
+ *
+ * One line, directly under the objective, in the accent that means "SwarmOS is
+ * the live channel". This is the sentence the whole panel exists to make true:
+ * something with mission-level authority took this objective, before anyone
+ * reads what it composed to answer it.
+ */
+function OwnershipStamp({ objective }: { objective: ObjectiveAuthority }) {
+  return (
+    <div
+      className="flex items-center gap-[9px] px-3 py-[9px]"
+      style={{ background: "rgba(123, 231, 255, 0.055)", borderBottom: `1px solid ${HAIRLINE}` }}
+      data-testid="ownership-stamp"
+    >
+      <Dot tone="orbital" />
+      <span className="font-grotesk text-[11.5px] font-medium uppercase leading-none tracking-[0.16em] text-orbital-blue">
+        SwarmOS owns this objective
+      </span>
+      <Mono size={11} tone="ash" className="ml-auto">
+        {objective.label}
+      </Mono>
     </div>
   );
 }

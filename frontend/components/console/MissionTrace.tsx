@@ -9,10 +9,14 @@
  *
  *   OBJECTIVE → COMPOSED → EXECUTING → ADAPTED → VERIFIED
  *
- * ADAPTED stays inactive on a mission that never needed adapting. That is the
- * point of it being there: when an executor drops out and SwarmOS puts spare
- * capacity into the vacated role, this is where the recording shows that the
- * system did something a fleet without central authority could not.
+ * ADAPTED reads NOT REQUIRED, not a dim pending dot, on a mission that never
+ * needed adapting — it is a conditional stage, not a queued one, and the
+ * distinction matters on screen: a viewer who has never seen this product
+ * should not read a clean mission as one with an unfinished step. That is
+ * also what makes the failure demo land. When an executor drops out and
+ * SwarmOS puts spare capacity into the vacated role, NOT REQUIRED becomes
+ * ADAPTING becomes ADAPTED, live — a capability the mission did not need
+ * until suddenly it did.
  */
 
 import type { TraceStage } from "@/lib/authority";
@@ -63,8 +67,13 @@ export function MissionTrace({
                 aria-hidden="true"
                 className="h-px flex-1"
                 style={{
-                  background: i === 0 ? "transparent" : stage.state === "pending" ? "#2A3138" : "#7BE7FF",
-                  opacity: stage.state === "pending" ? 1 : 0.45,
+                  background:
+                    i === 0
+                      ? "transparent"
+                      : stage.state === "pending" || stage.state === "not_required"
+                        ? "#2A3138"
+                        : "#7BE7FF",
+                  opacity: stage.state === "pending" || stage.state === "not_required" ? 1 : 0.45,
                 }}
               />
               <Node state={stage.state} />
@@ -75,28 +84,35 @@ export function MissionTrace({
                   background:
                     i === stages.length - 1
                       ? "transparent"
-                      : stages[i + 1].state === "pending"
+                      : stages[i + 1].state === "pending" || stages[i + 1].state === "not_required"
                         ? "#2A3138"
                         : "#7BE7FF",
-                  opacity: i === stages.length - 1 || stages[i + 1].state === "pending" ? 1 : 0.45,
+                  opacity:
+                    i === stages.length - 1 ||
+                    stages[i + 1].state === "pending" ||
+                    stages[i + 1].state === "not_required"
+                      ? 1
+                      : 0.45,
                 }}
               />
             </div>
 
             <span
-              className={`mt-[9px] text-center font-grotesk text-[8.5px] font-medium uppercase leading-none tracking-[0.12em] ${
-                stage.state === "pending"
-                  ? "text-ash/55"
-                  : stage.state === "active"
-                    ? "text-orbital-blue"
-                    : "text-platinum"
+              className={`mt-[9px] text-center font-grotesk text-[10px] font-medium uppercase leading-none tracking-[0.12em] ${
+                stage.state === "not_required"
+                  ? "text-ash/35"
+                  : stage.state === "pending"
+                    ? "text-ash/55"
+                    : stage.state === "active"
+                      ? "text-orbital-blue"
+                      : "text-platinum"
               }`}
             >
               {stage.name}
             </span>
 
-            <span className="mt-[6px] text-center font-mono text-[8.5px] tabular-nums leading-none tracking-[0.06em] text-ash/70">
-              {stampOf(stage.at)}
+            <span className="mt-[6px] text-center font-mono text-[9px] tabular-nums leading-none tracking-[0.06em] text-ash/70">
+              {stage.state === "not_required" ? "NOT REQUIRED" : stampOf(stage.at)}
             </span>
           </div>
         ))}
@@ -106,6 +122,17 @@ export function MissionTrace({
 }
 
 function Node({ state }: { state: TraceStage["state"] }) {
+  if (state === "not_required") {
+    // A dash, not a ring: the hollow pending circle reads as "not reached
+    // yet", which is wrong for a stage nothing was ever owed. This is a
+    // closed question, held open only by the live possibility of failure.
+    return (
+      <span
+        aria-hidden="true"
+        className="mx-[3px] block h-[1.5px] w-[9px] shrink-0 rounded-full bg-graphite"
+      />
+    );
+  }
   if (state === "done") {
     return (
       <span

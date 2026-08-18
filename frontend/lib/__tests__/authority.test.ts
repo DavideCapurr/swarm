@@ -197,7 +197,10 @@ describe("execution-group objectives", () => {
     expect(adapted?.state).toBe("active");
   });
 
-  it("leaves ADAPTED pending when nothing was ever replaced", () => {
+  it("reads ADAPTED as not-required, not pending, when nothing was ever replaced", () => {
+    // A clean objective was never going to need this stage. `pending` reads
+    // as an unfinished step; `not_required` is the honest fact — SwarmOS
+    // never had a role to recompose here.
     const clean: ExecutionGroup = {
       ...GROUP,
       members: [GROUP.members[0], GROUP.members[2]],
@@ -206,7 +209,7 @@ describe("execution-group objectives", () => {
     const view = buildAuthorityView(input({ executionGroups: [clean] }));
 
     const adapted = view.objectives[0].trace.find((stage) => stage.name === "ADAPTED");
-    expect(adapted?.state).toBe("pending");
+    expect(adapted?.state).toBe("not_required");
   });
 });
 

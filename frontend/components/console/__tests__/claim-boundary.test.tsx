@@ -113,8 +113,11 @@ describe("detection provenance", () => {
     render(<DetectionPanel objective={OBJECTIVE} />);
 
     expect(screen.getByText("SIMULATED SIGNAL")).toBeInTheDocument();
-    expect(screen.getByText("ONBOARD CV")).toBeInTheDocument();
-    expect(screen.getByText("person · 0.99")).toBeInTheDocument();
+    // Provenance is compressed onto one line: source, reporter, time.
+    expect(screen.getByText("ONBOARD CV · mav-004 · 17:28:51 UTC")).toBeInTheDocument();
+    // The raw classifier reading stays on the panel, demoted rather than
+    // dropped, on its own quieter line.
+    expect(screen.getByText("RGB · PERSON 0.99")).toBeInTheDocument();
   });
 
   it("renders no camera surface, because the runtime publishes none", () => {
@@ -141,6 +144,6 @@ describe("detection provenance", () => {
     render(<DetectionPanel objective={unattributed} />);
 
     expect(screen.getByText("SIMULATED SIGNAL")).toBeInTheDocument();
-    expect(screen.getByText("UNATTRIBUTED")).toBeInTheDocument();
+    expect(screen.getByText("UNATTRIBUTED · — UTC")).toBeInTheDocument();
   });
 });

@@ -30,12 +30,28 @@ import {
 /**
  * Imagery treatment.
  *
- * Tuned against the recording, in this order: saturation back to roughly
- * two-thirds so vegetation and roofs keep their identity without competing with
- * state colour; contrast up slightly for local separation; brightness down hard
- * so the black interface sits above the world rather than inside it.
+ * Tuned against the recording, in this order: saturation held so vegetation
+ * and roofs keep their identity without competing with state colour; contrast
+ * up slightly for local separation; brightness pulled back just enough that
+ * the black interface still reads above the world.
+ *
+ * An earlier pass at brightness(0.47) plus a 0.28 ground overlay made the
+ * physical world read as a decorative dark backdrop rather than the thing this
+ * software is actually deciding about — the map was losing the argument with
+ * its own restraint. This is the brighter half of that same ramp: still
+ * subdued, no longer receding.
+ *
+ * The exact value is bounded, not chosen by eye: platinum captions sit
+ * directly over live imagery, and the design system's own rule is that
+ * legibility outranks depth. Measured through this filter chain plus the
+ * highlight clamp and the ground overlay below, worst case — a blown highlight
+ * (bare concrete, a roof) directly under a platinum caption — holds 5.80:1,
+ * clear of the 4.5:1 AA floor this console holds every other readout to. A
+ * first pass at brightness(0.58) with the old, looser clamp only reached
+ * 4.30:1 on the same case; HIGHLIGHT_CLAMP was tightened alongside the
+ * brightness increase specifically to keep that margin.
  */
-const IMAGERY_FILTER = "saturate(0.68) contrast(1.20) brightness(0.47)";
+const IMAGERY_FILTER = "saturate(0.72) contrast(1.14) brightness(0.56)";
 
 /**
  * Highlight clamp.
@@ -44,9 +60,10 @@ const IMAGERY_FILTER = "saturate(0.68) contrast(1.20) brightness(0.47)";
  * concrete and specular water stop short of the interface's own tone instead of
  * flaring behind the panels. Below the clamp nothing changes — mid-tones and
  * shadows pass through untouched, which is why this is not another brightness
- * reduction.
+ * reduction. Set to hold AA contrast for map captions at the current
+ * brightness — see the note on IMAGERY_FILTER for the measured worst case.
  */
-const HIGHLIGHT_CLAMP = "#8a9198";
+const HIGHLIGHT_CLAMP = "#70767c";
 
 export type ImageryStatus = "pending" | "ok" | "unavailable";
 
@@ -165,7 +182,7 @@ export function MapCanvas({
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
-        style={{ background: "rgba(5, 6, 5, 0.28)" }}
+        style={{ background: "rgba(5, 6, 5, 0.22)" }}
       />
 
       {/* Vignette — deliberately weak. It settles the frame edges under the
