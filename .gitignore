@@ -60,3 +60,6 @@ frontend/coverage/
 # belt-and-suspenders so a missing `.cache/` rule does not silently
 # leak ~6 MB / 200 MB weight binaries into the repo.
 .cache/cv/
+
+# local redis dev dump
+dump.rdb
