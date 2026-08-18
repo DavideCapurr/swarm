@@ -105,8 +105,8 @@ def chromium_executable() -> str | None:
 # sample and every number in a row describes the same paint.
 MEASURE_JS = r"""
 () => {
-  const MIN_OVERLAP = %(min_overlap)s;
-  const MIN_DEPTH = %(min_depth)s;
+  const MIN_OVERLAP = __MIN_OVERLAP__;
+  const MIN_DEPTH = __MIN_DEPTH__;
 
   // A rect is only real where its clipping ancestors let it show. Without this
   // an item scrolled out of a panel reads as overprinting whatever is below.
@@ -291,7 +291,11 @@ MEASURE_JS = r"""
     panelBody: swatch('[data-testid="decision-rail"]'),
   };
 }
-""" % {"min_overlap": MIN_OVERLAP_PX2, "min_depth": MIN_OVERLAP_DEPTH}
+"""
+
+MEASURE_JS = MEASURE_JS.replace("__MIN_OVERLAP__", repr(MIN_OVERLAP_PX2)).replace(
+    "__MIN_DEPTH__", repr(MIN_OVERLAP_DEPTH)
+)
 
 
 @dataclass
@@ -323,7 +327,7 @@ def render(samples: list[Sample]) -> str:
             out.append(f"                     over {c['b']!r}")
         out.append(f"   truncated readouts  : {len(r['truncated'])}")
         for t in r["truncated"][:8]:
-            out.append(f"       −{t['lostPx']:>4} px  {t['text']!r}")
+            out.append(f"       -{t['lostPx']:>4} px  {t['text']!r}")
         out.append("   below the fold      :")
         for c in r["clipped"]:
             out.append(
@@ -331,13 +335,16 @@ def render(samples: list[Sample]) -> str:
                 f"  ({c['visiblePx']} of {c['totalPx']} px)"
             )
         step = r["lastVisibleStep"]
-        out.append(f"   decision rail       : steps 01–{step:02d} in frame" if step else
-                   "   decision rail       : no step numbers found")
+        out.append(
+            f"   decision rail       : steps 01-{step:02d} in frame"
+            if step
+            else "   decision rail       : no step numbers found"
+        )
         out.append(f"   ground / panel body : {r['ground']} / {r['panelBody']}")
     return "\n".join(out)
 
 
-async def run(args: argparse.Namespace) -> int:
+async def collect() -> list[Sample]:
     urls: list[Sample] = []
     for name, at in DEFAULT_SAMPLES:
         base = f"{FRONTEND}/dev/replay?at={at}"
@@ -357,31 +364,7 @@ async def run(args: argparse.Namespace) -> int:
             sample.result = await measure(page, sample.url)
         await browser.close()
 
-    print(render(urls))
-
-    if args.json:
-        path = Path(args.json)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(
-                {
-                    "viewport": VIEWPORT,
-                    "samples": [{"name": s.name, "url": s.url, **s.result} for s in urls],
-                },
-                indent=2,
-            )
-        )
-        print(f"\nwrote {path}")
-
-    worst = max(len(s.result["collisions"]) for s in urls)
-    worst_trunc = max(len(s.result["truncated"]) for s in urls)
-    if args.fail_on_regression and (worst or worst_trunc):
-        print(
-            f"\nFAIL: {worst} collisions and {worst_trunc} truncated readouts remain",
-            file=sys.stderr,
-        )
-        return 1
-    return 0
+    return urls
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -392,7 +375,34 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="exit non-zero if any collision or truncated readout remains",
     )
-    return asyncio.run(run(parser.parse_args(argv)))
+    args = parser.parse_args(argv)
+
+    samples = asyncio.run(collect())
+    print(render(samples))
+
+    if args.json:
+        path = Path(args.json)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "viewport": VIEWPORT,
+                    "samples": [{"name": s.name, "url": s.url, **s.result} for s in samples],
+                },
+                indent=2,
+            )
+        )
+        print(f"\nwrote {path}")
+
+    collisions = max(len(s.result["collisions"]) for s in samples)
+    truncated = max(len(s.result["truncated"]) for s in samples)
+    if args.fail_on_regression and (collisions or truncated):
+        print(
+            f"\nFAIL: {collisions} collisions and {truncated} truncated readouts remain",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
