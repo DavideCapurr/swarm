@@ -92,6 +92,13 @@ function TileLayer({ tiles }: { tiles: Tile[] }) {
       style={{ filter: IMAGERY_FILTER }}
     >
       {tiles.map((tile) => (
+        /* Not `next/image`. These are Web Mercator raster tiles positioned by
+           the projection: the source is an external tile server pinned in the
+           Console CSP, the URL set changes with the camera, and the optimizer
+           would proxy every tile through the Next server for no benefit. The
+           rule is about page-weight regressions on content images; a tile grid
+           is not one. */
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           key={tile.key}
           src={tile.url}
