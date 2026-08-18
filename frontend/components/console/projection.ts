@@ -35,9 +35,11 @@ const DEG = Math.PI / 180;
 /**
  * Closest half-extent the camera is allowed to hold.
  *
- * Every executor is parked on one dock at boot, so an extent solved purely from
- * the frames would open on a 20 m square of gravel. The floor keeps real
- * geography in the opening frame; it changes the camera, never a coordinate.
+ * A cooperative objective ends with every observer over the same point,
+ * separated only by altitude, so the framing it asks for collapses toward zero.
+ * The floor is what the close-in actually settles on: 45 m holds the objective
+ * and the ground around it at a scale where the site is still legible. It
+ * changes the camera, never a coordinate.
  *
  * 55 m is the balance point measured on the recording viewport: a cooperative
  * objective works inside about 40 m of its target, which at this extent fills
@@ -45,34 +47,7 @@ const DEG = Math.PI / 180;
  * aircraft holding station metres apart still read as two aircraft, while a
  * full city block of context stays in shot.
  */
-export const MIN_EXTENT_M = 16;
-
-/**
- * The extent ladder this camera snaps to.
- *
- * `opsmap.EXTENT_STEPS_M` doubles roughly every step above 100 m, which is
- * right for a map that has to hold an unknown site and wrong for a camera
- * framing one objective: a scene needing 46 m was pushed to 60, and after the
- * square fit and the headroom the fleet ended up spanning barely a third of the
- * frame. This ladder is fine-grained where a cooperative objective actually
- * lives — a transit of a few tens of metres should read as a transit — and
- * coarsens only once the fleet is genuinely spread out.
- *
- * It is a camera, not a coordinate. Every position is still projected from the
- * geo SwarmOS published.
- */
-const EXTENT_LADDER_M = [
-  16, 18, 20, 22, 25, 28, 32, 36, 41, 47, 54, 62, 71, 82, 94, 108, 124, 143, 165,
-  190, 230, 280, 340, 420, 520, 650, 820, 1050, 1350, 1750, 2300, 3000,
-] as const;
-
-function snapConsoleExtent(requiredM: number, floorM: number): number {
-  const need = Math.max(requiredM, floorM, MIN_EXTENT_M);
-  for (const step of EXTENT_LADDER_M) {
-    if (step >= need) return step;
-  }
-  return EXTENT_LADDER_M[EXTENT_LADDER_M.length - 1];
-}
+export const MIN_EXTENT_M = 45;
 
 /**
  * Half-extent needed to hold `bounds` around `center`.
@@ -158,38 +133,39 @@ export function buildConsoleProjection(
 }
 
 /**
- * Solve the camera.
+ * Solve where the camera wants to be, from the marks that matter right now.
  *
- * The origin is the first agent position the session observed — the home the
- * fleet launched from — and it is held for the rest of the session, so every
- * distance means "from home". Centre and extent are deliberately sticky: the
- * extent only grows and the centre only moves once the scene has drifted well
- * out of frame. A map that re-frames continuously is unreadable on a recording
- * and makes two takes impossible to compare.
+ * This is a target, not a position — `useCameraGlide` is what actually moves.
+ * It is recomputed every frame and it is deliberately not sticky: the whole
+ * point is that the framing follows the mission. A fleet spread across a long
+ * transit pulls the camera out; the same fleet converging on station lets it
+ * come back in; a replacement launching from unused capacity on the far side of
+ * the site pulls it out again.
+ *
+ * The origin is the exception. It is the first agent position the session
+ * observed — the home the fleet launched from — and it is held for the rest of
+ * the session, so every distance still means "from home".
  */
-export function solveFrame(
-  held: { origin: MapGeo | null; center: LocalPoint | null; extentM: number },
+export function targetFrame(
+  origin: MapGeo | null,
   points: readonly MapGeo[],
   /** Width / height of the area the scene is composed into. */
   aspect = 1
 ): Frame & { center: LocalPoint } {
-  const anchor = points.find((p) => Number.isFinite(p.lat) && p.lat !== 0) ?? null;
-  const origin = held.origin ?? (anchor ? { lat: anchor.lat, lon: anchor.lon } : null);
   if (!origin) return { origin: null, center: { e: 0, n: 0 }, extentM: MIN_EXTENT_M };
 
   const bounds = localBounds(origin, points);
-  let center = held.center ?? { e: 0, n: 0 };
-  if (bounds) {
-    const wanted = boundsCenter(bounds);
-    const drifted =
-      !held.center ||
-      Math.hypot(wanted.e - center.e, wanted.n - center.n) >
-        Math.max(10, held.extentM * 0.32);
-    if (drifted) center = wanted;
-  }
-  const needed = bounds ? halfSpanFor(bounds, center, aspect) : 0;
-  const extentM = snapConsoleExtent(needed, held.extentM);
+  if (!bounds) return { origin, center: { e: 0, n: 0 }, extentM: MIN_EXTENT_M };
+
+  const center = boundsCenter(bounds);
+  const extentM = Math.max(MIN_EXTENT_M, halfSpanFor(bounds, center, aspect));
   return { origin, center, extentM };
+}
+
+/** Pick the origin once, from the first real position the session sees. */
+export function anchorOrigin(points: readonly MapGeo[]): MapGeo | null {
+  const anchor = points.find((p) => Number.isFinite(p.lat) && p.lat !== 0);
+  return anchor ? { lat: anchor.lat, lon: anchor.lon } : null;
 }
 
 // ── Satellite basemap ────────────────────────────────────────────────────────

@@ -503,12 +503,15 @@ export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): Ta
 //   the replacement child mission, the `replaces_agent_id` provenance, and the
 //   evidence boundary each member completed against.
 //
-//   RECONSTRUCTED — the positions. The bench recorded scores, not coordinates,
-//   so each agent is placed at the exact ground distance its recorded score
-//   implies under the real allocator formula (`score_bid`, priority
-//   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100): 34.83 m,
-//   36.37 m, 38.08 m and 39.93 m. Distance is therefore derived; the approach
-//   bearing is not recorded anywhere and is chosen — see HOME_B.
+//   RECONSTRUCTED — the positions. The bench recorded scores, not coordinates.
+//   Each agent's distance from the objective is inverted out of its recorded
+//   score under the real allocator formula (`score_bid`, priority
+//   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100), giving
+//   34.83 m, 36.37 m, 38.08 m and 39.93 m, and those are then scaled by a
+//   common factor for legibility — see PRESENTATION_SCALE. The ratios, and so
+//   the ranking the allocator decided on, are exact; the absolute distance is
+//   a presentation choice. The approach bearing is not recorded anywhere and is
+//   likewise chosen — see HOME_B.
 //
 //   SCRIPTED — the intra-take timing. The bench recorded a 7.08 s detection
 //   latency and 47.51 s from kill to recovered completion; the ordering here is
@@ -529,10 +532,32 @@ export const TAKE_B = {
 
 const OBJECTIVE_B: Geo = { lat: 47.39805, lon: 8.546, alt_m: 0 };
 
+/**
+ * Presentation scale for take B's geometry.
+ *
+ * The recorded scores imply ground distances of 34.8 m to 39.9 m — four SITL
+ * endpoints effectively sharing one field. Rendered honestly that is a scene
+ * about 40 m across, in which nothing travels anywhere: the camera has nothing
+ * to open onto and nothing to close in on, and the transit is over before it
+ * reads as a transit.
+ *
+ * So the distances are multiplied by a common factor. What that preserves is
+ * the thing the allocator decision actually turned on — the *ranking* and the
+ * exact ratios between the four bids, so `mav-004` is still nearest and won
+ * `PRIMARY_OBSERVER`, and `mav-001` is still furthest and was left spare. What
+ * it gives up is the absolute distance, which becomes a stated presentation
+ * choice rather than a derivation.
+ *
+ * Nothing operational moves with it. Who held which role, who was excluded, who
+ * replaced whom, and what evidence closed each child mission are all recorded
+ * facts and are untouched.
+ */
+const PRESENTATION_SCALE = 6;
+
 /** Ground distance a recorded score implies, inverting the allocator's own terms. */
 function distanceFromScore(score: number, batteryPct: number, priority: number): number {
   const distanceScore = score - 0.8 * (batteryPct / 100) - 0.5 * (priority / 100);
-  return (1 / distanceScore - 1) * 1000;
+  return (1 / distanceScore - 1) * 1000 * PRESENTATION_SCALE;
 }
 
 /** Place a point `distanceM` from `from` along a compass bearing. */

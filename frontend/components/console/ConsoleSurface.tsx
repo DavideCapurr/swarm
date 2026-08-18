@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { buildAuthorityView, latestPayloadProof } from "@/lib/authority";
-import type { MapGeo, LocalPoint } from "@/lib/opsmap";
+import type { MapGeo } from "@/lib/opsmap";
 import { telemetrySourceLabel } from "@/lib/telemetry-source";
 import type { LinkState } from "@/lib/state";
 import type {
@@ -37,11 +37,13 @@ import { NavigationRail, RAIL_WIDTH } from "./NavigationRail";
 import { PhysicalCapacityPanel, CAPACITY_WIDTH } from "./PhysicalCapacityPanel";
 import { SystemStatus, STATUS_HEIGHT } from "./SystemStatus";
 import {
+  anchorOrigin,
   buildConsoleProjection,
   buildTiles,
-  solveFrame,
+  targetFrame,
   type SafeInset,
 } from "./projection";
+import { useCameraGlide } from "./useCameraGlide";
 
 export type SurfaceFrame = {
   link: LinkState;
@@ -121,30 +123,42 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       : view.defaultFocusKey;
   const focused = view.objectives.find((o) => o.key === focusKey) ?? null;
 
-  // The camera is sticky across the session: the extent only grows and the
-  // centre only moves once the scene has drifted well out of frame. A map that
-  // re-frames while a mission runs is unreadable on a recording.
-  const camera = useRef<{ origin: MapGeo | null; center: LocalPoint | null; extentM: number }>({
-    origin: null,
-    center: null,
-    extentM: 0,
-  });
-  const points = useMemo<MapGeo[]>(() => {
-    const out: MapGeo[] = [];
-    for (const row of view.capacity) out.push(row.geo);
-    for (const objective of view.objectives) {
-      if (objective.geo) out.push(objective.geo);
-      for (const route of objective.routes) out.push(...route.points);
-    }
-    return out.filter((p) => Number.isFinite(p.lat) && p.lat !== 0);
-  }, [view]);
+  // The camera frames the mission, not the map. The points it is solved from
+  // are the focused objective and the executors SwarmOS put on it — including
+  // one that has failed, because that is still part of what is happening. A
+  // long transit therefore opens the frame, convergence on station closes it,
+  // and a replacement launching from unused capacity opens it again.
+  //
+  // Observed tracks are deliberately excluded. Keeping every metre already
+  // flown in frame would pin the camera wide for the rest of the take.
+  const originRef = useRef<MapGeo | null>(null);
+  const framed = useMemo<MapGeo[]>(() => {
+    const live = (geo: MapGeo) => Number.isFinite(geo.lat) && geo.lat !== 0;
+    if (!focused) return view.capacity.map((row) => row.geo).filter(live);
+    const onObjective = new Set(
+      focused.slots.map((slot) => slot.agentId).filter((id): id is string => Boolean(id))
+    );
+    const out: MapGeo[] = view.capacity
+      .filter((row) => onObjective.has(row.agentId))
+      .map((row) => row.geo)
+      .filter(live);
+    if (focused.geo) out.push(focused.geo);
+    return out.length > 0 ? out : view.capacity.map((row) => row.geo).filter(live);
+  }, [focused, view.capacity]);
 
-  const solved = solveFrame(
-    camera.current,
-    points,
-    Math.max(1, (box.width - INSET.left - INSET.right) / (box.height - INSET.top - INSET.bottom))
+  if (!originRef.current) {
+    originRef.current = anchorOrigin(view.capacity.map((row) => row.geo));
+  }
+
+  const aspect = Math.max(
+    1,
+    (box.width - INSET.left - INSET.right) / (box.height - INSET.top - INSET.bottom)
   );
-  camera.current = { origin: solved.origin, center: solved.center, extentM: solved.extentM };
+  const wanted = useMemo(
+    () => targetFrame(originRef.current, framed, aspect),
+    [framed, aspect]
+  );
+  const solved = useCameraGlide(wanted);
 
   const projection = useMemo(
     () => buildConsoleProjection(solved, box, INSET),
@@ -156,7 +170,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
   const tiles = useMemo(
     () => (projection ? buildTiles(solved, projection, box) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projection, solved.center.e, solved.center.n, box.width, box.height]
+    [projection, solved.center.e, solved.center.n, solved.extentM, box.width, box.height]
   );
   const imagery = useImageryStatus(tiles[0]?.url ?? null);
 
@@ -180,6 +194,9 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
     <div
       ref={ref}
       data-testid="console-surface"
+      /* The camera is published so a test — and a recording check — can assert
+         that the framing followed the mission, without reaching into React. */
+      data-extent-m={solved.extentM.toFixed(1)}
       className="relative h-screen w-screen overflow-hidden bg-[#050605]"
     >
       <MapCanvas tiles={tiles} status={imagery}>
