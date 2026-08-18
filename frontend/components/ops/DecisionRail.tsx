@@ -74,12 +74,12 @@ export function DecisionRail({
         <div className="flex flex-col">
           <Step n={1} title="Objective">
             <div className="flex items-baseline justify-between gap-4">
-              <Value size="lg">{story.kind}</Value>
+              <Value size="xl">{story.kind}</Value>
               <Value size="sm" tone="ash">
                 {clock(story.detectedAt ?? story.decisionTs)}
               </Value>
             </div>
-            <div className="mt-[6px] grid grid-cols-2 gap-x-4 gap-y-1">
+            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
               <Field label="confidence">
                 {story.confidence != null
                   ? `${(story.confidence * 100).toFixed(0)}%`
@@ -94,7 +94,7 @@ export function DecisionRail({
               </Field>
             </div>
             {story.headline ? (
-              <p className="mt-[6px] font-mono text-[13px] leading-5 text-muted-silver">
+              <p className="mt-2 font-mono text-[13px] leading-5 text-muted-silver">
                 {story.headline}
               </p>
             ) : null}
@@ -107,7 +107,7 @@ export function DecisionRail({
                   recording checklist looks for this exact string. */}
               <Eyebrow>SERVER REASONS</Eyebrow>
             </div>
-            <div className="mt-[6px] flex flex-col">
+            <div className="mt-2 flex flex-col">
               {story.candidates.map((candidate) => (
                 <CandidateRow key={candidate.agentId} candidate={candidate} />
               ))}
@@ -116,7 +116,7 @@ export function DecisionRail({
 
           <Step n={3} title="Selected by SwarmOS">
             <div className="flex items-baseline justify-between gap-4">
-              <Value size="lg" tone="orbital" className="tracking-[0.04em]">
+              <Value size="xl" tone="orbital" className="tracking-[0.04em]">
                 {story.owner ?? "NO AWARD"}
               </Value>
               <div className="text-right">
@@ -132,7 +132,7 @@ export function DecisionRail({
                 explains it stays monochrome. A whole line of escalation colour
                 for a reason the operator only reads once is what drowned out
                 the states that actually need noticing. */}
-            <ul data-testid="decision-summary" className="mt-[6px] flex flex-col gap-[2px]">
+            <ul data-testid="decision-summary" className="mt-2 flex flex-col gap-[3px]">
               {decisionSummary(story).map((line) => (
                 <li
                   key={line}
@@ -154,8 +154,9 @@ export function DecisionRail({
                 owned by {story.owner ?? "—"}
               </Value>
             </div>
-            <p className="mt-[6px] font-mono text-[12px] leading-5 text-ash">
-              Issued by SwarmOS — the agent does not elect itself.
+            <p className="mt-2 font-mono text-[12px] leading-5 text-ash">
+              Ownership is issued by SwarmOS. The physical agent executes it; it does not
+              elect itself, choose peers, or create fleet actions.
             </p>
           </Step>
 
@@ -252,19 +253,6 @@ export function DecisionRail({
 
 // ── Rail structure ────────────────────────────────────────────────────────────
 
-/**
- * One step of the causal chain.
- *
- * The vertical rhythm here is a budget, not a taste. The YC target sequence
- * ends at "the Console exposes the decision rationale"
- * (`docs/yc/readiness-and-gaps.md:154`), and the rationale is closed by step 04:
- * objective, evaluation, selection, ownership. The rail is 580px at the
- * recording viewport, and at the previous rhythm those four steps needed 740 —
- * so step 04 sat below the fold at every frame of the take, with nothing on
- * screen to say so. In a recording nobody scrolls, so it did not exist.
- *
- * Steps 05-07 may stay below the fold. The argument is complete at 04.
- */
 function Step({
   n,
   title,
@@ -283,7 +271,7 @@ function Step({
         {!last ? <div className="mt-2 w-px flex-1 bg-gunmetal" /> : null}
       </div>
       <div className="min-w-0">
-        <div className="mb-1 flex items-center gap-3">
+        <div className="mb-2 flex items-center gap-3">
           <Eyebrow tone="platinum">{title}</Eyebrow>
           <div className="h-px flex-1 bg-gunmetal" />
         </div>
@@ -311,7 +299,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
     return (
       <div
         data-testid={`candidate-${candidate.agentId}`}
-        className="border-l-2 border-launch-amber bg-launch-amber/[0.04] px-2 py-[6px]"
+        className="border-l-2 border-launch-amber bg-launch-amber/[0.04] px-2 py-2"
       >
         <div className="flex items-baseline justify-between gap-3">
           <Value size="md">{candidate.agentId}</Value>
@@ -319,7 +307,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
             EXCLUDED · {candidate.reason}
           </span>
         </div>
-        <div className="mt-[2px] font-mono text-[13px] tracking-[0.1em] text-ash">
+        <div className="mt-1 font-mono text-[13px] tracking-[0.1em] text-ash">
           {candidate.fsmState} · batt {candidate.batteryPct.toFixed(0)}%
           {candidate.activeMissionId
             ? ` · holds active mission ${shortId(candidate.activeMissionId)}`
@@ -332,7 +320,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
   return (
     <div
       data-testid={`candidate-${candidate.agentId}`}
-      className={`border-l-2 px-2 py-[6px] ${
+      className={`border-l-2 px-2 py-2 ${
         candidate.selected
           ? "border-orbital-blue bg-orbital-blue/[0.05]"
           : "border-graphite"
@@ -353,7 +341,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
           {scoreText(candidate.score)}
         </Value>
       </div>
-      <div className="mt-[2px] font-mono text-[13px] tracking-[0.08em] text-ash">
+      <div className="mt-1 font-mono text-[13px] tracking-[0.08em] text-ash">
         {`${candidate.fsmState} · dist ${Math.round(candidate.breakdown.distance_m)}m +${candidate.breakdown.distance_score.toFixed(2)}`}
         {` · batt ${candidate.breakdown.battery_pct.toFixed(0)}% +${candidate.breakdown.battery_score.toFixed(2)}`}
         {` · priority +${candidate.breakdown.priority_score.toFixed(2)}`}

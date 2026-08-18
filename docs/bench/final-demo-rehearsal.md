@@ -130,15 +130,17 @@ Open:
 http://localhost:3000/login?next=/demo/intrusion
 ```
 
-**Record at 1920 × 1080, browser zoom 100%, device pixel ratio 1.**
+**Record at 2560 × 1440, browser zoom 100%, device pixel ratio 1**, as
+[`docs/design/operational-console-ia.md`](../design/operational-console-ia.md) §3
+specifies. That document is the authority on the size; this is a pointer to it,
+not a second place to change.
 
-This is not a preference. The Console's layout budgets are horizontal: the
-control-loop strip, the command bar and the decision rail all shrink their live
-readouts before they overflow, so at a narrower window the causal chain starts
-losing its tail to an ellipsis and the decision rail drops a step below the
-fold — silently, with nothing on screen to say it happened. Every layout
-criterion in `console-render-audit.md` is stated at this size, and a take
-recorded at another one has not been measured.
+It matters more than it looks. The Console's layout budgets are horizontal and
+vertical at once, and the spec notes that smaller viewports *degrade rather than
+break* — at 1920 × 1080 the control-loop strip starts truncating its live values
+from T+44s and the decision rail drops step 04 below the fold, silently, with
+nothing on screen to say so. Both are fine at the specified size. A take
+recorded smaller has not been measured.
 
 Verify the viewport before the first take rather than after:
 
