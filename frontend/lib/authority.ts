@@ -111,6 +111,32 @@ export type TraceStage = {
   at: string | null;
 };
 
+/**
+ * Where the objective came from.
+ *
+ * The surface has to answer "why is a fleet flying at this" before it answers
+ * anything else, and the answer is a server frame: `AnomalyView.evidence`
+ * carries the reporting source, the sensor, the label and score that triggered
+ * it, and a confidence-bound headline SwarmOS composed. The Console renders
+ * that headline; it never writes one.
+ */
+export type Detection = {
+  /** `drone_cv`, `thermal_sat`, `fire_detector` or `unknown` — the server's own. */
+  source: string;
+  sensor: string;
+  /** What the detector called it, when it produced a label. */
+  label: string | null;
+  /** The detector's own score for that label, when it produced one. */
+  value: number | null;
+  /** SwarmOS's confidence-bound one-liner. */
+  headline: string | null;
+  /** True when the triggering signal is simulated rather than a real sensor. */
+  simulated: boolean;
+  /** Who reported it. */
+  reportedBy: string | null;
+  at: string | null;
+};
+
 export type ObjectiveRoute = {
   agentId: string;
   missionId: string;
@@ -130,6 +156,8 @@ export type ObjectiveAuthority = {
   anomalyId: string | null;
   confidence: number | null;
   detectedAt: string | null;
+  /** Null until an anomaly frame with evidence has arrived. */
+  detection: Detection | null;
   geo: { lat: number; lon: number } | null;
   /** Set only when SwarmOS composed a first-class ExecutionGroup for this objective. */
   groupId: string | null;
@@ -197,6 +225,24 @@ export type AuthorityView = {
   /** Objective the surface focuses by default — the newest one still running. */
   defaultFocusKey: string | null;
 };
+
+function detectionOf(anomaly: AnomalyView | null): Detection | null {
+  if (!anomaly) return null;
+  const evidence = anomaly.evidence ?? null;
+  return {
+    source: evidence?.source ?? "unknown",
+    sensor: evidence?.sensor ?? "UNKNOWN",
+    label: evidence?.label ?? null,
+    value: evidence?.value ?? null,
+    headline: evidence?.headline ?? null,
+    // Absent evidence is not a claim of a real sensor. A frame that never said
+    // where it came from is treated as simulated, which is what it is on every
+    // scenario path this Console serves.
+    simulated: evidence?.simulated ?? true,
+    reportedBy: anomaly.detected_by,
+    at: anomaly.detected_at,
+  };
+}
 
 const TERMINAL_MEMBER_STATES: ReadonlySet<ExecutionGroupMemberState> = new Set([
   "COMPLETED",
@@ -403,6 +449,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
       anomalyId: group.anomaly_id,
       confidence: anomaly?.confidence ?? null,
       detectedAt: anomaly?.detected_at ?? null,
+      detection: detectionOf(anomaly),
       geo: anomaly ? { lat: anomaly.geo.lat, lon: anomaly.geo.lon } : null,
       groupId: group.id,
       groupStateLabel: group.state,
@@ -443,6 +490,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
       anomalyId: decision.anomaly_id,
       confidence: anomaly?.confidence ?? null,
       detectedAt: anomaly?.detected_at ?? null,
+      detection: detectionOf(anomaly),
       geo: anomaly ? { lat: anomaly.geo.lat, lon: anomaly.geo.lon } : null,
       groupId: null,
       groupStateLabel: null,
@@ -568,33 +616,4 @@ function buildCapacity(
         replacedOut: wasReplaced,
       };
     });
-}
-
-/** Latest payload channel truth, kept for the evidence line on the authority panel. */
-export function latestPayloadProof(
-  events: PayloadEvent[],
-  missionIds: ReadonlySet<string>
-): { label: string; proof: string; simulated: boolean } | null {
-  const scoped = events
-    .filter((event) => missionIds.has(event.mission_id))
-    .sort((a, b) => epoch(a.ts) - epoch(b.ts));
-  const latest = scoped.at(-1);
-  if (!latest) return null;
-  const label =
-    latest.kind === "light_on"
-      ? "PRESENCE LIGHT ON"
-      : latest.kind === "light_off"
-        ? "PRESENCE LIGHT OFF"
-        : latest.kind === "play_message"
-          ? "SPEAKER ACTIVE"
-          : "SPEAKER STOPPED";
-  const proof =
-    latest.execution_mode === "mavlink_output_confirmed"
-      ? "PX4 OUTPUT CONFIRMED"
-      : latest.execution_mode === "mavlink_ack"
-        ? "MAVLINK ACK"
-        : latest.execution_mode === "simulated"
-          ? "SIMULATED"
-          : latest.status.toUpperCase();
-  return { label, proof, simulated: latest.execution_mode === "simulated" };
 }

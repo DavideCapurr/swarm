@@ -101,9 +101,39 @@ function lerpGeo(from: Geo, to: Geo, t: number, altM: number): Geo {
 
 type Leg = { from: number; to: number; a: Geo; b: Geo; state: UnitState["fsm_state"]; alt: number };
 
-function positionAt(legs: Leg[], home: Geo, atS: number): { geo: Geo; state: UnitState["fsm_state"] } {
+/** Compass bearing from one point to another. 0 is north. */
+function bearingDeg(from: Geo, to: Geo): number {
+  const dLat = to.lat - from.lat;
+  const dLon = (to.lon - from.lon) * Math.cos((from.lat * Math.PI) / 180);
+  return ((Math.atan2(dLon, dLat) * 180) / Math.PI + 360) % 360;
+}
+
+function samePoint(a: Geo, b: Geo): boolean {
+  return a.lat === b.lat && a.lon === b.lon;
+}
+
+/** Rotate `from` a fraction `k` of the way to `to`, the short way round. */
+function turnToward(from: number, to: number, k: number): number {
+  const delta = ((to - from + 540) % 360) - 180;
+  return (from + delta * k + 360) % 360;
+}
+
+/** Seconds an aircraft takes to come round onto a new leg. */
+const TURN_S = 2.5;
+
+function positionAt(
+  legs: Leg[],
+  home: Geo,
+  atS: number
+): { geo: Geo; state: UnitState["fsm_state"]; headingDeg: number } {
   let geo = home;
   let state: UnitState["fsm_state"] = "DOCKED";
+  // Heading follows the leg being flown, so an aircraft on RTL points at the
+  // home it is returning to rather than at the objective it has left. Before
+  // launch it already faces its first leg, which is what a dart on a pad
+  // should do. Turns are taken over TURN_S rather than snapped: a 180 that
+  // happens between two 1 Hz samples reads as a glitch, not a turn.
+  let headingDeg = legs.length > 0 ? bearingDeg(legs[0].a, legs[0].b) : 0;
   for (const leg of legs) {
     if (atS < leg.from) break;
     const k = atS >= leg.to ? 1 : (atS - leg.from) / (leg.to - leg.from);
@@ -115,8 +145,14 @@ function positionAt(legs: Leg[], home: Geo, atS: number): { geo: Geo; state: Uni
           : leg.alt; // holding station
     geo = lerpGeo(leg.a, leg.b, k, altitude);
     state = leg.state;
+    // A leg that holds station has no direction of travel, so it leaves the
+    // heading where the last flown leg put it.
+    if (!samePoint(leg.a, leg.b)) {
+      const turn = Math.min(1, Math.max(0, (atS - leg.from) / TURN_S));
+      headingDeg = turnToward(headingDeg, bearingDeg(leg.a, leg.b), turn);
+    }
   }
-  return { geo, state };
+  return { geo, state, headingDeg };
 }
 
 const LEGS_002: Leg[] = [
@@ -140,7 +176,7 @@ function unitFrame(
   missionId: string | null,
   batteryPct: number
 ): UnitState {
-  const { geo, state } = positionAt(legs, home, atS);
+  const { geo, state, headingDeg } = positionAt(legs, home, atS);
   return {
     agent_id: agentId,
     vendor: "mavlink",
@@ -151,7 +187,7 @@ function unitFrame(
     current_mission_id: missionId,
     current_sector_id: null,
     link_quality: 1,
-    heading_deg: agentId === "mav-002" ? 42 : 318,
+    heading_deg: headingDeg,
     altitude_agl_m: geo.alt_m,
     dock_id: "dock-sitl-01",
     ts: iso(atS * 1000),
@@ -503,12 +539,15 @@ export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): Ta
 //   the replacement child mission, the `replaces_agent_id` provenance, and the
 //   evidence boundary each member completed against.
 //
-//   RECONSTRUCTED — the positions. The bench recorded scores, not coordinates,
-//   so each agent is placed at the exact ground distance its recorded score
-//   implies under the real allocator formula (`score_bid`, priority
-//   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100). The
-//   objective sits at the PX4 SITL default home's north-east, and the four
-//   aircraft fan out behind it at 34.83 m, 36.37 m, 38.08 m and 39.93 m.
+//   RECONSTRUCTED — the positions. The bench recorded scores, not coordinates.
+//   Each agent's distance from the objective is inverted out of its recorded
+//   score under the real allocator formula (`score_bid`, priority
+//   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100), giving
+//   34.83 m, 36.37 m, 38.08 m and 39.93 m, and those are then scaled by a
+//   common factor for legibility — see PRESENTATION_SCALE. The ratios, and so
+//   the ranking the allocator decided on, are exact; the absolute distance is
+//   a presentation choice. The approach bearing is not recorded anywhere and is
+//   likewise chosen — see HOME_B.
 //
 //   SCRIPTED — the intra-take timing. The bench recorded a 7.08 s detection
 //   latency and 47.51 s from kill to recovered completion; the ordering here is
@@ -529,10 +568,32 @@ export const TAKE_B = {
 
 const OBJECTIVE_B: Geo = { lat: 47.39805, lon: 8.546, alt_m: 0 };
 
+/**
+ * Presentation scale for take B's geometry.
+ *
+ * The recorded scores imply ground distances of 34.8 m to 39.9 m — four SITL
+ * endpoints effectively sharing one field. Rendered honestly that is a scene
+ * about 40 m across, in which nothing travels anywhere: the camera has nothing
+ * to open onto and nothing to close in on, and the transit is over before it
+ * reads as a transit.
+ *
+ * So the distances are multiplied by a common factor. What that preserves is
+ * the thing the allocator decision actually turned on — the *ranking* and the
+ * exact ratios between the four bids, so `mav-004` is still nearest and won
+ * `PRIMARY_OBSERVER`, and `mav-001` is still furthest and was left spare. What
+ * it gives up is the absolute distance, which becomes a stated presentation
+ * choice rather than a derivation.
+ *
+ * Nothing operational moves with it. Who held which role, who was excluded, who
+ * replaced whom, and what evidence closed each child mission are all recorded
+ * facts and are untouched.
+ */
+const PRESENTATION_SCALE = 6;
+
 /** Ground distance a recorded score implies, inverting the allocator's own terms. */
 function distanceFromScore(score: number, batteryPct: number, priority: number): number {
   const distanceScore = score - 0.8 * (batteryPct / 100) - 0.5 * (priority / 100);
-  return (1 / distanceScore - 1) * 1000;
+  return (1 / distanceScore - 1) * 1000 * PRESENTATION_SCALE;
 }
 
 /** Place a point `distanceM` from `from` along a compass bearing. */
@@ -546,11 +607,25 @@ function offsetGeo(from: Geo, distanceM: number, bearingDeg: number): Geo {
 
 const PRIORITY_B = 99; // 80 + int(0.99 * 20)
 
+/**
+ * Approach bearings.
+ *
+ * Free parameters: the bench recorded scores, not coordinates, so the distance
+ * from the objective is pinned by `distanceFromScore` and the direction is not.
+ *
+ * The four launch points sit south of the objective across a 51° arc. Two
+ * things follow, and both are the reason for the choice. The aircraft are far
+ * enough apart at launch to read as four aircraft rather than one stack of
+ * darts. And the transit runs along the frame's short axis, so the journey is
+ * the long dimension of what the camera holds instead of a short hop into the
+ * middle of a ring — the objective is somewhere the fleet goes, not somewhere
+ * it is already standing.
+ */
 const HOME_B: Record<string, Geo> = {
-  "mav-004": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.primary.score, 100, PRIORITY_B), 212),
-  "mav-003": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.secondary.score, 100, PRIORITY_B), 219),
-  "mav-002": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.overwatch.score, 100, PRIORITY_B), 226),
-  "mav-001": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.replacement.score, 100, PRIORITY_B), 233),
+  "mav-004": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.primary.score, 100, PRIORITY_B), 155),
+  "mav-003": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.secondary.score, 100, PRIORITY_B), 172),
+  "mav-002": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.overwatch.score, 100, PRIORITY_B), 189),
+  "mav-001": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.replacement.score, 100, PRIORITY_B), 206),
 };
 
 const isoB = (at: number) => new Date(TAKE_B.t0 + at).toISOString();
@@ -600,10 +675,9 @@ function unitB(
   missionId: string | null,
   legs: Leg[],
   batteryPct: number,
-  headingDeg: number,
   fixedState?: UnitState["fsm_state"]
 ): UnitState {
-  const { geo, state } = positionAt(legs, HOME_B[agentId], atS);
+  const { geo, state, headingDeg } = positionAt(legs, HOME_B[agentId], atS);
   return {
     agent_id: agentId,
     vendor: "mavlink",
@@ -660,27 +734,40 @@ function missionB(missionId: string, agentId: string, legs: Leg[], atS: number):
   };
 }
 
-/** Bearing from an agent's home toward the objective, so darts point where they fly. */
-function headingToObjective(agentId: string): number {
-  const home = HOME_B[agentId];
-  const dLat = OBJECTIVE_B.lat - home.lat;
-  const dLon =
-    (OBJECTIVE_B.lon - home.lon) * Math.cos((home.lat * Math.PI) / 180);
-  return (((Math.atan2(dLon, dLat) * 180) / Math.PI) + 360) % 360;
-}
+/**
+ * The altitude ladder SwarmOS actually builds.
+ *
+ * `_cooperative_verify_plans` decomposes one objective into child VERIFY
+ * missions against the *same* geo at `base_altitude_m + altitude_step_m * idx`
+ * — 40 m, 55 m, 70 m by default. Separation between the roles is vertical, not
+ * lateral, which is why the map lifts each executor off its ground mark and why
+ * the height is stated next to the role rather than filed under telemetry.
+ *
+ * A replacement inherits the altitude of the role it takes over, not of the
+ * machine it replaces.
+ */
+const ROLE_ALT_M: Record<string, number> = {
+  "mav-004": 40, // PRIMARY_OBSERVER
+  "mav-003": 55, // SECONDARY_OBSERVER
+  "mav-001": 55, // SECONDARY_OBSERVER, after replacement
+  "mav-002": 70, // OVERWATCH
+};
 
-const legsFor = (agentId: string, start: number, arrive: number, rtl: number): Leg[] => [
-  { from: start, to: arrive, a: HOME_B[agentId], b: OBJECTIVE_B, state: "EN_ROUTE", alt: CRUISE_ALT_M },
-  { from: arrive, to: rtl, a: OBJECTIVE_B, b: OBJECTIVE_B, state: "ON_STATION", alt: CRUISE_ALT_M },
-  { from: rtl, to: rtl + 12, a: OBJECTIVE_B, b: HOME_B[agentId], state: "RTL", alt: CRUISE_ALT_M },
-];
+const legsFor = (agentId: string, start: number, arrive: number, rtl: number): Leg[] => {
+  const alt = ROLE_ALT_M[agentId] ?? CRUISE_ALT_M;
+  return [
+    { from: start, to: arrive, a: HOME_B[agentId], b: OBJECTIVE_B, state: "EN_ROUTE", alt },
+    { from: arrive, to: rtl, a: OBJECTIVE_B, b: OBJECTIVE_B, state: "ON_STATION", alt },
+    { from: rtl, to: rtl + 12, a: OBJECTIVE_B, b: HOME_B[agentId], state: "RTL", alt },
+  ];
+};
 
 const LEGS_B: Record<string, Leg[]> = {
-  "mav-004": legsFor("mav-004", 8, 26, 44),
-  "mav-003": legsFor("mav-003", 8, 27, 44),
-  "mav-002": legsFor("mav-002", 8, 28, 46),
+  "mav-004": legsFor("mav-004", 8, 30, 44),
+  "mav-003": legsFor("mav-003", 8, 31, 44),
+  "mav-002": legsFor("mav-002", 8, 32, 46),
   // The replacement launches only when SwarmOS selects it.
-  "mav-001": legsFor("mav-001", 24, 40, 48),
+  "mav-001": legsFor("mav-001", 24, 42, 48),
 };
 
 /** `mav-003` is killed at T+20; its last reported position is held from there. */
@@ -709,13 +796,17 @@ export function takeBFrames(): DemoFrame[] {
           t >= entry.from ? entry.mission : null,
           LEGS_B[entry.agent],
           Math.max(58, 100 - t * 0.35),
-          headingToObjective(entry.agent),
           dead ? "OFFLINE" : undefined
         ),
       });
     }
   }
 
+  // The detection that starts everything. Shaped exactly as the runtime ships
+  // it — `AnomalyView.evidence` with source, sensor, label, score and the
+  // server's confidence-bound headline — and flagged `simulated`, because on
+  // this take the triggering signal is injected on the bus rather than read off
+  // a sensor. The Console reads that flag; it does not decide it.
   frames.push({
     at: 6_000,
     kind: "anomaly",
@@ -723,6 +814,18 @@ export function takeBFrames(): DemoFrame[] {
       ...anomaly(TAKE_B.anomaly, "INTRUSION", OBJECTIVE_B, 0.99, 6, "mav-004"),
       ts: isoB(6_000),
       detected_at: isoB(6_000),
+      evidence: {
+        source: "drone_cv",
+        sensor: "RGB",
+        label: "person",
+        metric: "score",
+        value: 0.99,
+        baseline: null,
+        unit: null,
+        headline:
+          "Elevated anomaly — onboard CV classified a person at 0.99 confidence. Sector requires verification.",
+        simulated: true,
+      },
     },
   });
 
@@ -793,21 +896,21 @@ export function takeBFrames(): DemoFrame[] {
   });
 
   // Arrival is accepted only on final MISSION_ITEM_REACHED, for every member.
-  frames.push({ at: 26_000, kind: "runtime", data: runtimeB(TAKE_B.primary.mission, TAKE_B.primary.agent, "ON_STATION", 26, "mavlink_mission_item_reached") });
-  frames.push({ at: 28_000, kind: "runtime", data: runtimeB(TAKE_B.overwatch.mission, TAKE_B.overwatch.agent, "ON_STATION", 28, "mavlink_mission_item_reached") });
-  frames.push({ at: 40_000, kind: "runtime", data: runtimeB(TAKE_B.replacement.mission, TAKE_B.replacement.agent, "ON_STATION", 40, "mavlink_mission_item_reached") });
+  frames.push({ at: 30_000, kind: "runtime", data: runtimeB(TAKE_B.primary.mission, TAKE_B.primary.agent, "ON_STATION", 30, "mavlink_mission_item_reached") });
+  frames.push({ at: 32_000, kind: "runtime", data: runtimeB(TAKE_B.overwatch.mission, TAKE_B.overwatch.agent, "ON_STATION", 32, "mavlink_mission_item_reached") });
+  frames.push({ at: 42_000, kind: "runtime", data: runtimeB(TAKE_B.replacement.mission, TAKE_B.replacement.agent, "ON_STATION", 42, "mavlink_mission_item_reached") });
 
   // Bounded presence response. The light is confirmed at the PX4 output; the
   // speaker stays explicitly simulated.
   frames.push({
-    at: 30_000,
+    at: 33_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 30),
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 33),
   });
   frames.push({
-    at: 31_000,
+    at: 34_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 31),
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 34),
   });
   frames.push({
     at: 44_000,

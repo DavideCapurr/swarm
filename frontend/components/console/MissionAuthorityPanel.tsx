@@ -18,6 +18,7 @@
 
 import type { CapacityRow, CompositionSlot, ObjectiveAuthority } from "@/lib/authority";
 import { groupLabel, phaseLabel, roleLabel } from "@/lib/authority";
+import type { PayloadChannel } from "@/lib/mission-story";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
 import { useAdaptationBeat, type AdaptationBeat } from "./useAdaptation";
@@ -36,13 +37,14 @@ export function MissionAuthorityPanel({
   objectives,
   focused,
   capacity,
-  evidence,
+  channels,
   onSelectObjective,
 }: {
   objectives: ObjectiveAuthority[];
   focused: ObjectiveAuthority | null;
   capacity: CapacityRow[];
-  evidence: { label: string; proof: string; simulated: boolean } | null;
+  /** Bounded-response channels for the focused objective, latest frame each. */
+  channels: PayloadChannel[];
   onSelectObjective: (key: string) => void;
 }) {
   const beat = useAdaptationBeat(focused);
@@ -86,7 +88,7 @@ export function MissionAuthorityPanel({
 
           <Divider />
 
-          <Composition objective={focused} beat={beat} />
+          <Composition objective={focused} beat={beat} capacity={capacity} />
 
           <Divider />
 
@@ -149,21 +151,44 @@ export function MissionAuthorityPanel({
             </Mono>
           </div>
 
-          {evidence ? (
+          {channels.some((channel) => channel.ts) ? (
             <>
               <Divider />
-              <div className="flex items-baseline justify-between gap-3 px-3 py-[10px]">
-                <div className="flex flex-col gap-[6px]">
-                  <Label>runtime evidence</Label>
-                  <Mono size={11} tone="silver">
-                    {evidence.label}
-                  </Mono>
-                </div>
-                <div className="flex items-center gap-[6px]">
-                  <Dot tone={evidence.simulated ? "amber" : "green"} />
-                  <Mono size={10} tone={evidence.simulated ? "amber" : "green"}>
-                    {evidence.proof}
-                  </Mono>
+              <div className="px-3 pb-[10px] pt-[10px]">
+                {/* What the group actually does once it is over the objective.
+                    The two channels are never merged: the light is confirmed at
+                    the PX4 output and the speaker is explicitly simulated, and
+                    collapsing them into one "evidence" line would launder the
+                    second into the first. */}
+                <Label>bounded response</Label>
+                <div className="mt-[8px] flex flex-col gap-[7px]">
+                  {channels.map((channel) => (
+                    <div
+                      key={channel.channel}
+                      className="flex items-baseline justify-between gap-3"
+                    >
+                      <div className="flex items-baseline gap-2">
+                        <Mono size={10} tone="ash">
+                          {channel.channel}
+                        </Mono>
+                        <Mono
+                          size={11}
+                          tone={channel.tier === "simulated" ? "amber" : "silver"}
+                        >
+                          {channel.state}
+                        </Mono>
+                      </div>
+                      <div className="flex items-center gap-[6px]">
+                        <Dot tone={channel.tier === "verified" ? "green" : "amber"} />
+                        <Mono
+                          size={9.5}
+                          tone={channel.tier === "verified" ? "green" : "amber"}
+                        >
+                          {channel.proof}
+                        </Mono>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </>
@@ -278,11 +303,14 @@ function ObjectiveIdentity({ objective }: { objective: ObjectiveAuthority }) {
 function Composition({
   objective,
   beat,
+  capacity,
 }: {
   objective: ObjectiveAuthority;
   beat: AdaptationBeat;
+  capacity: CapacityRow[];
 }) {
   const composed = objective.groupId != null;
+  const altitudeOf = new Map(capacity.map((row) => [row.agentId, row.altitudeAglM]));
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3 px-3 pb-[8px] pt-[11px]">
@@ -296,7 +324,12 @@ function Composition({
 
       <div className="flex flex-col">
         {objective.slots.map((slot) => (
-          <SlotRow key={`${slot.role}:${slot.index}`} slot={slot} beat={beat} />
+          <SlotRow
+            key={`${slot.role}:${slot.index}`}
+            slot={slot}
+            beat={beat}
+            altitudeAglM={slot.agentId ? altitudeOf.get(slot.agentId) ?? null : null}
+          />
         ))}
       </div>
     </div>
@@ -377,7 +410,16 @@ function AdaptationBanner({ beat }: { beat: Exclude<AdaptationBeat, { phase: "id
   );
 }
 
-function SlotRow({ slot, beat }: { slot: CompositionSlot; beat: AdaptationBeat }) {
+function SlotRow({
+  slot,
+  beat,
+  altitudeAglM,
+}: {
+  slot: CompositionSlot;
+  beat: AdaptationBeat;
+  /** Reported altitude AGL. SwarmOS separates the roles by height, not by station. */
+  altitudeAglM: number | null;
+}) {
   const failing = slot.adapting || slot.memberState === "FAILED";
   const done = slot.memberState === "COMPLETED" || slot.phase === "DONE";
   const highlighted =
@@ -427,6 +469,14 @@ function SlotRow({ slot, beat }: { slot: CompositionSlot; beat: AdaptationBeat }
           {slot.replacesAgentId ? (
             <Mono size={9} tone="ash" className="uppercase">
               replaced by swarmos
+            </Mono>
+          ) : null}
+          {/* The roles inside a cooperative objective are separated by altitude
+              over one target, so the height is the assignment, not telemetry
+              trivia. */}
+          {altitudeAglM != null && altitudeAglM >= 1 ? (
+            <Mono size={9.5} tone="ash" className="ml-auto">
+              {altitudeAglM.toFixed(0).padStart(3, "0")} m
             </Mono>
           ) : null}
         </div>

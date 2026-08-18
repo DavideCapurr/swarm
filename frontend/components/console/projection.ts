@@ -16,10 +16,9 @@
 
 import {
   boundsCenter,
-  boundsHalfSpan,
   buildProjection,
   localBounds,
-  snapExtent,
+  type LocalBounds,
   type LocalPoint,
   type MapGeo,
   type ScreenPoint,
@@ -36,9 +35,11 @@ const DEG = Math.PI / 180;
 /**
  * Closest half-extent the camera is allowed to hold.
  *
- * Every executor is parked on one dock at boot, so an extent solved purely from
- * the frames would open on a 20 m square of gravel. The floor keeps real
- * geography in the opening frame; it changes the camera, never a coordinate.
+ * A cooperative objective ends with every observer over the same point,
+ * separated only by altitude, so the framing it asks for collapses toward zero.
+ * The floor is what the close-in actually settles on: 45 m holds the objective
+ * and the ground around it at a scale where the site is still legible. It
+ * changes the camera, never a coordinate.
  *
  * 55 m is the balance point measured on the recording viewport: a cooperative
  * objective works inside about 40 m of its target, which at this extent fills
@@ -46,7 +47,28 @@ const DEG = Math.PI / 180;
  * aircraft holding station metres apart still read as two aircraft, while a
  * full city block of context stays in shot.
  */
-export const MIN_EXTENT_M = 55;
+export const MIN_EXTENT_M = 45;
+
+/**
+ * Half-extent needed to hold `bounds` around `center`.
+ *
+ * `opsmap.boundsHalfSpan` takes the larger of the two axes and adds 12%. On a
+ * 16:9 viewport the projection then inscribes that square in the *shorter*
+ * side, so a scene that is wide and shallow — which is what a fleet converging
+ * on one objective looks like — pays for vertical space it never uses. This
+ * measures the axes against the box it is actually being drawn into.
+ */
+function halfSpanFor(
+  bounds: LocalBounds,
+  center: LocalPoint,
+  aspect: number
+): number {
+  const e = Math.max(Math.abs(bounds.maxE - center.e), Math.abs(center.e - bounds.minE));
+  const n = Math.max(Math.abs(bounds.maxN - center.n), Math.abs(center.n - bounds.minN));
+  // The projection scales by the shorter side, so the east axis only needs the
+  // extent it exceeds the aspect ratio by.
+  return Math.max(n, e / Math.max(aspect, 1)) * 1.04;
+}
 
 export type Box = { width: number; height: number };
 
@@ -80,8 +102,10 @@ export function buildConsoleProjection(
   if (!frame.origin) return null;
   const offset = safeOffset(box, inset);
   // The usable square is measured inside the inset so the scene is solved for
-  // the clear area, then drawn across the whole viewport.
-  const padding = 56;
+  // the clear area, then drawn across the whole viewport. The padding is the
+  // margin captions need past the outermost glyph, nothing more — at 56 it was
+  // taking 112 px out of a 620 px usable height, which the transit paid for.
+  const padding = 26;
   const usable = {
     width: Math.max(1, box.width - inset.left - inset.right),
     height: Math.max(1, box.height - inset.top - inset.bottom),
@@ -109,36 +133,39 @@ export function buildConsoleProjection(
 }
 
 /**
- * Solve the camera.
+ * Solve where the camera wants to be, from the marks that matter right now.
  *
- * The origin is the first agent position the session observed — the home the
- * fleet launched from — and it is held for the rest of the session, so every
- * distance means "from home". Centre and extent are deliberately sticky: the
- * extent only grows and the centre only moves once the scene has drifted well
- * out of frame. A map that re-frames continuously is unreadable on a recording
- * and makes two takes impossible to compare.
+ * This is a target, not a position — `useCameraGlide` is what actually moves.
+ * It is recomputed every frame and it is deliberately not sticky: the whole
+ * point is that the framing follows the mission. A fleet spread across a long
+ * transit pulls the camera out; the same fleet converging on station lets it
+ * come back in; a replacement launching from unused capacity on the far side of
+ * the site pulls it out again.
+ *
+ * The origin is the exception. It is the first agent position the session
+ * observed — the home the fleet launched from — and it is held for the rest of
+ * the session, so every distance still means "from home".
  */
-export function solveFrame(
-  held: { origin: MapGeo | null; center: LocalPoint | null; extentM: number },
-  points: readonly MapGeo[]
+export function targetFrame(
+  origin: MapGeo | null,
+  points: readonly MapGeo[],
+  /** Width / height of the area the scene is composed into. */
+  aspect = 1
 ): Frame & { center: LocalPoint } {
-  const anchor = points.find((p) => Number.isFinite(p.lat) && p.lat !== 0) ?? null;
-  const origin = held.origin ?? (anchor ? { lat: anchor.lat, lon: anchor.lon } : null);
   if (!origin) return { origin: null, center: { e: 0, n: 0 }, extentM: MIN_EXTENT_M };
 
   const bounds = localBounds(origin, points);
-  let center = held.center ?? { e: 0, n: 0 };
-  if (bounds) {
-    const wanted = boundsCenter(bounds);
-    const drifted =
-      !held.center ||
-      Math.hypot(wanted.e - center.e, wanted.n - center.n) >
-        Math.max(10, held.extentM * 0.32);
-    if (drifted) center = wanted;
-  }
-  const needed = bounds ? boundsHalfSpan(bounds, center) : 0;
-  const extentM = snapExtent(Math.max(needed, MIN_EXTENT_M), held.extentM);
+  if (!bounds) return { origin, center: { e: 0, n: 0 }, extentM: MIN_EXTENT_M };
+
+  const center = boundsCenter(bounds);
+  const extentM = Math.max(MIN_EXTENT_M, halfSpanFor(bounds, center, aspect));
   return { origin, center, extentM };
+}
+
+/** Pick the origin once, from the first real position the session sees. */
+export function anchorOrigin(points: readonly MapGeo[]): MapGeo | null {
+  const anchor = points.find((p) => Number.isFinite(p.lat) && p.lat !== 0);
+  return anchor ? { lat: anchor.lat, lon: anchor.lon } : null;
 }
 
 // ── Satellite basemap ────────────────────────────────────────────────────────
