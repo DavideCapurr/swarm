@@ -130,6 +130,25 @@ Open:
 http://localhost:3000/login?next=/demo/intrusion
 ```
 
+**Record at 2560 × 1440, browser zoom 100%, device pixel ratio 1**, as
+[`docs/design/operational-console-ia.md`](../design/operational-console-ia.md) §3
+specifies. That document is the authority on the size; this is a pointer to it,
+not a second place to change.
+
+It matters more than it looks. The Console's layout budgets are horizontal and
+vertical at once, and the spec notes that smaller viewports *degrade rather than
+break* — at 1920 × 1080 the control-loop strip starts truncating its live values
+from T+44s and the decision rail drops step 04 below the fold, silently, with
+nothing on screen to say so. Both are fine at the specified size. A take
+recorded smaller has not been measured.
+
+Verify the viewport before the first take rather than after:
+
+```bash
+# in the page console
+innerWidth + '×' + innerHeight + ' @' + devicePixelRatio
+```
+
 Log in with the dev viewer created by `make bootstrap-auth-dev`, then wait until `/demo/intrusion` visibly says exactly `CONNECTED`.
 
 **Do not trigger event 1 before `CONNECTED`.** The final deterministic rehearsal waited for that signal and then allowed a 1-second settle before publishing event 1.

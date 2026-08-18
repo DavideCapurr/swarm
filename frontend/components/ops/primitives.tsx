@@ -41,10 +41,10 @@ export function Panel({
 } & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
   return (
     <section
-      className={`flex min-h-0 flex-col border border-gunmetal bg-absolute-black ${className}`}
+      className={`flex min-h-0 flex-col border border-gunmetal bg-surface-1 ${className}`}
       {...rest}
     >
-      <header className="flex h-[38px] shrink-0 items-center justify-between border-b border-gunmetal bg-obsidian px-3">
+      <header className="flex h-[38px] shrink-0 items-center justify-between border-b border-gunmetal bg-surface-2 px-3">
         <Eyebrow>{title}</Eyebrow>
         {right}
       </header>

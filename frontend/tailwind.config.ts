@@ -31,6 +31,11 @@ const config: Config = {
         bg: tokens.semantic.bg,
         surface: tokens.semantic.surface,
         line: tokens.semantic.line,
+
+        // Surface ramp — see the note in lib/tokens.ts.
+        "surface-0": tokens.surfaceRamp.s0,
+        "surface-1": tokens.surfaceRamp.s1,
+        "surface-2": tokens.surfaceRamp.s2,
       },
       fontFamily: {
         editorial: tokens.font.editorial.split(",").map((s) => s.trim().replace(/'/g, "")),

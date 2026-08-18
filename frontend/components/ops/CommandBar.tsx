@@ -40,7 +40,7 @@ export function CommandBar({
     link === "connected" ? "text-signal-green" : "text-launch-amber";
 
   return (
-    <header className="flex h-[64px] shrink-0 items-stretch overflow-hidden whitespace-nowrap border border-gunmetal bg-obsidian shadow-inset-highlight">
+    <header className="flex h-[64px] shrink-0 items-stretch overflow-hidden whitespace-nowrap border border-gunmetal bg-surface-2 shadow-inset-highlight">
       <div className="flex shrink-0 items-center gap-3 border-r border-gunmetal px-4">
         <span className="swarm-ring text-orbital-blue" />
         <span className="swarm-wordmark text-platinum" style={{ fontSize: 17 }}>

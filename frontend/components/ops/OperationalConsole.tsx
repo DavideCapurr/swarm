@@ -112,7 +112,7 @@ function ControlLoopStrip({ story }: { story: ObjectiveStory | null }) {
 
   return (
     <div
-      className="flex h-[50px] shrink-0 items-center gap-3 overflow-hidden border border-gunmetal bg-obsidian px-3 shadow-inset-highlight"
+      className="flex h-[50px] shrink-0 items-center gap-3 overflow-hidden border border-gunmetal bg-surface-2 px-3 shadow-inset-highlight"
       data-testid="control-loop-strip"
     >
       <span className="shrink-0 font-mono text-[13px] tracking-[0.14em] text-ash">CONTROL LOOP</span>
@@ -267,7 +267,7 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
   );
 
   return (
-    <main className="flex h-screen min-h-0 flex-col gap-2 bg-absolute-black p-2 text-platinum">
+    <main className="flex h-screen min-h-0 flex-col gap-2 bg-surface-0 p-2 text-platinum">
       <CommandBar
         link={frame.link}
         sessionLabel={frame.sessionLabel}

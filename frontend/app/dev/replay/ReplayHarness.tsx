@@ -9,9 +9,19 @@ import { TAKE_A, foldTakeA, takeAFrames } from "@/lib/demo-frames";
  * Drives the operational console from the recorded frame script.
  *
  * Everything the console renders here is stamped REPLAY by the command bar, so
- * it can never be mistaken for live SwarmOS truth.
+ * it can never be mistaken for live SwarmOS truth. `replayBadge` can drop that
+ * stamp for layout measurement only, and the route it lives on is 404 in a
+ * production build — see the note in `page.tsx`.
  */
-export function ReplayHarness({ initialAtMs = 30_000 }: { initialAtMs?: number }) {
+export function ReplayHarness({
+  initialAtMs = 30_000,
+  sessionLabel = "take a · recorded",
+  replayBadge = true,
+}: {
+  initialAtMs?: number;
+  sessionLabel?: string;
+  replayBadge?: boolean;
+}) {
   const frames = useMemo(() => takeAFrames(), []);
   const [atMs, setAtMs] = useState(() =>
     Math.max(0, Math.min(TAKE_A.durationMs, initialAtMs))
@@ -30,11 +40,11 @@ export function ReplayHarness({ initialAtMs = 30_000 }: { initialAtMs?: number }
 
   const frame: ConsoleFrame = {
     link: "connected",
-    sessionLabel: "take a · recorded",
+    sessionLabel,
     operatorId: "replay",
     role: "viewer",
     clockText: new Date(TAKE_A.t0 + atMs).toISOString().slice(11, 19),
-    replay: true,
+    replay: replayBadge,
     executionGroups: [],
     ...slice,
   };

@@ -1,3 +1,4 @@
+import "../styles/fonts.css";
 import "../styles/globals.css";
 import type { Metadata } from "next";
 
@@ -8,27 +9,22 @@ export const metadata: Metadata = {
   description: "Many units. One intention.",
 };
 
-// SWARM brand fonts — loaded from Google Fonts.
+// SWARM brand fonts — self-hosted under public/fonts, declared in
+// styles/fonts.css.
 // Editorial · Cormorant Garamond · for headings + the wordmark
 // Display/body · Inter · UI
 // Mono · JetBrains Mono · for telemetry, coordinates, numerals
 // Grotesk · Space Grotesk · for eyebrows + structural labels
 //
-// Inter is requested as one variable font carrying both its `opsz` (14–32)
-// and `wght` (300–700) axes. `font-optical-sizing: auto` in
-// styles/globals.css activates opsz, so the console's dense 11–13px labels
-// get the face's wider spacing and more open apertures automatically.
+// Inter carries both its `opsz` (14-32) and `wght` (300-700) axes in one
+// variable file. `font-optical-sizing: auto` in styles/globals.css activates
+// opsz, so the console's dense 11-13px labels get the face's wider spacing and
+// more open apertures automatically.
 //
-// Both Inter and JetBrains Mono are requested as variable weight ranges
-// rather than discrete weights, so this loads fewer bytes than the static
-// Geist + Inter + IBM Plex Mono set it replaces.
-const FONTS_HREF =
-  "https://fonts.googleapis.com/css2" +
-  "?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500" +
-  "&family=Inter:opsz,wght@14..32,300..700" +
-  "&family=JetBrains+Mono:wght@300..600" +
-  "&family=Space+Grotesk:wght@400;500;600" +
-  "&display=swap";
+// These used to arrive from fonts.googleapis.com through a <link>. That put a
+// network request in the middle of a recording: when it fails, all four
+// families collapse onto one proportional fallback and every column of
+// telemetry loses its alignment. See styles/fonts.css.
 
 export default function RootLayout({
   children,
@@ -37,11 +33,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link rel="stylesheet" href={FONTS_HREF} />
-      </head>
       <body className="bg-absolute-black text-platinum min-h-screen">
         <AuthProvider>{children}</AuthProvider>
       </body>
