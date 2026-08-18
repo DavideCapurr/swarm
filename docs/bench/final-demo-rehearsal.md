@@ -329,7 +329,11 @@ rail follows objective 2.
 - `SIMULATED IMAGERY · NOT EVIDENCE` and `NOT A LIVE FEED` on the CCTV thumbnail;
 - `SIMULATED` beside the speaker channel, in its own lane, never in the verified
   lane;
-- `PROJECTED FROM PX4 SITL TELEMETRY` on the site frame.
+- `PROJECTED FROM PX4 SITL TELEMETRY` on the site frame, and the same source in
+  the command bar's `RUNTIME TRUTH` and beside the focused executor's telemetry.
+  These read `PX4 SITL TELEMETRY` because the units report `vendor: mavlink` and
+  a model containing `sitl` — the label is derived, not asserted. If a take shows
+  anything else there, the fleet is not the bench you think it is.
 
 If any of these is missing from a take, the take is not usable — they are the
 claim boundary, not decoration.

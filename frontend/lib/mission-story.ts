@@ -306,6 +306,8 @@ export type ObjectiveStory = {
   decisionTs: string;
   owner: string | null;
   ownerScore: number | null;
+  /** Set only under mode "diversion": the mission the owner was pulled off. */
+  divertedFrom: string | null;
   candidates: Candidate[];
   ladder: LadderSlot[];
   /** Raw server phase of the latest runtime frame, unmodified. */
@@ -410,6 +412,7 @@ export function buildStories(input: StoryInput): ObjectiveStory[] {
       decisionTs: decision.ts,
       owner: decision.winner_agent_id,
       ownerScore: decision.winner_score,
+      divertedFrom: decision.diverted_from_mission_id ?? null,
       candidates: buildCandidates(decision),
       ladder,
       serverPhase: latest?.phase ?? null,
@@ -440,13 +443,27 @@ export function decisionSummary(story: ObjectiveStory): string[] {
     );
   }
   const eligible = story.candidates.filter((c) => c.kind === "eligible").length;
-  if (story.owner) {
-    lines.push(
-      `${story.owner} selected · highest score of ${eligible} eligible agent${eligible === 1 ? "" : "s"}`
-    );
-  } else {
+  if (!story.owner) {
     lines.push("no agent awarded");
+    return lines;
   }
+  // A diversion is not an auction result. SwarmOS reaches this branch only when
+  // nothing was eligible to bid, so the surface must not report the winner as
+  // the highest score of a field it never competed in.
+  if (story.mode === "diversion") {
+    const pulled = story.divertedFrom
+      ? ` · pulled off mission ${shortId(story.divertedFrom)}`
+      : "";
+    lines.push(
+      eligible === 0
+        ? `${story.owner} diverted by SwarmOS · no agent was eligible${pulled}`
+        : `${story.owner} diverted by SwarmOS${pulled}`
+    );
+    return lines;
+  }
+  lines.push(
+    `${story.owner} selected · highest score of ${eligible} eligible agent${eligible === 1 ? "" : "s"}`
+  );
   return lines;
 }
 

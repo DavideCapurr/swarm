@@ -22,6 +22,7 @@ export function CommandBar({
   fleetOwning,
   objectivesOpen,
   clockText,
+  telemetrySource,
   replay = false,
 }: {
   link: LinkState;
@@ -32,6 +33,8 @@ export function CommandBar({
   fleetOwning: number;
   objectivesOpen: number;
   clockText: string;
+  /** Read off the units' own vendor/model — never asserted by the surface. */
+  telemetrySource: string;
   replay?: boolean;
 }) {
   const linkText =
@@ -92,7 +95,7 @@ export function CommandBar({
         <div className="flex shrink-0 flex-col items-end gap-[3px]">
           <Eyebrow>runtime truth</Eyebrow>
           <span className="font-mono text-[12px] tracking-[0.1em] text-muted-silver">
-            PX4 SITL TELEMETRY · IMAGERY SIMULATED
+            {telemetrySource} · IMAGERY SIMULATED
           </span>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-[3px]">

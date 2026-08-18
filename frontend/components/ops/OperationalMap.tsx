@@ -227,7 +227,15 @@ function useBasemapReachable(sampleUrl: string | null): "pending" | "ok" | "unav
 }
 
 
-function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveStory }) {
+function ExecutorTelemetry({
+  unit,
+  story,
+  telemetrySource,
+}: {
+  unit: FleetRow;
+  story: ObjectiveStory;
+  telemetrySource: string;
+}) {
   const rangeM = story.geo ? distanceM(unit.geo, story.geo) : null;
   const altitudeScalePct = Math.max(
     0,
@@ -284,7 +292,7 @@ function ExecutorTelemetry({ unit, story }: { unit: FleetRow; story: ObjectiveSt
           />
         </div>
       </div>
-      <div className="mt-1.5 text-[10px] tracking-[0.1em] text-ash">OBSERVED PX4 SITL TELEMETRY</div>
+      <div className="mt-1.5 text-[10px] tracking-[0.1em] text-ash">OBSERVED {telemetrySource}</div>
     </div>
   );
 }
@@ -293,10 +301,12 @@ export function OperationalMap({
   units,
   stories,
   focusMissionId,
+  telemetrySource,
 }: {
   units: FleetRow[];
   stories: ObjectiveStory[];
   focusMissionId: string | null;
+  telemetrySource: string;
 }) {
   const { ref, box } = useBoxSize();
   const { origin, extentM, center } = useSiteFrame(units, stories);
@@ -332,11 +342,16 @@ export function OperationalMap({
           units={units}
           stories={stories}
           focusMissionId={focusMissionId}
+          telemetrySource={telemetrySource}
         />
       </div>
 
       {focusedStory && focusedUnit ? (
-        <ExecutorTelemetry unit={focusedUnit} story={focusedStory} />
+        <ExecutorTelemetry
+          unit={focusedUnit}
+          story={focusedStory}
+          telemetrySource={telemetrySource}
+        />
       ) : null}
 
       {/* Attribution owns the bottom edge outright as a full-width strip. It

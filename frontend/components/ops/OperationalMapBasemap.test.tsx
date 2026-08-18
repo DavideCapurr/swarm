@@ -48,7 +48,14 @@ afterEach(() => {
 describe("basemap attribution", () => {
   it("claims a real basemap only once the tile host answered", async () => {
     stubTileHost("load");
-    render(<OperationalMap units={[UNIT]} stories={[]} focusMissionId={null} />);
+    render(
+      <OperationalMap
+        units={[UNIT]}
+        stories={[]}
+        focusMissionId={null}
+        telemetrySource="PX4 SITL TELEMETRY"
+      />
+    );
 
     await waitFor(() =>
       expect(screen.getByTestId("basemap-attribution")).toHaveTextContent(
@@ -59,7 +66,14 @@ describe("basemap attribution", () => {
 
   it("says the site frame stands alone when the tiles never arrive", async () => {
     stubTileHost("error");
-    render(<OperationalMap units={[UNIT]} stories={[]} focusMissionId={null} />);
+    render(
+      <OperationalMap
+        units={[UNIT]}
+        stories={[]}
+        focusMissionId={null}
+        telemetrySource="PX4 SITL TELEMETRY"
+      />
+    );
 
     const strip = await screen.findByTestId("basemap-attribution");
     await waitFor(() =>

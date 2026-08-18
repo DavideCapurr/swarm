@@ -159,7 +159,7 @@ it was re-verified instead:
   `WINNER`) that no longer exist, so following it would have read as a failed
   take.
 
-Three defects were fixed rather than documented around:
+Five defects were fixed rather than documented around:
 
 - `make test` was red: the README rewrite dropped the doc links
   `tests/test_phase6j_testing.py` asserts;
@@ -170,7 +170,21 @@ Three defects were fixed rather than documented around:
   at the source;
 - the map's attribution strip claimed `REAL BASEMAP` even when the CARTO tile
   host was unreachable and nothing was painted. It now states
-  `BASEMAP UNAVAILABLE · SITE FRAME ONLY` in that case.
+  `BASEMAP UNAVAILABLE · SITE FRAME ONLY` in that case;
+- under `mode="diversion"` the allocator published the selected unit inside its
+  own `excluded_units`, with a fabricated `winner_score` of `0.0`. The Console
+  rendered that faithfully as one agent both owning and excluded from the same
+  objective. A diverted unit is the executor: it is no longer published as an
+  exclusion, it carries no auction score, and the mission it was pulled off is
+  stated in `diverted_from_mission_id`. The Console no longer describes a
+  diversion as "highest score of N eligible agents" — that competition never
+  ran;
+- the surface asserted `PX4 SITL TELEMETRY` as a literal in three places, which
+  is false in every configuration except the recorded bench — `make demo-*-sim`
+  runs the simulated adapter and the caption still claimed PX4. The label is now
+  derived from the units' own `vendor`/`model`, and never upgrades a non-SITL
+  MAVLink model to a SITL claim. On the recording path the rendered strings are
+  unchanged.
 
 Not re-run on 2026-08-18: the two-PX4 SITL sequence, which needs Docker.
 

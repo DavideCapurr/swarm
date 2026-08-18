@@ -145,10 +145,12 @@ export function OperationalMap({
   units,
   stories,
   focusMissionId,
+  telemetrySource,
 }: {
   units: FleetRow[];
   stories: ObjectiveStory[];
   focusMissionId: string | null;
+  telemetrySource: string;
 }) {
   const { ref, box } = useBoxSize();
   const { origin, extentM, center } = useSiteFrame(units, stories);
@@ -247,7 +249,12 @@ export function OperationalMap({
         </div>
       )}
 
-      <MapChrome origin={origin} extentM={extentM} unitCount={units.length} />
+      <MapChrome
+        origin={origin}
+        extentM={extentM}
+        unitCount={units.length}
+        telemetrySource={telemetrySource}
+      />
       <Legend />
     </div>
   );
@@ -567,10 +574,12 @@ function MapChrome({
   origin,
   extentM,
   unitCount,
+  telemetrySource,
 }: {
   origin: MapGeo | null;
   extentM: number;
   unitCount: number;
+  telemetrySource: string;
 }) {
   const step = gridStepM(extentM);
   return (
@@ -581,7 +590,7 @@ function MapChrome({
           {origin ? `ORIGIN ${formatGeo(origin)}` : "ORIGIN PENDING"}
         </span>
         <span className="font-mono text-[12px] tracking-[0.12em] text-ash">
-          PROJECTED FROM PX4 SITL TELEMETRY · {unitCount} AGENT
+          PROJECTED FROM {telemetrySource} · {unitCount} AGENT
           {unitCount === 1 ? "" : "S"}
         </span>
       </div>

@@ -89,6 +89,28 @@ describe("candidates and the decision restatement", () => {
     expect(lines[1]).toBe("mav-001 selected · highest score of 1 eligible agent");
   });
 
+  it("does not report a diverted unit as the winner of an auction", () => {
+    // Continuous patrol leaves nothing eligible, so SwarmOS diverts an airborne
+    // unit. Reporting that as "highest score of 0 eligible agents" would claim
+    // a competition that never ran.
+    const [story] = storiesAt(2.5);
+    const diverted: ObjectiveStory = {
+      ...story,
+      mode: "diversion",
+      owner: "sim-1",
+      ownerScore: null,
+      divertedFrom: "830a0ce8f1d94b1fa0f3ce7f4a1c9d22",
+      candidates: [],
+    };
+
+    const lines = decisionSummary(diverted);
+
+    expect(lines).toEqual([
+      "sim-1 diverted by SwarmOS · no agent was eligible · pulled off mission 830a0ce8",
+    ]);
+    expect(lines.join(" ")).not.toContain("highest score");
+  });
+
   it("orders eligible candidates by the server score", () => {
     const [first] = storiesAt(2.5);
     const eligible = first.candidates.filter((c) => c.kind === "eligible");
