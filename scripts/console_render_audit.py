@@ -44,10 +44,16 @@ from playwright.async_api import async_playwright
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND = os.environ.get("SWARM_CONSOLE_URL", "http://localhost:3000")
 
-# The recording viewport. Pinned in docs/bench/final-demo-rehearsal.md — every
-# exit criterion in the layout work is stated at this size, so a measurement at
-# any other size proves nothing about the take.
-VIEWPORT = {"width": 1920, "height": 1080}
+# The recording viewport. `docs/design/operational-console-ia.md` §3 specifies
+# 2560 x 1440 at device pixel ratio 1, with no page scroll, and says smaller
+# viewports degrade rather than break. That is the size the surface is designed
+# to and the size the take is recorded at, so it is the default here.
+#
+# It is a flag because measuring at a self-chosen size is how this went wrong
+# once already: commit 62a09d2 reverted a rail change made on the strength of a
+# 1760x1000 measurement nobody had specified. Pass --viewport to check how the
+# surface degrades, never to establish a criterion.
+VIEWPORT = {"width": 2560, "height": 1440}
 
 # The recorded surface's session label. `/demo/intrusion` sets this from
 # IntrusionResponseDemo; it is materially wider than the replay harness's own
@@ -371,11 +377,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", help="write the full measurement to this path")
     parser.add_argument(
+        "--viewport",
+        metavar="WxH",
+        help="measure at this size instead of the specified 2560x1440",
+    )
+    parser.add_argument(
         "--fail-on-regression",
         action="store_true",
         help="exit non-zero if any collision or truncated readout remains",
     )
     args = parser.parse_args(argv)
+    if args.viewport:
+        w, h = (int(part) for part in args.viewport.lower().split("x"))
+        VIEWPORT.update(width=w, height=h)
 
     samples = asyncio.run(collect())
     print(render(samples))

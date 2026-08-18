@@ -277,7 +277,7 @@ function Step({
   last?: boolean;
 }) {
   return (
-    <div className="relative grid grid-cols-[28px_minmax(0,1fr)] gap-x-3 px-4 pb-2 pt-[6px]">
+    <div className="relative grid grid-cols-[28px_minmax(0,1fr)] gap-x-3 px-4 pb-3 pt-3">
       <div className="flex flex-col items-center">
         <StepNumber n={n} />
         {!last ? <div className="mt-2 w-px flex-1 bg-gunmetal" /> : null}
