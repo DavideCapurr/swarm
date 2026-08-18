@@ -1,0 +1,417 @@
+{
+  "duration_s": 62.552,
+  "expected_agents": [
+    "mav-001",
+    "mav-002"
+  ],
+  "finished_at": "2026-08-18T14:03:27.831412+00:00",
+  "mission_1": {
+    "anomaly_id": "15e0777959104098b84b323c0301f603",
+    "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+    "owner": "mav-002"
+  },
+  "mission_2": {
+    "anomaly_id": "e7e878418ad149c8a74699063b1609ce",
+    "mission_id": "dcaa32d4fd774c64ae930f1e3a416477",
+    "owner": "mav-001"
+  },
+  "started_at": "2026-08-18T14:02:25.279644+00:00",
+  "status": "pass",
+  "steps": [
+    {
+      "detail": {
+        "fleet": {
+          "mav-001": {
+            "agent_id": "mav-001",
+            "battery_pct": 100.0,
+            "current_mission_id": null,
+            "fsm_state": "DOCKED",
+            "geo": {
+              "alt_m": -0.052,
+              "lat": 47.397769,
+              "lon": 8.5455935
+            },
+            "link_quality": 0.7083122916665161,
+            "model": "px4-iris-sitl",
+            "ts": "2026-08-18T14:02:25.450571Z",
+            "vendor": "mavlink"
+          },
+          "mav-002": {
+            "agent_id": "mav-002",
+            "battery_pct": 100.0,
+            "current_mission_id": null,
+            "fsm_state": "DOCKED",
+            "geo": {
+              "alt_m": -0.023,
+              "lat": 47.3977961,
+              "lon": 8.5455936
+            },
+            "link_quality": 0.7546581526645847,
+            "model": "px4-iris-sitl",
+            "ts": "2026-08-18T14:02:25.533001Z",
+            "vendor": "mavlink"
+          }
+        }
+      },
+      "name": "clean_startup",
+      "status": "pass",
+      "ts": "2026-08-18T14:02:25.537167+00:00"
+    },
+    {
+      "detail": {
+        "anomaly": {
+          "confidence": 0.95,
+          "evidence": null,
+          "geo": {
+            "alt_m": 0.0,
+            "lat": 47.398,
+            "lon": 8.546
+          },
+          "id": "15e0777959104098b84b323c0301f603",
+          "kind": "INTRUSION",
+          "source_agent": null,
+          "ts": "2026-08-18T14:02:25.537211Z",
+          "verified": false
+        }
+      },
+      "name": "event_1",
+      "status": "pass",
+      "ts": "2026-08-18T14:02:25.539387+00:00"
+    },
+    {
+      "detail": {
+        "decision": {
+          "anomaly_id": "15e0777959104098b84b323c0301f603",
+          "diverted_from_mission_id": null,
+          "eligible_units": [
+            {
+              "agent_id": "mav-001",
+              "battery_pct": 100.0,
+              "fsm_state": "DOCKED",
+              "score": 2.2565856558984687,
+              "score_breakdown": {
+                "battery_pct": 100.0,
+                "battery_score": 0.8,
+                "busy_penalty": 0.0,
+                "distance_m": 39.94895708551171,
+                "distance_score": 0.9615856558984686,
+                "priority": 99.0,
+                "priority_score": 0.495
+              }
+            },
+            {
+              "agent_id": "mav-002",
+              "battery_pct": 100.0,
+              "fsm_state": "DOCKED",
+              "score": 2.258321174950089,
+              "score_breakdown": {
+                "battery_pct": 100.0,
+                "battery_score": 0.8,
+                "busy_penalty": 0.0,
+                "distance_m": 38.07538545159811,
+                "distance_score": 0.9633211749500891,
+                "priority": 99.0,
+                "priority_score": 0.495
+              }
+            }
+          ],
+          "excluded_units": [],
+          "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+          "mission_kind": "VERIFY",
+          "mode": "auction",
+          "ts": "2026-08-18T14:02:25.544973Z",
+          "winner_agent_id": "mav-002",
+          "winner_score": 2.258321174950089
+        }
+      },
+      "name": "event_1_allocation",
+      "status": "pass",
+      "ts": "2026-08-18T14:02:25.545936+00:00"
+    },
+    {
+      "detail": {
+        "award": {
+          "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+          "score": 2.258321174950089,
+          "ts": "2026-08-18T14:02:25.545801Z",
+          "winner_agent_id": "mav-002"
+        }
+      },
+      "name": "event_1_dispatch",
+      "status": "pass",
+      "ts": "2026-08-18T14:02:25.546422+00:00"
+    },
+    {
+      "detail": {
+        "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+        "owner": "mav-002"
+      },
+      "name": "event_1_en_route",
+      "status": "pass",
+      "ts": "2026-08-18T14:02:25.816917+00:00"
+    },
+    {
+      "detail": {
+        "runtime": {
+          "agent_id": "mav-002",
+          "error": null,
+          "evidence": "mavlink_mission_item_reached",
+          "id": "f5dcea4f89154d9ea95b88cdd1c43716",
+          "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+          "phase": "ON_STATION",
+          "progress_pct": 95.0,
+          "ts": "2026-08-18T14:03:01.229709Z"
+        }
+      },
+      "name": "event_1_verified_on_station",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:01.231532+00:00"
+    },
+    {
+      "detail": {
+        "events": [
+          {
+            "action_id": "45f27c02a557421f87a163b55f132fac",
+            "agent_id": "mav-002",
+            "anomaly_id": "15e0777959104098b84b323c0301f603",
+            "error_code": null,
+            "execution_mode": "mavlink_output_confirmed",
+            "id": "9d28a976a6dd4cec94c1d4e91d366a28",
+            "kind": "light_on",
+            "light_on": true,
+            "message": null,
+            "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+            "speaker_active": false,
+            "status": "confirmed",
+            "ts": "2026-08-18T14:03:01.333473Z"
+          },
+          {
+            "action_id": "3a83c8805a484ab4a6676c564005b328",
+            "agent_id": "mav-002",
+            "anomaly_id": "15e0777959104098b84b323c0301f603",
+            "error_code": null,
+            "execution_mode": "simulated",
+            "id": "0cd20f8caa1b48de83515e355d799a00",
+            "kind": "play_message",
+            "light_on": true,
+            "message": "restricted_area",
+            "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+            "speaker_active": true,
+            "status": "simulated",
+            "ts": "2026-08-18T14:03:01.334370Z"
+          }
+        ]
+      },
+      "name": "event_1_payload_active",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:01.335850+00:00"
+    },
+    {
+      "detail": {
+        "anomaly": {
+          "confidence": 0.99,
+          "evidence": null,
+          "geo": {
+            "alt_m": 0.0,
+            "lat": 47.39775,
+            "lon": 8.54559
+          },
+          "id": "e7e878418ad149c8a74699063b1609ce",
+          "kind": "HEAT_SPOT",
+          "source_agent": null,
+          "ts": "2026-08-18T14:03:01.335899Z",
+          "verified": false
+        },
+        "mission_1": "d00bc746a5c24cb89f14c6b7542a081c",
+        "owner_1": "mav-002"
+      },
+      "name": "event_2_while_mission_1_active",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:01.336595+00:00"
+    },
+    {
+      "detail": {
+        "decision": {
+          "anomaly_id": "e7e878418ad149c8a74699063b1609ce",
+          "diverted_from_mission_id": null,
+          "eligible_units": [
+            {
+              "agent_id": "mav-001",
+              "battery_pct": 100.0,
+              "fsm_state": "DOCKED",
+              "score": 2.292879279455735,
+              "score_breakdown": {
+                "battery_pct": 100.0,
+                "battery_score": 0.8,
+                "busy_penalty": 0.0,
+                "distance_m": 2.125227558008591,
+                "distance_score": 0.997879279455735,
+                "priority": 99.0,
+                "priority_score": 0.495
+              }
+            }
+          ],
+          "excluded_units": [
+            {
+              "active_mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+              "agent_id": "mav-002",
+              "battery_pct": 66.0,
+              "fsm_state": "EN_ROUTE",
+              "reason": "BUSY"
+            }
+          ],
+          "mission_id": "dcaa32d4fd774c64ae930f1e3a416477",
+          "mission_kind": "VERIFY",
+          "mode": "auction",
+          "ts": "2026-08-18T14:03:01.337765Z",
+          "winner_agent_id": "mav-001",
+          "winner_score": 2.292879279455735
+        }
+      },
+      "name": "event_2_busy_reallocation",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:01.340615+00:00"
+    },
+    {
+      "detail": {
+        "mission_1": {
+          "active": true,
+          "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+          "owner": "mav-002",
+          "runtime": {
+            "agent_id": "mav-002",
+            "error": null,
+            "evidence": "mavlink_mission_item_reached",
+            "id": "f5dcea4f89154d9ea95b88cdd1c43716",
+            "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+            "phase": "ON_STATION",
+            "progress_pct": 95.0,
+            "ts": "2026-08-18T14:03:01.229709Z"
+          }
+        },
+        "mission_2": {
+          "active": true,
+          "mission_id": "dcaa32d4fd774c64ae930f1e3a416477",
+          "owner": "mav-001",
+          "phase": "EN_ROUTE"
+        }
+      },
+      "name": "concurrent_missions_visible_truth",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:01.839453+00:00"
+    },
+    {
+      "detail": {
+        "events": [
+          {
+            "action_id": "45f27c02a557421f87a163b55f132fac",
+            "agent_id": "mav-002",
+            "anomaly_id": "15e0777959104098b84b323c0301f603",
+            "error_code": null,
+            "execution_mode": "mavlink_output_confirmed",
+            "id": "9d28a976a6dd4cec94c1d4e91d366a28",
+            "kind": "light_on",
+            "light_on": true,
+            "message": null,
+            "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+            "speaker_active": false,
+            "status": "confirmed",
+            "ts": "2026-08-18T14:03:01.333473Z"
+          },
+          {
+            "action_id": "3a83c8805a484ab4a6676c564005b328",
+            "agent_id": "mav-002",
+            "anomaly_id": "15e0777959104098b84b323c0301f603",
+            "error_code": null,
+            "execution_mode": "simulated",
+            "id": "0cd20f8caa1b48de83515e355d799a00",
+            "kind": "play_message",
+            "light_on": true,
+            "message": "restricted_area",
+            "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+            "speaker_active": true,
+            "status": "simulated",
+            "ts": "2026-08-18T14:03:01.334370Z"
+          },
+          {
+            "action_id": "cd8590f90ab1424088c42ff4ff321681",
+            "agent_id": "mav-002",
+            "anomaly_id": "15e0777959104098b84b323c0301f603",
+            "error_code": null,
+            "execution_mode": "simulated",
+            "id": "88f4a8d0e6b54307afedc68d7fa9e85a",
+            "kind": "stop_message",
+            "light_on": true,
+            "message": null,
+            "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+            "speaker_active": false,
+            "status": "simulated",
+            "ts": "2026-08-18T14:03:21.336547Z"
+          },
+          {
+            "action_id": "c67561f60c2640038057b6b3d1d30347",
+            "agent_id": "mav-002",
+            "anomaly_id": "15e0777959104098b84b323c0301f603",
+            "error_code": null,
+            "execution_mode": "mavlink_output_confirmed",
+            "id": "bacd3cf00c9b486b88d22a2f2e372ddb",
+            "kind": "light_off",
+            "light_on": false,
+            "message": null,
+            "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+            "speaker_active": false,
+            "status": "confirmed",
+            "ts": "2026-08-18T14:03:21.408824Z"
+          }
+        ]
+      },
+      "name": "payload_cleanup",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:21.409437+00:00"
+    },
+    {
+      "detail": {
+        "runtime": {
+          "agent_id": "mav-002",
+          "error": null,
+          "evidence": "mavlink_rtl_command_acknowledged",
+          "id": "989fcf73737143feafc70b3709545ac8",
+          "mission_id": "d00bc746a5c24cb89f14c6b7542a081c",
+          "phase": "DONE",
+          "progress_pct": 100.0,
+          "ts": "2026-08-18T14:03:21.423350Z"
+        }
+      },
+      "name": "mission_1_rtl",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:21.424793+00:00"
+    },
+    {
+      "detail": {
+        "done": {
+          "agent_id": "mav-001",
+          "error": null,
+          "evidence": "mavlink_rtl_command_acknowledged",
+          "id": "182a548b84774e9a90c8ff2231ac8b82",
+          "mission_id": "dcaa32d4fd774c64ae930f1e3a416477",
+          "phase": "DONE",
+          "progress_pct": 100.0,
+          "ts": "2026-08-18T14:03:27.829078Z"
+        },
+        "on_station": {
+          "agent_id": "mav-001",
+          "error": null,
+          "evidence": "mavlink_mission_item_reached",
+          "id": "5731facb89844cee845fa7c11a02cc14",
+          "mission_id": "dcaa32d4fd774c64ae930f1e3a416477",
+          "phase": "ON_STATION",
+          "progress_pct": 95.0,
+          "ts": "2026-08-18T14:03:27.809052Z"
+        }
+      },
+      "name": "mission_2_closure",
+      "status": "pass",
+      "ts": "2026-08-18T14:03:27.830464+00:00"
+    }
+  ]
+}

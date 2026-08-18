@@ -15,7 +15,6 @@ function renderAt(atS: number) {
     operatorId: "op-demo",
     role: "viewer",
     clockText: "12:00:00 UTC",
-    executionGroups: [],
     replay: true,
     ...slice,
   };

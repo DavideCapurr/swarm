@@ -4,15 +4,40 @@
     {
       "name": "swarmos-console",
       "runtimeExecutable": "corepack",
-      "runtimeArgs": ["pnpm", "--dir", "frontend", "dev", "--port", "3001"],
+      "runtimeArgs": [
+        "pnpm",
+        "--dir",
+        "frontend",
+        "dev",
+        "--port",
+        "3001"
+      ],
       "port": 3001,
       "autoPort": false
     },
     {
       "name": "landing-static",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4173", "--directory", "frontend/public"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173",
+        "--directory",
+        "frontend/public"
+      ],
       "port": 4173,
+      "autoPort": false
+    },
+    {
+      "name": "swarmos-console-direct",
+      "runtimeExecutable": "/Users/davidecapurro/Developer/swarm/frontend/node_modules/.bin/next",
+      "runtimeArgs": [
+        "dev",
+        "--port",
+        "3002",
+        "/Users/davidecapurro/Developer/swarm/frontend"
+      ],
+      "port": 3002,
       "autoPort": false
     }
   ]

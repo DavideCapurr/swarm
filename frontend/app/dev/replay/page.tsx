@@ -12,11 +12,13 @@ import { ReplayHarness } from "./ReplayHarness";
  * `?at=<milliseconds>` selects a deterministic point in the already-recorded
  * frame script for visual QA. It does not create or alter runtime truth.
  *
- * `?label=` and `?replay=0` reproduce the width pressure of the surface that is
- * actually recorded: `/demo/intrusion` carries a longer session label and no
- * REPLAY badge, so the command bar and the control loop have less room there
- * than they do here. Measuring layout on the harness's own defaults would flatter
- * the result. Neither switch invents runtime truth — the frames are the same
+ * `?take=a|b` chooses the frame script: A is the two concurrent objectives with
+ * the BUSY exclusion, B is the SwarmOS-owned ExecutionGroup with a live member
+ * failure and central replacement.
+ *
+ * `?replay=0` reproduces the surface actually recorded, which carries no REPLAY
+ * badge. Measuring layout on the harness's own defaults would flatter the
+ * result. Neither switch invents runtime truth — the frames are the same
  * recorded frames, and dropping the badge is only legitimate because this route
  * is 404 in a production build and is never linked from the Console.
  */
@@ -27,7 +29,7 @@ export const metadata = {
 type ReplayPageProps = {
   searchParams: Promise<{
     at?: string | string[];
-    label?: string | string[];
+    take?: string | string[];
     replay?: string | string[];
   }>;
 };
@@ -42,12 +44,12 @@ export default async function ReplayPage({ searchParams }: ReplayPageProps) {
   const params = await searchParams;
   const parsed = Number(one(params.at));
   const initialAtMs = Number.isFinite(parsed) ? parsed : 30_000;
-  const label = one(params.label);
+  const take = one(params.take) === "b" ? "b" : "a";
 
   return (
     <ReplayHarness
       initialAtMs={initialAtMs}
-      sessionLabel={label && label.trim() ? label.trim() : undefined}
+      take={take}
       replayBadge={one(params.replay) !== "0"}
     />
   );

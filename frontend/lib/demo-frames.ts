@@ -30,6 +30,8 @@
 import type {
   AllocationDecision,
   AnomalyView,
+  ExecutionGroup,
+  ExecutionGroupMember,
   Geo,
   MissionRuntimeEvent,
   MissionView,
@@ -83,7 +85,8 @@ export type DemoFrame =
   | { at: number; kind: "allocation"; data: AllocationDecision }
   | { at: number; kind: "runtime"; data: MissionRuntimeEvent }
   | { at: number; kind: "payload"; data: PayloadEvent }
-  | { at: number; kind: "mission"; data: MissionView };
+  | { at: number; kind: "mission"; data: MissionView }
+  | { at: number; kind: "group"; data: ExecutionGroup };
 
 const iso = (at: number) => new Date(TAKE_A.t0 + at).toISOString();
 
@@ -418,6 +421,7 @@ export type TakeSlice = {
   units: UnitState[];
   anomalies: AnomalyView[];
   allocations: AllocationDecision[];
+  executionGroups: ExecutionGroup[];
   missionRuntime: MissionRuntimeEvent[];
   missionRuntimeLog: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
@@ -425,9 +429,10 @@ export type TakeSlice = {
   now: number;
 };
 
-/** Fold the script up to `atMs` exactly as `SwarmStateProvider` would. */
-export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): TakeSlice {
+/** Fold any frame script up to `atMs` exactly as `SwarmStateProvider` would. */
+function foldFrames(atMs: number, frames: DemoFrame[]): Omit<TakeSlice, "now"> {
   const units = new Map<string, UnitState>();
+  const groups = new Map<string, ExecutionGroup>();
   const anomalies = new Map<string, AnomalyView>();
   const allocations = new Map<string, AllocationDecision>();
   const runtimeLatest = new Map<string, MissionRuntimeEvent>();
@@ -457,6 +462,9 @@ export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): Ta
       case "mission":
         missions.set(frame.data.id, frame.data);
         break;
+      case "group":
+        groups.set(frame.data.id, frame.data);
+        break;
     }
   }
 
@@ -464,10 +472,388 @@ export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): Ta
     units: [...units.values()],
     anomalies: [...anomalies.values()],
     allocations: [...allocations.values()],
+    executionGroups: [...groups.values()],
     missionRuntime: [...runtimeLatest.values()],
     missionRuntimeLog: runtimeLog,
     payloadEvents: payloads,
     missions: [...missions.values()],
-    now: TAKE_A.t0 + atMs,
   };
+}
+
+/** Fold take A up to `atMs`. */
+export function foldTakeA(atMs: number, frames: DemoFrame[] = takeAFrames()): TakeSlice {
+  return { ...foldFrames(atMs, frames), now: TAKE_A.t0 + atMs };
+}
+
+// ── Take B — SwarmOS-owned ExecutionGroup with a live member replacement ─────
+//
+// Development and verification only, on the same terms as take A above: this
+// never reaches the live surface and anything rendered from it is stamped
+// `REPLAY · RECORDED FRAMES · NOT LIVE`. It exists because the composition and
+// recomposition beats are the centre of the surface and cannot otherwise be
+// reviewed without a four-instance PX4 SITL bench.
+//
+// Provenance, stated exactly:
+//
+//   RECORDED — every identity and every decision below is read out of
+//   `docs/bench/phase12-execution-group-live-failover.md`: the anomaly, the
+//   execution group, the parent objective, the three roles, which agent held
+//   each role, each child mission id, each recorded score, which agent was
+//   killed and in which state, that `mav-001` was the spare SwarmOS selected,
+//   the replacement child mission, the `replaces_agent_id` provenance, and the
+//   evidence boundary each member completed against.
+//
+//   RECONSTRUCTED — the positions. The bench recorded scores, not coordinates,
+//   so each agent is placed at the exact ground distance its recorded score
+//   implies under the real allocator formula (`score_bid`, priority
+//   `80 + int(confidence * 20)` = 99 at confidence 0.99, battery 100). The
+//   objective sits at the PX4 SITL default home's north-east, and the four
+//   aircraft fan out behind it at 34.83 m, 36.37 m, 38.08 m and 39.93 m.
+//
+//   SCRIPTED — the intra-take timing. The bench recorded a 7.08 s detection
+//   latency and 47.51 s from kill to recovered completion; the ordering here is
+//   the bench's, compressed into one 62 s take.
+
+export const TAKE_B = {
+  durationMs: 62_000,
+  t0: Date.UTC(2026, 7, 15, 17, 28, 45),
+  anomaly: "d3e97452bda44cbc99cd5e16d67aed2f",
+  group: "4efceb04bdda4f3e88f9da18dbb158c6",
+  objectiveMission: "8582edb3f2984289ab756602ac03aad5",
+  requestedMembers: 3,
+  primary: { role: "PRIMARY_OBSERVER", agent: "mav-004", mission: "0a224497d6384724aa3ee4043dcffc26", score: 2.2613507126 },
+  secondary: { role: "SECONDARY_OBSERVER", agent: "mav-003", mission: "b9a64ed080bc47e498ea18e4d8655069", score: 2.2599093608 },
+  overwatch: { role: "OVERWATCH", agent: "mav-002", mission: "3dbd3eeaee6f43d29f6498a8042990ab", score: 2.2583201001 },
+  replacement: { role: "SECONDARY_OBSERVER", agent: "mav-001", mission: "a03fd8ddc5c140e89ec0eeb717296c42", score: 2.2566069734, replaces: "mav-003" },
+} as const;
+
+const OBJECTIVE_B: Geo = { lat: 47.39805, lon: 8.546, alt_m: 0 };
+
+/** Ground distance a recorded score implies, inverting the allocator's own terms. */
+function distanceFromScore(score: number, batteryPct: number, priority: number): number {
+  const distanceScore = score - 0.8 * (batteryPct / 100) - 0.5 * (priority / 100);
+  return (1 / distanceScore - 1) * 1000;
+}
+
+/** Place a point `distanceM` from `from` along a compass bearing. */
+function offsetGeo(from: Geo, distanceM: number, bearingDeg: number): Geo {
+  const rad = (bearingDeg * Math.PI) / 180;
+  const dLat = (distanceM * Math.cos(rad)) / 111_320;
+  const dLon =
+    (distanceM * Math.sin(rad)) / (111_320 * Math.cos((from.lat * Math.PI) / 180));
+  return { lat: from.lat + dLat, lon: from.lon + dLon, alt_m: 0 };
+}
+
+const PRIORITY_B = 99; // 80 + int(0.99 * 20)
+
+const HOME_B: Record<string, Geo> = {
+  "mav-004": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.primary.score, 100, PRIORITY_B), 212),
+  "mav-003": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.secondary.score, 100, PRIORITY_B), 219),
+  "mav-002": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.overwatch.score, 100, PRIORITY_B), 226),
+  "mav-001": offsetGeo(OBJECTIVE_B, distanceFromScore(TAKE_B.replacement.score, 100, PRIORITY_B), 233),
+};
+
+const isoB = (at: number) => new Date(TAKE_B.t0 + at).toISOString();
+
+function groupMember(
+  agentId: string,
+  role: string,
+  missionId: string,
+  state: ExecutionGroupMember["state"],
+  score: number,
+  atS: number,
+  replaces: string | null = null
+): ExecutionGroupMember {
+  return {
+    agent_id: agentId,
+    role,
+    mission_id: missionId,
+    state,
+    score,
+    score_breakdown: {},
+    replaces_agent_id: replaces,
+    ts: isoB(atS * 1000),
+  };
+}
+
+function groupFrame(
+  state: ExecutionGroup["state"],
+  members: ExecutionGroupMember[],
+  atS: number
+): ExecutionGroup {
+  return {
+    id: TAKE_B.group,
+    objective_mission_id: TAKE_B.objectiveMission,
+    objective_kind: "COOPERATIVE_VERIFY",
+    anomaly_id: TAKE_B.anomaly,
+    requested_members: TAKE_B.requestedMembers,
+    members,
+    state,
+    failure_reason: null,
+    ts: isoB(atS * 1000),
+  };
+}
+
+function unitB(
+  agentId: string,
+  atS: number,
+  missionId: string | null,
+  legs: Leg[],
+  batteryPct: number,
+  headingDeg: number,
+  fixedState?: UnitState["fsm_state"]
+): UnitState {
+  const { geo, state } = positionAt(legs, HOME_B[agentId], atS);
+  return {
+    agent_id: agentId,
+    vendor: "mavlink",
+    model: "px4-iris-sitl",
+    fsm_state: fixedState ?? state,
+    battery_pct: batteryPct,
+    geo,
+    current_mission_id: missionId,
+    current_sector_id: null,
+    link_quality: fixedState === "OFFLINE" ? 0 : 1,
+    heading_deg: headingDeg,
+    altitude_agl_m: geo.alt_m,
+    dock_id: "dock-sitl-01",
+    ts: isoB(atS * 1000),
+  };
+}
+
+function runtimeB(
+  missionId: string,
+  agentId: string,
+  phase: string,
+  atS: number,
+  evidence: MissionRuntimeEvent["evidence"] = null,
+  error: string | null = null
+): MissionRuntimeEvent {
+  return {
+    id: `${missionId}-${phase}-${atS}`,
+    mission_id: missionId,
+    agent_id: agentId,
+    phase,
+    progress_pct: phase === "DONE" ? 100 : phase === "ON_STATION" ? 90 : 5,
+    evidence,
+    error,
+    ts: isoB(atS * 1000),
+  };
+}
+
+function missionB(missionId: string, agentId: string, legs: Leg[], atS: number): MissionView {
+  const track: Geo[] = [];
+  for (let t = 0; t <= atS; t += 1.5) {
+    track.push(positionAt(legs, HOME_B[agentId], t).geo);
+  }
+  return {
+    id: missionId,
+    kind: "VERIFY",
+    assigned_agent: agentId,
+    sector_id: null,
+    phase: "en_route",
+    progress_pct: 0,
+    eta_s: null,
+    waypoints: [OBJECTIVE_B],
+    track,
+    ts: isoB(atS * 1000),
+  };
+}
+
+/** Bearing from an agent's home toward the objective, so darts point where they fly. */
+function headingToObjective(agentId: string): number {
+  const home = HOME_B[agentId];
+  const dLat = OBJECTIVE_B.lat - home.lat;
+  const dLon =
+    (OBJECTIVE_B.lon - home.lon) * Math.cos((home.lat * Math.PI) / 180);
+  return (((Math.atan2(dLon, dLat) * 180) / Math.PI) + 360) % 360;
+}
+
+const legsFor = (agentId: string, start: number, arrive: number, rtl: number): Leg[] => [
+  { from: start, to: arrive, a: HOME_B[agentId], b: OBJECTIVE_B, state: "EN_ROUTE", alt: CRUISE_ALT_M },
+  { from: arrive, to: rtl, a: OBJECTIVE_B, b: OBJECTIVE_B, state: "ON_STATION", alt: CRUISE_ALT_M },
+  { from: rtl, to: rtl + 12, a: OBJECTIVE_B, b: HOME_B[agentId], state: "RTL", alt: CRUISE_ALT_M },
+];
+
+const LEGS_B: Record<string, Leg[]> = {
+  "mav-004": legsFor("mav-004", 8, 26, 44),
+  "mav-003": legsFor("mav-003", 8, 27, 44),
+  "mav-002": legsFor("mav-002", 8, 28, 46),
+  // The replacement launches only when SwarmOS selects it.
+  "mav-001": legsFor("mav-001", 24, 40, 48),
+};
+
+/** `mav-003` is killed at T+20; its last reported position is held from there. */
+const KILL_AT_S = 20;
+
+export function takeBFrames(): DemoFrame[] {
+  const frames: DemoFrame[] = [];
+  const roster = [
+    { agent: TAKE_B.primary.agent, mission: TAKE_B.primary.mission, from: 8 },
+    { agent: TAKE_B.secondary.agent, mission: TAKE_B.secondary.mission, from: 8 },
+    { agent: TAKE_B.overwatch.agent, mission: TAKE_B.overwatch.mission, from: 8 },
+    { agent: TAKE_B.replacement.agent, mission: TAKE_B.replacement.mission, from: 24 },
+  ];
+
+  // Telemetry, at 1 Hz — the shape the Console actually receives.
+  for (let t = 0; t <= 62; t += 1) {
+    for (const entry of roster) {
+      const dead = entry.agent === "mav-003" && t > KILL_AT_S;
+      const sample = dead ? KILL_AT_S : t;
+      frames.push({
+        at: t * 1000,
+        kind: "unit",
+        data: unitB(
+          entry.agent,
+          sample,
+          t >= entry.from ? entry.mission : null,
+          LEGS_B[entry.agent],
+          Math.max(58, 100 - t * 0.35),
+          headingToObjective(entry.agent),
+          dead ? "OFFLINE" : undefined
+        ),
+      });
+    }
+  }
+
+  frames.push({
+    at: 6_000,
+    kind: "anomaly",
+    data: {
+      ...anomaly(TAKE_B.anomaly, "INTRUSION", OBJECTIVE_B, 0.99, 6, "mav-004"),
+      ts: isoB(6_000),
+      detected_at: isoB(6_000),
+    },
+  });
+
+  // SwarmOS composes the group: three required roles, three of four agents
+  // selected, one left as spare. The parent objective takes no physical award.
+  const initialMembers = [
+    groupMember(TAKE_B.primary.agent, TAKE_B.primary.role, TAKE_B.primary.mission, "ASSIGNED", TAKE_B.primary.score, 7),
+    groupMember(TAKE_B.secondary.agent, TAKE_B.secondary.role, TAKE_B.secondary.mission, "ASSIGNED", TAKE_B.secondary.score, 7),
+    groupMember(TAKE_B.overwatch.agent, TAKE_B.overwatch.role, TAKE_B.overwatch.mission, "ASSIGNED", TAKE_B.overwatch.score, 7),
+  ];
+  frames.push({ at: 7_000, kind: "group", data: groupFrame("FORMING", initialMembers, 7) });
+
+  const activeMembers = initialMembers.map((member) => ({ ...member, state: "ACTIVE" as const }));
+  frames.push({ at: 8_500, kind: "group", data: groupFrame("ACTIVE", activeMembers, 8.5) });
+
+  for (const entry of roster.slice(0, 3)) {
+    frames.push({ at: 8_600, kind: "runtime", data: runtimeB(entry.mission, entry.agent, "EN_ROUTE", 8.6) });
+  }
+
+  // The failure: a real process-level loss while the member was EN_ROUTE.
+  frames.push({
+    at: 21_000,
+    kind: "runtime",
+    data: runtimeB(
+      TAKE_B.secondary.mission,
+      TAKE_B.secondary.agent,
+      "FAILED",
+      21,
+      null,
+      "MAVLinkCommandError: COMMAND_LONG 20 timed out waiting for COMMAND_ACK"
+    ),
+  });
+  frames.push({
+    at: 21_200,
+    kind: "group",
+    data: groupFrame(
+      "DEGRADED",
+      [
+        activeMembers[0],
+        { ...activeMembers[1], state: "FAILED", ts: isoB(21_200) },
+        activeMembers[2],
+      ],
+      21.2
+    ),
+  });
+
+  // SwarmOS selects the unused spare for the same logical role. No surviving
+  // agent elected it; the provenance is `replaces_agent_id`.
+  const restored = [
+    activeMembers[0],
+    { ...activeMembers[1], state: "REPLACED" as const, ts: isoB(23_000) },
+    activeMembers[2],
+    groupMember(
+      TAKE_B.replacement.agent,
+      TAKE_B.replacement.role,
+      TAKE_B.replacement.mission,
+      "ACTIVE",
+      TAKE_B.replacement.score,
+      23,
+      TAKE_B.replacement.replaces
+    ),
+  ];
+  frames.push({ at: 23_000, kind: "group", data: groupFrame("ACTIVE", restored, 23) });
+  frames.push({
+    at: 24_000,
+    kind: "runtime",
+    data: runtimeB(TAKE_B.replacement.mission, TAKE_B.replacement.agent, "EN_ROUTE", 24),
+  });
+
+  // Arrival is accepted only on final MISSION_ITEM_REACHED, for every member.
+  frames.push({ at: 26_000, kind: "runtime", data: runtimeB(TAKE_B.primary.mission, TAKE_B.primary.agent, "ON_STATION", 26, "mavlink_mission_item_reached") });
+  frames.push({ at: 28_000, kind: "runtime", data: runtimeB(TAKE_B.overwatch.mission, TAKE_B.overwatch.agent, "ON_STATION", 28, "mavlink_mission_item_reached") });
+  frames.push({ at: 40_000, kind: "runtime", data: runtimeB(TAKE_B.replacement.mission, TAKE_B.replacement.agent, "ON_STATION", 40, "mavlink_mission_item_reached") });
+
+  // Bounded presence response. The light is confirmed at the PX4 output; the
+  // speaker stays explicitly simulated.
+  frames.push({
+    at: 30_000,
+    kind: "payload",
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 30),
+  });
+  frames.push({
+    at: 31_000,
+    kind: "payload",
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 31),
+  });
+  frames.push({
+    at: 44_000,
+    kind: "payload",
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "stop_message", "simulated", 44),
+  });
+  frames.push({
+    at: 44_500,
+    kind: "payload",
+    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_off", "mavlink_output_confirmed", 44.5),
+  });
+
+  // Completion, each on an acknowledged RTL, then the aggregate group.
+  frames.push({ at: 46_000, kind: "runtime", data: runtimeB(TAKE_B.primary.mission, TAKE_B.primary.agent, "DONE", 46, "mavlink_rtl_command_acknowledged") });
+  frames.push({ at: 47_000, kind: "runtime", data: runtimeB(TAKE_B.overwatch.mission, TAKE_B.overwatch.agent, "DONE", 47, "mavlink_rtl_command_acknowledged") });
+  frames.push({ at: 49_000, kind: "runtime", data: runtimeB(TAKE_B.replacement.mission, TAKE_B.replacement.agent, "DONE", 49, "mavlink_rtl_command_acknowledged") });
+  frames.push({
+    at: 50_000,
+    kind: "group",
+    data: groupFrame(
+      "COMPLETED",
+      restored.map((member) =>
+        member.state === "REPLACED" ? member : { ...member, state: "COMPLETED" as const }
+      ),
+      50
+    ),
+  });
+
+  // Observed tracks, sampled so the map has a path to draw.
+  for (let t = 10; t <= 62; t += 2) {
+    for (const entry of roster) {
+      if (t < entry.from) continue;
+      const sample = entry.agent === "mav-003" && t > KILL_AT_S ? KILL_AT_S : t;
+      frames.push({
+        at: t * 1000,
+        kind: "mission",
+        data: missionB(entry.mission, entry.agent, LEGS_B[entry.agent], sample),
+      });
+    }
+  }
+
+  return frames.sort((a, b) => a.at - b.at);
+}
+
+/** Fold take B up to `atMs`, exactly as `SwarmStateProvider` would. */
+export function foldTakeB(atMs: number, frames: DemoFrame[] = takeBFrames()): TakeSlice {
+  const slice = foldFrames(atMs, frames);
+  return { ...slice, now: TAKE_B.t0 + atMs };
 }

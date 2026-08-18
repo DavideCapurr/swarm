@@ -215,3 +215,63 @@
 .maplibregl-ctrl-attrib a {
   color: #A8AFB8 !important;
 }
+
+/* ── Full-bleed operational console ─────────────────────────────────────────
+   Motion for the map surface. Two rules apply to everything here:
+
+   1. Nothing repeats. Every animation below runs once, on arrival or on a
+      state change SwarmOS published. A surface that pulses forever is
+      decoration, and it stops carrying the one moment that matters.
+   2. Nothing is required. Each mark is fully legible in its settled state, so
+      a paused frame of the recording reads the same as a live one. */
+
+/* An objective arriving. One expanding ring, then gone. */
+@keyframes objective-appear {
+  0%   { transform: scale(0.45); opacity: 0.75; }
+  70%  { opacity: 0; }
+  100% { transform: scale(2.3); opacity: 0; }
+}
+.objective-appear {
+  animation: objective-appear 1100ms cubic-bezier(0.2, 0.7, 0.1, 1) 1 both;
+  transform-origin: center;
+  transform-box: fill-box;
+  pointer-events: none;
+}
+
+/* An assignment being composed. The tether draws from the executor toward the
+   objective once, then holds. */
+@keyframes tether-draw {
+  from { stroke-dashoffset: 260; }
+  to   { stroke-dashoffset: 0; }
+}
+.tether-draw {
+  animation: tether-draw 620ms cubic-bezier(0.2, 0.7, 0.1, 1) 1 both;
+}
+
+/* A floating surface arriving — panels and the objective/executor captions.
+   Short, small travel, no spring. */
+@keyframes surface-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.surface-in {
+  animation: surface-in 260ms cubic-bezier(0.2, 0.7, 0.1, 1) 1 both;
+}
+
+/* A value replacing another value in place. Used where a role changes hands. */
+@keyframes value-swap {
+  0%   { opacity: 0; transform: translateY(-3px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.value-swap {
+  animation: value-swap 300ms cubic-bezier(0.2, 0.7, 0.1, 1) 1 both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .objective-appear,
+  .tether-draw,
+  .surface-in,
+  .value-swap {
+    animation: none;
+  }
+}

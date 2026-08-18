@@ -3,22 +3,23 @@
 /**
  * The live wiring root for `/demo/intrusion`.
  *
- * It reads `useSwarm()` and hands the frames to `OperationalConsole`. It makes
- * no operational decision and holds no operational state: allocation,
- * ownership, runtime phase, evidence and payload results all arrive from
- * SwarmOS. The Console renders them.
+ * It reads `useSwarm()` and hands the frames to `ConsoleSurface`. It makes no
+ * operational decision and holds no operational state: allocation, ownership,
+ * execution-group composition, role assignment, replacement, runtime phase,
+ * evidence and payload results all arrive from SwarmOS. The Console renders
+ * them.
  *
- * The operating scenario itself is simulated for the recording. The standing
- * CommandBar separately preserves the PX4 SITL runtime-truth boundary, while
- * the imagery panel remains explicitly marked as simulated and not evidence.
+ * The operating scenario is simulated for the recording. The surface preserves
+ * the runtime-truth boundary on its own terms: the telemetry source is read off
+ * the units' own vendor/model rather than asserted, PX4 output confirmation is
+ * distinguished from simulated payload response, and no camera feed is drawn
+ * because the MAVLink path publishes none.
  */
 
 import { useMemo } from "react";
 
-import { OperationalConsole, type ConsoleFrame } from "@/components/ops/OperationalConsole";
+import { ConsoleSurface, type SurfaceFrame } from "@/components/console/ConsoleSurface";
 import { useSwarm } from "@/lib/state";
-
-const RECORDING_SCENARIO_LABEL = "SIMULATED OPERATING SCENARIO";
 
 export function IntrusionResponseDemo() {
   const {
@@ -32,41 +33,34 @@ export function IntrusionResponseDemo() {
     units,
     link,
     clock,
-    operatorId,
-    role,
   } = useSwarm();
 
-  const frame = useMemo<ConsoleFrame>(
+  const frame = useMemo<SurfaceFrame>(
     () => ({
       link,
-      sessionLabel: RECORDING_SCENARIO_LABEL,
-      operatorId,
-      role,
       clockText: `${clock.time} UTC`,
       units,
       anomalies,
       allocations,
+      executionGroups,
+      missions,
       missionRuntime,
       missionRuntimeLog,
       payloadEvents,
-      executionGroups,
-      missions,
     }),
     [
       link,
-      operatorId,
-      role,
       clock.time,
       units,
       anomalies,
       allocations,
+      executionGroups,
+      missions,
       missionRuntime,
       missionRuntimeLog,
       payloadEvents,
-      executionGroups,
-      missions,
     ]
   );
 
-  return <OperationalConsole frame={frame} />;
+  return <ConsoleSurface frame={frame} />;
 }

@@ -83,14 +83,31 @@ validated.
 
 ## Hard rules every change must respect
 
-### Design system (PDF §5.2)
+### Design system (v2 direction)
 
-- **No red.** Escalation is amber. Errors are amber. Never red.
-- **No decorative shadow.** Only hairline gunmetal + inset highlights:
-  `inset 0 1px 0 rgba(238,240,243,0.06)`.
-- **No glassmorphism.** Radial mist is brand asset only, not chrome UI.
+v2 supersedes the flat-surface rules of PDF §5.2. Depth, elevation and measured
+translucency are now allowed and are expected to carry hierarchy. What follows
+is the current authority; where the v1 brand book
+(`docs/design-system/v1.html`) still forbids depth, v2 wins.
+
+- **No red.** Escalation is amber. Errors are amber. Never red. This one is
+  unchanged and non-negotiable: red reads as an alarm and is wrong for a
+  confidence-bound product.
+- **Depth is load-bearing, never decorative.** Elevation, soft shadow and
+  restrained translucency exist to rank what matters right now above what does
+  not. Apple's glass material is the reference for restraint, not the target
+  look. Any depth effect that does not separate two planes the reader must
+  distinguish is decoration — remove it.
+- **Legibility outranks depth.** Translucency must never reduce contrast of
+  small operational type below the ramp documented in
+  [`docs/design-system.md`](docs/design-system.md). If a blur costs a readout
+  its contrast, the blur loses.
 - **85% monochrome.** Accent colors only for state — Orbital Blue,
   Signal Green, Launch Amber.
+- **Hierarchy in time.** At any instant the surface must make obvious what just
+  changed, what SwarmOS decided and why, what is executing, and what is proven
+  by runtime evidence versus still pending. Equal visual weight for everything
+  permanently is the defect v2 exists to fix.
 - **No external icon kit.** Named inline SVG 24px, stroke 1.5px, round caps.
   Lucide is fallback only.
 - **No unlabeled fake live feed.** Production/live surfaces must render real

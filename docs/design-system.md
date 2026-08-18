@@ -4,6 +4,14 @@
 > Aesthetic v1.0 reference document. The HTML is authored as a 30-spread
 > A4 print-ready brand book; we keep it in the repo so the design system
 > is versioned alongside the code that consumes it.
+>
+> **Superseded in one respect.** v1 specifies flat surfaces — no shadow beyond
+> a 1 px inset highlight, no translucency. The v2 direction recorded in
+> [`CLAUDE.md`](../CLAUDE.md) replaces that: depth, elevation and measured
+> translucency are permitted and are expected to carry hierarchy. Everything
+> else in v1 — the palette, the type scale, the accent budget, the contrast
+> ramp below — still stands. Until v1.html is reauthored, treat CLAUDE.md as
+> the authority on depth and v1.html as the authority on everything else.
 
 ## How the design system is wired into the frontend
 

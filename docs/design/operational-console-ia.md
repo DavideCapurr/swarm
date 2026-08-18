@@ -149,7 +149,8 @@ Foundations from the SWARM design system (`lib/tokens.ts`) are kept; the UI
 elements are new and operational rather than editorial.
 
 - Surface: absolute black `#030406`; panels obsidian `#0B0E11`; hairlines
-  gunmetal `#1A2026`. No shadow other than the 1 px inset highlight.
+  gunmetal `#1A2026`. Panels may sit on elevation planes with soft shadow and
+  measured translucency where that separation helps the reader rank them.
 - 85% monochrome. Accent is state only:
   - orbital blue `#7BE7FF` — SwarmOS decision, selection, focus, link
   - signal green `#B8FF66` — verified execution evidence
@@ -159,9 +160,10 @@ elements are new and operational rather than editorial.
   eyebrows; Cormorant Garamond reserved for the wordmark and the few editorial
   headings. Tabular numerals for all telemetry.
 - Icons: named inline SVG, 24 px, 1.5 px stroke, round caps. No icon kit.
-- No gradients, no glow, no rounded SaaS cards, no glassmorphism, no
-  decorative motion. Motion is limited to a state-change flash and the existing
-  unit sweep.
+- Depth, elevation and restrained translucency are permitted and should encode
+  rank: what changed most recently and matters most sits highest. They must
+  never cost small operational type its contrast. Still excluded: glow,
+  decorative gradient, and motion that does not report a state change.
 - Every element on screen must encode state, relation, decision or evidence.
 
 ## 7. Voice
