@@ -292,8 +292,13 @@ export function OperationalConsole({ frame }: { frame: ConsoleFrame }) {
     group && frame.sessionLabel.trim().toLowerCase().includes("take b")
   );
 
+  // 4px of page padding and 6px between blocks, not 8 and 8. This is a
+  // full-screen operational surface, not a document: the outer air was habit,
+  // and on a 1080px-tall screen it was fourteen pixels the decision rail needed
+  // to close its causal chain on screen. Column separation inside the grid
+  // keeps 8px — that gap is doing real work.
   return (
-    <main className="flex h-screen min-h-0 flex-col gap-2 bg-absolute-black p-2 text-platinum">
+    <main className="flex h-screen min-h-0 flex-col gap-[6px] bg-absolute-black p-1 text-platinum">
       <CommandBar
         link={frame.link}
         sessionLabel={frame.sessionLabel}

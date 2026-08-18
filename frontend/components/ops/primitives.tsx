@@ -44,7 +44,11 @@ export function Panel({
       className={`flex min-h-0 flex-col border border-gunmetal bg-absolute-black ${className}`}
       {...rest}
     >
-      <header className="flex h-[38px] shrink-0 items-center justify-between border-b border-gunmetal bg-obsidian px-3">
+      {/* 32px, not 38: the header holds one 13px eyebrow, and the six pixels it
+          was spending on air are six pixels of body every scrollable panel
+          needed. In the decision rail they are the difference between the
+          causal chain closing on screen at step 04 and closing below the fold. */}
+      <header className="flex h-[32px] shrink-0 items-center justify-between border-b border-gunmetal bg-obsidian px-3">
         <Eyebrow>{title}</Eyebrow>
         {right}
       </header>
