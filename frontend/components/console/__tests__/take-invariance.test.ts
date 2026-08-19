@@ -99,8 +99,10 @@ describe.each(TAKES)("take $id", (take) => {
       const { focused } = frameAt(take, at);
       const line = narrationFor(focused, { phase: "idle" });
       expect(line).toMatch(/^[A-Z0-9 /·]+$/);
+      if (take.id === "c") continue;
       // Neither new line may fire on a take that has no reinforcement and no
-      // partial-strength composition in it.
+      // partial-strength composition in it. Take C does have both — see the
+      // dedicated "take c — reinforcement" block below.
       expect(line).not.toContain("REINFORCEMENT");
       expect(line).not.toContain("COMBINED");
       expect(line).not.toContain("UNDER STRENGTH");
@@ -147,9 +149,9 @@ describe("take b — the ADAPTED sequence", () => {
   });
 });
 
-/** One swarm per objective in every recorded take — none of them reinforces. */
-describe("the recorded takes hold one swarm each", () => {
-  it.each(TAKES)("take $id", (take) => {
+/** One swarm per objective in takes A and B — neither of them reinforces. */
+describe("takes a and b hold one swarm each", () => {
+  it.each(TAKES.slice(0, 2))("take $id", (take) => {
     for (let at = 0; at <= take.script.durationMs; at += STEP_MS) {
       for (const objective of frameAt(take, at).view.objectives) {
         expect(objective.swarms.length).toBeLessThanOrEqual(1);
@@ -164,5 +166,81 @@ describe("the recorded takes hold one swarm each", () => {
         }
       }
     }
+  });
+});
+
+/**
+ * Take C's hero objective is the one recorded take that reinforces: swarm 01
+ * composes under strength, swarm 02 joins to answer it, and the T+21/T+23
+ * failover happens inside swarm 02 while swarm 01 is untouched by it.
+ */
+describe("take c — reinforcement", () => {
+  const take = TAKES[2];
+  const heroAt = (atMs: number) => {
+    const { view } = frameAt(take, atMs);
+    // The hero objective is the one carrying the reinforcement metadata's
+    // group id — never the sweep, which has no `reinforces_group_id` at all.
+    return view.objectives.find((o) => o.groupId === TAKE_C.reinforcement.swarmA) ?? null;
+  };
+
+  it("composes swarm 01 alone and under strength before swarm 02 exists", () => {
+    const objective = heroAt(3_000);
+    expect(objective?.swarms.length).toBe(1);
+    expect(objective?.swarms[0].reinforcesGroupId).toBeNull();
+    expect(objective?.swarms[0].composedMembers).toBe(2);
+    expect(objective?.swarms[0].requestedMembers).toBe(3);
+    expect(objective?.swarms[0].underStrength).toBe(true);
+  });
+
+  it("dispatches swarm 02 as a reinforcement of swarm 01, never a third role on it", () => {
+    const objective = heroAt(20_000);
+    expect(objective?.swarms.length).toBe(2);
+    expect(objective?.swarms[0].groupId).toBe(TAKE_C.reinforcement.swarmA);
+    expect(objective?.swarms[1].groupId).toBe(TAKE_C.reinforcement.swarmB);
+    expect(objective?.swarms[1].reinforcesGroupId).toBe(TAKE_C.reinforcement.swarmA);
+  });
+
+  it("never loses a swarm once dispatched", () => {
+    let held = 0;
+    for (let at = 0; at <= take.script.durationMs; at += STEP_MS) {
+      const count = heroAt(at)?.swarms.length ?? 0;
+      expect(count).toBeGreaterThanOrEqual(held);
+      held = count;
+    }
+    expect(held).toBe(2);
+  });
+
+  it("fails mav-003 inside swarm 02 only — swarm 01's roles are untouched", () => {
+    const objective = heroAt((TAKE_C.reinforcement.failAtS + 0.5) * 1000);
+    expect(objective?.swarms[0].slots.some((s) => s.adapting)).toBe(false);
+    expect(objective?.swarms[1].slots.some((s) => s.adapting)).toBe(true);
+  });
+
+  it("replaces mav-003 with mav-001 inside swarm 02, provenance intact", () => {
+    const objective = heroAt((TAKE_C.reinforcement.replacedAtS + 1) * 1000);
+    const secondary = objective?.swarms[1].slots.find((s) => s.role === "SECONDARY_OBSERVER");
+    expect(secondary?.agentId).toBe("mav-001");
+    expect(secondary?.replacesAgentId).toBe("mav-003");
+    expect(secondary?.replacedAgentId).toBe("mav-003");
+  });
+
+  it("says UNDER STRENGTH, then REINFORCEMENT, then COMBINED, in that order", () => {
+    const lineAt = (atMs: number) => narrationFor(heroAt(atMs), { phase: "idle" });
+    expect(lineAt(10_000)).toContain("UNDER STRENGTH");
+    expect(lineAt(15_200)).toContain("REINFORCEMENT");
+    expect(lineAt(20_000)).toContain("COMBINED");
+  });
+
+  it("keeps focus on the hero objective through the whole recorded failover", () => {
+    for (let at = 18_000; at <= (TAKE_C.reinforcement.replacedAtS + 5) * 1000; at += STEP_MS) {
+      const { view } = frameAt(take, at);
+      expect(view.defaultFocusKey).toBe(TAKE_C.reinforcement.swarmA);
+    }
+  });
+
+  it("verifies once both swarms complete, and settles there", () => {
+    const objective = heroAt(take.script.durationMs);
+    expect(objective?.state).toBe("VERIFIED");
+    expect(objective?.swarms.every((s) => s.state === "VERIFIED")).toBe(true);
   });
 });

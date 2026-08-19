@@ -24,8 +24,10 @@ import {
  *   A — two concurrent single-executor objectives with the BUSY exclusion.
  *   B — one SwarmOS-owned ExecutionGroup, a live member failure, and the
  *       central replacement of the vacated role.
- *   C — take B's beat, unchanged, inside a thirty-four executor fleet and
- *       alongside a second objective SwarmOS holds concurrently.
+ *   C — a swarm composed under strength, reinforced by a second ExecutionGroup,
+ *       the disposition widening to hold both, take B's recorded failure and
+ *       replacement landing inside that wide shot, and a second, thirty-
+ *       executor sweep objective SwarmOS holds concurrently.
  *
  * `replayBadge` can drop the stamp for layout measurement only.
  */

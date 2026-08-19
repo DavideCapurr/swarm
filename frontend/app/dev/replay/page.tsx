@@ -14,8 +14,10 @@ import { ReplayHarness, type TakeId } from "./ReplayHarness";
  *
  * `?take=a|b|c` chooses the frame script: A is the two concurrent objectives
  * with the BUSY exclusion, B is the SwarmOS-owned ExecutionGroup with a live
- * member failure and central replacement, C is that same beat inside a
- * thirty-four executor fleet with a second objective held concurrently.
+ * member failure and central replacement, C is a swarm composed under strength
+ * then reinforced by a second ExecutionGroup — with that same recorded failure
+ * and replacement landing inside the widened disposition — alongside a second,
+ * thirty-executor sweep objective held concurrently.
  *
  * `?replay=0` reproduces the surface actually recorded, which carries no REPLAY
  * badge. Measuring layout on the harness's own defaults would flatter the
