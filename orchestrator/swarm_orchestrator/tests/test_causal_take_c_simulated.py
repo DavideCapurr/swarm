@@ -91,6 +91,9 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
         else:
             reserve_adapters.append(adapter)
 
+    # Shorten only simulated dwell time. Demand thresholds, team size and
+    # reinforcement limits remain the reusable SwarmOS defaults, so this
+    # acceptance test cannot tune the response it expects to observe.
     orchestrator = AlarmDrivenExecutionGroupOrchestrator(
         bus=bus,
         registry=registry,
@@ -98,13 +101,7 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
         continuous_patrol=False,
         execute_disposition_retask=True,
         reinforcement_review_period_s=0.02,
-        max_reinforcements_per_objective=1,
-        alarm_policy=AlarmResponsePolicy(
-            cooperative_threshold=0.80,
-            high_confidence_threshold=0.93,
-            max_team_size=3,
-            cooperative_hover_s=2.0,
-        ),
+        alarm_policy=AlarmResponsePolicy(cooperative_hover_s=2.0),
     )
     dispositions: list[DispositionDecision] = []
     collector = asyncio.create_task(_collect_dispositions(bus, dispositions))
