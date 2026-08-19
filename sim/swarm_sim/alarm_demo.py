@@ -39,7 +39,7 @@ from orchestrator.swarm_orchestrator.bus import (
     secure_bus_required,
 )
 from sim.swarm_sim.external_events import consume_capacity_availability
-from sim.swarm_sim.faults import ExecutorFault
+from sim.swarm_sim.faults import consume_executor_faults
 from sim.swarm_sim.runner import _tick_world
 from sim.swarm_sim.world import World
 
@@ -119,26 +119,6 @@ async def _publish_fault_aware_fleet_state(
             )
             await bus.publish("swarm:fleet:state", frame.model_dump_json())
         await asyncio.sleep(0.5)
-
-
-async def _consume_external_faults(
-    bus: Bus,
-    adapters: dict[str, SimulatedAdapter],
-) -> None:
-    """Apply world faults to physical sim adapters; never decide recovery."""
-
-    async for _topic, payload in bus.subscribe("swarm:sim:faults"):
-        try:
-            fault = ExecutorFault.model_validate_json(payload)
-        except Exception as exc:
-            logger.warning("invalid simulator fault payload: %s", exc)
-            continue
-        adapter = adapters.get(fault.agent_id)
-        if adapter is None:
-            logger.warning("simulator fault names unknown executor %s", fault.agent_id)
-            continue
-        adapter.inject_failure(fault.reason)
-        logger.info("external simulator fault: %s (%s)", fault.agent_id, fault.reason)
 
 
 async def main() -> None:
@@ -235,7 +215,7 @@ async def main() -> None:
     tasks = [
         asyncio.create_task(_tick_world(world, tick_hz)),
         asyncio.create_task(_publish_fault_aware_fleet_state(world, registry, bus)),
-        asyncio.create_task(_consume_external_faults(bus, adapters_by_id)),
+        asyncio.create_task(consume_executor_faults(bus, adapters_by_id)),
         asyncio.create_task(consume_capacity_availability(bus, reserve_adapters)),
         asyncio.create_task(orchestrator.run()),
         *[
