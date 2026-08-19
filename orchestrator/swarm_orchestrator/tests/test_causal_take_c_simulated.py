@@ -18,6 +18,11 @@ from orchestrator.swarm_orchestrator.alarm_driven import (
 from orchestrator.swarm_orchestrator.alarm_policy import AlarmResponsePolicy
 from orchestrator.swarm_orchestrator.bus import InMemoryBus
 from orchestrator.swarm_orchestrator.disposition_execution_groups import DISPOSITION_TOPIC
+from sim.swarm_sim.external_events import (
+    CAPACITY_AVAILABLE_TOPIC,
+    CapacityAvailable,
+    consume_capacity_availability,
+)
 from sim.swarm_sim.world import World
 
 
@@ -29,12 +34,16 @@ async def _collect_dispositions(
         out.append(DispositionDecision.model_validate_json(payload))
 
 
-async def _wait_until(predicate: Callable[[], bool], *, timeout: float = 4.0) -> None:
+async def _wait_until(
+    predicate: Callable[[], bool],
+    *,
+    within_s: float = 4.0,
+) -> None:
     async def _poll() -> None:
         while not predicate():
             await asyncio.sleep(0.005)
 
-    await asyncio.wait_for(_poll(), timeout=timeout)
+    await asyncio.wait_for(_poll(), timeout=within_s)
 
 
 def _coverage_objective(dock: Geo) -> MissionTask:
@@ -62,6 +71,7 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
     registry = AdapterRegistry()
     adapters: dict[str, SimulatedAdapter] = {}
     drones = {drone.agent_id: drone for drone in world.drones}
+    reserve_adapters: list[SimulatedAdapter] = []
 
     for index, drone in enumerate(world.drones):
         # Faster kinematics keep the proof short without changing policy.
@@ -75,9 +85,11 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
         )
         registry.register(adapter)
         adapters[adapter.agent_id] = adapter
-        # Initial world fact: four executors are available and two are offline.
+        # Initial world fact: four executors are available and two are reserve.
         if index < 4:
             await adapter.connect()
+        else:
+            reserve_adapters.append(adapter)
 
     orchestrator = AlarmDrivenExecutionGroupOrchestrator(
         bus=bus,
@@ -96,6 +108,9 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
     )
     dispositions: list[DispositionDecision] = []
     collector = asyncio.create_task(_collect_dispositions(bus, dispositions))
+    capacity_runtime = asyncio.create_task(
+        consume_capacity_availability(bus, reserve_adapters)
+    )
     runtime = asyncio.create_task(orchestrator.run())
     await asyncio.sleep(0.02)
 
@@ -181,13 +196,14 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
         assert donor_live >= donor_demand.minimum_capacity
         assert donor_now.state is ExecutionGroupState.DEGRADED
 
-        # Scripted input 3: unavailable physical capacity becomes available.
-        # No executor is nominated for reinforcement; the periodic SwarmOS loop
-        # observes the new state and decides whether the objective needs it.
-        unavailable = [adapter for adapter in adapters.values() if not adapter.connected]
-        assert len(unavailable) == 2
-        for adapter in unavailable:
-            await adapter.connect()
+        # Scripted input 3 is literally only "capacity becomes available". The
+        # event schema forbids executor IDs or response instructions. The sim
+        # exposes configured reserve hardware, then the already-running SwarmOS
+        # loop decides whether to use any of it.
+        capacity_event = CapacityAvailable()
+        capacity_payload = capacity_event.model_dump_json()
+        assert "sim-" not in capacity_payload
+        await bus.publish(CAPACITY_AVAILABLE_TOPIC, capacity_payload)
 
         await _wait_until(
             lambda: any(
@@ -285,12 +301,18 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
                 is ExecutionGroupState.COMPLETED
                 for group_id in objective_group_ids
             ),
-            timeout=6.0,
+            within_s=6.0,
         )
     finally:
         runtime.cancel()
+        capacity_runtime.cancel()
         collector.cancel()
-        await asyncio.gather(runtime, collector, return_exceptions=True)
+        await asyncio.gather(
+            runtime,
+            capacity_runtime,
+            collector,
+            return_exceptions=True,
+        )
         for adapter in adapters.values():
             await adapter.disconnect()
         await bus.close()

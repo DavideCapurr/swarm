@@ -1,9 +1,11 @@
 """Live simulated demo driven only by external world events.
 
 Run alongside the backend/Console and a Redis bus. The recording operator may
-publish an alarm with ``scripts/send_alarm.py`` and, later, a physical executor
-fault with ``scripts/send_sim_fault.py``. Neither input can name a response,
-replacement, reinforcement, group, role reassignment or formation transition.
+publish an alarm with ``scripts/send_alarm.py``, later make configured reserve
+capacity available with ``scripts/send_sim_capacity_available.py``, and later
+publish a physical executor fault with ``scripts/send_sim_fault.py``. None of
+these inputs can name a response, replacement, reinforcement, group, role
+reassignment or formation transition.
 
 SwarmOS derives all of those outputs from current state and policy. This runner
 also opts into executing SwarmOS disposition retasks in the kinematic simulator,
@@ -36,8 +38,9 @@ from orchestrator.swarm_orchestrator.bus import (
     redis_url_from_env,
     secure_bus_required,
 )
+from sim.swarm_sim.external_events import consume_capacity_availability
 from sim.swarm_sim.faults import ExecutorFault
-from sim.swarm_sim.runner import _stream_telemetry_to_bus, _tick_world
+from sim.swarm_sim.runner import _tick_world
 from sim.swarm_sim.world import World
 
 logger = logging.getLogger("sim.alarm_demo")
@@ -65,12 +68,29 @@ async def _connect_bus() -> Bus:
     return bus
 
 
+async def _stream_telemetry_lifecycle(
+    adapter: SimulatedAdapter,
+    bus: Bus,
+) -> None:
+    """Keep telemetry alive across reserve activation or simulated link loss."""
+
+    while True:
+        if not adapter.connected:
+            await asyncio.sleep(0.1)
+            continue
+        async for telemetry in adapter.stream_telemetry():
+            await bus.publish(
+                f"swarm:telemetry:{adapter.agent_id}", telemetry.model_dump_json()
+            )
+        await asyncio.sleep(0.1)
+
+
 async def _publish_fault_aware_fleet_state(
     world: World,
     registry: AdapterRegistry,
     bus: Bus,
 ) -> None:
-    """Publish simulator fleet truth, including externally failed adapters."""
+    """Publish simulator fleet truth, including unavailable/failed adapters."""
 
     while True:
         for drone in world.drones:
@@ -129,26 +149,37 @@ async def main() -> None:
     fleet_size = max(6, int(os.getenv("SWARM_ALARM_DEMO_FLEET", "12")))
     tick_hz = float(os.getenv("SWARM_ALARM_DEMO_TICK_HZ", "10"))
     patrol_radius_m = float(os.getenv("SWARM_ALARM_DEMO_PATROL_RADIUS_M", "160"))
+    reserve_count = int(os.getenv("SWARM_ALARM_DEMO_RESERVE", "1"))
+    if reserve_count < 0 or reserve_count >= fleet_size:
+        raise ValueError("SWARM_ALARM_DEMO_RESERVE must be within [0, fleet size)")
+
+    alarm_max_team = max(2, int(os.getenv("SWARM_ALARM_MAX_TEAM", "4")))
+    initially_online = fleet_size - reserve_count
+    default_patrol_floor = max(1, initially_online - (alarm_max_team - 1))
     patrol_floor = int(
-        os.getenv("SWARM_ALARM_DEMO_PATROL_MIN", str(max(1, fleet_size - 3)))
+        os.getenv("SWARM_ALARM_DEMO_PATROL_MIN", str(default_patrol_floor))
     )
-    if not 0 <= patrol_floor <= fleet_size:
-        raise ValueError("SWARM_ALARM_DEMO_PATROL_MIN must be within fleet size")
+    if not 0 <= patrol_floor <= initially_online:
+        raise ValueError(
+            "SWARM_ALARM_DEMO_PATROL_MIN must be within initially online capacity"
+        )
 
     world = World.vineyard(n_drones=fleet_size, ignition_after_s=86_400.0)
     registry = AdapterRegistry()
     adapters: list[SimulatedAdapter] = []
     adapters_by_id: dict[str, SimulatedAdapter] = {}
-    for drone in world.drones:
+    for index, drone in enumerate(world.drones):
         adapter = SimulatedAdapter(
             agent_id=drone.agent_id,
             drone=drone,
             self_tick=False,
         )
-        await adapter.connect()
+        if index < initially_online:
+            await adapter.connect()
         registry.register(adapter)
         adapters.append(adapter)
         adapters_by_id[adapter.agent_id] = adapter
+    reserve_adapters = adapters[initially_online:]
 
     bus = await _connect_bus()
     policy = AlarmResponsePolicy(
@@ -158,7 +189,7 @@ async def main() -> None:
         high_confidence_threshold=float(
             os.getenv("SWARM_ALARM_HIGH_THRESHOLD", "0.93")
         ),
-        max_team_size=max(2, int(os.getenv("SWARM_ALARM_MAX_TEAM", "4"))),
+        max_team_size=alarm_max_team,
         cooperative_hover_s=float(os.getenv("SWARM_ALARM_HOVER_S", "18")),
     )
     orchestrator = AlarmDrivenExecutionGroupOrchestrator(
@@ -180,8 +211,11 @@ async def main() -> None:
     )
 
     logger.info(
-        "alarm demo ready: fleet=%d patrol_min=%d; external inputs: alarm + optional sim fault",
+        "alarm demo ready: fleet=%d online=%d reserve=%d patrol_min=%d; "
+        "external inputs: alarm, capacity-available, optional sim fault",
         fleet_size,
+        initially_online,
+        reserve_count,
         patrol_floor,
     )
 
@@ -199,9 +233,10 @@ async def main() -> None:
         asyncio.create_task(_tick_world(world, tick_hz)),
         asyncio.create_task(_publish_fault_aware_fleet_state(world, registry, bus)),
         asyncio.create_task(_consume_external_faults(bus, adapters_by_id)),
+        asyncio.create_task(consume_capacity_availability(bus, reserve_adapters)),
         asyncio.create_task(orchestrator.run()),
         *[
-            asyncio.create_task(_stream_telemetry_to_bus(adapter, bus))
+            asyncio.create_task(_stream_telemetry_lifecycle(adapter, bus))
             for adapter in adapters
         ],
     ]
