@@ -61,6 +61,12 @@ from sim.swarm_sim.external_events import (
 )
 from sim.swarm_sim.world import World
 
+# These pauses schedule only later EXTERNAL WORLD FACTS. They do not name or
+# request a SwarmOS response. They exist so the real under-strength and
+# reinforced states are legible in a recorded demo instead of occurring within
+# a few tens of milliseconds of each other.
+WORLD_FACT_PAUSE_S = 1.0
+
 
 @dataclass
 class CaptureRecorder:
@@ -379,6 +385,10 @@ async def _capture() -> dict[str, Any]:
         milestones["composition_revision"] = composition.revision
         milestones["composition_members"] = composition.active_members
 
+        # The scenario controls when the next world fact occurs, not what the
+        # response to the current state should be.
+        await asyncio.sleep(WORLD_FACT_PAUSE_S)
+
         # World fact 3: physical reserve capacity becomes available. The event
         # contains no identity or response instruction.
         capacity_event = CapacityAvailable()
@@ -411,6 +421,9 @@ async def _capture() -> dict[str, Any]:
             )
         )
         milestones["reinforcement_converged_at_ms"] = recorder.elapsed_ms()
+
+        # Again, only the timing of a later external physical fact is scripted.
+        await asyncio.sleep(WORLD_FACT_PAUSE_S)
 
         # World fact 4: one active physical executor fails. Its identity is read
         # from SwarmOS's own active disposition; no replacement is nominated.
