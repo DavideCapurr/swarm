@@ -1,27 +1,14 @@
-"""Live simulated demo where the operator supplies only an alarm.
+"""Live simulated demo driven only by external world events.
 
-Run alongside the existing backend/Console and a Redis bus, then inject an
-alarm with ``scripts/send_alarm.py``. This runner does not schedule response
-aircraft, group ids, reinforcement, or formation transitions.
+Run alongside the backend/Console and a Redis bus. The recording operator may
+publish an alarm with ``scripts/send_alarm.py`` and, later, a physical executor
+fault with ``scripts/send_sim_fault.py``. Neither input can name a response,
+replacement, reinforcement, group, role reassignment or formation transition.
 
-Initial world state:
-
-* a fleet performs continuous moving patrol;
-* the patrol is explicitly preemptible down to a configured minimum;
-* no anomaly is emitted automatically.
-
-External input:
-
-* an ``Anomaly`` published on ``swarm:anomalies``.
-
-SwarmOS then derives demand and chooses idle/preemptible capacity. With the
-default high-confidence policy (desired strength four) and patrol floor
-``fleet_size - 3``, the first group may form at 3/4 strength. The normal patrol
-and reinforcement loops continue running; when capacity naturally returns,
-SwarmOS may create a second group without a scenario command naming it. SwarmOS
-also derives and publishes objective disposition; this simulated runner opts in
-to executing those retasks so formation changes are physical simulation output,
-not frontend choreography.
+SwarmOS derives all of those outputs from current state and policy. This runner
+also opts into executing SwarmOS disposition retasks in the kinematic simulator,
+so formation changes are simulation execution truth rather than frontend
+choreography.
 """
 
 from __future__ import annotations
@@ -32,6 +19,8 @@ import logging
 import os
 import signal
 from typing import Any
+
+from swarm_core.messages import AgentState, FleetState
 
 from adapters.base import AdapterRegistry
 from adapters.simulated import SimulatedAdapter
@@ -47,11 +36,8 @@ from orchestrator.swarm_orchestrator.bus import (
     redis_url_from_env,
     secure_bus_required,
 )
-from sim.swarm_sim.runner import (
-    _publish_fleet_state,
-    _stream_telemetry_to_bus,
-    _tick_world,
-)
+from sim.swarm_sim.faults import ExecutorFault
+from sim.swarm_sim.runner import _stream_telemetry_to_bus, _tick_world
 from sim.swarm_sim.world import World
 
 logger = logging.getLogger("sim.alarm_demo")
@@ -79,6 +65,62 @@ async def _connect_bus() -> Bus:
     return bus
 
 
+async def _publish_fault_aware_fleet_state(
+    world: World,
+    registry: AdapterRegistry,
+    bus: Bus,
+) -> None:
+    """Publish simulator fleet truth, including externally failed adapters."""
+
+    while True:
+        for drone in world.drones:
+            adapter = registry.get(drone.agent_id)
+            health = await adapter.health()  # type: ignore[attr-defined]
+            state = (
+                AgentState.OFFLINE
+                if not health.online
+                else AgentState.DOCKED
+                if drone.is_docked
+                else AgentState.LANDING
+                if drone._mode == "LANDING"
+                else AgentState.ON_STATION
+                if drone._mode == "HOVER"
+                else AgentState.EN_ROUTE
+                if drone._mode == "FLYING"
+                else AgentState.TAKEOFF
+            )
+            frame = FleetState(
+                agent_id=drone.agent_id,
+                vendor=adapter.vendor,  # type: ignore[attr-defined]
+                model=adapter.model,  # type: ignore[attr-defined]
+                fsm_state=state,
+                battery_pct=drone.battery_pct,
+                geo=drone.geo,
+            )
+            await bus.publish("swarm:fleet:state", frame.model_dump_json())
+        await asyncio.sleep(0.5)
+
+
+async def _consume_external_faults(
+    bus: Bus,
+    adapters: dict[str, SimulatedAdapter],
+) -> None:
+    """Apply world faults to physical sim adapters; never decide recovery."""
+
+    async for _topic, payload in bus.subscribe("swarm:sim:faults"):
+        try:
+            fault = ExecutorFault.model_validate_json(payload)
+        except Exception as exc:
+            logger.warning("invalid simulator fault payload: %s", exc)
+            continue
+        adapter = adapters.get(fault.agent_id)
+        if adapter is None:
+            logger.warning("simulator fault names unknown executor %s", fault.agent_id)
+            continue
+        adapter.inject_failure(fault.reason)
+        logger.info("external simulator fault: %s (%s)", fault.agent_id, fault.reason)
+
+
 async def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -93,11 +135,10 @@ async def main() -> None:
     if not 0 <= patrol_floor <= fleet_size:
         raise ValueError("SWARM_ALARM_DEMO_PATROL_MIN must be within fleet size")
 
-    # Perception is intentionally not run: the person recording the demo is the
-    # source of the external alarm via scripts/send_alarm.py.
     world = World.vineyard(n_drones=fleet_size, ignition_after_s=86_400.0)
     registry = AdapterRegistry()
     adapters: list[SimulatedAdapter] = []
+    adapters_by_id: dict[str, SimulatedAdapter] = {}
     for drone in world.drones:
         adapter = SimulatedAdapter(
             agent_id=drone.agent_id,
@@ -107,6 +148,7 @@ async def main() -> None:
         await adapter.connect()
         registry.register(adapter)
         adapters.append(adapter)
+        adapters_by_id[adapter.agent_id] = adapter
 
     bus = await _connect_bus()
     policy = AlarmResponsePolicy(
@@ -138,7 +180,7 @@ async def main() -> None:
     )
 
     logger.info(
-        "alarm demo ready: fleet=%d patrol_min=%d; publish an alarm to swarm:anomalies",
+        "alarm demo ready: fleet=%d patrol_min=%d; external inputs: alarm + optional sim fault",
         fleet_size,
         patrol_floor,
     )
@@ -155,7 +197,8 @@ async def main() -> None:
 
     tasks = [
         asyncio.create_task(_tick_world(world, tick_hz)),
-        asyncio.create_task(_publish_fleet_state(world, registry, bus)),
+        asyncio.create_task(_publish_fault_aware_fleet_state(world, registry, bus)),
+        asyncio.create_task(_consume_external_faults(bus, adapters_by_id)),
         asyncio.create_task(orchestrator.run()),
         *[
             asyncio.create_task(_stream_telemetry_to_bus(adapter, bus))
