@@ -20,9 +20,9 @@ import { ReplayHarness, type TakeId } from "./ReplayHarness";
  * before the frontend starts, then the browser only folds those captured truth
  * frames.
  *
- * `?replay=0` removes the replay stamp for layout measurement only. This route
- * remains dev-only and must never be used to turn simulator evidence into a
- * live or PX4 disposition-execution claim.
+ * `?replay=0` removes the replay stamp for layout measurement only. `?controls=0`
+ * hides the dev scrubber for screenshots/video. Both are presentation flags on
+ * this dev-only route and cannot alter captured runtime truth.
  */
 export const metadata = {
   title: "SWARM · console replay (dev)",
@@ -33,6 +33,7 @@ type ReplayPageProps = {
     at?: string | string[];
     take?: string | string[];
     replay?: string | string[];
+    controls?: string | string[];
   }>;
 };
 
@@ -55,6 +56,7 @@ export default async function ReplayPage({ searchParams }: ReplayPageProps) {
       initialAtMs={initialAtMs}
       take={take}
       replayBadge={one(params.replay) !== "0"}
+      controls={one(params.controls) !== "0"}
     />
   );
 }
