@@ -140,8 +140,8 @@ jobs:
           node-version-file: frontend/.nvmrc
       - name: Install Python deps
         run: uv sync --frozen --extra dev --extra mavlink --extra dji
-      - name: Install Chromium
-        run: uv run playwright install --with-deps chromium
+      - name: Install Playwright FFmpeg
+        run: uv run playwright install ffmpeg
       - name: Generate causal runtime capture for replay
         run: |
           mkdir -p frontend/public/dev artifacts

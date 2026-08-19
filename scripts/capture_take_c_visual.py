@@ -55,6 +55,15 @@ def _replay_url(base_url: str, capture_at_ms: int, *, controls: bool) -> str:
     return f"{base_url.rstrip('/')}/dev/replay?{query}"
 
 
+def _system_chromium() -> str:
+    executable = shutil.which("chromium") or shutil.which("google-chrome")
+    if executable is None:
+        raise RuntimeError(
+            "GitHub runner does not expose a system Chromium/Chrome executable"
+        )
+    return executable
+
+
 async def _wait_surface(page: Page) -> None:
     await page.wait_for_selector('[data-testid="console-surface"]', timeout=30_000)
     await page.wait_for_selector('[data-testid="mission-authority"]', timeout=30_000)
@@ -87,7 +96,10 @@ async def main() -> None:
     screenshots: dict[str, str] = {}
 
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(
+            headless=True,
+            executable_path=_system_chromium(),
+        )
         context = await browser.new_context(viewport=VIEWPORT, device_scale_factor=1)
         page = await context.new_page()
         page.on(
