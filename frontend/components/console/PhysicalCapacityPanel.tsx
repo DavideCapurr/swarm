@@ -15,12 +15,30 @@
  */
 
 import type { CapacityRow } from "@/lib/authority";
-import { missionLabel, groupLabel, phaseLabel, roleLabel } from "@/lib/authority";
+import {
+  missionLabel,
+  groupLabel,
+  phaseLabel,
+  roleLabel,
+  capacitySummary,
+  capacitySummaryLabel,
+  CAPACITY_SUMMARY_THRESHOLD,
+} from "@/lib/authority";
 import type { ObjectiveAuthority } from "@/lib/authority";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
 
 export const CAPACITY_WIDTH = 338;
+
+/**
+ * Ceiling on the scrolling part of the roster.
+ *
+ * The panel is bottom-anchored over the map, so an unbounded list grows upward
+ * through the narration band and off the top of the viewport. This is a safety
+ * net, not a layout: with the reserve summarised, the rows that remain are the
+ * committed and unavailable ones and they fit well inside it.
+ */
+const ROSTER_MAX_H = 320;
 
 const ORDER: Record<CapacityRow["commitment"], number> = {
   ASSIGNED: 0,
@@ -36,15 +54,26 @@ const COMMITMENT_TONE = {
   UNAVAILABLE: "amber",
 } as const;
 
+/** What a summarised bucket is called, as an operator reads it. */
+const BUCKET_LABEL: Record<CapacityRow["commitment"], string> = {
+  ASSIGNED: "committed",
+  COMMITTED: "committed",
+  SPARE: "reserve",
+  UNAVAILABLE: "unavailable",
+};
+
 export function PhysicalCapacityPanel({
   capacity,
   selected,
   objectives,
+  namedAgents,
   onSelect,
 }: {
   capacity: CapacityRow[];
   selected: string | null;
   objectives: ObjectiveAuthority[];
+  /** Executors the surface names. Never summarised, however large the fleet. */
+  namedAgents: ReadonlySet<string>;
   onSelect: (agentId: string | null) => void;
 }) {
   const selectedRow = selected ? capacity.find((row) => row.agentId === selected) ?? null : null;
@@ -59,12 +88,38 @@ export function PhysicalCapacityPanel({
     );
   }
 
-  const rows = capacity
+  const sorted = capacity
     .slice()
     .sort(
       (a, b) =>
         ORDER[a.commitment] - ORDER[b.commitment] || a.agentId.localeCompare(b.agentId)
     );
+
+  // A fleet is the part of this panel that scales: three spares are three
+  // machines worth naming, thirty are a number. Two kinds of row are never
+  // summarised — the executors serving the objective the surface is following,
+  // because they are the story, and anything unavailable, because a machine
+  // that has dropped out has to stay nameable. Everything else collapses into
+  // one line per bucket once the bucket is bigger than a reader will count.
+  const named = sorted.filter(
+    (row) => row.commitment === "UNAVAILABLE" || namedAgents.has(row.agentId)
+  );
+  const rest = sorted.filter((row) => !named.includes(row));
+
+  const buckets: { commitment: CapacityRow["commitment"]; rows: CapacityRow[] }[] = [];
+  for (const row of rest) {
+    const bucket = buckets.find((b) => b.commitment === row.commitment);
+    if (bucket) bucket.rows.push(row);
+    else buckets.push({ commitment: row.commitment, rows: [row] });
+  }
+
+  const summarised = buckets.filter((b) => b.rows.length > CAPACITY_SUMMARY_THRESHOLD);
+  const rows = [
+    ...named,
+    ...buckets.filter((b) => !summarised.includes(b)).flatMap((b) => b.rows),
+  ].sort(
+    (a, b) => ORDER[a.commitment] - ORDER[b.commitment] || a.agentId.localeCompare(b.agentId)
+  );
 
   return (
     <Surface
@@ -81,14 +136,20 @@ export function PhysicalCapacityPanel({
         }
       />
 
-      {rows.length === 0 ? (
+      {rows.length === 0 && summarised.length === 0 ? (
         <div className="px-3 py-5">
           <Mono size={10} tone="ash">
             WAITING FOR FLEET STATE
           </Mono>
         </div>
-      ) : (
-        rows.map((row, i) => (
+      ) : null}
+
+      {/* Defensive only: take C's own roster is sized so the recording never
+          needs to scroll, and a panel that silently ran off the bottom of the
+          viewport on a larger fleet would be a defect nobody saw until it was
+          on tape. */}
+      <div className="flex flex-col overflow-y-auto" style={{ maxHeight: ROSTER_MAX_H }}>
+        {rows.map((row, i) => (
           <button
             key={row.agentId}
             type="button"
@@ -115,8 +176,30 @@ export function PhysicalCapacityPanel({
               {row.batteryPct.toFixed(0)}%
             </Mono>
           </button>
-        ))
-      )}
+        ))}
+      </div>
+
+      {summarised.map((bucket, i) => {
+        const summary = capacitySummary(bucket.rows);
+        if (!summary) return null;
+        return (
+          <div
+            key={bucket.commitment}
+            className="flex items-center gap-[10px] px-3 py-[9px]"
+            style={{
+              borderTop:
+                rows.length === 0 && i === 0 ? undefined : `1px solid ${HAIRLINE}`,
+            }}
+            data-testid={`capacity-summary-${bucket.commitment.toLowerCase()}`}
+          >
+            <Dot tone={COMMITMENT_TONE[bucket.commitment]} />
+            <Label>{BUCKET_LABEL[bucket.commitment]}</Label>
+            <Mono size={11} tone="silver" className="ml-auto">
+              {capacitySummaryLabel(summary)}
+            </Mono>
+          </div>
+        );
+      })}
     </Surface>
   );
 }

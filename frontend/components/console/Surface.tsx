@@ -116,18 +116,26 @@ export function Label({
   );
 }
 
-/** Monospace operational value. IDs, counts, timers, states. */
+/**
+ * Monospace operational value. IDs, counts, timers, states.
+ *
+ * Passes through any remaining span attributes. Several call sites publish a
+ * `data-testid` on an operational readout precisely so a test — and a recording
+ * check — can assert on it without reaching into React; swallowing those props
+ * meant the hook was declared and never actually rendered.
+ */
 export function Mono({
   children,
   size = 13,
   tone = "platinum",
   className = "",
+  ...rest
 }: {
   children: ReactNode;
   size?: number;
   tone?: "platinum" | "silver" | "ash" | "orbital" | "amber" | "green";
   className?: string;
-}) {
+} & React.HTMLAttributes<HTMLSpanElement>) {
   const tones = {
     platinum: "text-platinum",
     silver: "text-muted-silver",
@@ -140,6 +148,7 @@ export function Mono({
     <span
       className={`font-mono tabular-nums leading-none tracking-[0.07em] ${tones[tone]} ${className}`}
       style={{ fontSize: size }}
+      {...rest}
     >
       {children}
     </span>

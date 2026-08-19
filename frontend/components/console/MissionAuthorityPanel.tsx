@@ -24,11 +24,20 @@
  */
 
 import type { CapacityRow, CompositionSlot, ObjectiveAuthority } from "@/lib/authority";
-import { groupLabel, phaseLabel, roleLabel } from "@/lib/authority";
+import {
+  capacitySummary,
+  capacitySummaryLabel,
+  compositionDigest,
+  compositionDigestLabel,
+  groupLabel,
+  phaseLabel,
+  roleLabel,
+  CAPACITY_SUMMARY_THRESHOLD,
+} from "@/lib/authority";
 import type { PayloadChannel } from "@/lib/mission-story";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
-import { useAdaptationBeat, type AdaptationBeat } from "./useAdaptation";
+import type { AdaptationBeat } from "./useAdaptation";
 
 export const AUTHORITY_WIDTH = 336;
 
@@ -43,19 +52,24 @@ const STATE_TONE = {
 export function MissionAuthorityPanel({
   objectives,
   focused,
+  beat,
   capacity,
   channels,
   onSelectObjective,
 }: {
   objectives: ObjectiveAuthority[];
   focused: ObjectiveAuthority | null;
+  /** The adaptation announcement. Owned by `ConsoleSurface` so the panel and
+      the narration line are never two timers telling two stories. */
+  beat: AdaptationBeat;
   capacity: CapacityRow[];
   /** Bounded-response channels for the focused objective, latest frame each. */
   channels: PayloadChannel[];
   onSelectObjective: (key: string) => void;
 }) {
-  const beat = useAdaptationBeat(focused);
   const spare = capacity.filter((row) => row.commitment === "SPARE");
+  const spareAggregate =
+    spare.length > CAPACITY_SUMMARY_THRESHOLD ? capacitySummary(spare) : null;
   const excluded = capacity.filter((row) => row.excluded && row.commitment !== "SPARE");
 
   return (
@@ -105,6 +119,12 @@ export function MissionAuthorityPanel({
               {spare.length === 0 ? (
                 <Mono size={11} tone="ash">
                   NONE
+                </Mono>
+              ) : spareAggregate ? (
+                /* Past a handful, the reserve stops being a list anyone reads
+                   and starts pushing the evidence below it off the panel. */
+                <Mono size={11} tone="silver" data-testid="spare-summary">
+                  {capacitySummaryLabel(spareAggregate)}
                 </Mono>
               ) : (
                 spare.map((row) => (
@@ -335,6 +355,9 @@ function Composition({
 }) {
   const composed = objective.groupId != null;
   const altitudeOf = new Map(capacity.map((row) => [row.agentId, row.altitudeAglM]));
+  // A three-role cooperative objective lists all three. A thirty-ship sweep
+  // lists the rows that need reading and states the rest.
+  const digest = compositionDigest(objective.slots);
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3 px-3 pb-[8px] pt-[11px]">
@@ -347,7 +370,7 @@ function Composition({
       {beat.phase !== "idle" ? <AdaptationBanner beat={beat} /> : null}
 
       <div className="flex flex-col">
-        {objective.slots.map((slot) => (
+        {digest.rows.map((slot) => (
           <SlotRow
             key={`${slot.role}:${slot.index}`}
             slot={slot}
@@ -355,6 +378,17 @@ function Composition({
             altitudeAglM={slot.agentId ? altitudeOf.get(slot.agentId) ?? null : null}
           />
         ))}
+        {digest.hidden ? (
+          <div
+            className="flex items-center gap-3 px-3 py-[9px]"
+            style={{ borderTop: `1px solid ${HAIRLINE}` }}
+            data-testid="composition-summary"
+          >
+            <Mono size={11} tone="ash">
+              {compositionDigestLabel(digest.hidden)}
+            </Mono>
+          </div>
+        ) : null}
       </div>
     </div>
   );

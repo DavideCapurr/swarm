@@ -3,21 +3,37 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ConsoleSurface, type SurfaceFrame } from "@/components/console/ConsoleSurface";
-import { TAKE_A, TAKE_B, foldTakeA, foldTakeB, takeAFrames, takeBFrames } from "@/lib/demo-frames";
+import {
+  TAKE_A,
+  TAKE_B,
+  TAKE_C,
+  foldTakeA,
+  foldTakeB,
+  foldTakeC,
+  takeAFrames,
+  takeBFrames,
+  takeCFrames,
+} from "@/lib/demo-frames";
 
 /**
  * Drives the operational surface from a recorded frame script.
  *
- * Two takes, both stamped `REPLAY · RECORDED FRAMES · NOT LIVE`, on a route
+ * Three takes, all stamped `REPLAY · RECORDED FRAMES · NOT LIVE`, on a route
  * that is 404 in a production build:
  *
  *   A — two concurrent single-executor objectives with the BUSY exclusion.
  *   B — one SwarmOS-owned ExecutionGroup, a live member failure, and the
  *       central replacement of the vacated role.
+ *   C — take B's beat, unchanged, inside a thirty-four executor fleet and
+ *       alongside a second objective SwarmOS holds concurrently.
  *
  * `replayBadge` can drop the stamp for layout measurement only.
  */
-export type TakeId = "a" | "b";
+export type TakeId = "a" | "b" | "c";
+
+const SCRIPT = { a: TAKE_A, b: TAKE_B, c: TAKE_C } as const;
+const FRAMES = { a: takeAFrames, b: takeBFrames, c: takeCFrames } as const;
+const FOLD = { a: foldTakeA, b: foldTakeB, c: foldTakeC } as const;
 
 export function ReplayHarness({
   initialAtMs = 30_000,
@@ -28,8 +44,8 @@ export function ReplayHarness({
   take?: TakeId;
   replayBadge?: boolean;
 }) {
-  const script = take === "b" ? TAKE_B : TAKE_A;
-  const frames = useMemo(() => (take === "b" ? takeBFrames() : takeAFrames()), [take]);
+  const script = SCRIPT[take];
+  const frames = useMemo(() => FRAMES[take](), [take]);
   const [atMs, setAtMs] = useState(() =>
     Math.max(0, Math.min(script.durationMs, initialAtMs))
   );
@@ -43,10 +59,7 @@ export function ReplayHarness({
     return () => window.clearInterval(id);
   }, [playing, script.durationMs]);
 
-  const slice = useMemo(
-    () => (take === "b" ? foldTakeB(atMs, frames) : foldTakeA(atMs, frames)),
-    [take, atMs, frames]
-  );
+  const slice = useMemo(() => FOLD[take](atMs, frames), [take, atMs, frames]);
 
   const frame: SurfaceFrame = {
     link: "connected",

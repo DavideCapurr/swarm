@@ -652,112 +652,6 @@ const HOME_B: Record<string, Geo> = {
   "mav-001": dockSlot(DOCK_SLOT_M["mav-001"]),
 };
 
-const isoB = (at: number) => new Date(TAKE_B.t0 + at).toISOString();
-
-function groupMember(
-  agentId: string,
-  role: string,
-  missionId: string,
-  state: ExecutionGroupMember["state"],
-  score: number,
-  atS: number,
-  replaces: string | null = null
-): ExecutionGroupMember {
-  return {
-    agent_id: agentId,
-    role,
-    mission_id: missionId,
-    state,
-    score,
-    score_breakdown: {},
-    replaces_agent_id: replaces,
-    ts: isoB(atS * 1000),
-  };
-}
-
-function groupFrame(
-  state: ExecutionGroup["state"],
-  members: ExecutionGroupMember[],
-  atS: number
-): ExecutionGroup {
-  return {
-    id: TAKE_B.group,
-    objective_mission_id: TAKE_B.objectiveMission,
-    objective_kind: "COOPERATIVE_VERIFY",
-    anomaly_id: TAKE_B.anomaly,
-    requested_members: TAKE_B.requestedMembers,
-    members,
-    state,
-    failure_reason: null,
-    ts: isoB(atS * 1000),
-  };
-}
-
-function unitB(
-  agentId: string,
-  atS: number,
-  missionId: string | null,
-  legs: Leg[],
-  batteryPct: number,
-  fixedState?: UnitState["fsm_state"]
-): UnitState {
-  const { geo, state, headingDeg } = positionAt(legs, HOME_B[agentId], atS);
-  return {
-    agent_id: agentId,
-    vendor: "mavlink",
-    model: "px4-iris-sitl",
-    fsm_state: fixedState ?? state,
-    battery_pct: batteryPct,
-    geo,
-    current_mission_id: missionId,
-    current_sector_id: null,
-    link_quality: fixedState === "OFFLINE" ? 0 : 1,
-    heading_deg: headingDeg,
-    altitude_agl_m: geo.alt_m,
-    dock_id: "dock-sitl-01",
-    ts: isoB(atS * 1000),
-  };
-}
-
-function runtimeB(
-  missionId: string,
-  agentId: string,
-  phase: string,
-  atS: number,
-  evidence: MissionRuntimeEvent["evidence"] = null,
-  error: string | null = null
-): MissionRuntimeEvent {
-  return {
-    id: `${missionId}-${phase}-${atS}`,
-    mission_id: missionId,
-    agent_id: agentId,
-    phase,
-    progress_pct: phase === "DONE" ? 100 : phase === "ON_STATION" ? 90 : 5,
-    evidence,
-    error,
-    ts: isoB(atS * 1000),
-  };
-}
-
-function missionB(missionId: string, agentId: string, legs: Leg[], atS: number): MissionView {
-  const track: Geo[] = [];
-  for (let t = 0; t <= atS; t += 1.5) {
-    track.push(positionAt(legs, HOME_B[agentId], t).geo);
-  }
-  return {
-    id: missionId,
-    kind: "VERIFY",
-    assigned_agent: agentId,
-    sector_id: null,
-    phase: "en_route",
-    progress_pct: 0,
-    eta_s: null,
-    waypoints: [OBJECTIVE_B],
-    track,
-    ts: isoB(atS * 1000),
-  };
-}
-
 /**
  * The altitude ladder SwarmOS actually builds.
  *
@@ -797,8 +691,127 @@ const LEGS_B: Record<string, Leg[]> = {
 /** `mav-003` is killed at T+20; its last reported position is held from there. */
 const KILL_AT_S = 20;
 
-export function takeBFrames(): DemoFrame[] {
-  const frames: DemoFrame[] = [];
+/**
+ * The hero beat — composition, a live member failure, the central replacement
+ * of the vacated role, the bounded response, and completion.
+ *
+ * Extracted rather than copied so take C can show the same beat instead of a
+ * second script of it. Every identity, score and intra-take timing below is
+ * take B's and is unchanged: the failure at T+21 and the replacement at T+23
+ * are the frames this surface has been verified against most carefully, and
+ * two copies of them would eventually disagree.
+ *
+ * `t0` is the take's own wall clock. It is the only thing that varies between
+ * the takes sharing this beat — the frames, their offsets and their content are
+ * identical. Frames are appended to `frames`; the caller sorts.
+ */
+function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
+  const isoB = (at: number) => new Date(t0 + at).toISOString();
+
+  function groupMember(
+    agentId: string,
+    role: string,
+    missionId: string,
+    state: ExecutionGroupMember["state"],
+    score: number,
+    atS: number,
+    replaces: string | null = null
+  ): ExecutionGroupMember {
+    return {
+      agent_id: agentId,
+      role,
+      mission_id: missionId,
+      state,
+      score,
+      score_breakdown: {},
+      replaces_agent_id: replaces,
+      ts: isoB(atS * 1000),
+    };
+  }
+
+  function groupFrame(
+    state: ExecutionGroup["state"],
+    members: ExecutionGroupMember[],
+    atS: number
+  ): ExecutionGroup {
+    return {
+      id: TAKE_B.group,
+      objective_mission_id: TAKE_B.objectiveMission,
+      objective_kind: "COOPERATIVE_VERIFY",
+      anomaly_id: TAKE_B.anomaly,
+      requested_members: TAKE_B.requestedMembers,
+      members,
+      state,
+      failure_reason: null,
+      ts: isoB(atS * 1000),
+    };
+  }
+
+  function unitB(
+    agentId: string,
+    atS: number,
+    missionId: string | null,
+    legs: Leg[],
+    batteryPct: number,
+    fixedState?: UnitState["fsm_state"]
+  ): UnitState {
+    const { geo, state, headingDeg } = positionAt(legs, HOME_B[agentId], atS);
+    return {
+      agent_id: agentId,
+      vendor: "mavlink",
+      model: "px4-iris-sitl",
+      fsm_state: fixedState ?? state,
+      battery_pct: batteryPct,
+      geo,
+      current_mission_id: missionId,
+      current_sector_id: null,
+      link_quality: fixedState === "OFFLINE" ? 0 : 1,
+      heading_deg: headingDeg,
+      altitude_agl_m: geo.alt_m,
+      dock_id: "dock-sitl-01",
+      ts: isoB(atS * 1000),
+    };
+  }
+
+  function runtimeB(
+    missionId: string,
+    agentId: string,
+    phase: string,
+    atS: number,
+    evidence: MissionRuntimeEvent["evidence"] = null,
+    error: string | null = null
+  ): MissionRuntimeEvent {
+    return {
+      id: `${missionId}-${phase}-${atS}`,
+      mission_id: missionId,
+      agent_id: agentId,
+      phase,
+      progress_pct: phase === "DONE" ? 100 : phase === "ON_STATION" ? 90 : 5,
+      evidence,
+      error,
+      ts: isoB(atS * 1000),
+    };
+  }
+
+  function missionB(missionId: string, agentId: string, legs: Leg[], atS: number): MissionView {
+    const track: Geo[] = [];
+    for (let t = 0; t <= atS; t += 1.5) {
+      track.push(positionAt(legs, HOME_B[agentId], t).geo);
+    }
+    return {
+      id: missionId,
+      kind: "VERIFY",
+      assigned_agent: agentId,
+      sector_id: null,
+      phase: "en_route",
+      progress_pct: 0,
+      eta_s: null,
+      waypoints: [OBJECTIVE_B],
+      track,
+      ts: isoB(atS * 1000),
+    };
+  }
+
   const roster = [
     { agent: TAKE_B.primary.agent, mission: TAKE_B.primary.mission, from: 8 },
     { agent: TAKE_B.secondary.agent, mission: TAKE_B.secondary.mission, from: 8 },
@@ -975,7 +988,11 @@ export function takeBFrames(): DemoFrame[] {
       });
     }
   }
+}
 
+export function takeBFrames(): DemoFrame[] {
+  const frames: DemoFrame[] = [];
+  pushHeroGroupFrames(frames, TAKE_B.t0);
   return frames.sort((a, b) => a.at - b.at);
 }
 
@@ -983,4 +1000,417 @@ export function takeBFrames(): DemoFrame[] {
 export function foldTakeB(atMs: number, frames: DemoFrame[] = takeBFrames()): TakeSlice {
   const slice = foldFrames(atMs, frames);
   return { ...slice, now: TAKE_B.t0 + atMs };
+}
+
+// ── Take C — the same hero beat, seen at fleet scale ─────────────────────────
+//
+// Development and verification only, on exactly the terms of takes A and B:
+// this never reaches the live surface, `/demo/intrusion` never sees it, and
+// anything rendered from it is stamped `REPLAY · RECORDED FRAMES · NOT LIVE`.
+//
+// Take C exists because takes A and B each hold half of what the architecture
+// claims. B proves SwarmOS composes a group, loses a member and replaces it
+// centrally; A proves it holds more than one objective at once. Neither shows
+// either thing happening inside a fleet large enough for "central authority" to
+// be a claim worth making. Take C is one cut that carries all three.
+//
+// Provenance, stated exactly:
+//
+//   RECORDED — the hero beat, in full. Take C calls the same
+//   `pushHeroGroupFrames` take B does, so every identity, score, role,
+//   replacement and evidence boundary in it is the bench's, unchanged. See the
+//   take B header for that provenance; nothing here weakens it.
+//
+//   SCRIPTED — everything else, and it is worth being blunt about the scope of
+//   that word here:
+//
+//     · the thirty reserve executors. Their ids, their headings and their
+//       batteries are presentation values, generated by `dockedFleet` below.
+//       No bench ever ran thirty-four aircraft. They are DOCKED on the one
+//       shared pad for the whole take — the same pad the recorded four launch
+//       from — which is the one state that needs no flight data to be true of
+//       them, and they exist so the surface can be reviewed at the scale it is
+//       designed for.
+//     · the second objective, its anomaly, its mission id and its timing. The
+//       identifiers are made up, not lifted from a bench run under another
+//       agent's name — reusing a recorded id for a scripted event would
+//       misattribute real data.
+//
+//   COMPUTED — the second objective's allocation. The bids are not typed in:
+//   `scoreBid` is the real allocator formula (`core/swarm_core/allocator.py`
+//   `::score_bid`, priority `80 + int(confidence * 20)`), applied to the real
+//   distances between the scripted positions, and the winner is the argmax over
+//   it. The numbers are therefore illustrative in their inputs and honest in
+//   their arithmetic.
+
+/**
+ * The reserve fleet.
+ *
+ * Every executor launches from the one physical pad — that is what the real
+ * deployment does, it is why `DOCK_B` exists, and a demo that scattered thirty
+ * aircraft across the site to look impressive would be drawing an architecture
+ * SwarmOS does not have. So the reserve sits *on* `DOCK_B`, at the pad itself,
+ * and the map states it as a dock holding capacity rather than as thirty darts
+ * piled on one point.
+ *
+ * Ids continue the hero fleet's numbering (`mav-005` up), so nothing collides
+ * with the four recorded aircraft. No RNG anywhere: a recorded take has to
+ * render the same way twice.
+ */
+const RESERVE_FLEET_SIZE = 30;
+
+export type DockedAgent = {
+  agentId: string;
+  home: Geo;
+  headingDeg: number;
+  batteryPct: number;
+};
+
+export function dockedFleet(dock: Geo, count = RESERVE_FLEET_SIZE): DockedAgent[] {
+  const out: DockedAgent[] = [];
+  for (let i = 1; i <= count; i += 1) {
+    out.push({
+      agentId: `mav-${String(i + 4).padStart(3, "0")}`,
+      home: dock,
+      // Aircraft on a pad do not all face one way. Co-prime step, so the spread
+      // is deterministic and every agent gets a distinct heading.
+      headingDeg: (137 * i) % 360,
+      // 13 and 30 are co-prime, so every agent gets a distinct charge level and
+      // the allocator's argmax over equal distances has a single answer rather
+      // than a tie broken by array order.
+      batteryPct: 88 + ((i * 13) % 30) * 0.3,
+    });
+  }
+  return out;
+}
+
+const RESERVE_C = dockedFleet(DOCK_B);
+
+/**
+ * The area sweep.
+ *
+ * The second objective SwarmOS holds through this take, and the one that makes
+ * the fleet a fleet: thirty executors deployed at once, in a three-rank line
+ * abreast, while three more are held back for whatever else arrives. It is not
+ * a response to a detection — it carries no anomaly, because SwarmOS raising a
+ * scheduled sweep over its own sector is an objective it selects, not one it
+ * was handed.
+ *
+ * The geometry is chosen so the whole deployment stays legible on one screen at
+ * the recording viewport. The camera scales to whatever it has to hold, so what
+ * matters is not the absolute spacing but its ratio to the formation's own
+ * extent: 50 m between neighbours in a rank and 50 m between ranks leaves about
+ * 70 px — five glyph widths — between adjacent aircraft once the formation is
+ * extended. Ranks are separated vertically as well, the same way SwarmOS
+ * deconflicts a cooperative objective, so two ranks can never resolve onto one
+ * line of pixels.
+ *
+ * The whole formation sits south of the dock. The hero group flies due north,
+ * so the two never contend for the same ground.
+ */
+const SWEEP_RANKS = 3;
+const SWEEP_PER_RANK = 10;
+/** Metres between neighbours in a rank. */
+const SWEEP_LATERAL_M = 50;
+/** Metres north of the dock, one per rank. Negative: the sector is south. */
+const SWEEP_RANK_N_M = [-100, -150, -200];
+/**
+ * Station altitude per rank. Vertical deconfliction, as in the role ladder.
+ *
+ * Descending with range, and that ordering is a drawing decision as much as a
+ * deconfliction one: the map lifts a glyph off its ground mark in proportion to
+ * reported altitude, so giving the *nearest* rank the *highest* station pushes
+ * the ranks further apart on screen instead of collapsing them together. The
+ * separation is real either way — 20 m between ranks — and no operational value
+ * is computed from it.
+ */
+const SWEEP_RANK_ALT_M = [90, 70, 50];
+/**
+ * Cruise, in metres per second.
+ *
+ * SCRIPTED. It sets how long the deployment takes to form up, and it is chosen
+ * so that it completes inside a seventy-second take. Nothing operational
+ * depends on it — no bid, no role and no evidence boundary is computed from it.
+ */
+const SWEEP_CRUISE_MS = 30;
+
+/** East/north offset in metres, on the same spherical model as `offsetGeo`. */
+function offsetEN(from: Geo, eastM: number, northM: number): Geo {
+  return {
+    lat: from.lat + northM / 111_320,
+    lon: from.lon + eastM / (111_320 * Math.cos((from.lat * Math.PI) / 180)),
+    alt_m: 0,
+  };
+}
+
+/**
+ * Scripted identifiers for the sweep.
+ *
+ * Made up, deterministically, and never lifted from a bench run: putting a
+ * recorded mission id on an event that was never recorded would misattribute
+ * real data to a scripted one.
+ */
+const SWEEP_GROUP_ID = "6b1d78f04c2e4a95bd3067ff8a12c4e9";
+const SWEEP_OBJECTIVE_MISSION = "c7d2e9114ab8452fa0367e5bd91c8e64";
+const sweepMission = (i: number) =>
+  (0x7c4f0000 + i).toString(16).padStart(8, "0") + "9b3418e8a5c2f60117be94a3";
+
+/** Priority the allocator derives for a scheduled sweep — no confidence term. */
+const PRIORITY_SWEEP = 80;
+
+/** The allocator's own bid, summed from the terms `breakdown` already models. */
+function scoreBid(distance: number, batteryPct: number, priority: number): number {
+  const terms = breakdown(distance, batteryPct, priority);
+  return (
+    terms.distance_score + terms.battery_score + terms.priority_score - terms.busy_penalty
+  );
+}
+
+type SweepStation = {
+  agent: DockedAgent;
+  role: string;
+  missionId: string;
+  station: Geo;
+  altM: number;
+  distanceM: number;
+  score: number;
+  /** Take-seconds: launch, arrival on station, return, back on the pad. */
+  launchS: number;
+  arriveS: number;
+  returnS: number;
+  landS: number;
+};
+
+/**
+ * Take-seconds the formation holds station before SwarmOS recalls it.
+ *
+ * Set so the sweep closes *before* the hero objective does. Focus follows the
+ * newest objective still running, and a patrol that outlived the verification
+ * would take the last frames of the take with it.
+ */
+const SWEEP_RETURN_S = 35;
+
+const SWEEP: SweepStation[] = RESERVE_C.map((agent, i) => {
+  const rank = Math.floor(i / SWEEP_PER_RANK);
+  const k = i % SWEEP_PER_RANK;
+  const eastM = (k - (SWEEP_PER_RANK - 1) / 2) * SWEEP_LATERAL_M;
+  const northM = SWEEP_RANK_N_M[rank];
+  const station = offsetEN(DOCK_B, eastM, northM);
+  const distanceM = Math.hypot(eastM, northM);
+  // Aircraft leave one pad in sequence, rank by rank, and the spacing is wide
+  // enough that no more than two or three are ever within a second of the pad
+  // at once. A fleet that launches on the same tick is thirty glyphs on one
+  // pixel for the first five seconds of the take.
+  //
+  // Within a rank they go in alternate stations — every second slot, then the
+  // ones in between. Two aircraft launched back to back then leave on bearings
+  // 110 m apart at the far end rather than 55, which is what separates them on
+  // screen while they are still close to the pad.
+  const launchSlot = k % 2 === 0 ? k / 2 : (SWEEP_PER_RANK + k - 1) / 2;
+  const launchS = 3 + rank * 1.6 + launchSlot * 0.5;
+  const transitS = 2 + distanceM / SWEEP_CRUISE_MS;
+  return {
+    agent,
+    role: `SWEEP_${String(i + 1).padStart(2, "0")}`,
+    missionId: sweepMission(i),
+    station,
+    altM: SWEEP_RANK_ALT_M[rank],
+    distanceM,
+    // COMPUTED: the real allocator formula over the real station distance.
+    score: scoreBid(distanceM, agent.batteryPct, PRIORITY_SWEEP),
+    launchS,
+    arriveS: launchS + transitS,
+    returnS: SWEEP_RETURN_S,
+    landS: SWEEP_RETURN_S + transitS,
+  };
+});
+
+/** Take-seconds by which every sweep member is back on the pad. */
+const SWEEP_COMPLETED_S = Math.ceil(Math.max(...SWEEP.map((s) => s.landS))) + 1;
+
+export const TAKE_C = {
+  durationMs: 68_000,
+  /** The hero beat is take B's, so take C states it on take B's session clock. */
+  t0: TAKE_B.t0,
+  reserveAgents: RESERVE_C.length,
+  sweep: {
+    group: SWEEP_GROUP_ID,
+    objectiveMission: SWEEP_OBJECTIVE_MISSION,
+    members: SWEEP.length,
+    ranks: SWEEP_RANKS,
+  },
+} as const;
+
+const isoC = (at: number) => new Date(TAKE_C.t0 + at).toISOString();
+
+function unitC(
+  agent: DockedAgent,
+  atS: number,
+  legs: Leg[] | null,
+  missionId: string | null,
+  batteryPct: number
+): UnitState {
+  const flown = legs ? positionAt(legs, agent.home, atS) : null;
+  return {
+    agent_id: agent.agentId,
+    vendor: "mavlink",
+    model: "px4-iris-sitl",
+    fsm_state: flown?.state ?? "DOCKED",
+    battery_pct: batteryPct,
+    geo: flown?.geo ?? agent.home,
+    current_mission_id: missionId,
+    current_sector_id: null,
+    link_quality: 1,
+    heading_deg: flown?.headingDeg ?? agent.headingDeg,
+    altitude_agl_m: flown?.geo.alt_m ?? 0,
+    // The one shared pad. Every executor in this take launches from it, which
+    // is what lets the map draw a dock holding capacity instead of a heap of
+    // overlapping darts.
+    dock_id: "dock-sitl-01",
+    ts: isoC(atS * 1000),
+  };
+}
+
+function legsForSweep(s: SweepStation): Leg[] {
+  return [
+    { from: s.launchS, to: s.arriveS, a: s.agent.home, b: s.station, state: "EN_ROUTE", alt: s.altM },
+    { from: s.arriveS, to: s.returnS, a: s.station, b: s.station, state: "ON_STATION", alt: s.altM },
+    { from: s.returnS, to: s.landS, a: s.station, b: s.agent.home, state: "RTL", alt: s.altM },
+    { from: s.landS, to: 68, a: s.agent.home, b: s.agent.home, state: "DOCKED", alt: 0 },
+  ];
+}
+
+const SWEEP_LEGS = new Map(SWEEP.map((s) => [s.agent.agentId, legsForSweep(s)]));
+
+function sweepMember(
+  s: SweepStation,
+  state: ExecutionGroupMember["state"],
+  atS: number
+): ExecutionGroupMember {
+  return {
+    agent_id: s.agent.agentId,
+    role: s.role,
+    mission_id: s.missionId,
+    state,
+    score: s.score,
+    score_breakdown: {},
+    replaces_agent_id: null,
+    ts: isoC(atS * 1000),
+  };
+}
+
+function sweepGroup(
+  state: ExecutionGroup["state"],
+  members: ExecutionGroupMember[],
+  atS: number
+): ExecutionGroup {
+  return {
+    id: SWEEP_GROUP_ID,
+    objective_mission_id: SWEEP_OBJECTIVE_MISSION,
+    objective_kind: "AREA_SWEEP",
+    // No anomaly: a scheduled sweep is an objective SwarmOS selected, not a
+    // response to something a sensor reported.
+    anomaly_id: null,
+    requested_members: SWEEP.length,
+    members,
+    state,
+    failure_reason: null,
+    ts: isoC(atS * 1000),
+  };
+}
+
+function runtimeSweep(
+  s: SweepStation,
+  phase: string,
+  atS: number,
+  evidence: MissionRuntimeEvent["evidence"] = null
+): MissionRuntimeEvent {
+  return {
+    id: `${s.missionId}-${phase}`,
+    mission_id: s.missionId,
+    agent_id: s.agent.agentId,
+    phase,
+    progress_pct: phase === "DONE" ? 100 : phase === "ON_STATION" ? 90 : 5,
+    evidence,
+    error: null,
+    ts: isoC(atS * 1000),
+  };
+}
+
+/**
+ * The sweep, from composition to recovery.
+ *
+ * It opens before the hero detection rather than during it. The surface follows
+ * the newest objective SwarmOS is working, so an objective raised mid-transit
+ * would take the camera off the group for as long as it stayed newest; opening
+ * first means SwarmOS is visibly already holding one objective when the second
+ * arrives, and the camera never leaves the hero beat once it has it. It also
+ * lands the formation at full extension across the failover, which is the one
+ * moment worth showing the whole fleet and the recomposition together.
+ *
+ * It closes before the hero too, so the take's last frames settle on the
+ * objective that was verified rather than on a patrol that outlived it.
+ */
+function pushSweepFrames(frames: DemoFrame[]): void {
+  for (let t = 0; t <= 68; t += 1) {
+    for (const s of SWEEP) {
+      frames.push({
+        at: t * 1000,
+        kind: "unit",
+        data: unitC(
+          s.agent,
+          t,
+          SWEEP_LEGS.get(s.agent.agentId) as Leg[],
+          t >= 2.5 && t < s.landS ? s.missionId : null,
+          Math.max(55, s.agent.batteryPct - Math.max(0, t - s.launchS) * 0.22)
+        ),
+      });
+    }
+  }
+
+  // Members are stamped once, when SwarmOS puts them in, and later frames only
+  // carry them forward with a new state — the shape the hero beat already
+  // publishes. Re-stamping every member on every frame would move the group's
+  // composition time forward with it, which is a claim about when SwarmOS
+  // decided, not about when it last spoke.
+  const assigned = SWEEP.map((s) => sweepMember(s, "ASSIGNED", 2.5));
+  const active = assigned.map((member) => ({ ...member, state: "ACTIVE" as const }));
+
+  frames.push({ at: 2_500, kind: "group", data: sweepGroup("FORMING", assigned, 2.5) });
+  frames.push({ at: 3_000, kind: "group", data: sweepGroup("ACTIVE", active, 3) });
+
+  for (const s of SWEEP) {
+    frames.push({ at: s.launchS * 1000, kind: "runtime", data: runtimeSweep(s, "EN_ROUTE", s.launchS) });
+    frames.push({
+      at: s.arriveS * 1000,
+      kind: "runtime",
+      data: runtimeSweep(s, "ON_STATION", s.arriveS, "mavlink_mission_item_reached"),
+    });
+    frames.push({
+      at: s.landS * 1000,
+      kind: "runtime",
+      data: runtimeSweep(s, "DONE", s.landS, "mavlink_rtl_command_acknowledged"),
+    });
+  }
+
+  frames.push({
+    at: SWEEP_COMPLETED_S * 1000,
+    kind: "group",
+    data: sweepGroup(
+      "COMPLETED",
+      active.map((member) => ({ ...member, state: "COMPLETED" as const })),
+      SWEEP_COMPLETED_S
+    ),
+  });
+}
+export function takeCFrames(): DemoFrame[] {
+  const frames: DemoFrame[] = [];
+  pushHeroGroupFrames(frames, TAKE_C.t0);
+  pushSweepFrames(frames);
+  return frames.sort((a, b) => a.at - b.at);
+}
+
+/** Fold take C up to `atMs`, exactly as `SwarmStateProvider` would. */
+export function foldTakeC(atMs: number, frames: DemoFrame[] = takeCFrames()): TakeSlice {
+  return { ...foldFrames(atMs, frames), now: TAKE_C.t0 + atMs };
 }

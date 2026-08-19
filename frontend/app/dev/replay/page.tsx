@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { ReplayHarness } from "./ReplayHarness";
+import { ReplayHarness, type TakeId } from "./ReplayHarness";
 
 /**
  * Development-only replay of the recorded take.
@@ -12,9 +12,10 @@ import { ReplayHarness } from "./ReplayHarness";
  * `?at=<milliseconds>` selects a deterministic point in the already-recorded
  * frame script for visual QA. It does not create or alter runtime truth.
  *
- * `?take=a|b` chooses the frame script: A is the two concurrent objectives with
- * the BUSY exclusion, B is the SwarmOS-owned ExecutionGroup with a live member
- * failure and central replacement.
+ * `?take=a|b|c` chooses the frame script: A is the two concurrent objectives
+ * with the BUSY exclusion, B is the SwarmOS-owned ExecutionGroup with a live
+ * member failure and central replacement, C is that same beat inside a
+ * thirty-four executor fleet with a second objective held concurrently.
  *
  * `?replay=0` reproduces the surface actually recorded, which carries no REPLAY
  * badge. Measuring layout on the harness's own defaults would flatter the
@@ -44,7 +45,8 @@ export default async function ReplayPage({ searchParams }: ReplayPageProps) {
   const params = await searchParams;
   const parsed = Number(one(params.at));
   const initialAtMs = Number.isFinite(parsed) ? parsed : 30_000;
-  const take = one(params.take) === "b" ? "b" : "a";
+  const requested = one(params.take);
+  const take: TakeId = requested === "b" || requested === "c" ? requested : "a";
 
   return (
     <ReplayHarness
