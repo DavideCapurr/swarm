@@ -81,7 +81,7 @@ async def main() -> None:
         raise RuntimeError("visual capture must preserve simulator-only disposition scope")
 
     output = Path(args.output)
-    output.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(output.mkdir, parents=True, exist_ok=True)
     sample_times = _sample_times(capture)
     console_errors: list[str] = []
     screenshots: dict[str, str] = {}
@@ -111,7 +111,7 @@ async def main() -> None:
         await context.close()
 
         video_dir = output / "video"
-        video_dir.mkdir(exist_ok=True)
+        await asyncio.to_thread(video_dir.mkdir, exist_ok=True)
         video_context = await browser.new_context(
             viewport=VIEWPORT,
             device_scale_factor=1,
