@@ -37,10 +37,12 @@ export function ReplayHarness({
   initialAtMs = 30_000,
   take = "a",
   replayBadge = true,
+  controls = true,
 }: {
   initialAtMs?: number;
   take?: TakeId;
   replayBadge?: boolean;
+  controls?: boolean;
 }) {
   const [causalCapture, setCausalCapture] = useState<CausalTakeCCapture | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
@@ -144,31 +146,36 @@ export function ReplayHarness({
   return (
     <div className="relative">
       <ConsoleSurface frame={frame} />
-      <div className="fixed bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 border border-launch-amber/70 bg-absolute-black/95 px-3 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-launch-amber">
-          take {take}
-        </span>
-        <button
-          type="button"
-          onClick={() => setPlaying((p) => !p)}
-          className="font-mono text-[10px] tracking-[0.16em] text-launch-amber"
+      {controls ? (
+        <div
+          data-testid="replay-controls"
+          className="fixed bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 border border-launch-amber/70 bg-absolute-black/95 px-3 py-2"
         >
-          {playing ? "PAUSE" : "PLAY"}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={durationMs}
-          step={250}
-          value={Math.min(atMs, durationMs)}
-          onChange={(event) => setAtMs(Number(event.target.value))}
-          className="w-[380px] accent-[#FFB45C]"
-          aria-label="take position"
-        />
-        <span className="font-mono text-[10px] tabular-nums text-launch-amber">
-          T+{(atMs / 1000).toFixed(1)}s
-        </span>
-      </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-launch-amber">
+            take {take}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPlaying((p) => !p)}
+            className="font-mono text-[10px] tracking-[0.16em] text-launch-amber"
+          >
+            {playing ? "PAUSE" : "PLAY"}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={durationMs}
+            step={250}
+            value={Math.min(atMs, durationMs)}
+            onChange={(event) => setAtMs(Number(event.target.value))}
+            className="w-[380px] accent-[#FFB45C]"
+            aria-label="take position"
+          />
+          <span className="font-mono text-[10px] tabular-nums text-launch-amber">
+            T+{(atMs / 1000).toFixed(1)}s
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
