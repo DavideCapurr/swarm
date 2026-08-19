@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
 import pytest
-from swarm_core.execution_groups import ExecutionGroupMemberState
+from swarm_core.execution_groups import ExecutionGroupMemberState, ExecutionGroupState
 from swarm_core.messages import (
     AgentState,
     Anomaly,
@@ -31,10 +31,12 @@ class HoldingAdapter:
     def __init__(self, agent_id: str) -> None:
         self.agent_id = agent_id
         self.release = asyncio.Event()
+        self.executed: list[MissionTask] = []
 
     async def execute_mission(
         self, mission: MissionTask
     ) -> AsyncIterator[MissionProgress]:
+        self.executed.append(mission)
         yield MissionProgress(
             mission_id=mission.id,
             phase="EN_ROUTE",
@@ -103,7 +105,29 @@ async def _wait_for_alarm_group(
     return await asyncio.wait_for(_wait(), timeout=1.0)
 
 
-async def _shutdown(orchestrator: StaticAlarmOrchestrator) -> None:
+async def _wait_for_reinforcement_group(
+    orchestrator: StaticAlarmOrchestrator,
+    origin_group_id: str,
+) -> str:
+    async def _wait() -> str:
+        while True:
+            for group_id, group in orchestrator.execution_groups.items():
+                if group.reinforces_group_id == origin_group_id:
+                    return group_id
+            await asyncio.sleep(0.005)
+
+    return await asyncio.wait_for(_wait(), timeout=1.0)
+
+
+async def _shutdown(
+    orchestrator: StaticAlarmOrchestrator,
+    *runtime_tasks: asyncio.Task[None],
+) -> None:
+    for task in runtime_tasks:
+        task.cancel()
+    if runtime_tasks:
+        await asyncio.gather(*runtime_tasks, return_exceptions=True)
+
     tasks = list(orchestrator._background_tasks)
     for task in tasks:
         task.cancel()
@@ -128,6 +152,7 @@ async def test_alarm_is_the_only_response_trigger_and_swarmos_builds_the_chain()
             _member("agent-5", AgentState.OFFLINE),
         ],
         max_reinforcements_per_objective=1,
+        reinforcement_review_period_s=0.01,
     )
 
     # Initial world state only: four executors are assigned to a continuous
@@ -140,8 +165,11 @@ async def test_alarm_is_the_only_response_trigger_and_swarmos_builds_the_chain()
         _member("agent-5", AgentState.OFFLINE),
     ]
 
-    anomaly_loop = asyncio.create_task(orchestrator._anomaly_loop())
-    await asyncio.sleep(0)
+    # Start the actual orchestrator runtime. From here on, the test changes only
+    # external world truth and waits for SwarmOS outputs; it never calls a
+    # response/reinforcement decision method directly.
+    runtime = asyncio.create_task(orchestrator.run())
+    await asyncio.sleep(0.01)
     alarm = Anomaly(
         id="alarm-input-only",
         kind=AnomalyKind.INTRUSION,
@@ -150,7 +178,10 @@ async def test_alarm_is_the_only_response_trigger_and_swarmos_builds_the_chain()
     )
     # This is the only response-side scenario input. No executor, role, group or
     # reinforcement identifier exists in the event.
-    await bus.publish("swarm:anomalies", alarm.model_dump_json())
+    alarm_payload = alarm.model_dump_json()
+    assert "agent-" not in alarm_payload
+    assert "mav-" not in alarm_payload
+    await bus.publish("swarm:anomalies", alarm_payload)
 
     response_id = await _wait_for_alarm_group(orchestrator, alarm.id)
     await asyncio.sleep(0.08)
@@ -163,7 +194,10 @@ async def test_alarm_is_the_only_response_trigger_and_swarmos_builds_the_chain()
     assert len(response.members) == 2
     assert response.objective_mission_id != alarm.id
     assert response.anomaly_id == alarm.id
-    assert all(member.diverted_from_objective_id == sweep.objective_mission_id for member in response.members)
+    assert all(
+        member.diverted_from_objective_id == sweep.objective_mission_id
+        for member in response.members
+    )
     assert sum(
         member.state is ExecutionGroupMemberState.DIVERTED
         for member in sweep_now.members
@@ -183,23 +217,21 @@ async def test_alarm_is_the_only_response_trigger_and_swarmos_builds_the_chain()
         assert mission.params["recomputed_from_capacity"] == 2
 
     # External world development only: previously unavailable capacity returns.
-    # The scenario still does not say "reinforce" or name a swarm member.
+    # The scenario still does not say "reinforce", call a review function, or
+    # name a swarm member. The periodic SwarmOS reconciliation loop must notice.
     orchestrator.fleet_fixture = [
         *[_member(f"agent-{idx}", AgentState.EN_ROUTE) for idx in range(1, 5)],
         _member("agent-5", AgentState.DOCKED),
     ]
-    reinforcements = await orchestrator.review_reinforcements()
+    reinforcement_id = await _wait_for_reinforcement_group(orchestrator, response.id)
+    reinforcement = orchestrator.execution_groups[reinforcement_id]
 
-    assert len(reinforcements) == 1
-    reinforcement = reinforcements[0]
     assert reinforcement.reinforces_group_id == response.id
     assert reinforcement.objective_mission_id == response.objective_mission_id
     assert reinforcement.anomaly_id == alarm.id
     assert [member.agent_id for member in reinforcement.members] == ["agent-5"]
 
-    anomaly_loop.cancel()
-    await asyncio.gather(anomaly_loop, return_exceptions=True)
-    await _shutdown(orchestrator)
+    await _shutdown(orchestrator, runtime)
     await bus.close()
 
 
@@ -228,8 +260,8 @@ async def test_same_alarm_with_idle_capacity_does_not_degrade_the_sweep() -> Non
         *[_member(f"agent-{idx}", AgentState.EN_ROUTE) for idx in range(1, 5)],
         *[_member(f"agent-{idx}", AgentState.DOCKED) for idx in range(5, 8)],
     ]
-    anomaly_loop = asyncio.create_task(orchestrator._anomaly_loop())
-    await asyncio.sleep(0)
+    runtime = asyncio.create_task(orchestrator.run())
+    await asyncio.sleep(0.01)
     alarm = Anomaly(
         id="alarm-idle-counterfactual",
         kind=AnomalyKind.INTRUSION,
@@ -253,7 +285,51 @@ async def test_same_alarm_with_idle_capacity_does_not_degrade_the_sweep() -> Non
         for member in sweep_now.members
     )
 
-    anomaly_loop.cancel()
-    await asyncio.gather(anomaly_loop, return_exceptions=True)
-    await _shutdown(orchestrator)
+    await _shutdown(orchestrator, runtime)
+    await bus.close()
+
+
+@pytest.mark.asyncio
+async def test_high_confidence_alarm_below_minimum_capacity_dispatches_nobody() -> None:
+    bus = InMemoryBus()
+    await bus.connect()
+    registry = AdapterRegistry()
+    adapters = [HoldingAdapter(f"agent-{idx}") for idx in range(1, 4)]
+    for adapter in adapters:
+        registry.register(adapter)  # type: ignore[arg-type]
+
+    # Confidence 0.97 asks the default alarm policy for 3 members with a hard
+    # minimum of 2. Only one executor is available, so SwarmOS must refuse the
+    # objective rather than quietly launch a 1/3 group.
+    orchestrator = StaticAlarmOrchestrator(
+        bus=bus,
+        registry=registry,
+        fleet_fixture=[
+            _member("agent-1", AgentState.DOCKED),
+            _member("agent-2", AgentState.OFFLINE),
+            _member("agent-3", AgentState.OFFLINE),
+        ],
+    )
+    runtime = asyncio.create_task(orchestrator.run())
+    await asyncio.sleep(0.01)
+    alarm = Anomaly(
+        id="alarm-below-minimum",
+        kind=AnomalyKind.INTRUSION,
+        geo=Geo(lat=45.0, lon=9.0),
+        confidence=0.97,
+    )
+    await bus.publish("swarm:anomalies", alarm.model_dump_json())
+
+    group_id = await _wait_for_alarm_group(orchestrator, alarm.id)
+    group = orchestrator.execution_groups[group_id]
+
+    assert group.requested_members == 3
+    assert group.state is ExecutionGroupState.FAILED
+    assert group.failure_reason == "BELOW_MINIMUM_CAPACITY"
+    assert group.members == []
+    assert orchestrator._busy == set()
+    assert orchestrator._agent_missions == {}
+    assert all(adapter.executed == [] for adapter in adapters)
+
+    await _shutdown(orchestrator, runtime)
     await bus.close()
