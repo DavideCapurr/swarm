@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.swarm_orchestrator.bus import Bus
 
@@ -30,6 +30,10 @@ def _now() -> datetime:
 
 
 class ExecutorFault(BaseModel):
+    """Physical failure fact only; response fields are rejected, not ignored."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
     agent_id: str = Field(min_length=1, max_length=128)
     reason: str = Field(default="SIMULATED_EXECUTOR_FAILURE", min_length=1, max_length=240)
     ts: datetime = Field(default_factory=_now)
