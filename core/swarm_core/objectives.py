@@ -23,7 +23,7 @@ class ObjectiveDemand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     roles: tuple[str, ...] = ()
-    minimum_capacity: int = Field(..., ge=1)
+    minimum_capacity: int = Field(..., ge=0)
     desired_capacity: int = Field(..., ge=1)
     priority: int
     acceptable_degradation: bool = False
@@ -56,8 +56,8 @@ def demand_for_mission(mission: MissionTask) -> ObjectiveDemand:
         minimum = int(params.get("minimum_capacity", desired))
         roles = ()
     else:
-        desired = int(explicit_desired or 1)
-        minimum = int(explicit_min or 1)
+        desired = int(explicit_desired) if explicit_desired is not None else 1
+        minimum = int(explicit_min) if explicit_min is not None else 1
         roles = ()
 
     if explicit_desired is not None:
@@ -66,7 +66,7 @@ def demand_for_mission(mission: MissionTask) -> ObjectiveDemand:
         minimum = int(explicit_min)
 
     desired = max(1, desired)
-    minimum = max(1, min(minimum, desired))
+    minimum = max(0, min(minimum, desired))
     acceptable_degradation = bool(
         explicit_degradation
         if explicit_degradation is not None
@@ -80,7 +80,9 @@ def demand_for_mission(mission: MissionTask) -> ObjectiveDemand:
     policy = str(
         explicit_policy
         if explicit_policy is not None
-        else params.get("preemption_policy", "higher_priority" if preemptible else "never")
+        else params.get(
+            "preemption_policy", "higher_priority" if preemptible else "never"
+        )
     )
     if policy not in {"never", "higher_priority"}:
         policy = "never"
