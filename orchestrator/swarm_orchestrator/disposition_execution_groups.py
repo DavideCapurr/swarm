@@ -53,6 +53,7 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
     _disposition_signatures: dict[
         str, tuple[tuple[str, str, str], ...]
     ] = field(default_factory=dict)
+    _disposition_centers: dict[str, Geo] = field(default_factory=dict)
 
     async def _form_and_dispatch_group(
         self,
@@ -139,33 +140,22 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
         return active
 
     def _objective_center(self, origin_id: str) -> Geo | None:
-        record = self._reinforcement_records.get(origin_id)
-        if record is not None:
-            raw = record.objective.params.get("geo")
-            if isinstance(raw, dict):
-                try:
-                    return Geo(**raw)
-                except Exception:
-                    pass
+        cached = self._disposition_centers.get(origin_id)
+        if cached is not None:
+            return cached
 
-        # The reinforcement record may be cleaned up after the objective reaches
-        # requested strength. The durable child mission still carries the
-        # objective station geometry, so later replacement disposition must not
-        # depend on the shortfall record remaining alive.
-        origin = self._execution_groups.get(origin_id)
-        if origin is None:
+        record = self._reinforcement_records.get(origin_id)
+        if record is None:
             return None
-        for member in origin.members:
-            mission = self._agent_missions.get(member.agent_id)
-            if mission is None or mission.id != member.mission_id:
-                continue
-            raw = mission.params.get("station_geo") or mission.params.get("geo")
-            if isinstance(raw, dict):
-                try:
-                    return Geo(**raw)
-                except Exception:
-                    continue
-        return None
+        raw = record.objective.params.get("geo")
+        if not isinstance(raw, dict):
+            return None
+        try:
+            center = Geo(**raw)
+        except Exception:
+            return None
+        self._disposition_centers[origin_id] = center
+        return center
 
     def _propagate_retask_runtime_state(
         self,
