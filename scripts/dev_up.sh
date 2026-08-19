@@ -3,6 +3,11 @@
 #
 # Run: ./scripts/dev_up.sh
 # Stop: Ctrl+C
+#
+# SWARM_SIM_MODULE may select another simulator entrypoint. The default remains
+# sim.swarm_sim.runner so existing scenario demos are unchanged. The alarm demo
+# sets it to sim.swarm_sim.alarm_demo; that runner receives only world-state
+# alarms and leaves response decisions to SwarmOS.
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -64,6 +69,8 @@ fi
 # any vendor not in that set.
 SWARM_VENDORS="${SWARM_VENDORS:-simulator}"
 export SWARM_VENDORS
+SWARM_SIM_MODULE="${SWARM_SIM_MODULE:-sim.swarm_sim.runner}"
+export SWARM_SIM_MODULE
 echo "[dev_up] SWARM_VENDORS=$SWARM_VENDORS"
 
 # CV-live video sub-step: advertise the synthetic SIM-labelled drone-POV clip in
@@ -100,8 +107,8 @@ trap cleanup EXIT INT TERM
 # Case-insensitive match against a comma-separated list.
 SIM_PID=""
 if [[ ",$(echo "$SWARM_VENDORS" | tr '[:upper:]' '[:lower:]')," == *,simulator,* ]]; then
-  echo "[dev_up] starting sim runner…"
-  python3 -m sim.swarm_sim.runner &
+  echo "[dev_up] starting sim module: $SWARM_SIM_MODULE"
+  python3 -m "$SWARM_SIM_MODULE" &
   SIM_PID=$!
 fi
 
@@ -118,4 +125,5 @@ echo "          dashboard:  http://localhost:3000"
 echo "          backend:    http://localhost:${BACKEND_PORT:-8765}/health"
 echo "          ws:         ws://localhost:${BACKEND_PORT:-8765}/ws/telemetry"
 echo "          vendors:    $SWARM_VENDORS"
+echo "          sim module: $SWARM_SIM_MODULE"
 wait $SIM_PID $BACKEND_PID $FRONT_PID
