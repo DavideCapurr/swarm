@@ -224,11 +224,9 @@ async def test_external_alarm_drives_diversion_rebalance_and_reinforcement() -> 
         for group in orchestrator.execution_groups.values()
         if group.anomaly_id == alarm.id
     )
-    await asyncio.sleep(0.08)
 
     # Alarm policy asks for three with minimum two. The coverage floor permits
-    # exactly two diversions, so the response is admitted at 2/3 strength and
-    # the donor is recomputed at its protected 2/4 floor.
+    # exactly two diversions, so the response is admitted at 2/3 strength.
     assert response.requested_members == 3
     assert len(response.members) == 2
     assert {member.agent_id for member in response.members} <= original_cover_agents
@@ -236,6 +234,30 @@ async def test_external_alarm_drives_diversion_rebalance_and_reinforcement() -> 
         member.diverted_from_objective_id == cover.id for member in response.members
     )
 
+    async def _wait_for_rebalanced_cover() -> None:
+        while True:
+            donor_now = orchestrator.execution_groups[donor.id]
+            survivors = [
+                member
+                for member in donor_now.members
+                if member.state
+                not in {
+                    ExecutionGroupMemberState.DIVERTED,
+                    ExecutionGroupMemberState.FAILED,
+                    ExecutionGroupMemberState.REPLACED,
+                }
+            ]
+            if len(survivors) == 2 and all(
+                (mission := orchestrator._agent_missions.get(member.agent_id))
+                is not None
+                and mission.params.get("slice_count") == 2
+                and mission.params.get("recomputed_from_capacity") == 2
+                for member in survivors
+            ):
+                return
+            await asyncio.sleep(0.005)
+
+    await asyncio.wait_for(_wait_for_rebalanced_cover(), timeout=1.0)
     donor_now = orchestrator.execution_groups[donor.id]
     diverted = [
         member
