@@ -118,3 +118,64 @@ jobs:
         run: corepack pnpm typecheck
       - name: Vitest (critical-path coverage, Phase 6.J)
         run: corepack pnpm test
+
+  causal-take-c-visual:
+    if: >-
+      github.ref_name == 'agent/swarmos-capacity-reconciliation' ||
+      github.head_ref == 'agent/swarmos-capacity-reconciliation'
+    needs: [python, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version-file: frontend/.nvmrc
+      - name: Install Python deps
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+      - name: Generate causal runtime capture for replay
+        run: |
+          mkdir -p frontend/public/dev artifacts
+          uv run python scripts/capture_causal_take_c_truth.py \
+            frontend/public/dev/take-c-causal-sim.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.1.2 --activate
+          corepack pnpm install --frozen-lockfile --ignore-scripts
+      - name: Start dev replay
+        run: |
+          cd frontend
+          corepack pnpm dev > ../artifacts/take-c-dev-server.log 2>&1 &
+          echo $! > ../artifacts/take-c-dev-server.pid
+          cd ..
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              'http://127.0.0.1:3000/dev/replay?take=c&at=0' >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat artifacts/take-c-dev-server.log
+          exit 1
+      - name: Capture Take C screenshots and video
+        run: uv run python scripts/capture_take_c_visual.py
+      - name: Upload causal visual proof
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: take-c-causal-visual
+          path: |
+            artifacts/take-c-visual
+            artifacts/take-c-dev-server.log
+          retention-days: 30
