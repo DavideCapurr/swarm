@@ -18,7 +18,10 @@ SwarmOS then derives demand and chooses idle/preemptible capacity. With the
 default high-confidence policy (desired strength four) and patrol floor
 ``fleet_size - 3``, the first group may form at 3/4 strength. The normal patrol
 and reinforcement loops continue running; when capacity naturally returns,
-SwarmOS may create a second group without a scenario command naming it.
+SwarmOS may create a second group without a scenario command naming it. SwarmOS
+also derives and publishes objective disposition; this simulated runner opts in
+to executing those retasks so formation changes are physical simulation output,
+not frontend choreography.
 """
 
 from __future__ import annotations
@@ -130,6 +133,7 @@ async def main() -> None:
             os.getenv("SWARM_ALARM_RECONCILE_S", "0.5")
         ),
         max_reinforcements_per_objective=2,
+        execute_disposition_retask=True,
         alarm_policy=policy,
     )
 
