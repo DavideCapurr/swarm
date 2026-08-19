@@ -153,10 +153,14 @@ def test_higher_priority_request_uses_policy_ranked_preemptible_capacity() -> No
 def test_idle_capacity_is_preferred_and_counterfactuals_change_the_decision() -> None:
     cover = _cover_objective(minimum=1)
     donor = _active_cover_child(cover, agent_id="donor", role="SLICE_A")
+    sibling = _active_cover_child(cover, agent_id="sibling", role="SLICE_B")
     request = VERIFY(
         geo=Geo(lat=45.0, lon=9.0), priority=90, deadline_s=None
     )
-    active = {"donor": donor}
+    # Two committed members keep the donor objective above its minimum=1 after
+    # one diversion. The counterfactual is about idle-vs-preemptible selection,
+    # not about violating the donor floor.
+    active = {"donor": donor, "sibling": sibling}
 
     with_idle = evaluate_capacity(
         request,
@@ -376,7 +380,9 @@ async def test_under_strength_response_reinforces_when_capacity_later_returns() 
     assert orchestrator.execution_groups[donor.id].state is ExecutionGroupState.DEGRADED
 
     # External world change only: an executor becomes available. The scenario
-    # does not name it as reinforcement; reconciliation discovers it.
+    # does not name it as reinforcement; reconciliation discovers it. Because
+    # simultaneous shortfalls are reviewed by objective priority, the response
+    # claims this capacity before the lower-priority sweep can recover it.
     orchestrator.fleet_fixture = [
         _member("agent-1", state=AgentState.EN_ROUTE),
         _member("agent-2", state=AgentState.EN_ROUTE),
