@@ -1,7 +1,7 @@
 """Live simulated demo where the operator supplies only an alarm.
 
 Run alongside the existing backend/Console and a Redis bus, then inject an
-alarm with ``scripts/send_alarm.py``.  This runner does not schedule response
+alarm with ``scripts/send_alarm.py``. This runner does not schedule response
 aircraft, group ids, reinforcement, or formation transitions.
 
 Initial world state:
@@ -24,6 +24,7 @@ SwarmOS may create a second group without a scenario command naming it.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
@@ -145,10 +146,8 @@ async def main() -> None:
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
+        with contextlib.suppress(NotImplementedError):
             loop.add_signal_handler(sig, _stop)
-        except NotImplementedError:
-            pass
 
     tasks = [
         asyncio.create_task(_tick_world(world, tick_hz)),
