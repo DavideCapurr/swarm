@@ -253,13 +253,12 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
             )
         )
 
-        # The temporary shortfall record is allowed to disappear once demand is
-        # satisfied. Later failure/replacement must still retain the second swarm
-        # via durable ExecutionGroup provenance, not a timing-dependent record.
-        await _wait_until(
-            lambda: response.id not in orchestrator._reinforcement_records,
-            within_s=1.0,
-        )
+        # Demand-aware orchestration deliberately retains the live objective
+        # contract after its shortfall reaches zero so later preemption/recovery
+        # can still use the original demand and geometry.
+        response_record = orchestrator._reinforcement_records.get(response.id)
+        assert response_record is not None
+        assert response_record.unfilled_plans == []
 
         # External input 4: one currently active physical executor fails. Its
         # identity is an external world fact; the event cannot name a replacement,
@@ -317,8 +316,6 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
             )
         )
 
-        # Capture every group serving the same objective before terminal cleanup
-        # can remove its reinforcement record, then require all roles to verify.
         objective_group_ids = {
             group.id
             for group in orchestrator.execution_groups.values()
