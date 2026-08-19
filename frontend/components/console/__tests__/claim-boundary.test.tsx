@@ -38,6 +38,7 @@ const OBJECTIVE: ObjectiveAuthority = {
   geo: { lat: 47.398, lon: 8.546 },
   groupId: "group-1",
   groupStateLabel: "ACTIVE",
+  swarms: [],
   requestedMembers: 3,
   slots: [],
   activeMembers: 0,

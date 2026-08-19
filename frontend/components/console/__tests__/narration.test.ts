@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { FORBIDDEN_WORDS } from "@/lib/copy";
-import type { CompositionSlot, ObjectiveAuthority, ObjectiveState } from "@/lib/authority";
+import type {
+  CompositionSlot,
+  ObjectiveAuthority,
+  ObjectiveState,
+  SwarmComposition,
+} from "@/lib/authority";
 
 import { narrationFor } from "../NarrationStrip";
 
@@ -27,6 +32,27 @@ function slot(over: Partial<CompositionSlot> = {}): CompositionSlot {
     replacesAgentId: null,
     replacedAgentId: null,
     adapting: false,
+    groupId: "group-1",
+    swarmIndex: 1,
+    reinforcement: false,
+    ...over,
+  };
+}
+
+function swarm(over: Partial<SwarmComposition> = {}): SwarmComposition {
+  return {
+    index: 1,
+    groupId: "group-1",
+    label: "EG-group-1",
+    reinforcesGroupId: null,
+    requestedMembers: 3,
+    slots: [],
+    composedMembers: 3,
+    heldMembers: 3,
+    underStrength: false,
+    stateLabel: "ACTIVE",
+    state: "EXECUTING",
+    composedAt: "2026-08-15T17:28:52.000Z",
     ...over,
   };
 }
@@ -48,6 +74,7 @@ function objective(
     geo: null,
     groupId: "group-1",
     groupStateLabel: state,
+    swarms: [swarm({ state: state === "ADAPTING" ? "ADAPTING" : "EXECUTING" })],
     requestedMembers: 3,
     slots: [slot(), slot({ index: 2, role: "SECONDARY_OBSERVER", agentId: "mav-003" }), slot({ index: 3, role: "OVERWATCH", agentId: "mav-002" })],
     activeMembers: 3,
@@ -94,8 +121,9 @@ describe("narrationFor", () => {
   it("never claims an ExecutionGroup on a single-executor objective", () => {
     const single = objective("EXECUTING", {
       groupId: null,
+      swarms: [],
       requestedMembers: 1,
-      slots: [slot({ role: "VERIFY", roleIsAssigned: false })],
+      slots: [slot({ role: "VERIFY", roleIsAssigned: false, groupId: null })],
     });
     expect(narrationFor(single, { phase: "idle" })).toBe(
       "SINGLE EXECUTOR ON OBJECTIVE · 01 / 01 ASSIGNED"
@@ -129,6 +157,81 @@ describe("narrationFor", () => {
     );
   });
 
+  it("says SwarmOS is adding a swarm while the reinforcement is still composing", () => {
+    const reinforced = objective("EXECUTING", {
+      swarms: [
+        swarm(),
+        swarm({
+          index: 2,
+          groupId: "group-2",
+          reinforcesGroupId: "group-1",
+          requestedMembers: 2,
+          composedMembers: 0,
+          heldMembers: 0,
+          underStrength: true,
+          stateLabel: "FORMING",
+          state: "COMPOSING",
+        }),
+      ],
+    });
+    expect(narrationFor(reinforced, { phase: "idle" })).toBe(
+      "REINFORCEMENT DISPATCHED · SWARMOS ADDING EXECUTIONGROUP"
+    );
+  });
+
+  it("counts both swarms once they are running the objective together", () => {
+    const combined = objective("EXECUTING", {
+      requestedMembers: 5,
+      slots: [
+        slot(),
+        slot({ index: 2, role: "SECONDARY_OBSERVER", agentId: "mav-003" }),
+        slot({ index: 3, role: "OVERWATCH", agentId: "mav-002" }),
+        slot({ index: 1, role: "PRIMARY_OBSERVER", agentId: "mav-011", groupId: "group-2", swarmIndex: 2, reinforcement: true }),
+        slot({ index: 2, role: "OVERWATCH", agentId: "mav-012", groupId: "group-2", swarmIndex: 2, reinforcement: true }),
+      ],
+      swarms: [
+        swarm(),
+        swarm({
+          index: 2,
+          groupId: "group-2",
+          reinforcesGroupId: "group-1",
+          requestedMembers: 2,
+          composedMembers: 2,
+          heldMembers: 2,
+        }),
+      ],
+    });
+    expect(narrationFor(combined, { phase: "idle" })).toBe(
+      "02 EXECUTIONGROUPS COMBINED · 05 / 05 ROLES ACTIVE"
+    );
+  });
+
+  it("states a composition shortfall rather than leaving it to a count", () => {
+    // ADR-0012 partial strength: SwarmOS asked for three roles and could fill
+    // two. The swarm is ACTIVE and serving; it simply never reached strength.
+    const partial = objective("EXECUTING", {
+      slots: [slot(), slot({ index: 2, role: "OVERWATCH", agentId: "mav-002" })],
+      swarms: [swarm({ composedMembers: 2, heldMembers: 2, underStrength: true })],
+    });
+    expect(narrationFor(partial, { phase: "idle" })).toBe(
+      "EXECUTIONGROUP UNDER STRENGTH · 02 / 03 ROLES HELD"
+    );
+  });
+
+  it("lets the adaptation beat outrank a shortfall it is in the middle of fixing", () => {
+    const partial = objective("EXECUTING", {
+      slots: [slot(), slot({ index: 2, role: "OVERWATCH", agentId: "mav-002" })],
+      swarms: [swarm({ composedMembers: 2, heldMembers: 2, underStrength: true })],
+    });
+    expect(
+      narrationFor(partial, {
+        phase: "adapting",
+        role: "OVERWATCH",
+        lostAgent: "mav-002",
+      })
+    ).toBe("EXECUTOR LOST · SWARMOS SELECTING REPLACEMENT");
+  });
+
   it("speaks no forbidden word in any line it can produce", () => {
     const lines = [
       narrationFor(null, { phase: "idle" }),
@@ -137,9 +240,33 @@ describe("narrationFor", () => {
       narrationFor(objective("ADAPTING"), { phase: "idle" }),
       narrationFor(objective("VERIFIED"), { phase: "idle" }),
       narrationFor(objective("FAILED"), { phase: "idle" }),
-      narrationFor(objective("EXECUTING", { groupId: null, requestedMembers: 1 }), {
-        phase: "idle",
-      }),
+      narrationFor(
+        objective("EXECUTING", { groupId: null, swarms: [], requestedMembers: 1 }),
+        { phase: "idle" }
+      ),
+      narrationFor(
+        objective("EXECUTING", {
+          swarms: [
+            swarm(),
+            swarm({ index: 2, groupId: "group-2", reinforcesGroupId: "group-1", state: "COMPOSING" }),
+          ],
+        }),
+        { phase: "idle" }
+      ),
+      narrationFor(
+        objective("EXECUTING", {
+          requestedMembers: 5,
+          swarms: [
+            swarm(),
+            swarm({ index: 2, groupId: "group-2", reinforcesGroupId: "group-1", requestedMembers: 2 }),
+          ],
+        }),
+        { phase: "idle" }
+      ),
+      narrationFor(
+        objective("EXECUTING", { swarms: [swarm({ composedMembers: 2, heldMembers: 2, underStrength: true })] }),
+        { phase: "idle" }
+      ),
       narrationFor(objective("EXECUTING"), {
         phase: "adapting",
         role: "SECONDARY_OBSERVER",

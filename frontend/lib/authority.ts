@@ -23,6 +23,7 @@ import type {
   ExecutionGroup,
   ExecutionGroupMember,
   ExecutionGroupMemberState,
+  ExecutionGroupState,
   MissionRuntimeEvent,
   MissionView,
   PayloadEvent,
@@ -89,6 +90,66 @@ export type CompositionSlot = {
   replacedAgentId: string | null;
   /** True between observed failure and an observed replacement for this role. */
   adapting: boolean;
+  /** The swarm holding this role — its `ExecutionGroup` id. Null when there is no group. */
+  groupId: string | null;
+  /** 1-based position of that swarm inside the objective. 1 on a single-executor objective. */
+  swarmIndex: number;
+  /**
+   * True when SwarmOS committed this role as part of a *reinforcing* swarm.
+   *
+   * Read straight off `ExecutionGroup.reinforces_group_id`, so it is provenance
+   * rather than a guess, and it is permanent for the life of the role in exactly
+   * the way `replacesAgentId` is. `compositionDigest` treats it as notable for
+   * that reason: at fleet scale the reinforcement is the beat, and a summary
+   * that folded it away would delete the only thing that just changed.
+   */
+  reinforcement: boolean;
+};
+
+/**
+ * One swarm inside an objective.
+ *
+ * ADR-0012 made the swarm, not the member, the unit SwarmOS adds: an objective
+ * that never reached strength is reinforced by dispatching a *second*
+ * `ExecutionGroup` against it, carrying `reinforces_group_id`. One objective can
+ * therefore hold several, and each one has its own composition, its own
+ * lifecycle and its own `requested_members` — the strength *that* swarm was
+ * asked to bring.
+ *
+ * So the strength of a swarm is stated here rather than left to the objective's
+ * totals. "Swarm 01 is under strength" is a fact about one unit; summed into an
+ * objective-wide count it becomes unreadable the moment there are two.
+ */
+export type SwarmComposition = {
+  /** 1-based order within the objective. 01 is always the originating swarm. */
+  index: number;
+  groupId: string;
+  /** `EG-` plus the real short group id. */
+  label: string;
+  /** The swarm this one was dispatched to reinforce. Null on an originating swarm. */
+  reinforcesGroupId: string | null;
+  /** Strength SwarmOS asked this swarm for. */
+  requestedMembers: number;
+  /** This swarm's roles. The same objects the objective's flattened `slots` holds. */
+  slots: CompositionSlot[];
+  /**
+   * Roles SwarmOS actually dispatched.
+   *
+   * Below `requestedMembers` this is ADR-0012 partial-strength composition: a
+   * role with no eligible executor is left unfilled and the swarm proceeds
+   * without it. No new field carries the shortfall — it is the difference
+   * between what was asked for and what was committed, exactly as the ADR says.
+   */
+  composedMembers: number;
+  /** Roles whose holder is present and has not failed. */
+  heldMembers: number;
+  /** Amber on the panel. Never red. */
+  underStrength: boolean;
+  /** The group's own published lifecycle state. */
+  stateLabel: ExecutionGroupState;
+  /** The same reading the objective gets, computed over this swarm alone. */
+  state: ObjectiveState;
+  composedAt: string;
 };
 
 export type ObjectiveState =
@@ -171,11 +232,21 @@ export type ObjectiveAuthority = {
   /** Null until an anomaly frame with evidence has arrived. */
   detection: Detection | null;
   geo: { lat: number; lon: number } | null;
-  /** Set only when SwarmOS composed a first-class ExecutionGroup for this objective. */
+  /**
+   * The *originating* swarm's group id. Set only when SwarmOS composed a
+   * first-class ExecutionGroup for this objective.
+   *
+   * A reinforcement never becomes the objective's identity: it joined one that
+   * already existed, and `key` is this id precisely so focus and selection
+   * cannot move when it arrives.
+   */
   groupId: string | null;
   groupStateLabel: string | null;
-  /** Roles SwarmOS required. 1 on a single-executor objective. */
+  /** Every swarm SwarmOS put on this objective, oldest first. Empty on a single-executor objective. */
+  swarms: SwarmComposition[];
+  /** Strength SwarmOS asked for across every swarm. 1 on a single-executor objective. */
   requestedMembers: number;
+  /** Every role on the objective, swarm by swarm. `index` stays swarm-local. */
   slots: CompositionSlot[];
   activeMembers: number;
   state: ObjectiveState;
@@ -358,7 +429,8 @@ function latestRuntimeByMission(
  */
 function slotsFromGroup(
   group: ExecutionGroup,
-  runtime: Map<string, MissionRuntimeEvent>
+  runtime: Map<string, MissionRuntimeEvent>,
+  swarmIndex: number
 ): CompositionSlot[] {
   const byRole = new Map<string, ExecutionGroupMember[]>();
   const order: string[] = [];
@@ -395,8 +467,63 @@ function slotsFromGroup(
       replacesAgentId: live?.replaces_agent_id ?? null,
       replacedAgentId: replaced?.agent_id ?? null,
       adapting,
+      groupId: group.id,
+      swarmIndex,
+      reinforcement: (group.reinforces_group_id ?? null) != null,
     };
   });
+}
+
+/**
+ * The swarms of one objective, grouped by the relationship SwarmOS published.
+ *
+ * ADR-0012 is explicit that the link is `reinforces_group_id` and nothing else:
+ * two groups can share an `anomaly_id` or an `objective_mission_id` for reasons
+ * that are not reinforcement, and a reader that grouped on either would be
+ * inventing an operational relationship out of a coincidence.
+ *
+ * So a group joins another only when it names it *and* the named group is real
+ * and serves the same objective mission. A dangling or inconsistent reference
+ * leaves the group standing on its own, which is the honest reading and which
+ * heals itself the moment the missing frame arrives.
+ */
+function groupSwarms(groups: readonly ExecutionGroup[]): ExecutionGroup[][] {
+  const byId = new Map(groups.map((group) => [group.id, group]));
+
+  const rootOf = (group: ExecutionGroup): ExecutionGroup => {
+    let held = group;
+    // Bounded rather than `while (true)`: ADR-0012 says a reinforcing group
+    // never reinforces in turn, but a frame that said otherwise must not spin
+    // this reader.
+    for (let hop = 0; hop < groups.length; hop += 1) {
+      const parentId = held.reinforces_group_id ?? null;
+      if (!parentId || parentId === held.id) return held;
+      const parent = byId.get(parentId);
+      if (!parent) return held;
+      if (parent.objective_mission_id !== held.objective_mission_id) return held;
+      held = parent;
+    }
+    return held;
+  };
+
+  const buckets = new Map<string, ExecutionGroup[]>();
+  const order: string[] = [];
+  for (const group of groups) {
+    const rootId = rootOf(group).id;
+    const bucket = buckets.get(rootId);
+    if (bucket) bucket.push(group);
+    else {
+      buckets.set(rootId, [group]);
+      order.push(rootId);
+    }
+  }
+
+  // Oldest first, so swarm 01 is the swarm that took the objective.
+  return order.map((rootId) =>
+    (buckets.get(rootId) ?? [])
+      .slice()
+      .sort((a, b) => epoch(composedAt(a)) - epoch(composedAt(b)))
+  );
 }
 
 /** The single-executor case: the allocation itself is the whole composition. */
@@ -421,6 +548,9 @@ function slotFromDecision(
       replacesAgentId: null,
       replacedAgentId: null,
       adapting: false,
+      groupId: null,
+      swarmIndex: 1,
+      reinforcement: false,
     },
   ];
 }
@@ -441,6 +571,38 @@ function objectiveState(
   if (phases.some((p) => p === "FAILED") && phases.every((p) => p === "FAILED")) return "FAILED";
   if (phases.some((p) => p != null)) return "EXECUTING";
   return slots.some((s) => s.agentId) ? "EXECUTING" : "COMPOSING";
+}
+
+/**
+ * One objective's state, read from the swarms serving it.
+ *
+ * With one swarm this is exactly `objectiveState` and nothing else, which is
+ * what keeps every existing take reading as it did. With two it has to answer
+ * for both, and the order below is the reading order the surface owes: what is
+ * being recomposed outranks what is merely running, and what is running
+ * outranks what is still forming — a second swarm still composing does not make
+ * an objective with aircraft over the target read as COMPOSING.
+ *
+ * Only once nothing is live do the terminal states get a say. A mixed terminal
+ * result — one swarm verified, one failed — reads VERIFIED, because verification
+ * did happen; the swarm rows carry which swarm failed and the counts carry the
+ * strength it was served at. ADR-0012 is explicit that a partly served
+ * objective is an honest outcome stated by its counts, not a failure.
+ */
+function foldObjectiveState(states: readonly ObjectiveState[]): ObjectiveState {
+  if (states.length === 0) return "COMPOSING";
+  if (states.length === 1) return states[0];
+  if (states.includes("ADAPTING")) return "ADAPTING";
+  if (states.includes("EXECUTING")) return "EXECUTING";
+  if (states.includes("COMPOSING")) return "COMPOSING";
+  return states.includes("VERIFIED") ? "VERIFIED" : "FAILED";
+}
+
+/** The strength readings for one swarm, over the roles it actually holds. */
+function heldIn(slots: readonly CompositionSlot[]): number {
+  return slots.filter(
+    (slot) => slot.agentId && slot.memberState !== "FAILED" && slot.phase !== "FAILED"
+  ).length;
 }
 
 function buildTrace(
@@ -522,48 +684,80 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
     .slice()
     .sort((a, b) => epoch(a.ts) - epoch(b.ts));
 
-  const groupObjectives: ObjectiveAuthority[] = input.executionGroups.map((group) => {
-    const slots = slotsFromGroup(group, runtime);
-    const anomaly = group.anomaly_id ? anomalies.get(group.anomaly_id) ?? null : null;
-    const frames = slots.flatMap((s) =>
-      s.missionId ? framesByMission.get(s.missionId) ?? [] : []
-    );
-    const state = objectiveState(slots, group);
-    return {
-      key: group.id,
-      index: 0,
-      kind: anomaly?.kind ?? group.objective_kind,
-      label: missionLabel(group.objective_mission_id),
-      missionId: group.objective_mission_id,
-      anomalyId: group.anomaly_id,
-      confidence: anomaly?.confidence ?? null,
-      detectedAt: anomaly?.detected_at ?? null,
-      detection: detectionOf(anomaly),
-      geo: anomaly ? { lat: anomaly.geo.lat, lon: anomaly.geo.lon } : null,
-      groupId: group.id,
-      groupStateLabel: group.state,
-      requestedMembers: group.requested_members,
-      slots,
-      activeMembers: slots.filter(
-        (s) => s.memberState === "ACTIVE" || s.memberState === "ASSIGNED"
-      ).length,
-      state,
-      active: state !== "VERIFIED" && state !== "FAILED",
-      trace: buildTrace(slots, state, anomaly?.detected_at ?? null, composedAt(group), frames),
-      routes: slots
-        .filter((s) => s.agentId && s.missionId)
-        .map((s) => ({
-          agentId: s.agentId as string,
-          missionId: s.missionId as string,
-          points: (missions.get(s.missionId as string)?.track ?? []).map((p) => ({
-            lat: p.lat,
-            lon: p.lon,
+  // One objective per *set* of related groups, never one per group. A
+  // reinforcement joins the objective it was dispatched to serve; giving it its
+  // own would put a second tab in the switch, a second mark on the map, and —
+  // because focus follows the newest active objective — take the surface off
+  // the beat at the exact moment the beat lands.
+  const groupObjectives: ObjectiveAuthority[] = groupSwarms(input.executionGroups).map(
+    (groups) => {
+      const origin = groups[0];
+      const swarms: SwarmComposition[] = groups.map((group, i) => {
+        const swarmSlots = slotsFromGroup(group, runtime, i + 1);
+        const held = heldIn(swarmSlots);
+        return {
+          index: i + 1,
+          groupId: group.id,
+          label: groupLabel(group.id),
+          reinforcesGroupId: group.reinforces_group_id ?? null,
+          requestedMembers: group.requested_members,
+          slots: swarmSlots,
+          composedMembers: swarmSlots.length,
+          heldMembers: held,
+          underStrength: held < group.requested_members,
+          stateLabel: group.state,
+          state: objectiveState(swarmSlots, group),
+          composedAt: composedAt(group),
+        };
+      });
+
+      const slots = swarms.flatMap((swarm) => swarm.slots);
+      const anomaly = origin.anomaly_id ? anomalies.get(origin.anomaly_id) ?? null : null;
+      const frames = slots.flatMap((s) =>
+        s.missionId ? framesByMission.get(s.missionId) ?? [] : []
+      );
+      const state = foldObjectiveState(swarms.map((swarm) => swarm.state));
+      // The originating swarm's composition time. A reinforcement is a later
+      // frame about an objective SwarmOS already decided, and dating the
+      // objective from it would re-order the switch and move focus.
+      const decisionAt = swarms[0].composedAt;
+      return {
+        key: origin.id,
+        index: 0,
+        kind: anomaly?.kind ?? origin.objective_kind,
+        label: missionLabel(origin.objective_mission_id),
+        missionId: origin.objective_mission_id,
+        anomalyId: origin.anomaly_id,
+        confidence: anomaly?.confidence ?? null,
+        detectedAt: anomaly?.detected_at ?? null,
+        detection: detectionOf(anomaly),
+        geo: anomaly ? { lat: anomaly.geo.lat, lon: anomaly.geo.lon } : null,
+        groupId: origin.id,
+        groupStateLabel: origin.state,
+        swarms,
+        requestedMembers: swarms.reduce((total, swarm) => total + swarm.requestedMembers, 0),
+        slots,
+        activeMembers: slots.filter(
+          (s) => s.memberState === "ACTIVE" || s.memberState === "ASSIGNED"
+        ).length,
+        state,
+        active: state !== "VERIFIED" && state !== "FAILED",
+        trace: buildTrace(slots, state, anomaly?.detected_at ?? null, decisionAt, frames),
+        routes: slots
+          .filter((s) => s.agentId && s.missionId)
+          .map((s) => ({
+            agentId: s.agentId as string,
+            missionId: s.missionId as string,
+            points: (missions.get(s.missionId as string)?.track ?? []).map((p) => ({
+              lat: p.lat,
+              lon: p.lon,
+            })),
           })),
-        })),
-      latestProof: slots.map((s) => s.proof).filter(Boolean).at(-1) ?? null,
-      decisionAt: composedAt(group),
-    };
-  });
+        latestProof: slots.map((s) => s.proof).filter(Boolean).at(-1) ?? null,
+        decisionAt,
+      };
+    }
+  );
 
   const singleObjectives: ObjectiveAuthority[] = decisions.map((decision) => {
     const slots = slotFromDecision(decision, runtime);
@@ -583,6 +777,9 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
       geo: anomaly ? { lat: anomaly.geo.lat, lon: anomaly.geo.lon } : null,
       groupId: null,
       groupStateLabel: null,
+      // No ExecutionGroup, so no swarm. The panel says "single executor" in as
+      // many words rather than dressing one award up as a unit.
+      swarms: [],
       requestedMembers: 1,
       slots,
       activeMembers: slots.filter((s) => s.agentId).length,
@@ -731,10 +928,16 @@ export type CompositionDigest = {
  * reads — it is a scrollbar, and it buries the evidence section underneath it.
  *
  * Two rules keep the summary honest. A slot that needs attention is never
- * summarised away: anything failing, adapting, or holding a role by
- * replacement is listed whatever the count, because those are the rows the
- * surface exists to show. And what is left out is still stated — how many, and
- * in which phase — rather than silently dropped.
+ * summarised away: anything failing, adapting, holding a role by replacement,
+ * or newly committed as reinforcement is listed whatever the count, because
+ * those are the rows the surface exists to show. And what is left out is still
+ * stated — how many, and in which phase — rather than silently dropped.
+ *
+ * Reinforcement earns its place on the same grounds as replacement. A second
+ * swarm arriving on an objective that never reached strength is the one thing
+ * that just changed, and at the scale where this function starts summarising it
+ * is also the thing most easily folded into `+25 ROLES · 25 ON STATION` — which
+ * would delete the beat exactly where it matters most.
  */
 export function compositionDigest(
   slots: readonly CompositionSlot[],
@@ -748,7 +951,8 @@ export function compositionDigest(
         slot.adapting ||
         slot.memberState === "FAILED" ||
         slot.phase === "FAILED" ||
-        slot.replacesAgentId != null
+        slot.replacesAgentId != null ||
+        slot.reinforcement
     )
   );
   const shown = new Set(notable);

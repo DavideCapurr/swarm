@@ -21,7 +21,7 @@
  * intents and SwarmOS decides, and the narration describes SwarmOS deciding.
  */
 
-import type { ObjectiveAuthority } from "@/lib/authority";
+import type { ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
 
 import { HAIRLINE } from "./Surface";
 import type { AdaptationBeat } from "./useAdaptation";
@@ -37,6 +37,26 @@ function rolesHeld(objective: ObjectiveAuthority): number {
 }
 
 const pad = (value: number) => String(value).padStart(2, "0");
+
+/** The swarm SwarmOS dispatched to reinforce another, when it has dispatched one. */
+function reinforcementOf(objective: ObjectiveAuthority): SwarmComposition | null {
+  return objective.swarms.find((swarm) => swarm.reinforcesGroupId != null) ?? null;
+}
+
+/**
+ * A swarm that never reached the strength it was asked for.
+ *
+ * Read as a *composition* shortfall — roles SwarmOS could not fill at all,
+ * which is ADR-0012 partial-strength composition — and not as a holder that has
+ * since dropped out. The second is the adaptation beat, it already has a line,
+ * and it already outranks this one; conflating them would have the strip
+ * announce a shortfall in the middle of a replacement that is fixing it.
+ */
+function underStrength(objective: ObjectiveAuthority): SwarmComposition | null {
+  return (
+    objective.swarms.find((swarm) => swarm.composedMembers < swarm.requestedMembers) ?? null
+  );
+}
 
 /**
  * The whole vocabulary, in priority order.
@@ -64,6 +84,24 @@ export function narrationFor(
     case "EXECUTING":
     default: {
       const held = `${pad(rolesHeld(objective))} / ${pad(objective.requestedMembers)}`;
+
+      // An objective SwarmOS is adding a swarm to. The reinforcement is still
+      // composing, so the line says what SwarmOS decided, not what has arrived.
+      const reinforcement = reinforcementOf(objective);
+      if (reinforcement && reinforcement.state === "COMPOSING") {
+        return "REINFORCEMENT DISPATCHED · SWARMOS ADDING EXECUTIONGROUP";
+      }
+      // Both swarms are running the objective. The count is the objective's,
+      // across every swarm, because that is now the strength on the target.
+      if (objective.swarms.length > 1) {
+        return `${pad(objective.swarms.length)} EXECUTIONGROUPS COMBINED · ${held} ROLES ACTIVE`;
+      }
+      // Composed, running, and short of the strength it asked for. Stated
+      // rather than left to a count nobody is looking at.
+      if (underStrength(objective)) {
+        return `EXECUTIONGROUP UNDER STRENGTH · ${held} ROLES HELD`;
+      }
+
       // A single-executor objective has no ExecutionGroup, and the panel says so
       // in as many words. Claiming one here would be the surface inventing a
       // composition SwarmOS never made.
@@ -80,6 +118,13 @@ function toneFor(objective: ObjectiveAuthority | null, beat: AdaptationBeat): st
     return "#FFB45C";
   }
   if (beat.phase === "restored" || objective?.state === "VERIFIED") return "#B8FF66";
+  // Under strength, and SwarmOS composing the swarm that answers it, are the
+  // same condition read a moment apart. Both are amber; neither is a fault.
+  if (objective && objective.state === "EXECUTING") {
+    const reinforcement = reinforcementOf(objective);
+    if (reinforcement?.state === "COMPOSING") return "#FFB45C";
+    if (objective.swarms.length === 1 && underStrength(objective)) return "#FFB45C";
+  }
   return "#A8AFB8";
 }
 

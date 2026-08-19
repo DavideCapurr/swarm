@@ -53,7 +53,12 @@
 
 import { useMemo } from "react";
 
-import type { CapacityRow, CompositionSlot, ObjectiveAuthority } from "@/lib/authority";
+import type {
+  CapacityRow,
+  CompositionSlot,
+  ObjectiveAuthority,
+  SwarmComposition,
+} from "@/lib/authority";
 import { roleLabel } from "@/lib/authority";
 import type { PayloadChannel } from "@/lib/mission-story";
 import type { ScreenPoint } from "@/lib/opsmap";
@@ -69,6 +74,16 @@ const EXECUTOR_R = 7.5;
 const DOCK_R = 9.5;
 /** Gap left at both ends of an assignment tether so it never touches a glyph. */
 const TETHER_INSET = 20;
+/**
+ * Clearance between a swarm's outermost subunit and the hull enclosing it.
+ *
+ * Wide enough to sit outside the dart and its selection ring at every size the
+ * surface is recorded at, tight enough that a three-ship formation still reads
+ * as one form rather than as a region of the map.
+ */
+const SWARM_HULL_PAD = 26;
+/** Points used to approximate the disc swept around each subunit. */
+const SWARM_HULL_ARC_STEPS = 12;
 /**
  * Screen lift per metre of reported altitude AGL.
  *
@@ -402,6 +417,87 @@ function Track({
   );
 }
 
+/**
+ * Convex hull, monotone chain. Screen pixels, y down.
+ *
+ * Returns the boundary in order. Fewer than three distinct points have no
+ * interior and are returned as they are — the caller has already padded them
+ * into something with area.
+ */
+function convexHull(points: readonly ScreenPoint[]): ScreenPoint[] {
+  if (points.length < 3) return [...points];
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o: ScreenPoint, a: ScreenPoint, b: ScreenPoint) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  const half = (input: readonly ScreenPoint[]) => {
+    const out: ScreenPoint[] = [];
+    for (const point of input) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], point) <= 0) {
+        out.pop();
+      }
+      out.push(point);
+    }
+    out.pop();
+    return out;
+  };
+
+  return [...half(sorted), ...half([...sorted].reverse())];
+}
+
+/**
+ * The form that says "this is one unit".
+ *
+ * A swarm is not a set of aircraft that happen to be near each other — it is
+ * the thing SwarmOS composed, dispatched and holds accountable, and the map has
+ * to be able to say so without a caption doing all the work. So its subunits are
+ * enclosed rather than merely tinted.
+ *
+ * The shape is the convex hull of a disc of radius `pad` swept around every
+ * subunit, approximated by sampling each disc. That is one routine covering
+ * every count the fleet can produce: one subunit is a circle, two are a capsule,
+ * a formation is a rounded envelope — with no special case, no offset maths, and
+ * no possibility of the boundary cutting through a glyph it is supposed to
+ * contain.
+ */
+export function swarmHullPath(
+  points: readonly ScreenPoint[],
+  pad: number = SWARM_HULL_PAD
+): string | null {
+  if (points.length === 0) return null;
+  const swept: ScreenPoint[] = [];
+  for (const point of points) {
+    for (let i = 0; i < SWARM_HULL_ARC_STEPS; i += 1) {
+      const angle = (i / SWARM_HULL_ARC_STEPS) * Math.PI * 2;
+      swept.push({ x: point.x + Math.cos(angle) * pad, y: point.y + Math.sin(angle) * pad });
+    }
+  }
+  const hull = convexHull(swept);
+  if (hull.length < 3) return null;
+  return `${hull
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(" ")} Z`;
+}
+
+/**
+ * The swarm hull.
+ *
+ * Faint by construction. Depth here is load-bearing — it separates "these
+ * subunits are one commitment" from "these are aircraft in the same airspace" —
+ * but it sits under every other layer and never approaches the contrast of the
+ * objective mark, the darts or any caption. Amber when the swarm is under its
+ * requested strength, which is the one state on this surface worth colouring;
+ * never red.
+ */
+function SwarmHull({ d, tone }: { d: string; tone: string }) {
+  return (
+    <g>
+      <path d={d} fill={tone} opacity={0.035} />
+      <path d={d} fill="none" stroke={tone} strokeWidth={1} opacity={0.28} />
+    </g>
+  );
+}
+
 // ── Captions ─────────────────────────────────────────────────────────────────
 
 /**
@@ -421,13 +517,45 @@ const CAPTION_DX = 12;
 const CAPTION_DY = -6;
 /** Clear air between two caption blocks. Three pixels survives no encoder. */
 const CAPTION_GAP = 9;
-/** An objective caption is three tiers tall. So is a dock caption. */
+/** An objective caption is three tiers tall. So is a dock caption, and a swarm's. */
 const OBJECTIVE_CAPTION_H = 46;
 const DOCK_CAPTION_H = 46;
+const SWARM_CAPTION_H = 46;
+/**
+ * Footprint the swarm caption is placed against.
+ *
+ * Wider than `CAPTION_W`: the block's longest line is the `execution group` /
+ * `reinforcement` eyebrow at the 0.2em tracking this surface sets, and it is
+ * kept on one line — a wrapped eyebrow is both ugly and taller than the height
+ * the solver reserved for it, which puts the next block on top of it.
+ */
+export const SWARM_CAPTION_W = 152;
+
+/**
+ * The band the map may write in — the viewport minus the floating panels.
+ *
+ * Vertical bounds are what the caption solver has always needed. The sides
+ * matter to a caption anchored to a *formation* rather than to a single glyph:
+ * the camera composes each mark into the clear area, so a mark's own caption
+ * overhangs by a known amount, but a thirty-ship line's rightmost subunit sits
+ * hard against the right of that area and a caption hung off it lands on the
+ * authority panel.
+ */
+export type CaptionBand = {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+};
 
 /** Hold a fixed caption block inside the band the panels leave clear. */
 function clampCaption(y: number, h: number, safe: { top: number; bottom: number }): number {
   return Math.max(safe.top, Math.min(y, safe.bottom - h));
+}
+
+/** The same, across. Applied where a caption is not anchored to one glyph. */
+function clampCaptionX(x: number, w: number, safe: CaptionBand): number {
+  return Math.max(safe.left, Math.min(x, safe.right - w));
 }
 
 /**
@@ -563,8 +691,8 @@ export function MapOverlay({
   channels?: PayloadChannel[];
   /** Executors the surface names — the composition rows, not the whole fleet. */
   namedAgents: ReadonlySet<string>;
-  /** Vertical band the operating surfaces leave clear, in viewport pixels. */
-  safeArea: { top: number; bottom: number };
+  /** Band the operating surfaces leave clear, in viewport pixels. */
+  safeArea: CaptionBand;
   onSelectObjective: (key: string) => void;
   onSelectExecutor: (agentId: string | null) => void;
 }) {
@@ -683,6 +811,42 @@ export function MapOverlay({
     [objectives, projection, safeArea]
   );
 
+  /**
+   * The swarms of the focused objective, each as a form enclosing its subunits.
+   *
+   * Only the focused objective draws them, the same restraint the tethers
+   * already observe: hulls for every objective the session ever held would be a
+   * map of regions rather than a map of what is happening.
+   *
+   * A swarm is enclosed around the subunits actually *drawn*. Capacity folded
+   * into the dock mark has no glyph on the map, and drawing a boundary around a
+   * position where nothing appears would be the surface asserting a disposition
+   * it is not showing. So a swarm entirely back on its pad has no hull and no
+   * caption — it has stopped being a disposition and gone back to being reserve.
+   */
+  const swarmHulls = useMemo(() => {
+    if (!focused) return [];
+    const pointOf = new Map(marks.map((mark) => [mark.row.agentId, mark.point]));
+    const out: { swarm: SwarmComposition; d: string; anchor: ScreenPoint }[] = [];
+    for (const swarm of focused.swarms) {
+      const points = swarm.slots
+        .map((slot) => (slot.agentId ? pointOf.get(slot.agentId) ?? null : null))
+        .filter((point): point is ScreenPoint => point != null);
+      const d = swarmHullPath(points);
+      if (!d) continue;
+      out.push({
+        swarm,
+        d,
+        // Top-right of the form, which is where the caption hangs from.
+        anchor: {
+          x: Math.max(...points.map((point) => point.x)),
+          y: Math.min(...points.map((point) => point.y)),
+        },
+      });
+    }
+    return out;
+  }, [focused, marks]);
+
   const captioned = useMemo(
     () =>
       marks.filter((mark) =>
@@ -711,15 +875,43 @@ export function MapOverlay({
     [objectiveCaptions]
   );
 
-  const dockCaptions = useMemo(() => {
+  // A swarm caption ranks under the objective it serves and over the pad its
+  // subunits launched from: the objective is why anything is flying, the swarm
+  // is what is flying, and the dock is where it came from.
+  const swarmCaptions = useMemo(() => {
     const placed: { x: number; y: number; h: number }[] = [...objectiveBlocks];
+    return swarmHulls.map(({ swarm, d, anchor }) => {
+      // Above and outside the form it names, so it labels the swarm rather than
+      // sitting inside it among the subunits — and clamped into the clear band,
+      // because a wide disposition's right flank is hard against the authority
+      // panel. Both were measured at 1600x900 on the thirty-ship sweep.
+      const x = clampCaptionX(anchor.x + SWARM_HULL_PAD + 10, SWARM_CAPTION_W, safeArea);
+      const y = solveCaptionY(
+        placed,
+        x,
+        anchor.y - SWARM_HULL_PAD - SWARM_CAPTION_H - 8,
+        SWARM_CAPTION_H,
+        safeArea
+      );
+      placed.push({ x, y, h: SWARM_CAPTION_H });
+      return { swarm, d, at: { x, y } };
+    });
+  }, [swarmHulls, objectiveBlocks, safeArea]);
+
+  const swarmBlocks = useMemo(
+    () => swarmCaptions.map((c) => ({ ...c.at, h: SWARM_CAPTION_H })),
+    [swarmCaptions]
+  );
+
+  const dockCaptions = useMemo(() => {
+    const placed: { x: number; y: number; h: number }[] = [...objectiveBlocks, ...swarmBlocks];
     return docks.map((dock) => {
       const x = dock.point.x + DOCK_R + 12;
       const y = solveCaptionY(placed, x, dock.point.y - 30, DOCK_CAPTION_H, safeArea);
       placed.push({ x, y, h: DOCK_CAPTION_H });
       return { dock, at: { x, y } };
     });
-  }, [docks, objectiveBlocks, safeArea]);
+  }, [docks, objectiveBlocks, swarmBlocks, safeArea]);
 
   const captions = useMemo(
     () =>
@@ -727,12 +919,13 @@ export function MapOverlay({
         captioned,
         [
           ...objectiveBlocks,
+          ...swarmBlocks,
           ...dockCaptions.map((c) => ({ ...c.at, h: DOCK_CAPTION_H })),
         ],
         captionHeights,
         safeArea
       ),
-    [captioned, objectiveBlocks, dockCaptions, captionHeights, safeArea]
+    [captioned, objectiveBlocks, swarmBlocks, dockCaptions, captionHeights, safeArea]
   );
 
   return (
@@ -741,6 +934,15 @@ export function MapOverlay({
         className="pointer-events-none absolute inset-0 z-10 h-full w-full"
         aria-hidden="true"
       >
+        {/* -1 — the swarms themselves, under everything. A hull that competed
+            with the objective mark or a caption would be decoration; this one
+            only has to separate one commitment from another. */}
+        {swarmCaptions.map(({ swarm, d }) => (
+          <g key={swarm.groupId} data-testid={`swarm-hull-${swarm.groupId}`}>
+            <SwarmHull d={d} tone={swarm.underStrength ? "#FFB45C" : "#7BE7FF"} />
+          </g>
+        ))}
+
         {/* 4 — observed tracks, furthest back. */}
         {objectives.map((objective) =>
           objective.routes.map((route) => (
@@ -762,8 +964,8 @@ export function MapOverlay({
               const failing = slot.memberState === "FAILED" || slot.adapting;
               return (
                 <Tether
-                  key={`${focused.key}:${slot.role}:${slot.agentId}`}
-                  drawKey={`${focused.key}:${slot.role}:${slot.agentId}`}
+                  key={`${slot.groupId ?? focused.key}:${slot.role}:${slot.agentId}`}
+                  drawKey={`${slot.groupId ?? focused.key}:${slot.role}:${slot.agentId}`}
                   from={mark.point}
                   to={projection.project(focused.geo)}
                   tone={failing ? "#FFB45C" : "#7BE7FF"}
@@ -883,6 +1085,42 @@ export function MapOverlay({
           </button>
         );
       })}
+
+      {/* Swarm captions. The identity SwarmOS composed, and the strength it is
+          holding against the strength it was asked for. `reinforcement` is the
+          published `reinforces_group_id`, never a guess from a shared
+          objective — two swarms can serve one objective without one having been
+          sent to reinforce the other. */}
+      {swarmCaptions.map(({ swarm, at }) => (
+        <div
+          key={swarm.groupId}
+          data-testid={`swarm-caption-${swarm.groupId}`}
+          className="pointer-events-none absolute z-20 text-left"
+          style={{ left: at.x, top: at.y, whiteSpace: "nowrap" }}
+        >
+          <div
+            className={`font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.2em] ${
+              swarm.reinforcesGroupId ? "text-launch-amber" : "text-muted-silver"
+            }`}
+          >
+            {swarm.reinforcesGroupId ? "reinforcement" : "execution group"}
+          </div>
+          <div
+            className={`mt-[5px] font-mono text-[13px] leading-none tracking-[0.08em] ${
+              swarm.underStrength ? "text-launch-amber" : "text-platinum"
+            }`}
+          >
+            <span data-testid={`swarm-strength-${swarm.groupId}`}>
+              {String(swarm.heldMembers).padStart(2, "0")} /{" "}
+              {String(swarm.requestedMembers).padStart(2, "0")}
+            </span>{" "}
+            ROLES
+          </div>
+          <div className="mt-[5px] font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-ash">
+            {swarm.label}
+          </div>
+        </div>
+      ))}
 
       {/* Dock captions. The numerator is the number of `UnitState` frames
           reporting DOCKED on this pad right now, the denominator every executor

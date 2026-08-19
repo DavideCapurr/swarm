@@ -228,12 +228,17 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
   );
   const imagery = useImageryStatus(tiles[0]?.url ?? null);
 
-  // The band the map may write captions into. The same inset the camera
-  // composes against, so a caption can never be solved onto a panel the camera
-  // was careful to compose around.
+  // The band the map may write captions into, on all four sides. The same inset
+  // the camera composes against, so a caption can never be solved onto a panel
+  // the camera was careful to compose around.
   const safeArea = useMemo(
-    () => ({ top: INSET.top, bottom: box.height - INSET.bottom }),
-    [box.height]
+    () => ({
+      top: INSET.top,
+      bottom: box.height - INSET.bottom,
+      left: INSET.left,
+      right: box.width - INSET.right,
+    }),
+    [box.height, box.width]
   );
 
   // Bounded-response channels for the focused objective only: the light and the

@@ -23,7 +23,12 @@
  * Nothing here is composed by the Console.
  */
 
-import type { CapacityRow, CompositionSlot, ObjectiveAuthority } from "@/lib/authority";
+import type {
+  CapacityRow,
+  CompositionSlot,
+  ObjectiveAuthority,
+  SwarmComposition,
+} from "@/lib/authority";
 import {
   capacitySummary,
   capacitySummaryLabel,
@@ -344,6 +349,54 @@ function ObjectiveIdentity({ objective }: { objective: ObjectiveAuthority }) {
   );
 }
 
+/**
+ * One swarm's header, when the objective holds more than one.
+ *
+ * With a single swarm the objective's own `ROLES HELD` already is the swarm's
+ * strength and this header would say it twice. With two it is the only place
+ * the reading can live: an objective-wide `04 / 06` cannot tell an operator
+ * *which* unit is short, and "swarm 01 is under strength" is the fact that
+ * changes what happens next.
+ *
+ * Amber below requested strength. Never red — a swarm serving an objective at
+ * partial strength is doing exactly what ADR-0012 asks it to, and an alarm
+ * colour would misreport a deliberate outcome as a fault.
+ */
+function SwarmHeader({ swarm }: { swarm: SwarmComposition }) {
+  const reinforcing = swarm.reinforcesGroupId != null;
+  return (
+    <div
+      className="flex items-start justify-between gap-3 px-3 pb-[8px] pt-[11px]"
+      data-testid={`swarm-${swarm.groupId}`}
+      style={swarm.index > 1 ? { borderTop: `1px solid ${HAIRLINE}` } : undefined}
+    >
+      <div className="flex flex-col gap-[6px]">
+        <Label tone={reinforcing ? "amber" : "silver"}>
+          {reinforcing ? "reinforcement" : "execution group"}
+        </Label>
+        {reinforcing ? (
+          <Mono size={9} tone="ash" className="uppercase">
+            reinforces {groupLabel(swarm.reinforcesGroupId)}
+          </Mono>
+        ) : null}
+      </div>
+      <div className="flex flex-col items-end gap-[6px]">
+        <Mono size={10} tone="ash">
+          {swarm.label}
+        </Mono>
+        <Mono
+          size={11}
+          tone={swarm.underStrength ? "amber" : "platinum"}
+          data-testid={`swarm-strength-${swarm.groupId}`}
+        >
+          {String(swarm.heldMembers).padStart(2, "0")} /{" "}
+          {String(swarm.requestedMembers).padStart(2, "0")}
+        </Mono>
+      </div>
+    </div>
+  );
+}
+
 function Composition({
   objective,
   beat,
@@ -357,27 +410,51 @@ function Composition({
   const altitudeOf = new Map(capacity.map((row) => [row.agentId, row.altitudeAglM]));
   // A three-role cooperative objective lists all three. A thirty-ship sweep
   // lists the rows that need reading and states the rest.
+  //
+  // One digest over the whole objective, not one per swarm: `ConsoleSurface`
+  // derives `namedAgents` from this same call, and the map, the composition and
+  // the roster naming three different sets of executors is the defect that rule
+  // exists to prevent. Sectioning happens on render.
   const digest = compositionDigest(objective.slots);
+  const sectioned = objective.swarms.length > 1;
+  const rowsBySwarm = new Map<number, CompositionSlot[]>();
+  for (const slot of digest.rows) {
+    const bucket = rowsBySwarm.get(slot.swarmIndex);
+    if (bucket) bucket.push(slot);
+    else rowsBySwarm.set(slot.swarmIndex, [slot]);
+  }
+
+  const row = (slot: CompositionSlot) => (
+    <SlotRow
+      key={`${slot.groupId ?? "single"}:${slot.role}:${slot.index}`}
+      slot={slot}
+      beat={beat}
+      altitudeAglM={slot.agentId ? altitudeOf.get(slot.agentId) ?? null : null}
+    />
+  );
+
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-3 px-3 pb-[8px] pt-[11px]">
-        <Label tone="silver">{composed ? "execution group" : "mission assignment"}</Label>
-        <Mono size={10} tone="ash">
-          {composed ? groupLabel(objective.groupId) : "SINGLE EXECUTOR"}
-        </Mono>
-      </div>
+      {sectioned ? null : (
+        <div className="flex items-baseline justify-between gap-3 px-3 pb-[8px] pt-[11px]">
+          <Label tone="silver">{composed ? "execution group" : "mission assignment"}</Label>
+          <Mono size={10} tone="ash">
+            {composed ? groupLabel(objective.groupId) : "SINGLE EXECUTOR"}
+          </Mono>
+        </div>
+      )}
 
       {beat.phase !== "idle" ? <AdaptationBanner beat={beat} /> : null}
 
       <div className="flex flex-col">
-        {digest.rows.map((slot) => (
-          <SlotRow
-            key={`${slot.role}:${slot.index}`}
-            slot={slot}
-            beat={beat}
-            altitudeAglM={slot.agentId ? altitudeOf.get(slot.agentId) ?? null : null}
-          />
-        ))}
+        {sectioned
+          ? objective.swarms.map((swarm) => (
+              <div key={swarm.groupId} className="flex flex-col">
+                <SwarmHeader swarm={swarm} />
+                {(rowsBySwarm.get(swarm.index) ?? []).map(row)}
+              </div>
+            ))
+          : digest.rows.map(row)}
         {digest.hidden ? (
           <div
             className="flex items-center gap-3 px-3 py-[9px]"
@@ -489,7 +566,11 @@ function SlotRow({
   return (
     <div
       className="flex items-start gap-3 px-3 py-[9px]"
-      data-testid={`slot-${slot.role}`}
+      /* Scoped by the swarm holding the role: two swarms on one objective can
+         hold the same role name, and an ambiguous hook is a measurement that
+         silently reads the wrong row. A single-executor objective has no swarm
+         to scope by and keeps the bare role. */
+      data-testid={slot.groupId ? `slot-${slot.groupId}-${slot.role}` : `slot-${slot.role}`}
       style={{
         borderTop: `1px solid ${HAIRLINE}`,
         background: highlighted ? "rgba(19, 25, 32, 0.6)" : "transparent",

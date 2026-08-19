@@ -365,6 +365,9 @@ describe("compositionDigest", () => {
     replacesAgentId: null,
     replacedAgentId: null,
     adapting: false,
+    groupId: "group-1",
+    swarmIndex: 1,
+    reinforcement: false,
     ...over,
   });
 
@@ -395,6 +398,21 @@ describe("compositionDigest", () => {
 
     expect(shown).toContain(28);
     expect(shown).toContain(29);
+    expect(digest.hidden?.count).toBe(25);
+  });
+
+  it("never summarises away a role a reinforcing swarm just brought in", () => {
+    // At this scale the reinforcement is exactly what a summary would fold
+    // away, and it is the only thing on the objective that just changed.
+    const slots = Array.from({ length: 30 }, (_, i) => slot(i + 1));
+    slots[20] = slot(21, { groupId: "group-2", swarmIndex: 2, reinforcement: true });
+    slots[21] = slot(22, { groupId: "group-2", swarmIndex: 2, reinforcement: true });
+
+    const digest = compositionDigest(slots, 5);
+    const shown = digest.rows.map((s) => s.index);
+
+    expect(shown).toContain(21);
+    expect(shown).toContain(22);
     expect(digest.hidden?.count).toBe(25);
   });
 
@@ -458,5 +476,208 @@ describe("composition time", () => {
       })
     );
     expect(view.objectives[0].decisionAt).toBe("2026-08-15T17:28:50.000Z");
+  });
+});
+
+
+/**
+ * An objective can hold several swarms.
+ *
+ * ADR-0012 made reinforcement a *second* `ExecutionGroup` against the same
+ * objective, carrying `reinforces_group_id`. Read one group at a time, that is
+ * a second objective: a second tab, a second mark, and — because focus follows
+ * the newest active objective — the surface leaving the beat at the moment the
+ * beat lands. These hold the grouping to the field SwarmOS actually publishes.
+ */
+describe("swarms on one objective", () => {
+  const ORIGIN: ExecutionGroup = {
+    id: "group-1",
+    objective_mission_id: "parent-1",
+    objective_kind: "COOPERATIVE_VERIFY",
+    anomaly_id: "anom-1",
+    requested_members: 3,
+    state: "ACTIVE",
+    failure_reason: null,
+    ts: "2026-08-15T17:29:00.000Z",
+    members: [
+      {
+        agent_id: "mav-004",
+        role: "PRIMARY_OBSERVER",
+        mission_id: "child-a",
+        state: "ACTIVE",
+        score: 2.26,
+        score_breakdown: {},
+        replaces_agent_id: null,
+        ts: "2026-08-15T17:29:00.000Z",
+      },
+      {
+        agent_id: "mav-002",
+        role: "OVERWATCH",
+        mission_id: "child-c",
+        state: "ACTIVE",
+        score: 2.25,
+        score_breakdown: {},
+        replaces_agent_id: null,
+        ts: "2026-08-15T17:29:00.000Z",
+      },
+    ],
+  };
+
+  const REINFORCEMENT: ExecutionGroup = {
+    id: "group-2",
+    objective_mission_id: "parent-1",
+    objective_kind: "COOPERATIVE_VERIFY",
+    anomaly_id: "anom-1",
+    reinforces_group_id: "group-1",
+    requested_members: 2,
+    state: "ACTIVE",
+    failure_reason: null,
+    ts: "2026-08-15T17:29:40.000Z",
+    members: [
+      {
+        agent_id: "mav-001",
+        role: "SECONDARY_OBSERVER",
+        mission_id: "child-d",
+        state: "ACTIVE",
+        score: 2.2,
+        score_breakdown: {},
+        replaces_agent_id: null,
+        ts: "2026-08-15T17:29:40.000Z",
+      },
+      {
+        agent_id: "mav-003",
+        role: "OVERWATCH",
+        mission_id: "child-e",
+        state: "ACTIVE",
+        score: 2.1,
+        score_breakdown: {},
+        replaces_agent_id: null,
+        ts: "2026-08-15T17:29:40.000Z",
+      },
+    ],
+  };
+
+  it("holds both swarms inside one objective, oldest first", () => {
+    const view = buildAuthorityView(
+      input({ executionGroups: [ORIGIN, REINFORCEMENT] })
+    );
+
+    expect(view.objectives).toHaveLength(1);
+    const objective = view.objectives[0];
+    expect(objective.swarms.map((s) => s.groupId)).toEqual(["group-1", "group-2"]);
+    expect(objective.swarms[0].reinforcesGroupId).toBeNull();
+    expect(objective.swarms[1].reinforcesGroupId).toBe("group-1");
+    // The objective's strength is the strength every swarm was asked for.
+    expect(objective.requestedMembers).toBe(5);
+    expect(objective.slots).toHaveLength(4);
+  });
+
+  it("keeps the objective's identity and its decision time on the swarm that took it", () => {
+    const before = buildAuthorityView(input({ executionGroups: [ORIGIN] }));
+    const after = buildAuthorityView(
+      input({ executionGroups: [ORIGIN, REINFORCEMENT] })
+    );
+
+    // The trap this phase exists to close: a reinforcement must not create an
+    // objective, re-date one, or take focus off the one already running.
+    expect(after.objectives[0].key).toBe(before.objectives[0].key);
+    expect(after.objectives[0].decisionAt).toBe(before.objectives[0].decisionAt);
+    expect(after.defaultFocusKey).toBe(before.defaultFocusKey);
+    expect(
+      after.objectives[0].trace.find((stage) => stage.name === "COMPOSED")?.at
+    ).toBe(before.objectives[0].trace.find((stage) => stage.name === "COMPOSED")?.at);
+  });
+
+  it("stamps every role of a reinforcing swarm as reinforcement provenance", () => {
+    const view = buildAuthorityView(
+      input({ executionGroups: [ORIGIN, REINFORCEMENT] })
+    );
+    const slots = view.objectives[0].slots;
+
+    expect(slots.filter((slot) => slot.reinforcement)).toHaveLength(2);
+    expect(slots.filter((slot) => slot.swarmIndex === 2)).toHaveLength(2);
+    expect(slots.filter((slot) => slot.groupId === "group-1")).toHaveLength(2);
+    // Provenance, not inference: nothing here is derived from the shared anomaly.
+    expect(slots.every((slot) => slot.reinforcement === (slot.groupId === "group-2"))).toBe(
+      true
+    );
+  });
+
+  it("states each swarm's own strength against what it was asked for", () => {
+    const short: ExecutionGroup = { ...ORIGIN, requested_members: 4 };
+    const view = buildAuthorityView(
+      input({ executionGroups: [short, REINFORCEMENT] })
+    );
+    const [first, second] = view.objectives[0].swarms;
+
+    // ADR-0012: the shortfall carries no field of its own. It is what was asked
+    // for against what was committed.
+    expect(first.composedMembers).toBe(2);
+    expect(first.requestedMembers).toBe(4);
+    expect(first.underStrength).toBe(true);
+    expect(second.underStrength).toBe(false);
+  });
+
+  it("does not group two groups that merely share an objective", () => {
+    // ADR-0012 §3: a reader that grouped on a shared anomaly or objective
+    // mission would be inventing a relationship SwarmOS never published.
+    const unlinked: ExecutionGroup = { ...REINFORCEMENT, reinforces_group_id: null };
+    const view = buildAuthorityView(input({ executionGroups: [ORIGIN, unlinked] }));
+
+    expect(view.objectives).toHaveLength(2);
+    expect(view.objectives.every((objective) => objective.swarms.length === 1)).toBe(true);
+  });
+
+  it("leaves a group standing alone when its named swarm is absent or inconsistent", () => {
+    const dangling: ExecutionGroup = {
+      ...REINFORCEMENT,
+      reinforces_group_id: "group-never-published",
+    };
+    expect(
+      buildAuthorityView(input({ executionGroups: [ORIGIN, dangling] })).objectives
+    ).toHaveLength(2);
+
+    const otherObjective: ExecutionGroup = {
+      ...REINFORCEMENT,
+      objective_mission_id: "parent-2",
+    };
+    expect(
+      buildAuthorityView(input({ executionGroups: [ORIGIN, otherObjective] })).objectives
+    ).toHaveLength(2);
+
+    const selfReferential: ExecutionGroup = {
+      ...REINFORCEMENT,
+      reinforces_group_id: "group-2",
+    };
+    expect(
+      buildAuthorityView(input({ executionGroups: [ORIGIN, selfReferential] })).objectives
+    ).toHaveLength(2);
+  });
+
+  it("reads a swarm still forming without calling the whole objective COMPOSING", () => {
+    const forming: ExecutionGroup = {
+      ...REINFORCEMENT,
+      state: "FORMING",
+      members: [],
+      ts: "2026-08-15T17:29:40.000Z",
+    };
+    const view = buildAuthorityView(input({ executionGroups: [ORIGIN, forming] }));
+
+    // Aircraft are over the target. A second swarm being composed does not
+    // un-execute the objective they are executing.
+    expect(view.objectives[0].state).toBe("EXECUTING");
+    expect(view.objectives[0].swarms[1].state).toBe("COMPOSING");
+  });
+
+  it("puts both swarms' executors on the same objective in the capacity roster", () => {
+    const view = buildAuthorityView(
+      input({ executionGroups: [ORIGIN, REINFORCEMENT] })
+    );
+    const rows = new Map(view.capacity.map((row) => [row.agentId, row]));
+
+    for (const agentId of ["mav-004", "mav-002", "mav-001", "mav-003"]) {
+      expect(rows.get(agentId)?.commitment).toBe("ASSIGNED");
+      expect(rows.get(agentId)?.objectiveKey).toBe("group-1");
+    }
   });
 });

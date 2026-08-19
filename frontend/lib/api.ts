@@ -421,6 +421,17 @@ export type ExecutionGroup = {
   objective_mission_id: string;
   objective_kind: string;
   anomaly_id: string | null;
+  /**
+   * Set when SwarmOS dispatched this group to reinforce an already-running one
+   * against the same objective. Published provenance, exactly like
+   * `ExecutionGroupMember.replaces_agent_id` — mirrors ADR-0012 and
+   * `core/swarm_core/execution_groups.py`. A reader must never infer the
+   * relationship from a shared `anomaly_id`.
+   *
+   * Optional rather than required because recorded fixtures predate the field;
+   * every live frame carries it, and every read site resolves it with `?? null`.
+   */
+  reinforces_group_id?: string | null;
   requested_members: number;
   members: ExecutionGroupMember[];
   state: ExecutionGroupState;
