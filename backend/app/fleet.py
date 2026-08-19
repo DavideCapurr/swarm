@@ -351,6 +351,12 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
         )
         or 3
     )
+    alarm_response_policy_enabled = _env_flag("SWARM_ALARM_RESPONSE_POLICY")
+    alarm_policy = (
+        _alarm_policy_from_env()
+        if alarm_response_policy_enabled
+        else AlarmResponsePolicy()
+    )
     return FleetManager(
         bus=bus,
         registry=registry or AdapterRegistry(),
@@ -363,8 +369,8 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
             maximum=1.0,
         ),
         cooperative_verify_team_size=cooperative_team_size,
-        alarm_response_policy_enabled=_env_flag("SWARM_ALARM_RESPONSE_POLICY"),
-        alarm_policy=_alarm_policy_from_env(),
+        alarm_response_policy_enabled=alarm_response_policy_enabled,
+        alarm_policy=alarm_policy,
         presence_response_enabled=_env_flag("SWARM_PRESENCE_RESPONSE"),
         presence_min_confidence=_env_float(
             "SWARM_PRESENCE_MIN_CONFIDENCE",
