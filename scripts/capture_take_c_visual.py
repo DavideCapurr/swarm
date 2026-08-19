@@ -12,12 +12,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
-from playwright.async_api import Page, async_playwright
+from playwright.async_api import Page, Response, async_playwright
 
 PLAYBACK_SCALE = 4
 VIEWPORT = {"width": 2560, "height": 1440}
@@ -64,10 +65,38 @@ def _system_chromium() -> str:
     return executable
 
 
+def _known_nonfatal_resource(error: dict[str, str | int]) -> bool:
+    parsed = urlparse(str(error["url"]))
+    if parsed.hostname == "server.arcgisonline.com":
+        return True
+    return (
+        parsed.hostname in {"localhost", "127.0.0.1"}
+        and parsed.path == "/favicon.ico"
+    )
+
+
+def _record_response(
+    response: Response,
+    resource_errors: list[dict[str, str | int]],
+) -> None:
+    if response.status >= 400:
+        resource_errors.append({"status": response.status, "url": response.url})
+
+
 async def _wait_surface(page: Page) -> None:
     await page.wait_for_selector('[data-testid="console-surface"]', timeout=30_000)
     await page.wait_for_selector('[data-testid="mission-authority"]', timeout=30_000)
     await page.wait_for_timeout(500)
+
+
+async def _select_intrusion(page: Page) -> None:
+    """Pin the already-rendered intrusion objective through the real UI control."""
+    button = page.get_by_role(
+        "button",
+        name=re.compile(r"\bINTRUSION\b", re.IGNORECASE),
+    ).first
+    await button.wait_for(state="visible", timeout=10_000)
+    await button.click()
 
 
 async def main() -> None:
@@ -93,6 +122,8 @@ async def main() -> None:
     await asyncio.to_thread(output.mkdir, parents=True, exist_ok=True)
     sample_times = _sample_times(capture)
     console_errors: list[str] = []
+    page_errors: list[str] = []
+    resource_errors: list[dict[str, str | int]] = []
     screenshots: dict[str, str] = {}
 
     async with async_playwright() as playwright:
@@ -108,7 +139,11 @@ async def main() -> None:
             if message.type == "error"
             else None,
         )
-        page.on("pageerror", lambda error: console_errors.append(str(error)))
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+        page.on(
+            "response",
+            lambda response: _record_response(response, resource_errors),
+        )
 
         for label, capture_at_ms in sample_times.items():
             await page.goto(
@@ -116,6 +151,7 @@ async def main() -> None:
                 wait_until="networkidle",
             )
             await _wait_surface(page)
+            await _select_intrusion(page)
             screenshot = output / f"take-c-{label}.png"
             await page.screenshot(path=str(screenshot), full_page=False)
             screenshots[label] = str(screenshot)
@@ -137,13 +173,18 @@ async def main() -> None:
             if message.type == "error"
             else None,
         )
-        video_page.on("pageerror", lambda error: console_errors.append(str(error)))
+        video_page.on("pageerror", lambda error: page_errors.append(str(error)))
+        video_page.on(
+            "response",
+            lambda response: _record_response(response, resource_errors),
+        )
         await video_page.goto(
             _replay_url(args.url, 0, controls=True),
             wait_until="networkidle",
         )
         await _wait_surface(video_page)
         await video_page.get_by_role("button", name="PLAY").click()
+        await _select_intrusion(video_page)
         await video_page.locator('[data-testid="replay-controls"]').evaluate(
             "element => { element.style.display = 'none'; }"
         )
@@ -160,6 +201,23 @@ async def main() -> None:
         await asyncio.to_thread(shutil.copy2, recorded_path, final_video)
         await browser.close()
 
+    nonfatal_resource_errors = [
+        error for error in resource_errors if _known_nonfatal_resource(error)
+    ]
+    fatal_resource_errors = [
+        error for error in resource_errors if not _known_nonfatal_resource(error)
+    ]
+    resource_console_errors = [
+        error
+        for error in console_errors
+        if error.startswith("Failed to load resource:")
+    ]
+    fatal_console_errors = [
+        error
+        for error in console_errors
+        if not error.startswith("Failed to load resource:")
+    ]
+
     manifest = {
         "source": str(capture_path),
         "provenance": capture["provenance"],
@@ -172,6 +230,9 @@ async def main() -> None:
         "screenshots": screenshots,
         "video": str(final_video),
         "console_errors": console_errors,
+        "page_errors": page_errors,
+        "resource_errors": resource_errors,
+        "nonfatal_resource_errors": nonfatal_resource_errors,
     }
     payload = json.dumps(manifest, indent=2) + "\n"
     await asyncio.to_thread(
@@ -179,8 +240,19 @@ async def main() -> None:
         payload,
         encoding="utf-8",
     )
-    if console_errors:
-        raise RuntimeError(f"browser console errors during Take C capture: {console_errors}")
+
+    unexplained_resource_console_error = bool(resource_console_errors) and not resource_errors
+    if (
+        page_errors
+        or fatal_console_errors
+        or fatal_resource_errors
+        or unexplained_resource_console_error
+    ):
+        raise RuntimeError(
+            "browser errors during Take C capture: "
+            f"page={page_errors} console={fatal_console_errors} "
+            f"resources={fatal_resource_errors}"
+        )
 
 
 if __name__ == "__main__":
