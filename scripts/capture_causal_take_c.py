@@ -249,6 +249,9 @@ async def _capture() -> dict[str, Any]:
         else:
             reserve_adapters.append(adapter)
 
+    # Only execution duration is shortened for the simulator. Demand thresholds,
+    # team size and reinforcement limits remain the reusable SwarmOS defaults;
+    # the Take C harness does not tune them to obtain a particular response.
     orchestrator = AlarmDrivenExecutionGroupOrchestrator(
         bus=bus,
         registry=registry,
@@ -256,13 +259,7 @@ async def _capture() -> dict[str, Any]:
         continuous_patrol=False,
         execute_disposition_retask=True,
         reinforcement_review_period_s=0.02,
-        max_reinforcements_per_objective=1,
-        alarm_policy=AlarmResponsePolicy(
-            cooperative_threshold=0.80,
-            high_confidence_threshold=0.93,
-            max_team_size=3,
-            cooperative_hover_s=2.0,
-        ),
+        alarm_policy=AlarmResponsePolicy(cooperative_hover_s=2.0),
     )
 
     groups: list[ExecutionGroup] = []
