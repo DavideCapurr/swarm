@@ -42,6 +42,9 @@ function slot(over: Partial<CompositionSlot> = {}): CompositionSlot {
     score: 2.26,
     replacesAgentId: null,
     replacedAgentId: null,
+    divertedAgentId: null,
+    divertedFromMissionId: null,
+    divertedFromObjectiveId: null,
     adapting: false,
     groupId: "group-1",
     swarmIndex: 1,
@@ -177,8 +180,6 @@ describe("swarmHullPath", () => {
       const d = swarmHullPath(points, 26);
       expect(d).not.toBeNull();
       const hull = vertices(d as string);
-      // A boundary that cut through a subunit it is supposed to contain would
-      // read as two units rather than one. Every point stays strictly inside.
       for (const point of points) {
         for (let i = 0; i < hull.length; i += 1) {
           const a = hull[i];
@@ -230,7 +231,6 @@ describe("the swarm on the map", () => {
     expect(container.querySelectorAll('[data-testid^="swarm-hull-"]')).toHaveLength(2);
     expect(getByTestId("swarm-caption-group-1")).toHaveTextContent("execution group");
     expect(getByTestId("swarm-strength-group-1")).toHaveTextContent("02 / 02");
-    // Provenance, stated: the second swarm was sent to reinforce the first.
     expect(getByTestId("swarm-caption-group-2")).toHaveTextContent("reinforcement");
     expect(getByTestId("swarm-caption-group-2")).toHaveTextContent("EG-group-2");
   });
@@ -258,9 +258,6 @@ describe("the swarm on the map", () => {
   });
 
   it("draws no hull around subunits the map folded into the dock mark", () => {
-    // Parked capacity the surface is not naming is drawn as the pad, not as
-    // itself. A boundary around positions carrying no glyph would assert a
-    // disposition the map is not showing.
     const docked = capacity
       .slice(0, 2)
       .map((r) => ({ ...r, fsmState: "DOCKED", altitudeAglM: 0 }));
@@ -273,9 +270,6 @@ describe("the swarm on the map", () => {
   });
 
   it("holds a wide formation's caption inside the band the panels leave clear", () => {
-    // Measured defect: hung off the rightmost subunit, a thirty-ship line put
-    // its own caption on the authority panel. Type painted over a panel is the
-    // one thing a recording cannot recover from.
     const wide = swarm({
       requestedMembers: 6,
       composedMembers: 6,
@@ -295,8 +289,6 @@ describe("the swarm on the map", () => {
       line
     );
 
-    // jsdom lays out no text, so the assertion is on the placement itself
-    // against the footprint the solver reserved for the block.
     const left = Number.parseFloat(getByTestId(`swarm-caption-${wide.groupId}`).style.left);
     expect(left).toBeGreaterThanOrEqual(INSET.left);
     expect(left + SWARM_CAPTION_W).toBeLessThanOrEqual(1600 - INSET.right);
@@ -314,7 +306,6 @@ describe("the swarm on the map", () => {
     expect(strength.parentElement?.className).toContain("text-launch-amber");
     const hull = container.querySelector('[data-testid="swarm-hull-group-1"] path');
     expect(hull?.getAttribute("fill")).toBe("#FFB45C");
-    // Amber is the whole escalation vocabulary. Nothing on this surface is red.
     expect(container.innerHTML).not.toContain("#FF0000");
   });
 });
