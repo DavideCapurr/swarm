@@ -20,6 +20,7 @@ import type {
 
 import { MapCanvas, useImageryStatus } from "./MapCanvas";
 import { MapOverlay } from "./MapOverlay";
+import { DispositionOverlay } from "./DispositionOverlay";
 import { DetectionPanel, DETECTION_WIDTH } from "./DetectionPanel";
 import { MissionTrace, TRACE_WIDTH } from "./MissionTrace";
 import { NarrationStrip, NARRATION_HEIGHT } from "./NarrationStrip";
@@ -217,19 +218,24 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
     >
       <MapCanvas tiles={tiles} status={imagery}>
         {projection ? (
-          <MapOverlay
-            projection={projection}
-            objectives={view.objectives}
-            capacity={view.capacity}
-            disposition={focusedDisposition}
-            focusKey={focusKey}
-            selectedExecutor={selectedExecutor}
-            namedAgents={namedAgents}
-            channels={channels}
-            safeArea={safeArea}
-            onSelectObjective={setHeldFocus}
-            onSelectExecutor={setSelectedExecutor}
-          />
+          <>
+            <MapOverlay
+              projection={projection}
+              objectives={view.objectives}
+              capacity={view.capacity}
+              focusKey={focusKey}
+              selectedExecutor={selectedExecutor}
+              namedAgents={namedAgents}
+              channels={channels}
+              safeArea={safeArea}
+              onSelectObjective={setHeldFocus}
+              onSelectExecutor={setSelectedExecutor}
+            />
+            <DispositionOverlay
+              projection={projection}
+              decision={focusedDisposition}
+            />
+          </>
         ) : null}
       </MapCanvas>
 
