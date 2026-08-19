@@ -18,6 +18,7 @@ from orchestrator.swarm_orchestrator.alarm_driven import (
 from orchestrator.swarm_orchestrator.alarm_policy import AlarmResponsePolicy
 from orchestrator.swarm_orchestrator.bus import InMemoryBus
 from orchestrator.swarm_orchestrator.disposition_execution_groups import DISPOSITION_TOPIC
+from orchestrator.swarm_orchestrator.execution_groups import MISSION_OBJECTIVE_TOPIC
 from sim.swarm_sim.external_events import (
     CAPACITY_AVAILABLE_TOPIC,
     CapacityAvailable,
@@ -118,10 +119,24 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
     await asyncio.sleep(0.02)
 
     try:
-        # Scripted input 1: a baseline coverage objective exists. SwarmOS chooses
-        # its executors and owns its minimum-capacity/preemption contract.
+        # External input 1: a baseline coverage service objective exists. The
+        # scenario publishes desired/minimum service demand; SwarmOS creates the
+        # group and chooses every executor.
         coverage = _coverage_objective(world.dock)
-        donor = await orchestrator.dispatch_execution_group(coverage)
+        await bus.publish(MISSION_OBJECTIVE_TOPIC, coverage.model_dump_json())
+        await _wait_until(
+            lambda: any(
+                group.objective_mission_id == coverage.id
+                and group.reinforces_group_id is None
+                for group in orchestrator.execution_groups.values()
+            )
+        )
+        donor = next(
+            group
+            for group in orchestrator.execution_groups.values()
+            if group.objective_mission_id == coverage.id
+            and group.reinforces_group_id is None
+        )
         assert len(donor.members) == 3
 
         await _wait_until(
@@ -130,7 +145,7 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
             )
         )
 
-        # Scripted input 2: an intrusion appears. The alarm contains no executor,
+        # External input 2: an intrusion appears. The alarm contains no executor,
         # swarm, role, reinforcement, replacement or geometry instruction.
         alarm = Anomaly(
             id="causal-take-c-alarm",
@@ -199,7 +214,7 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
         assert donor_live >= donor_demand.minimum_capacity
         assert donor_now.state is ExecutionGroupState.DEGRADED
 
-        # Scripted input 3 is literally only "capacity becomes available". The
+        # External input 3 is literally only "capacity becomes available". The
         # event schema forbids executor IDs or response instructions. The sim
         # exposes configured reserve hardware, then the already-running SwarmOS
         # loop decides whether to use any of it.
@@ -238,7 +253,15 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
             )
         )
 
-        # Scripted input 4: one currently active physical executor fails. Its
+        # The temporary shortfall record is allowed to disappear once demand is
+        # satisfied. Later failure/replacement must still retain the second swarm
+        # via durable ExecutionGroup provenance, not a timing-dependent record.
+        await _wait_until(
+            lambda: response.id not in orchestrator._reinforcement_records,
+            within_s=1.0,
+        )
+
+        # External input 4: one currently active physical executor fails. Its
         # identity is an external world fact; the event cannot name a replacement,
         # role reassignment, reinforcement or formation response.
         failed_assignment = reinforcement.assignments[0]
