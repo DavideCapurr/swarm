@@ -212,3 +212,80 @@ async def test_reinforcement_automatically_widens_and_retasks_existing_members()
 
     await _cleanup(orchestrator)
     await bus.close()
+
+
+@pytest.mark.asyncio
+async def test_disposition_survives_reinforcement_shortfall_record_cleanup() -> None:
+    bus = InMemoryBus()
+    await bus.connect()
+    registry = AdapterRegistry()
+    for idx in range(1, 4):
+        registry.register(HoldingAdapter(f"agent-{idx}"))  # type: ignore[arg-type]
+
+    orchestrator = StaticDispositionOrchestrator(
+        bus=bus,
+        registry=registry,
+        fleet_fixture=[
+            _state("agent-1", AgentState.DOCKED),
+            _state("agent-2", AgentState.DOCKED),
+            _state("agent-3", AgentState.OFFLINE),
+        ],
+        execute_disposition_retask=False,
+        max_reinforcements_per_objective=1,
+    )
+    objective_geo = Geo(lat=45.001, lon=9.001)
+    objective = COOPERATIVE_VERIFY(
+        geo=objective_geo,
+        team_size=3,
+        minimum_capacity=2,
+        hover_s=60.0,
+        priority=90,
+    )
+
+    first_listener = asyncio.create_task(_next_disposition(bus))
+    await asyncio.sleep(0)
+    origin = await orchestrator.dispatch_execution_group(objective)
+    await asyncio.wait_for(first_listener, timeout=1.0)
+
+    orchestrator.fleet_fixture = [
+        _state("agent-1", AgentState.EN_ROUTE),
+        _state("agent-2", AgentState.EN_ROUTE),
+        _state("agent-3", AgentState.DOCKED),
+    ]
+    second_listener = asyncio.create_task(_next_disposition(bus))
+    await asyncio.sleep(0)
+    reinforcements = await orchestrator.review_reinforcements()
+    await asyncio.wait_for(second_listener, timeout=1.0)
+    assert len(reinforcements) == 1
+
+    # A normal later review cleans the now-satisfied shortfall record. Durable
+    # objective membership and the original objective center must still survive.
+    assert await orchestrator.review_reinforcements() == []
+    assert origin.id not in orchestrator._reinforcement_records
+    assert [group.id for group in orchestrator._objective_groups(origin.id)] == [
+        origin.id,
+        reinforcements[0].id,
+    ]
+    assert orchestrator._objective_center(origin.id) == objective_geo
+
+    # Force a new revision as a stand-in for a later membership change. The
+    # resulting frame must still cover both groups and remain centered on the
+    # original objective, not on a previously assigned station.
+    orchestrator._disposition_signatures.pop(origin.id, None)
+    third_listener = asyncio.create_task(_next_disposition(bus))
+    await asyncio.sleep(0)
+    await orchestrator._reconcile_disposition(origin.id, reason="REPLACEMENT")
+    third = await asyncio.wait_for(third_listener, timeout=1.0)
+
+    assert third.revision == 3
+    assert third.reason == "REPLACEMENT"
+    assert third.active_members == 3
+    assert third.center == objective_geo
+    assert {assignment.agent_id for assignment in third.assignments} == {
+        "agent-1",
+        "agent-2",
+        "agent-3",
+    }
+
+    await _cleanup(orchestrator)
+    await bus.close()
