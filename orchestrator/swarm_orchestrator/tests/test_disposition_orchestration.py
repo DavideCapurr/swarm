@@ -215,7 +215,7 @@ async def test_reinforcement_automatically_widens_and_retasks_existing_members()
 
 
 @pytest.mark.asyncio
-async def test_disposition_survives_reinforcement_shortfall_record_cleanup() -> None:
+async def test_disposition_keeps_all_groups_after_shortfall_is_satisfied() -> None:
     bus = InMemoryBus()
     await bus.connect()
     registry = AdapterRegistry()
@@ -258,10 +258,13 @@ async def test_disposition_survives_reinforcement_shortfall_record_cleanup() -> 
     await asyncio.wait_for(second_listener, timeout=1.0)
     assert len(reinforcements) == 1
 
-    # A normal later review cleans the now-satisfied shortfall record. Durable
-    # objective membership and the original objective center must still survive.
+    # Demand-aware orchestration keeps the live objective record after demand is
+    # satisfied. Disposition membership itself is derived from durable group
+    # provenance, so a later revision still covers origin + reinforcement.
     assert await orchestrator.review_reinforcements() == []
-    assert origin.id not in orchestrator._reinforcement_records
+    record = orchestrator._reinforcement_records.get(origin.id)
+    assert record is not None
+    assert record.unfilled_plans == []
     assert [group.id for group in orchestrator._objective_groups(origin.id)] == [
         origin.id,
         reinforcements[0].id,
