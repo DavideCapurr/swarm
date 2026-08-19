@@ -66,6 +66,11 @@ class ExecutionGroup(BaseModel):
     objective_mission_id: str
     objective_kind: str
     anomaly_id: str | None = None
+    # Set when SwarmOS dispatched this group to reinforce an already-running one
+    # against the same objective. Published provenance, exactly like
+    # `ExecutionGroupMember.replaces_agent_id` — a reader must never have to
+    # infer the relationship from a shared `anomaly_id`.
+    reinforces_group_id: str | None = None
     requested_members: int = Field(..., ge=1)
     members: list[ExecutionGroupMember] = Field(default_factory=list)
     state: ExecutionGroupState = ExecutionGroupState.FORMING
