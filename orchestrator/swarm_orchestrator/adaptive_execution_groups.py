@@ -23,20 +23,6 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 
-from orchestrator.swarm_orchestrator.capacity import (
-    CapacitySource,
-    choose_capacity,
-    evaluate_capacity,
-    objective_key,
-)
-from orchestrator.swarm_orchestrator.execution_groups import (
-    _ObjectiveReinforcementRecord,
-    ExecutionGroupOrchestrator,
-    ExecutionRolePlan,
-    ReinforcementObservation,
-    RUNNING_GROUP_STATES,
-)
-from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT
 from swarm_core.execution_groups import (
     ExecutionGroup,
     ExecutionGroupMemberState,
@@ -45,6 +31,21 @@ from swarm_core.execution_groups import (
 from swarm_core.messages import Geo, MissionTask
 from swarm_core.missions import PATROL, MissionKind
 from swarm_core.objectives import demand_for_mission, stamp_objective_demand
+
+from orchestrator.swarm_orchestrator.capacity import (
+    CapacitySource,
+    choose_capacity,
+    evaluate_capacity,
+    objective_key,
+)
+from orchestrator.swarm_orchestrator.execution_groups import (
+    RUNNING_GROUP_STATES,
+    ExecutionGroupOrchestrator,
+    ExecutionRolePlan,
+    ReinforcementObservation,
+    _ObjectiveReinforcementRecord,
+)
+from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT
 
 
 _LOST_STATES = frozenset(
