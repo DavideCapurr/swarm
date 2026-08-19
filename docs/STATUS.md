@@ -2,7 +2,7 @@
 
 Live status for the current technical state. Historical phase notes live in [`STATUS-archive.md`](STATUS-archive.md).
 
-## Current state — 2026-08-18
+## Current state — 2026-08-19
 
 SWARM has an end-to-end PX4 SITL coordination path, first-class SwarmOS-owned multi-agent `ExecutionGroup`s, live member replacement, and an operator Console that renders backend-owned allocation/runtime/payload truth.
 
@@ -31,6 +31,8 @@ The MAVLink/PX4 path remains **SITL-validated, not bench- or field-validated on 
 | Bounded payload presence response | **PX4 SITL output-confirmed; speaker explicitly simulated** |
 | First-class one-mission multi-agent `ExecutionGroup` | **implemented and live four-PX4 SITL-validated** |
 | Live execution-group member failure/replacement | **validated with PX4 process SIGKILL while `EN_ROUTE`** |
+| Partial-strength group composition | **implemented; orchestrator-test-validated only, no SITL run** |
+| Reinforcement of a running objective by a second group | **implemented behind a policy seam; orchestrator-test-validated only, no SITL run** |
 | Intrusion demo Console `/demo/intrusion` | **final demo surface; truth renderer** |
 | Final demo rehearsal | **3 consecutive clean PASS takes, ~62 s each (2026-08-15); Console surface re-verified 2026-08-18** |
 | Same-aircraft preemption/diversion | **not implemented / not claimed** |
@@ -115,6 +117,39 @@ The runtime then:
 7. completed the aggregate `ExecutionGroup`.
 
 No surviving physical agent selected or commanded the spare.
+
+### Partial-strength composition and reinforcement — 2026-08-19
+
+ADR [`adr/0012-partial-strength-composition-and-reinforcement.md`](adr/0012-partial-strength-composition-and-reinforcement.md). Validated in the orchestrator test suite only. **No PX4 SITL or physical run of this behavior has been observed**, so it does not extend the SITL claim boundary of the two sections above.
+
+**Fail-before proof.** Both source files were stashed, leaving the new tests against unmodified `main`:
+
+```
+git stash push -- orchestrator/swarm_orchestrator/execution_groups.py core/swarm_core/execution_groups.py
+.venv/bin/pytest orchestrator/swarm_orchestrator/tests/test_execution_groups.py
+```
+
+The reinforcement tests could not even import (`ImportError: cannot import name 'ReinforcementObservation'`). Re-run with the reinforcement API removed from the test module, the composition-contract test failed on behavior rather than import:
+
+```
+assert len(terminal.members) == 2
+E  AssertionError: assert 0 == 2
+E   where [] = ExecutionGroup(... failure_reason='INSUFFICIENT_ELIGIBLE_CAPACITY' ...).members
+```
+
+That is the old contract: two eligible executors, a three-role objective, zero dispatched.
+
+**After.** `.venv/bin/pytest orchestrator/swarm_orchestrator/tests/test_execution_groups.py -q` → **18 passed in 0.15s**, up from 5. What the new tests showed:
+
+- *partial composition dispatches what it can* — the same two-eligible/three-role objective now returns `requested_members=3`, `len(members)=2`, `failure_reason=None`, roles `PRIMARY_OBSERVER` + `SECONDARY_OBSERVER`, one child mission executed per adapter, group reaching `COMPLETED`;
+- *a fully unfillable objective still refuses* — both executors below `MIN_BATTERY_PCT`: `FAILED`, `INSUFFICIENT_ELIGIBLE_CAPACITY`, `members == []`, no adapter executed, `_busy` empty;
+- *the policy gates reinforcement* — `shortfall_reinforcement_policy` returns each named reason under its own condition (`GROUP_NOT_RUNNING` for `COMPLETED` and `FAILED`, `REINFORCEMENT_LIMIT` at cap and at `max_reinforcements=0`, `AT_REQUESTED_STRENGTH` at full strength, `NO_ELIGIBLE_CAPACITY` at zero capacity) and clamps `strength` to `eligible_agents`. With `max_reinforcements_per_objective=0`, capacity available and the mechanism ready, `review_reinforcements()` returned `[]` and the spare adapter never executed — the judgement alone withheld it;
+- *`reinforces_group_id` is set on the reinforcing group* — with `agent-3` restored to eligibility mid-flight, `review_reinforcements()` dispatched one new group with `reinforces_group_id == origin.id`, `requested_members=1`, member `agent-3` in role `OVERWATCH`, the same `objective_mission_id` and `anomaly_id`, a distinct child mission id, and `replaces_agent_id is None` on every member. The originating group's two members were unchanged and its own `reinforces_group_id` stayed `None`. Frames captured off `swarm:execution-groups` confirmed the field is published, not only held in memory;
+- *replacement behaviour and its cap are unchanged* — a role failing twice under `max_group_replacements_per_role=1` still ends `FAILED` / `ROLE_FAILED:PRIMARY_OBSERVER:REPLACEMENT_LIMIT` with exactly one `replaces_agent_id` member, and no group in that run carried `reinforces_group_id`. The two pre-existing replacement tests are unmodified and pass.
+
+**Gates.** `make lint` clean (ruff `All checks passed`, mypy `no issues found in 217 source files`, `tsc --noEmit` clean). `make test-python` → **966 passed, 23 skipped, 3 deselected**, coverage 88.67% against the 80% gate, `execution_groups.py` at 85%. `make audit` clean (`No known vulnerabilities found` ×2, bandit `No issues identified`, pymavlink and CV asset integrity `PASS`). No suppression was added.
+
+**Not green, pre-existing, unrelated to this change:** `make test-frontend` fails all 222 tests with `window.localStorage` unavailable. The installed Node is v26.7.0 while `frontend/package.json` pins `"node": ">=24 <25"`. Reproduced identically on unmodified `main` with this branch stashed. Not worked around; the fix is a Node 24 toolchain on this machine.
 
 ### Final demo rehearsal
 
@@ -221,7 +256,9 @@ SwarmOS ExecutionGroup
         └── spare selected centrally on member failure
 ```
 
-The group is not an autonomous sub-swarm. Member agents do not negotiate roles or gain authority over peers.
+Composition is partial-strength: SwarmOS dispatches the roles it can fill and refuses only when no role is fillable. When capacity returns, SwarmOS may reinforce the objective with a **second** `ExecutionGroup` carrying `reinforces_group_id` — the swarm is the unit of command, so added strength is another unit, not extra members on the first. Whether to reinforce is a policy decision (`shortfall_reinforcement_policy`), separated from the compose/dispatch/publish mechanism so it can be replaced later.
+
+The group is not an autonomous sub-swarm. Member agents do not negotiate roles or gain authority over peers, and no agent can request or trigger reinforcement.
 
 ## Engineering posture
 
