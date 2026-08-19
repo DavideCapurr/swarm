@@ -60,7 +60,7 @@ jobs:
       - name: Install Python deps
         run: uv sync --frozen --extra dev --extra mavlink --extra dji
       - name: Capture causal simulator take
-        run: uv run python scripts/capture_causal_take_c.py artifacts/take-c-causal-sim.json
+        run: uv run python scripts/capture_causal_take_c_truth.py artifacts/take-c-causal-sim.json
       - name: Upload causal capture
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
