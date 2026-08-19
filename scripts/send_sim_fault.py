@@ -15,7 +15,7 @@ from orchestrator.swarm_orchestrator.bus import (
     RedisBus,
     redis_url_from_env,
 )
-from sim.swarm_sim.faults import ExecutorFault
+from sim.swarm_sim.faults import EXECUTOR_FAULT_TOPIC, ExecutorFault
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -36,7 +36,7 @@ async def _main() -> None:
     await bus.connect()
     try:
         fault = ExecutorFault(agent_id=args.agent, reason=args.reason)
-        await bus.publish("swarm:sim:faults", fault.model_dump_json())
+        await bus.publish(EXECUTOR_FAULT_TOPIC, fault.model_dump_json())
         print(f"published simulated fault agent={fault.agent_id} reason={fault.reason}")
     finally:
         await bus.close()
