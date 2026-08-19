@@ -100,18 +100,30 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
         await self._reconcile_disposition(origin_id, reason="REPLACEMENT")
 
     def _objective_groups(self, origin_id: str) -> list[ExecutionGroup]:
+        """Return durable group membership for one objective.
+
+        Reinforcement bookkeeping is intentionally short-lived: once every
+        requested role is filled, ``_reinforcement_records`` may be removed.
+        The operational relationship is not short-lived, however. It is the
+        first-class ``reinforces_group_id`` carried by every ExecutionGroup.
+        Disposition reconciliation therefore derives objective membership from
+        durable group truth instead of the temporary shortfall record.
+        """
+
         origin = self._execution_groups.get(origin_id)
         if origin is None:
             return []
-        groups = [origin]
-        record = self._reinforcement_records.get(origin_id)
-        if record is not None:
-            groups.extend(
-                self._execution_groups[group_id]
-                for group_id in record.reinforcement_group_ids
-                if group_id in self._execution_groups
-            )
-        return groups
+        reinforcements = sorted(
+            (
+                group
+                for group in self._execution_groups.values()
+                if group.id != origin.id
+                and group.reinforces_group_id == origin.id
+                and group.objective_mission_id == origin.objective_mission_id
+            ),
+            key=lambda group: (group.ts, group.id),
+        )
+        return [origin, *reinforcements]
 
     @staticmethod
     def _active_members(
@@ -128,15 +140,32 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
 
     def _objective_center(self, origin_id: str) -> Geo | None:
         record = self._reinforcement_records.get(origin_id)
-        if record is None:
+        if record is not None:
+            raw = record.objective.params.get("geo")
+            if isinstance(raw, dict):
+                try:
+                    return Geo(**raw)
+                except Exception:
+                    pass
+
+        # The reinforcement record may be cleaned up after the objective reaches
+        # requested strength. The durable child mission still carries the
+        # objective station geometry, so later replacement disposition must not
+        # depend on the shortfall record remaining alive.
+        origin = self._execution_groups.get(origin_id)
+        if origin is None:
             return None
-        raw = record.objective.params.get("geo")
-        if not isinstance(raw, dict):
-            return None
-        try:
-            return Geo(**raw)
-        except Exception:
-            return None
+        for member in origin.members:
+            mission = self._agent_missions.get(member.agent_id)
+            if mission is None or mission.id != member.mission_id:
+                continue
+            raw = mission.params.get("station_geo") or mission.params.get("geo")
+            if isinstance(raw, dict):
+                try:
+                    return Geo(**raw)
+                except Exception:
+                    continue
+        return None
 
     def _propagate_retask_runtime_state(
         self,
