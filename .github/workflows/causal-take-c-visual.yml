@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/swarmos-capacity-reconciliation
+  pull_request:
   workflow_dispatch:
 
 permissions:
