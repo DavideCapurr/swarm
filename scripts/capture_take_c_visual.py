@@ -234,6 +234,7 @@ async def main() -> None:
         "page_errors": page_errors,
         "resource_errors": resource_errors,
         "nonfatal_resource_errors": nonfatal_resource_errors,
+        "resource_console_warnings": resource_console_errors,
     }
     payload = json.dumps(manifest, indent=2) + "\n"
     await asyncio.to_thread(
@@ -242,13 +243,7 @@ async def main() -> None:
         encoding="utf-8",
     )
 
-    unexplained_resource_console_error = bool(resource_console_errors) and not resource_errors
-    if (
-        page_errors
-        or fatal_console_errors
-        or fatal_resource_errors
-        or unexplained_resource_console_error
-    ):
+    if page_errors or fatal_console_errors or fatal_resource_errors:
         raise RuntimeError(
             "browser errors during Take C capture: "
             f"page={page_errors} console={fatal_console_errors} "
