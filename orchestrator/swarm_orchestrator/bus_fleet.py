@@ -19,20 +19,21 @@ from datetime import UTC, datetime
 
 from swarm_core.messages import FleetState
 
-from orchestrator.swarm_orchestrator.adaptive_execution_groups import (
-    AdaptiveExecutionGroupOrchestrator,
+from orchestrator.swarm_orchestrator.demand_execution_groups import (
+    DemandAwareExecutionGroupOrchestrator,
 )
 
 logger = logging.getLogger("swarm.orchestrator.bus_fleet")
 
 
 @dataclass
-class BusFleetOrchestrator(AdaptiveExecutionGroupOrchestrator):
+class BusFleetOrchestrator(DemandAwareExecutionGroupOrchestrator):
     """Orchestrator whose fleet snapshot is projected from bus state.
 
-    The bus-backed runtime now uses the same idle/preemptible capacity planner as
-    the adaptive simulator path. This is product orchestration logic; the fleet
-    adapter remains an execution boundary and does not choose preemption.
+    The bus-backed runtime uses the adaptive idle/preemptible capacity planner
+    and refuses to start an originating objective below its declared minimum
+    capacity. Fleet adapters remain execution boundaries and do not decide
+    admission or reallocation policy.
     """
 
     fleet_state_stale_s: float = 5.0
