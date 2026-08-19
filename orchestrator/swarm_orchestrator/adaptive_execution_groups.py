@@ -1,7 +1,7 @@
 """Adaptive execution-group orchestration.
 
 This module strengthens the existing ExecutionGroupOrchestrator without moving
-policy into demo code.  It adds the missing bridge between objective demand and
+policy into demo code. It adds the missing bridge between objective demand and
 already-committed capacity:
 
 * executable child missions retain their parent objective's demand policy;
@@ -11,25 +11,17 @@ already-committed capacity:
   bit, so donor priority and minimum capacity are available to policy;
 * diversion provenance is carried into the receiving group;
 * when capacity is removed from a COVER group, its remaining PATROL slices are
-  recomputed from the new membership rather than leaving geometric holes.
+  recomputed from the new membership rather than leaving geometric holes;
+* simultaneous shortfalls are reconciled in explicit objective-priority order.
 
 The physical adapters remain thin executors. They never choose a role, donor,
-replacement, or reinforcement.
+replacement, reinforcement, or reconciliation order.
 """
 
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-
-from swarm_core.execution_groups import (
-    ExecutionGroup,
-    ExecutionGroupMemberState,
-    ExecutionGroupState,
-)
-from swarm_core.messages import Geo, MissionTask
-from swarm_core.missions import PATROL, MissionKind
-from swarm_core.objectives import demand_for_mission, stamp_objective_demand
 
 from orchestrator.swarm_orchestrator.capacity import (
     CapacitySource,
@@ -45,6 +37,14 @@ from orchestrator.swarm_orchestrator.execution_groups import (
     _ObjectiveReinforcementRecord,
 )
 from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT
+from swarm_core.execution_groups import (
+    ExecutionGroup,
+    ExecutionGroupMemberState,
+    ExecutionGroupState,
+)
+from swarm_core.messages import Geo, MissionTask
+from swarm_core.missions import PATROL, MissionKind
+from swarm_core.objectives import demand_for_mission, stamp_objective_demand
 
 
 _LOST_STATES = frozenset(
@@ -162,6 +162,48 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
         if changed:
             await self._publish_group(group)
         return group
+
+    # ── continuous reconciliation ────────────────────────────────────────────
+
+    async def review_reinforcements(self) -> list[ExecutionGroup]:
+        """Reconcile all active shortfalls in explicit priority order.
+
+        The pre-change implementation iterated insertion order. That made an
+        older low-priority sweep capable of reclaiming newly idle capacity just
+        before a newer urgent response reviewed its own shortfall. Sorting by
+        objective priority makes the policy causal and deterministic rather than
+        dependent on which objective happened to be created first.
+        """
+
+        dispatched: list[ExecutionGroup] = []
+        async with self._group_lock:
+            origin_ids = sorted(
+                self._reinforcement_records,
+                key=lambda origin_id: (
+                    -self._reinforcement_records[origin_id].objective.priority,
+                    origin_id,
+                ),
+            )
+            for origin_id in origin_ids:
+                record = self._reinforcement_records.get(origin_id)
+                if record is None:
+                    continue
+                origin = self._execution_groups.get(origin_id)
+                if origin is None or origin.state not in RUNNING_GROUP_STATES:
+                    self._reinforcement_records.pop(origin_id, None)
+                    continue
+                if not record.unfilled_plans:
+                    self._reinforcement_records.pop(origin_id, None)
+                    continue
+                decision = self.reinforcement_policy(
+                    self._observe_objective(origin, record)
+                )
+                if not decision.reinforce or decision.strength < 1:
+                    continue
+                dispatched.append(
+                    await self._dispatch_reinforcement(origin, record, decision)
+                )
+        return dispatched
 
     def _observe_objective(
         self,
