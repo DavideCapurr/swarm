@@ -8,9 +8,21 @@ Those remain SwarmOS decisions.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime
+from typing import Protocol
 
 from pydantic import BaseModel, Field
+
+from orchestrator.swarm_orchestrator.bus import Bus
+
+EXECUTOR_FAULT_TOPIC = "swarm:sim:faults"
+logger = logging.getLogger("sim.faults")
+
+
+class FailureInjectable(Protocol):
+    def inject_failure(self, reason: str) -> None: ...
 
 
 def _now() -> datetime:
@@ -23,4 +35,28 @@ class ExecutorFault(BaseModel):
     ts: datetime = Field(default_factory=_now)
 
 
-__all__ = ("ExecutorFault",)
+async def consume_executor_faults(
+    bus: Bus,
+    adapters: Mapping[str, FailureInjectable],
+) -> None:
+    """Apply external world faults to simulator executors, never recovery."""
+
+    async for _topic, payload in bus.subscribe(EXECUTOR_FAULT_TOPIC):
+        try:
+            fault = ExecutorFault.model_validate_json(payload)
+        except Exception as exc:
+            logger.warning("invalid simulator fault payload: %s", exc)
+            continue
+        adapter = adapters.get(fault.agent_id)
+        if adapter is None:
+            logger.warning("simulator fault names unknown executor %s", fault.agent_id)
+            continue
+        adapter.inject_failure(fault.reason)
+        logger.info("external simulator fault: %s (%s)", fault.agent_id, fault.reason)
+
+
+__all__ = (
+    "EXECUTOR_FAULT_TOPIC",
+    "ExecutorFault",
+    "consume_executor_faults",
+)
