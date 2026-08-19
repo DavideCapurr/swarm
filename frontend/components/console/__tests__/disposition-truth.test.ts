@@ -39,9 +39,10 @@ describe("disposition truth boundary", () => {
     expect(line).not.toContain("FORMATION RECONFIGURING");
   });
 
-  it("keeps the historical wording only when an old replay has no disposition frame", () => {
-    expect(narrationFor(heroAt(20_000), { phase: "idle" })).toContain(
-      "FORMATION RECONFIGURING"
-    );
+  it("does not invent formation truth when no disposition frame exists", () => {
+    const line = narrationFor(heroAt(20_000), { phase: "idle" });
+    expect(line).toBe("SWARM 02 EN ROUTE");
+    expect(line).not.toContain("FORMATION");
+    expect(line).not.toContain("DISPOSITION");
   });
 });
