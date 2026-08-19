@@ -3,127 +3,131 @@
 /**
  * NarrationStrip — one line saying what just happened.
  *
- * The rest of this surface is built for an operator who can pause on it. A
- * first-time viewer watching a recording once through cannot: the composition,
- * the failure and the replacement all land in panels that reward reading, and
- * by the time they have been read the beat is over. This is the one element on
- * the surface addressed to that viewer.
- *
- * It is a derivation, not copy. Every line below is a function of state the
- * surface already computed — the focused objective's own `state`, its role
- * count, and the adaptation beat `MissionAuthorityPanel` is driven by. There is
- * no scene script, no timeline, and nothing here can say something the panels
- * are not simultaneously saying. If SwarmOS never publishes a failure, the
- * failure line never renders.
- *
- * Voice is the product's: confidence-bound, uppercase operational type, no
- * `FORBIDDEN_WORDS` token, and never a manual-control verb — the operator sends
- * intents and SwarmOS decides, and the narration describes SwarmOS deciding.
+ * This line is addressed to a first-time viewer. The operator panels can carry
+ * implementation detail; this cannot. The product-level noun is SWARM, while a
+ * physical aircraft is a SUBUNIT. ExecutionGroup remains an internal/server
+ * type and is intentionally absent from the demo narration.
  */
 
-import type { ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
+import type { CompositionSlot, ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
 
 import { HAIRLINE } from "./Surface";
 import type { AdaptationBeat } from "./useAdaptation";
 
-/** Height the strip claims, so the camera's clear area can account for it. */
 export const NARRATION_HEIGHT = 30;
-
-/** Roles whose holder is present and has not failed — the panel's own count. */
-function rolesHeld(objective: ObjectiveAuthority): number {
-  return objective.slots.filter(
-    (slot) => slot.agentId && slot.memberState !== "FAILED" && slot.phase !== "FAILED"
-  ).length;
-}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
-/** The swarm SwarmOS dispatched to reinforce another, when it has dispatched one. */
+function liveSlot(slot: CompositionSlot): boolean {
+  return Boolean(
+    slot.agentId &&
+      slot.memberState !== "FAILED" &&
+      slot.memberState !== "REPLACED" &&
+      slot.phase !== "FAILED"
+  );
+}
+
+/** The originating swarm defines what the objective originally required. */
+function requiredRoles(objective: ObjectiveAuthority): number {
+  return objective.swarms[0]?.requestedMembers ?? objective.requestedMembers;
+}
+
+/**
+ * Objective coverage is role coverage, not the sum of each reinforcing swarm's
+ * requested_members. A reinforcement can bring extra capacity without changing
+ * the original objective from 3 required roles into a fictitious 5-role task.
+ */
+function rolesCovered(objective: ObjectiveAuthority): number {
+  const required = requiredRoles(objective);
+  const roles = new Set(
+    objective.slots.filter(liveSlot).map((slot) => slot.role)
+  );
+  return Math.min(required, roles.size);
+}
+
 function reinforcementOf(objective: ObjectiveAuthority): SwarmComposition | null {
   return objective.swarms.find((swarm) => swarm.reinforcesGroupId != null) ?? null;
 }
 
-/**
- * A swarm that never reached the strength it was asked for.
- *
- * Read as a *composition* shortfall — roles SwarmOS could not fill at all,
- * which is ADR-0012 partial-strength composition — and not as a holder that has
- * since dropped out. The second is the adaptation beat, it already has a line,
- * and it already outranks this one; conflating them would have the strip
- * announce a shortfall in the middle of a replacement that is fixing it.
- */
-function underStrength(objective: ObjectiveAuthority): SwarmComposition | null {
-  return (
-    objective.swarms.find((swarm) => swarm.composedMembers < swarm.requestedMembers) ?? null
+function reinforcementOnStation(swarm: SwarmComposition | null): boolean {
+  if (!swarm) return false;
+  return swarm.slots.some(
+    (slot) => liveSlot(slot) && (slot.phase === "ON_STATION" || slot.phase === "DONE")
   );
 }
 
-/**
- * The whole vocabulary, in priority order.
- *
- * The beat outranks the objective's settled state, because the beat is the
- * thing that just changed and this line exists to say what just changed.
- */
+function primaryUnderStrength(objective: ObjectiveAuthority): boolean {
+  const primary = objective.swarms[0];
+  return Boolean(primary && primary.composedMembers < primary.requestedMembers);
+}
+
 export function narrationFor(
   objective: ObjectiveAuthority | null,
   beat: AdaptationBeat
 ): string {
   if (!objective) return "AWAITING FLEET STATE";
-  if (beat.phase === "adapting") return "EXECUTOR LOST · SWARMOS SELECTING REPLACEMENT";
-  if (beat.phase === "restored") return "REPLACEMENT DISPATCHED · GROUP RESTORED";
+
+  if (beat.phase === "adapting") {
+    return "SUBUNIT LOST · SWARMOS SELECTING REPLACEMENT";
+  }
+  if (beat.phase === "restored") {
+    return "SUBUNIT REPLACED · SWARM RESTORED";
+  }
 
   switch (objective.state) {
     case "COMPOSING":
-      return "OBJECTIVE DETECTED · SWARMOS EVALUATING";
+      return "OBJECTIVE DETECTED · SWARMOS COMPOSING SWARM";
     case "ADAPTING":
-      return "EXECUTOR LOST · SWARMOS SELECTING REPLACEMENT";
+      return "SUBUNIT LOST · SWARMOS SELECTING REPLACEMENT";
     case "VERIFIED":
       return "OBJECTIVE VERIFIED · MISSION COMPLETE";
     case "FAILED":
       return "OBJECTIVE CLOSED · NOT VERIFIED";
     case "EXECUTING":
     default: {
-      const held = `${pad(rolesHeld(objective))} / ${pad(objective.requestedMembers)}`;
-
-      // An objective SwarmOS is adding a swarm to. The reinforcement is still
-      // composing, so the line says what SwarmOS decided, not what has arrived.
+      const required = requiredRoles(objective);
+      const covered = rolesCovered(objective);
+      const coverage = `${pad(covered)} / ${pad(required)}`;
       const reinforcement = reinforcementOf(objective);
-      if (reinforcement && reinforcement.state === "COMPOSING") {
-        return "REINFORCEMENT DISPATCHED · SWARMOS ADDING EXECUTIONGROUP";
-      }
-      // Both swarms are running the objective. The count is the objective's,
-      // across every swarm, because that is now the strength on the target.
-      if (objective.swarms.length > 1) {
-        return `${pad(objective.swarms.length)} EXECUTIONGROUPS COMBINED · ${held} ROLES ACTIVE`;
-      }
-      // Composed, running, and short of the strength it asked for. Stated
-      // rather than left to a count nobody is looking at.
-      if (underStrength(objective)) {
-        return `EXECUTIONGROUP UNDER STRENGTH · ${held} ROLES HELD`;
+
+      if (reinforcement?.state === "COMPOSING") {
+        return "REINFORCEMENT REQUIRED · SWARM 02 DISPATCHED";
       }
 
-      // A single-executor objective has no ExecutionGroup, and the panel says so
-      // in as many words. Claiming one here would be the surface inventing a
-      // composition SwarmOS never made.
+      if (reinforcement && !reinforcementOnStation(reinforcement)) {
+        return "SWARM 02 EN ROUTE · FORMATION RECONFIGURING";
+      }
+
+      if (objective.swarms.length > 1 && reinforcementOnStation(reinforcement)) {
+        return `${pad(objective.swarms.length)} SWARMS COORDINATED · ${coverage} ROLES COVERED`;
+      }
+
+      if (objective.swarms.length === 1 && primaryUnderStrength(objective)) {
+        return `SWARM 01 UNDER STRENGTH · ${coverage} ROLES COVERED`;
+      }
+
       return objective.groupId
-        ? `EXECUTIONGROUP EXECUTING · ${held} ROLES ACTIVE`
-        : `SINGLE EXECUTOR ON OBJECTIVE · ${held} ASSIGNED`;
+        ? `SWARM 01 EXECUTING · ${coverage} ROLES COVERED`
+        : `SINGLE SUBUNIT ON OBJECTIVE · ${coverage} ASSIGNED`;
     }
   }
 }
 
-/** Amber only where the state is genuinely degraded; never red, ever. */
 function toneFor(objective: ObjectiveAuthority | null, beat: AdaptationBeat): string {
-  if (beat.phase === "adapting" || objective?.state === "ADAPTING" || objective?.state === "FAILED") {
+  if (
+    beat.phase === "adapting" ||
+    objective?.state === "ADAPTING" ||
+    objective?.state === "FAILED"
+  ) {
     return "#FFB45C";
   }
   if (beat.phase === "restored" || objective?.state === "VERIFIED") return "#B8FF66";
-  // Under strength, and SwarmOS composing the swarm that answers it, are the
-  // same condition read a moment apart. Both are amber; neither is a fault.
-  if (objective && objective.state === "EXECUTING") {
+  if (objective?.state === "EXECUTING") {
     const reinforcement = reinforcementOf(objective);
     if (reinforcement?.state === "COMPOSING") return "#FFB45C";
-    if (objective.swarms.length === 1 && underStrength(objective)) return "#FFB45C";
+    if (reinforcement && !reinforcementOnStation(reinforcement)) return "#FFB45C";
+    if (objective.swarms.length === 1 && primaryUnderStrength(objective)) return "#FFB45C";
+    if (objective.swarms.length > 1 && reinforcementOnStation(reinforcement)) return "#7BE7FF";
   }
   return "#A8AFB8";
 }
@@ -139,9 +143,6 @@ export function NarrationStrip({
   return (
     <div
       data-testid="narration-strip"
-      /* Keyed on the text so each real transition re-runs the swap. The line
-         changes only when the state behind it changed, so this never becomes a
-         ticker. */
       key={text}
       className="value-swap flex items-center px-[13px]"
       style={{
