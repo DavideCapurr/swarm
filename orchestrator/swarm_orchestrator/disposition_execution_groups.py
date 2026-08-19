@@ -122,7 +122,7 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
                 and group.reinforces_group_id == origin.id
                 and group.objective_mission_id == origin.objective_mission_id
             ),
-            key=lambda group: (group.ts, group.id),
+            key=lambda group: group.id,
         )
         return [origin, *reinforcements]
 
