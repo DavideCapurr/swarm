@@ -14,8 +14,6 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from swarm_core.messages import Geo
-
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -64,13 +62,6 @@ class ExecutionGroupMember(BaseModel):
     # asking the UI to infer it from timing or aircraft identity.
     diverted_from_mission_id: str | None = None
     diverted_from_objective_id: str | None = None
-    # Objective-relative station selected by SwarmOS. Physical executors receive
-    # this same position in their child mission; the Console may render it but
-    # must never invent or adjust it.
-    station_geo: Geo | None = None
-    # Set when this member kept its logical role but SwarmOS issued a new child
-    # mission because objective composition changed its disposition slot.
-    reconfigured_from_mission_id: str | None = None
     ts: datetime = Field(default_factory=_now)
 
 
@@ -92,11 +83,6 @@ class ExecutionGroup(BaseModel):
     members: list[ExecutionGroupMember] = Field(default_factory=list)
     state: ExecutionGroupState = ExecutionGroupState.FORMING
     failure_reason: str | None = None
-    # Objective-wide disposition truth. Every group contributing to the same
-    # objective carries the same revision/center/radius after reconciliation.
-    disposition_revision: int = Field(0, ge=0)
-    disposition_center: Geo | None = None
-    disposition_radius_m: float | None = Field(default=None, ge=0.0)
     ts: datetime = Field(default_factory=_now)
 
 
