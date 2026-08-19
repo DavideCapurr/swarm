@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from swarm_core.allocations import AllocationDecision
+from swarm_core.disposition import DispositionDecision
 from swarm_core.execution_groups import ExecutionGroup
 from swarm_core.messages import (
     AnomalyView,
@@ -75,10 +76,11 @@ class SwarmState:
     missions: dict[str, MissionView] = field(default_factory=dict)
     anomalies: dict[str, AnomalyView] = field(default_factory=dict)
     # Console demo truth is server-owned just like the normal projections.
-    # Decisions are keyed by mission; runtime keeps the latest phase/evidence;
-    # payload events retain their ordered action history.
+    # Decisions are keyed by mission/objective; runtime keeps the latest
+    # phase/evidence; payload events retain their ordered action history.
     allocations: dict[str, AllocationDecision] = field(default_factory=dict)
     execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)
+    dispositions: dict[str, DispositionDecision] = field(default_factory=dict)
     mission_runtime: dict[str, MissionRuntimeEvent] = field(default_factory=dict)
     payload_events: deque[PayloadEvent] = field(
         default_factory=lambda: deque(maxlen=500)
