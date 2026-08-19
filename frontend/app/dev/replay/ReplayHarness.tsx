@@ -14,6 +14,7 @@ import {
   takeBFrames,
   takeCFrames,
 } from "@/lib/demo-frames";
+import { augmentTakeCForSwarmStory } from "@/lib/demo-swarm-story";
 
 /**
  * Drives the operational surface from a recorded frame script.
@@ -24,10 +25,12 @@ import {
  *   A — two concurrent single-executor objectives with the BUSY exclusion.
  *   B — one SwarmOS-owned ExecutionGroup, a live member failure, and the
  *       central replacement of the vacated role.
- *   C — a swarm composed under strength, reinforced by a second ExecutionGroup,
- *       the disposition widening to hold both, take B's recorded failure and
- *       replacement landing inside that wide shot, and a second, thirty-
- *       executor sweep objective SwarmOS holds concurrently.
+ *   C — a primary swarm composed under strength, a second multi-subunit swarm
+ *       dispatched as reinforcement, the disposition widening to hold both,
+ *       and take B's recorded failure/replacement landing inside that wide shot.
+ *
+ * The extra support subunit in take C is explicitly scripted presentation data
+ * in `demo-swarm-story.ts`; it never borrows or relabels recorded evidence.
  *
  * `replayBadge` can drop the stamp for layout measurement only.
  */
@@ -61,7 +64,11 @@ export function ReplayHarness({
     return () => window.clearInterval(id);
   }, [playing, script.durationMs]);
 
-  const slice = useMemo(() => FOLD[take](atMs, frames), [take, atMs, frames]);
+  const rawSlice = useMemo(() => FOLD[take](atMs, frames), [take, atMs, frames]);
+  const slice = useMemo(
+    () => (take === "c" ? augmentTakeCForSwarmStory(rawSlice, atMs) : rawSlice),
+    [take, rawSlice, atMs]
+  );
 
   const frame: SurfaceFrame = {
     link: "connected",
