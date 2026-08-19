@@ -131,6 +131,9 @@ ignore = [
 # local file writes inside the Playwright async entrypoint, and wrap non-fatal
 # readiness probes in best-effort try/except.
 "scripts/m1_*.py" = ["ASYNC210", "ASYNC220", "ASYNC230", "SIM105"]
+# One-shot causal capture writes its artifact only after runtime collection has
+# completed. The blocking local write is not on a server/runtime hot path.
+"scripts/capture_causal_take_c.py" = ["ASYNC240"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -217,24 +220,4 @@ omit = [
     # by design; its coverage is enforced by the dedicated `make test-cv`
     # gate against the `cv_baseline` marker.
     "sim/swarm_sim/cv/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "raise NotImplementedError",
-    "if TYPE_CHECKING:",
-]
-
-[tool.bandit]
-exclude_dirs = [
-    ".venv",
-    "node_modules",
-    ".next",
-    "tests",
-    "frontend",
-]
-skips = [
-    "B101",  # assert_used — pytest assertions
-    "B311",  # random — fuzz tests use it deliberately
 ]
