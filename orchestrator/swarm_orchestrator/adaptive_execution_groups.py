@@ -60,17 +60,10 @@ _LOST_STATES = frozenset(
 class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
     """ExecutionGroupOrchestrator with continuous capacity reconciliation."""
 
-    # The legacy continuous-patrol simulator can now be treated as one donor
-    # objective too. A real COVER objective carries these values in its own DSL.
     continuous_patrol_min_capacity: int = 0
     continuous_patrol_preemptible: bool = True
-
-    # Full SwarmOS-owned commitments. The base class historically retained only
-    # mission ids and BUSY flags, which was insufficient for preemption policy.
     _agent_missions: dict[str, MissionTask] = field(default_factory=dict)
     _reconcile_tasks: dict[str, asyncio.Task[None]] = field(default_factory=dict)
-
-    # ── objective decomposition ──────────────────────────────────────────────
 
     def _cooperative_verify_plans(
         self, objective: MissionTask
@@ -86,18 +79,12 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
             stamp_objective_demand(plan.mission, objective)
         return plans
 
-    # ── capacity selection ───────────────────────────────────────────────────
-
     def _select_group_candidate(
         self,
         mission: MissionTask,
         *,
         excluded_agent_ids: set[str],
     ) -> tuple[str, float, dict[str, float]] | None:
-        # Reserved agents that already owned a mission are tentative donor losses
-        # from earlier roles in the same composition. The planner therefore
-        # enforces the donor floor across the whole multi-agent choice, not one
-        # candidate at a time.
         planned_preemptions = {
             agent_id
             for agent_id in excluded_agent_ids
@@ -115,9 +102,6 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
             return None
 
         if choice.source is CapacitySource.PREEMPTIBLE:
-            # The child carries the transfer until `_start_mission` applies it.
-            # `_clone_mission` strips these transient fields from templates, so
-            # a later replacement never inherits stale diversion provenance.
             mission.params["diverted_from_mission_id"] = (
                 choice.diverted_from_mission_id
             )
@@ -163,17 +147,8 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
             await self._publish_group(group)
         return group
 
-    # ── continuous reconciliation ────────────────────────────────────────────
-
     async def review_reinforcements(self) -> list[ExecutionGroup]:
-        """Reconcile all active shortfalls in explicit priority order.
-
-        The pre-change implementation iterated insertion order. That made an
-        older low-priority sweep capable of reclaiming newly idle capacity just
-        before a newer urgent response reviewed its own shortfall. Sorting by
-        objective priority makes the policy causal and deterministic rather than
-        dependent on which objective happened to be created first.
-        """
+        """Reconcile all active shortfalls in explicit priority order."""
 
         dispatched: list[ExecutionGroup] = []
         async with self._group_lock:
@@ -243,8 +218,6 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
             max_reinforcements=self.max_reinforcements_per_objective,
         )
 
-    # ── commitment tracking and preemption ──────────────────────────────────
-
     async def _run_mission(
         self,
         agent_id: str,
@@ -253,14 +226,7 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
         *,
         is_verify: bool,
     ) -> None:
-        """Preserve successor ownership when a mission is adaptively retasked.
-
-        The base runtimes clear ``_busy`` / ``_verifying`` in their ``finally``
-        blocks. During an adaptive transfer the successor task is installed before
-        the cancelled donor task unwinds, so that donor cleanup must not make the
-        new mission appear idle. There is no await between the inner cleanup and
-        this repair, so external observers never see an ownership gap.
-        """
+        """Preserve successor ownership when a mission is adaptively retasked."""
 
         current_task = asyncio.current_task()
         try:
@@ -273,23 +239,21 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
         finally:
             successor = self._agent_tasks.get(agent_id)
             if (
-                successor is None
-                or successor is current_task
-                or successor.done()
+                successor is not None
+                and successor is not current_task
+                and not successor.done()
             ):
-                return
-            self._busy.add(agent_id)
-            successor_mission = self._agent_missions.get(agent_id)
-            if successor_mission is None:
-                return
-            self._agent_mission_ids[agent_id] = successor_mission.id
-            if (
-                successor_mission.id in self._group_task_to_role
-                or successor_mission.kind == MissionKind.VERIFY.value
-            ):
-                self._verifying.add(agent_id)
-            else:
-                self._verifying.discard(agent_id)
+                self._busy.add(agent_id)
+                successor_mission = self._agent_missions.get(agent_id)
+                if successor_mission is not None:
+                    self._agent_mission_ids[agent_id] = successor_mission.id
+                    if (
+                        successor_mission.id in self._group_task_to_role
+                        or successor_mission.kind == MissionKind.VERIFY.value
+                    ):
+                        self._verifying.add(agent_id)
+                    else:
+                        self._verifying.discard(agent_id)
 
     def _start_mission(
         self, agent_id: str, mission: MissionTask, *, is_verify: bool
@@ -300,9 +264,7 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
             and "parent_objective_id" not in mission.params
         ):
             fleet_size = max(1, len(self._snapshot_fleet()))
-            minimum = max(
-                0, min(self.continuous_patrol_min_capacity, fleet_size)
-            )
+            minimum = max(0, min(self.continuous_patrol_min_capacity, fleet_size))
             mission.params.update(
                 {
                     "parent_objective_id": "continuous-patrol",
@@ -375,9 +337,6 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
         task.add_done_callback(self._background_tasks.discard)
 
     async def _delayed_reconcile(self, key: str) -> None:
-        # Collapse several donor losses from one multi-agent composition into one
-        # recomputation. The delay is an orchestration debounce, not scenario
-        # timing and does not choose any executor.
         await asyncio.sleep(0.02)
         if key.startswith("group:"):
             await self._recompute_cover_group(key.split(":", 1)[1])
@@ -386,10 +345,7 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
 
     async def _recompute_continuous_patrol(self) -> None:
         active = sorted(
-            (
-                agent_id,
-                mission,
-            )
+            (agent_id, mission)
             for agent_id, mission in self._agent_missions.items()
             if objective_key(mission) == "continuous-patrol"
             and mission.kind == MissionKind.PATROL.value
@@ -430,9 +386,7 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
                 }
             )
             self._agent_missions[agent_id] = replacement
-            new_task = super()._start_mission(
-                agent_id, replacement, is_verify=False
-            )
+            new_task = super()._start_mission(agent_id, replacement, is_verify=False)
             self._attach_tracking_cleanup(agent_id, replacement, new_task)
 
     async def _recompute_cover_group(self, group_id: str) -> None:
@@ -505,9 +459,7 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
                 }
             )
             self._agent_missions[member.agent_id] = child
-            new_task = super()._start_mission(
-                member.agent_id, child, is_verify=True
-            )
+            new_task = super()._start_mission(member.agent_id, child, is_verify=True)
             self._attach_tracking_cleanup(member.agent_id, child, new_task)
 
         self._group_role_templates[group.id] = templates
@@ -519,9 +471,6 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
         )
         group.failure_reason = None
 
-        # The missing desired strength becomes real reconciliation demand. This
-        # allows the existing reinforcement loop to recover the sweep when idle
-        # capacity later returns, without scenario code naming an executor.
         missing = max(0, demand.desired_capacity - current_capacity)
         if missing:
             full_plans = super()._cover_plans(objective)
@@ -532,8 +481,6 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
             record.unfilled_plans = []
 
         await self._publish_group(group)
-
-    # ── template hygiene ─────────────────────────────────────────────────────
 
     @staticmethod
     def _clone_mission(template: MissionTask) -> MissionTask:
