@@ -245,6 +245,52 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
 
     # ── commitment tracking and preemption ──────────────────────────────────
 
+    async def _run_mission(
+        self,
+        agent_id: str,
+        adapter: object,
+        mission: MissionTask,
+        *,
+        is_verify: bool,
+    ) -> None:
+        """Preserve successor ownership when a mission is adaptively retasked.
+
+        The base runtimes clear ``_busy`` / ``_verifying`` in their ``finally``
+        blocks. During an adaptive transfer the successor task is installed before
+        the cancelled donor task unwinds, so that donor cleanup must not make the
+        new mission appear idle. There is no await between the inner cleanup and
+        this repair, so external observers never see an ownership gap.
+        """
+
+        current_task = asyncio.current_task()
+        try:
+            await super()._run_mission(
+                agent_id,
+                adapter,
+                mission,
+                is_verify=is_verify,
+            )
+        finally:
+            successor = self._agent_tasks.get(agent_id)
+            if (
+                successor is None
+                or successor is current_task
+                or successor.done()
+            ):
+                return
+            self._busy.add(agent_id)
+            successor_mission = self._agent_missions.get(agent_id)
+            if successor_mission is None:
+                return
+            self._agent_mission_ids[agent_id] = successor_mission.id
+            if (
+                successor_mission.id in self._group_task_to_role
+                or successor_mission.kind == MissionKind.VERIFY.value
+            ):
+                self._verifying.add(agent_id)
+            else:
+                self._verifying.discard(agent_id)
+
     def _start_mission(
         self, agent_id: str, mission: MissionTask, *, is_verify: bool
     ) -> asyncio.Task[None]:
