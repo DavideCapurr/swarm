@@ -403,7 +403,8 @@ export type ExecutionGroupMemberState =
   | "ACTIVE"
   | "COMPLETED"
   | "FAILED"
-  | "REPLACED";
+  | "REPLACED"
+  | "DIVERTED";
 
 export type ExecutionGroupMember = {
   agent_id: string;
@@ -413,6 +414,10 @@ export type ExecutionGroupMember = {
   score: number;
   score_breakdown: Record<string, number>;
   replaces_agent_id: string | null;
+  /** Mission this assignment was diverted from, when SwarmOS preempted capacity. */
+  diverted_from_mission_id?: string | null;
+  /** Objective this assignment was diverted from, when SwarmOS preempted capacity. */
+  diverted_from_objective_id?: string | null;
   ts: string;
 };
 
