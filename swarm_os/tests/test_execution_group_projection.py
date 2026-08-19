@@ -52,6 +52,36 @@ def _group(anomaly_id: str, *, state: ExecutionGroupState) -> ExecutionGroup:
     )
 
 
+def _reinforcement_group(
+    anomaly_id: str,
+    *,
+    state: ExecutionGroupState,
+) -> ExecutionGroup:
+    member_state = (
+        ExecutionGroupMemberState.COMPLETED
+        if state is ExecutionGroupState.COMPLETED
+        else ExecutionGroupMemberState.ACTIVE
+    )
+    return ExecutionGroup(
+        id="group-reinforcement-test",
+        objective_mission_id="objective-aggregate-test",
+        objective_kind="COOPERATIVE_VERIFY",
+        anomaly_id=anomaly_id,
+        reinforces_group_id="group-aggregate-test",
+        requested_members=1,
+        state=state,
+        members=[
+            ExecutionGroupMember(
+                agent_id="mav-004",
+                role="OVERWATCH",
+                mission_id="child-reinforcement",
+                state=member_state,
+                score=2.4,
+            )
+        ],
+    )
+
+
 @pytest.mark.asyncio
 async def test_child_done_cannot_verify_cooperative_objective() -> None:
     state = SwarmState.vineyard()
@@ -91,6 +121,41 @@ async def test_child_done_cannot_verify_cooperative_objective() -> None:
 
     completed = _group(anomaly.id, state=ExecutionGroupState.COMPLETED)
     await coordinator.apply_execution_group(completed)
+    assert state.anomalies[anomaly.id].state is AnomalyState.VERIFIED
+
+
+@pytest.mark.asyncio
+async def test_reinforcement_subgroup_cannot_verify_parent_objective_early() -> None:
+    state = SwarmState.vineyard()
+    state.set_autonomy_enabled(False)
+    coordinator = SwarmCoordinator(state)
+    anomaly = Anomaly(
+        id="intrusion-reinforced",
+        kind=AnomalyKind.INTRUSION,
+        geo=Geo(lat=44.7001, lon=8.0301),
+        confidence=0.99,
+    )
+
+    await coordinator.apply_anomaly(anomaly)
+    origin_active = _group(anomaly.id, state=ExecutionGroupState.ACTIVE)
+    reinforcement_active = _reinforcement_group(
+        anomaly.id,
+        state=ExecutionGroupState.ACTIVE,
+    )
+    await coordinator.apply_execution_group(origin_active)
+    await coordinator.apply_execution_group(reinforcement_active)
+    assert state.anomalies[anomaly.id].state is AnomalyState.VERIFYING
+
+    # A reinforcement role completing is not authority to mark the shared
+    # objective verified while the origin group still has work in flight.
+    await coordinator.apply_execution_group(
+        _reinforcement_group(anomaly.id, state=ExecutionGroupState.COMPLETED)
+    )
+    assert state.anomalies[anomaly.id].state is AnomalyState.VERIFYING
+
+    await coordinator.apply_execution_group(
+        _group(anomaly.id, state=ExecutionGroupState.COMPLETED)
+    )
     assert state.anomalies[anomaly.id].state is AnomalyState.VERIFIED
 
 
