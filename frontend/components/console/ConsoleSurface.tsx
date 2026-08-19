@@ -231,10 +231,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
               onSelectObjective={setHeldFocus}
               onSelectExecutor={setSelectedExecutor}
             />
-            <DispositionOverlay
-              projection={projection}
-              decision={focusedDisposition}
-            />
+            <DispositionOverlay projection={projection} decision={focusedDisposition} />
           </>
         ) : null}
       </MapCanvas>
@@ -260,7 +257,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
         className="pointer-events-none absolute z-30 flex justify-center"
         style={{ left: RAIL_WIDTH + 16, right: 20, top: STATUS_HEIGHT + 10 }}
       >
-        <NarrationStrip focused={focused} beat={beat} />
+        <NarrationStrip focused={focused} beat={beat} disposition={focusedDisposition} />
       </div>
 
       <div
