@@ -3,8 +3,8 @@
  *
  * Emits typed events; callers subscribe via `onMessage`. The union below
  * mirrors the kinds projected by `swarm_os.coordinator.SwarmCoordinator` plus
- * the orchestrator-owned allocation/runtime/payload truth frames bridged by
- * the backend.
+ * the orchestrator-owned allocation/group/disposition/runtime/payload truth
+ * frames bridged by the backend.
  *
  * Phase 6.C: the upgrade carries an access token via the `?token=` query
  * parameter (the browser WebSocket API does not let JS set custom
@@ -16,6 +16,7 @@ import type {
   AllocationDecision,
   AnomalyView,
   AwarenessBreakdown,
+  DispositionDecision,
   DockState,
   ExecutionGroup,
   MissionRuntimeEvent,
@@ -69,6 +70,7 @@ export type WSMessage =
   | { kind: "stream"; data: StreamDescriptor }
   | { kind: "allocation"; data: AllocationDecision }
   | { kind: "execution_group"; data: ExecutionGroup }
+  | { kind: "disposition"; data: DispositionDecision }
   | { kind: "mission_runtime"; data: MissionRuntimeEvent }
   | { kind: "payload"; data: PayloadEvent };
 
@@ -95,9 +97,6 @@ export class SwarmSocket {
   connect(): void {
     const token = this.tokenProvider();
     if (!token) {
-      // Without a token the backend would refuse with 1008 anyway —
-      // skip the dial and retry after a short delay; auth might still be
-      // loading from storage.
       const delay = Math.min(10_000, 500 * 2 ** this.retry++);
       window.setTimeout(() => {
         if (!this.closed) this.connect();
@@ -114,10 +113,8 @@ export class SwarmSocket {
       try {
         msg = JSON.parse(ev.data) as WSMessage;
       } catch {
-        return; /* ignore malformed frames */
+        return;
       }
-      // Guard each handler so one bad frame/handler can't silently stop
-      // the others (the socket would still look "connected").
       this.handlers.forEach((h) => {
         try {
           h(msg);
