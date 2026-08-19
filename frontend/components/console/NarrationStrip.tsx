@@ -101,16 +101,14 @@ export function narrationFor(
       }
 
       if (reinforcement && !reinforcementOnStation(reinforcement)) {
-        // On the live path this statement comes from a SwarmOS disposition
-        // frame. It deliberately does not claim that physical reconfiguration
-        // is occurring: bus-backed deployments may publish the decision while
-        // keeping physical retask disabled until separately validated.
+        // A formation/disposition claim requires a SwarmOS disposition frame.
+        // Group state alone is enough to say the reinforcing swarm is inbound,
+        // but absence of disposition truth must never be interpreted as a
+        // physical reconfiguration.
         if (disposition?.reason === "REINFORCEMENT") {
           return `SWARM 02 EN ROUTE · ${dispositionLine(disposition)}`;
         }
-        // Compatibility only for historical replay fixtures that predate
-        // DispositionDecision. New live demos must provide disposition truth.
-        return "SWARM 02 EN ROUTE · FORMATION RECONFIGURING";
+        return "SWARM 02 EN ROUTE";
       }
 
       if (objective.swarms.length > 1 && reinforcementOnStation(reinforcement)) {
