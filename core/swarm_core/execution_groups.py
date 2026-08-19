@@ -40,6 +40,9 @@ class ExecutionGroupMemberState(str, Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     REPLACED = "REPLACED"
+    # Capacity was deliberately pulled from this group by SwarmOS policy. This
+    # is not a physical failure and not a replacement of the member in-place.
+    DIVERTED = "DIVERTED"
 
 
 class ExecutionGroupMember(BaseModel):
@@ -54,6 +57,11 @@ class ExecutionGroupMember(BaseModel):
     score: float
     score_breakdown: dict[str, float] = Field(default_factory=dict)
     replaces_agent_id: str | None = None
+    # Set when this assignment itself was obtained by preempting committed
+    # capacity. These fields make the capacity transfer auditable without
+    # asking the UI to infer it from timing or aircraft identity.
+    diverted_from_mission_id: str | None = None
+    diverted_from_objective_id: str | None = None
     ts: datetime = Field(default_factory=_now)
 
 
