@@ -1,18 +1,5 @@
 "use client";
 
-/**
- * ConsoleSurface — the whole operator surface.
- *
- * The composition is a full-bleed map with operating surfaces floating over it,
- * not a dashboard that contains a map. The centre of the viewport is left to
- * the physical world; the interface holds the edges.
- *
- * Presentational by construction: it takes one frame of server truth and
- * renders it. `useSwarm()` is wired one level up, so the same surface is driven
- * by live SwarmOS frames or by the recorded-frame harness without either path
- * special-casing the other.
- */
-
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { buildAuthorityView, compositionDigest } from "@/lib/authority";
@@ -61,7 +48,6 @@ export type SurfaceFrame = {
   missionRuntime: MissionRuntimeEvent[];
   missionRuntimeLog: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
-  /** Set only by the recorded-frame harness; stamps the surface so it cannot pass for live. */
   replay?: boolean;
 };
 
@@ -166,10 +152,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
     1,
     (box.width - INSET.left - INSET.right) / (box.height - INSET.top - INSET.bottom)
   );
-  const wanted = useMemo(
-    () => targetFrame(originRef.current, framed, aspect),
-    [framed, aspect]
-  );
+  const wanted = useMemo(() => targetFrame(originRef.current, framed, aspect), [framed, aspect]);
   const solved = useCameraGlide(wanted);
 
   const projection = useMemo(
@@ -237,10 +220,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       <NavigationRail active="map" />
 
       {focused?.detection ? (
-        <div
-          className="pointer-events-none absolute z-30"
-          style={{ left: RAIL_WIDTH + 16, top: TOP_PANEL_TOP }}
-        >
+        <div className="pointer-events-none absolute z-30" style={{ left: RAIL_WIDTH + 16, top: TOP_PANEL_TOP }}>
           <DetectionPanel objective={focused} />
         </div>
       ) : null}
@@ -261,9 +241,6 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
         <NarrationStrip focused={focused} beat={beat} />
       </div>
 
-      {/* The map needs a swarm-level legend because the physical marks are
-          subunits. This is the visual bridge that makes hull -> swarm ->
-          subunits readable before anyone opens or studies a panel. */}
       <div
         className="pointer-events-none absolute z-30 flex justify-center"
         style={{ left: INSET.left, right: INSET.right, top: TOP_PANEL_TOP + 6 }}
@@ -271,23 +248,18 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
         <SwarmMapKey focused={focused} />
       </div>
 
-      <div
-        className="pointer-events-none absolute z-30"
-        style={{ right: 20, top: TOP_PANEL_TOP }}
-      >
+      <div className="pointer-events-none absolute z-30" style={{ right: 20, top: TOP_PANEL_TOP }}>
         <SwarmAuthorityPanel
           objectives={view.objectives}
           focused={focused}
           beat={beat}
           capacity={view.capacity}
+          channels={channels}
           onSelectObjective={setHeldFocus}
         />
       </div>
 
-      <div
-        className="pointer-events-none absolute z-30"
-        style={{ left: RAIL_WIDTH + 16, bottom: 20 }}
-      >
+      <div className="pointer-events-none absolute z-30" style={{ left: RAIL_WIDTH + 16, bottom: 20 }}>
         <PhysicalCapacityPanel
           capacity={view.capacity}
           selected={selectedExecutor}
@@ -306,10 +278,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
         }}
       >
         <div style={{ width: Math.min(TRACE_WIDTH, 10_000), maxWidth: "100%" }}>
-          <MissionTrace
-            stages={focused?.trace ?? []}
-            objectiveLabel={focused?.label ?? null}
-          />
+          <MissionTrace stages={focused?.trace ?? []} objectiveLabel={focused?.label ?? null} />
         </div>
       </div>
 
