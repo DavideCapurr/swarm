@@ -1,7 +1,7 @@
 "use client";
 
 import type { CapacityRow, CompositionSlot, ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
-import { roleLabel } from "@/lib/authority";
+import { compositionDigest, compositionDigestLabel, roleLabel } from "@/lib/authority";
 import type { PayloadChannel } from "@/lib/mission-story";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
@@ -36,12 +36,6 @@ function currentSubunits(swarm: SwarmComposition): CompositionSlot[] {
 
 function swarmName(swarm: SwarmComposition): string {
   return `SWARM ${pad(swarm.index)}`;
-}
-
-function swarmTone(swarm: SwarmComposition): "amber" | "orbital" | "green" {
-  if (swarm.state === "VERIFIED") return "green";
-  if (swarm.state === "ADAPTING" || swarm.underStrength) return "amber";
-  return "orbital";
 }
 
 export function SwarmAuthorityPanel({
@@ -214,11 +208,14 @@ function CoverageBlock({ objective }: { objective: ObjectiveAuthority }) {
 
 function SwarmBlock({ swarm, objective }: { swarm: SwarmComposition; objective: ObjectiveAuthority }) {
   const slots = currentSubunits(swarm);
-  const tone = swarmTone(swarm);
+  const short = slots.length < swarm.requestedMembers;
+  const tone: "amber" | "orbital" | "green" =
+    swarm.state === "VERIFIED" ? "green" : swarm.state === "ADAPTING" || short ? "amber" : "orbital";
   const reinforcing = swarm.reinforcesGroupId != null;
   const targetSwarm = reinforcing
     ? objective.swarms.find((candidate) => candidate.groupId === swarm.reinforcesGroupId) ?? objective.swarms[0]
     : null;
+  const digest = compositionDigest(swarm.slots);
 
   return (
     <section
@@ -244,14 +241,19 @@ function SwarmBlock({ swarm, objective }: { swarm: SwarmComposition; objective: 
 
         <div className="flex shrink-0 flex-col items-end gap-[5px]">
           <Mono size={13} tone={tone} data-testid={`swarm-subunits-${swarm.groupId}`}>{pad(slots.length)} SUBUNITS</Mono>
-          <Mono size={10} tone={swarm.underStrength ? "amber" : "silver"}>{pad(swarm.heldMembers)} / {pad(swarm.requestedMembers)} STRENGTH</Mono>
+          <Mono size={10} tone={short ? "amber" : "silver"}>{pad(slots.length)} / {pad(swarm.requestedMembers)} STRENGTH</Mono>
         </div>
       </div>
 
       <div className="mt-[10px] flex flex-col gap-[7px] border-l border-white/10 pl-[11px]">
-        {swarm.slots.map((slot) => (
+        {digest.rows.map((slot) => (
           <SubunitRow key={`${slot.groupId}:${slot.role}:${slot.agentId ?? slot.index}`} slot={slot} />
         ))}
+        {digest.hidden ? (
+          <Mono size={9.5} tone="ash">
+            {compositionDigestLabel(digest.hidden).replace("ROLES", "SUBUNITS")}
+          </Mono>
+        ) : null}
       </div>
     </section>
   );
