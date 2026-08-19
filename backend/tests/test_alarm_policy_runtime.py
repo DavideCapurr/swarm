@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 import pytest
 
 from adapters.base import AdapterRegistry
@@ -16,7 +18,7 @@ from orchestrator.swarm_orchestrator.presence_bus import (
 
 
 @pytest.fixture
-async def bus() -> InMemoryBus:
+async def bus() -> AsyncIterator[InMemoryBus]:
     value = InMemoryBus()
     await value.connect()
     yield value
