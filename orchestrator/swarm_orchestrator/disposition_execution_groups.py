@@ -138,6 +138,27 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
         except Exception:
             return None
 
+    def _propagate_retask_runtime_state(
+        self,
+        old_mission_id: str,
+        new_mission_id: str,
+    ) -> None:
+        """Carry optional per-mission side-effect state across a logical retask.
+
+        Presence-response runtimes intentionally key their once-only payload
+        guard by child mission id. Reconfiguration changes that id without
+        changing the logical role, so an already-started payload must remain
+        started on the successor mission rather than firing twice at the new
+        station. Runtimes without this optional state are unaffected.
+        """
+
+        presence_started = getattr(self, "_presence_started", None)
+        if (
+            isinstance(presence_started, set)
+            and old_mission_id in presence_started
+        ):
+            presence_started.add(new_mission_id)
+
     async def _reconcile_disposition(self, origin_id: str, *, reason: str) -> None:
         groups = self._objective_groups(origin_id)
         center = self._objective_center(origin_id)
@@ -185,12 +206,15 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
                 and mission.id == member.mission_id
                 and mission.kind == MissionKind.VERIFY.value
             ):
+                old_mission_id = member.mission_id
                 retask = self._clone_mission(mission)
                 retask.params["geo"] = target.model_dump()
+                retask.params["station_geo"] = target.model_dump()
                 retask.params["disposition_revision"] = revision
                 retask.params["disposition_reason"] = reason
+                retask.params["reconfigured_from_mission_id"] = old_mission_id
 
-                self._group_task_to_role.pop(member.mission_id, None)
+                self._group_task_to_role.pop(old_mission_id, None)
                 self._group_task_to_role[retask.id] = (group.id, member.role)
                 templates = self._group_role_templates.get(group.id)
                 if templates is not None:
@@ -202,6 +226,8 @@ class DispositionExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrato
                         "state": ExecutionGroupMemberState.ASSIGNED,
                     }
                 )
+                self._propagate_retask_runtime_state(old_mission_id, retask.id)
+                await self._publish_group_award(retask, member.agent_id, member.score)
                 self._start_mission(member.agent_id, retask, is_verify=True)
                 mission_id = retask.id
                 touched_groups.add(group.id)
