@@ -19,21 +19,21 @@ from datetime import UTC, datetime
 
 from swarm_core.messages import FleetState
 
-from orchestrator.swarm_orchestrator.demand_execution_groups import (
-    DemandAwareExecutionGroupOrchestrator,
+from orchestrator.swarm_orchestrator.disposition_execution_groups import (
+    DispositionExecutionGroupOrchestrator,
 )
 
 logger = logging.getLogger("swarm.orchestrator.bus_fleet")
 
 
 @dataclass
-class BusFleetOrchestrator(DemandAwareExecutionGroupOrchestrator):
+class BusFleetOrchestrator(DispositionExecutionGroupOrchestrator):
     """Orchestrator whose fleet snapshot is projected from bus state.
 
-    The bus-backed runtime uses the adaptive idle/preemptible capacity planner
-    and refuses to start an originating objective below its declared minimum
-    capacity. Fleet adapters remain execution boundaries and do not decide
-    admission or reallocation policy.
+    The bus-backed runtime uses demand-aware capacity reconciliation and also
+    publishes objective disposition decisions. Physical disposition retask stays
+    disabled by default; enabling it is an explicit deployment choice that must
+    be validated separately on the target execution stack.
     """
 
     fleet_state_stale_s: float = 5.0
