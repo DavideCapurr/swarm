@@ -38,6 +38,36 @@ jobs:
             --cov=core --cov=adapters --cov=orchestrator --cov=swarm_os --cov=backend \
             --cov-report=term-missing --cov-fail-under=80
 
+  causal-take-c-capture:
+    # Only this architecture branch needs the generated simulator capture.
+    # The artifact is produced by the same causal runtime path the acceptance
+    # test validates; it is not a hand-authored frontend animation script.
+    if: >-
+      github.ref_name == 'agent/swarmos-capacity-reconciliation' ||
+      github.head_ref == 'agent/swarmos-capacity-reconciliation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: python
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install Python deps
+        run: uv sync --frozen --extra dev --extra mavlink --extra dji
+      - name: Capture causal simulator take
+        run: uv run python scripts/capture_causal_take_c.py artifacts/take-c-causal-sim.json
+      - name: Upload causal capture
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: take-c-causal-simulator
+          path: artifacts/take-c-causal-sim.json
+          retention-days: 30
+
   load-smoke:
     # Phase 6.F — in-process p95 assertions. Cheap (≤ 15 s wall) and
     # runs on every push so a regression in WS/REST fanout latency
