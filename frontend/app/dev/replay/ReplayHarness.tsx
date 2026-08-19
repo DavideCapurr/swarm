@@ -4,41 +4,34 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ConsoleSurface, type SurfaceFrame } from "@/components/console/ConsoleSurface";
 import {
+  causalTakeCDurationMs,
+  foldCausalTakeC,
+  isCausalTakeCCapture,
+  type CausalTakeCCapture,
+} from "@/lib/causal-take-c";
+import {
   TAKE_A,
   TAKE_B,
-  TAKE_C,
   foldTakeA,
   foldTakeB,
-  foldTakeC,
   takeAFrames,
   takeBFrames,
-  takeCFrames,
 } from "@/lib/demo-frames";
-import { augmentTakeCForSwarmStory } from "@/lib/demo-swarm-story";
 
 /**
- * Drives the operational surface from a recorded frame script.
+ * Drives the operational surface from recorded truth.
  *
- * Three takes, all stamped `REPLAY · RECORDED FRAMES · NOT LIVE`, on a route
- * that is 404 in a production build:
+ * A and B retain their historical static bench captures. C is different: it
+ * has no authored fallback. The dev/recording workflow must first generate
+ * `/public/dev/take-c-causal-sim.json` from the causal simulator runtime. The
+ * browser only folds those captured frames; it never chooses executors,
+ * creates reinforcement, computes disposition geometry or interpolates
+ * physical motion.
  *
- *   A — two concurrent single-executor objectives with the BUSY exclusion.
- *   B — one SwarmOS-owned ExecutionGroup, a live member failure, and the
- *       central replacement of the vacated role.
- *   C — a primary swarm composed under strength, a second multi-subunit swarm
- *       dispatched as reinforcement, the disposition widening to hold both,
- *       and take B's recorded failure/replacement landing inside that wide shot.
- *
- * The extra support subunit in take C is explicitly scripted presentation data
- * in `demo-swarm-story.ts`; it never borrows or relabels recorded evidence.
- *
- * `replayBadge` can drop the stamp for layout measurement only.
+ * Every take remains stamped `REPLAY · RECORDED FRAMES · NOT LIVE` unless the
+ * badge is explicitly disabled for layout measurement on this dev-only route.
  */
 export type TakeId = "a" | "b" | "c";
-
-const SCRIPT = { a: TAKE_A, b: TAKE_B, c: TAKE_C } as const;
-const FRAMES = { a: takeAFrames, b: takeBFrames, c: takeCFrames } as const;
-const FOLD = { a: foldTakeA, b: foldTakeB, c: foldTakeC } as const;
 
 export function ReplayHarness({
   initialAtMs = 30_000,
@@ -49,30 +42,101 @@ export function ReplayHarness({
   take?: TakeId;
   replayBadge?: boolean;
 }) {
-  const script = SCRIPT[take];
-  const frames = useMemo(() => FRAMES[take](), [take]);
-  const [atMs, setAtMs] = useState(() =>
-    Math.max(0, Math.min(script.durationMs, initialAtMs))
+  const [causalCapture, setCausalCapture] = useState<CausalTakeCCapture | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+
+  const staticFrames = useMemo(
+    () => (take === "a" ? takeAFrames() : take === "b" ? takeBFrames() : null),
+    [take]
   );
+  const staticScript = take === "a" ? TAKE_A : take === "b" ? TAKE_B : null;
+
+  useEffect(() => {
+    if (take !== "c") {
+      setCausalCapture(null);
+      setCaptureError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setCausalCapture(null);
+    setCaptureError(null);
+    void fetch("/dev/take-c-causal-sim.json", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`capture unavailable (${response.status})`);
+        }
+        const payload: unknown = await response.json();
+        if (!isCausalTakeCCapture(payload)) {
+          throw new Error("capture failed causal provenance validation");
+        }
+        if (!cancelled) setCausalCapture(payload);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setCaptureError(error instanceof Error ? error.message : "capture unavailable");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [take]);
+
+  const durationMs =
+    take === "c"
+      ? causalCapture
+        ? causalTakeCDurationMs(causalCapture)
+        : 0
+      : (staticScript?.durationMs ?? 0);
+
+  const [atMs, setAtMs] = useState(() => Math.max(0, initialAtMs));
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
-    if (!playing) return;
+    if (durationMs <= 0) return;
+    setAtMs((current) => Math.min(current, durationMs));
+  }, [durationMs]);
+
+  useEffect(() => {
+    if (!playing || durationMs <= 0) return;
     const id = window.setInterval(() => {
-      setAtMs((prev) => (prev >= script.durationMs ? 0 : prev + 250));
+      setAtMs((prev) => (prev >= durationMs ? 0 : Math.min(durationMs, prev + 250)));
     }, 250);
     return () => window.clearInterval(id);
-  }, [playing, script.durationMs]);
+  }, [playing, durationMs]);
 
-  const rawSlice = useMemo(() => FOLD[take](atMs, frames), [take, atMs, frames]);
-  const slice = useMemo(
-    () => (take === "c" ? augmentTakeCForSwarmStory(rawSlice, atMs) : rawSlice),
-    [take, rawSlice, atMs]
-  );
+  const slice = useMemo(() => {
+    if (take === "a" && staticFrames) return foldTakeA(atMs, staticFrames);
+    if (take === "b" && staticFrames) return foldTakeB(atMs, staticFrames);
+    if (take === "c" && causalCapture) return foldCausalTakeC(atMs, causalCapture);
+    return null;
+  }, [take, atMs, staticFrames, causalCapture]);
+
+  if (take === "c" && !slice) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-absolute-black px-8 text-center">
+        <div className="max-w-[720px] border border-launch-amber/40 bg-absolute-black/95 p-6 font-mono text-launch-amber">
+          <div className="text-[11px] uppercase tracking-[0.22em]">TAKE C · CAUSAL CAPTURE REQUIRED</div>
+          <p className="mt-3 text-[11px] leading-5 text-white/65">
+            {captureError ?? "Loading generated SwarmOS runtime capture…"}
+          </p>
+          {captureError ? (
+            <p className="mt-3 text-[10px] leading-5 text-white/45">
+              Generate frontend/public/dev/take-c-causal-sim.json with
+              scripts/capture_causal_take_c_truth.py before replaying or recording Take C.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (!slice) return null;
 
   const frame: SurfaceFrame = {
     link: "connected",
-    clockText: new Date(script.t0 + atMs).toISOString().slice(11, 19),
+    clockText: new Date(slice.now).toISOString().slice(11, 19),
     replay: replayBadge,
     ...slice,
   };
@@ -94,10 +158,10 @@ export function ReplayHarness({
         <input
           type="range"
           min={0}
-          max={script.durationMs}
+          max={durationMs}
           step={250}
-          value={atMs}
-          onChange={(e) => setAtMs(Number(e.target.value))}
+          value={Math.min(atMs, durationMs)}
+          onChange={(event) => setAtMs(Number(event.target.value))}
           className="w-[380px] accent-[#FFB45C]"
           aria-label="take position"
         />
