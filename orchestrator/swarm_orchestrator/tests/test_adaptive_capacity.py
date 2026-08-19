@@ -127,7 +127,6 @@ def test_higher_priority_request_uses_policy_ranked_preemptible_capacity() -> No
         deadline_s=None,
     )
     fleet = [
-        # Lexicographically smaller, but much farther away.
         _member(
             "agent-a",
             state=AgentState.EN_ROUTE,
@@ -157,9 +156,6 @@ def test_idle_capacity_is_preferred_and_counterfactuals_change_the_decision() ->
     request = VERIFY(
         geo=Geo(lat=45.0, lon=9.0), priority=90, deadline_s=None
     )
-    # Two committed members keep the donor objective above its minimum=1 after
-    # one diversion. The counterfactual is about idle-vs-preemptible selection,
-    # not about violating the donor floor.
     active = {"donor": donor, "sibling": sibling}
 
     with_idle = evaluate_capacity(
@@ -181,8 +177,6 @@ def test_idle_capacity_is_preferred_and_counterfactuals_change_the_decision() ->
         active_missions=active,
     ).agent_id == "idle"  # type: ignore[union-attr]
 
-    # Same world, but the idle executor is unavailable: SwarmOS changes source
-    # without any aircraft id being edited into policy code.
     no_idle = choose_capacity(
         request,
         [
@@ -195,7 +189,6 @@ def test_idle_capacity_is_preferred_and_counterfactuals_change_the_decision() ->
     assert no_idle.agent_id == "donor"
     assert no_idle.source is CapacitySource.PREEMPTIBLE
 
-    # Lower-priority work cannot steal the same donor.
     low_priority = VERIFY(
         geo=Geo(lat=45.0, lon=9.0), priority=5, deadline_s=None
     )
@@ -280,7 +273,6 @@ async def test_multi_agent_composition_diverts_and_recomputes_the_donor_cover() 
     donor = await orchestrator.dispatch_execution_group(cover)
     assert len(donor.members) == 3
 
-    # The same physical executors are now airborne and committed to the sweep.
     orchestrator.fleet_fixture = [
         _member(f"agent-{idx}", state=AgentState.EN_ROUTE)
         for idx in range(1, 4)
@@ -320,13 +312,14 @@ async def test_multi_agent_composition_diverts_and_recomputes_the_donor_cover() 
         member.diverted_from_objective_id == cover.id
         for member in response_now.members
     )
-    # Rebalance is an actual mission recomputation: the surviving sweep child
-    # now owns the whole remaining disposition rather than its old one-third
-    # slice with two holes beside it.
     survivor_mission = orchestrator._agent_missions[active[0].agent_id]
     assert survivor_mission.params["slice_count"] == 1
     assert survivor_mission.params["recomputed_from_capacity"] == 1
     assert len(survivor_mission.params["area"]) == len(cover.params["area"])
+    # Cancelled donor tasks must not clear the ownership of their successor
+    # response/rebalanced tasks after the transfer.
+    assert orchestrator._busy == {"agent-1", "agent-2", "agent-3"}
+    assert set(orchestrator._agent_mission_ids) == {"agent-1", "agent-2", "agent-3"}
 
     await _cancel_orchestrator(orchestrator)
     await bus.close()
@@ -374,15 +367,9 @@ async def test_under_strength_response_reinforces_when_capacity_later_returns() 
     )
     await asyncio.sleep(0.08)
 
-    # Donor floor=2 permits exactly one diversion. Response is therefore
-    # genuinely under strength rather than being scripted to "need backup".
     assert len(origin.members) == 1
     assert orchestrator.execution_groups[donor.id].state is ExecutionGroupState.DEGRADED
 
-    # External world change only: an executor becomes available. The scenario
-    # does not name it as reinforcement; reconciliation discovers it. Because
-    # simultaneous shortfalls are reviewed by objective priority, the response
-    # claims this capacity before the lower-priority sweep can recover it.
     orchestrator.fleet_fixture = [
         _member("agent-1", state=AgentState.EN_ROUTE),
         _member("agent-2", state=AgentState.EN_ROUTE),
