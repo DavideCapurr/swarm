@@ -191,7 +191,7 @@ describe("narrationFor", () => {
     );
   });
 
-  it("shows the formation reconfiguring while the reinforcement is inbound", () => {
+  it("does not claim a formation change without disposition truth", () => {
     const inbound = objective("EXECUTING", {
       swarms: [
         swarm(),
@@ -213,9 +213,7 @@ describe("narrationFor", () => {
         }),
       ],
     });
-    expect(narrationFor(inbound, { phase: "idle" })).toBe(
-      "SWARM 02 EN ROUTE · FORMATION RECONFIGURING"
-    );
+    expect(narrationFor(inbound, { phase: "idle" })).toBe("SWARM 02 EN ROUTE");
   });
 
   it("calls the swarms coordinated only once reinforcement reaches station", () => {
