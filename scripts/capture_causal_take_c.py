@@ -53,7 +53,10 @@ from orchestrator.swarm_orchestrator.alarm_driven import (
 from orchestrator.swarm_orchestrator.alarm_policy import AlarmResponsePolicy
 from orchestrator.swarm_orchestrator.bus import InMemoryBus
 from orchestrator.swarm_orchestrator.disposition_execution_groups import DISPOSITION_TOPIC
-from orchestrator.swarm_orchestrator.execution_groups import EXECUTION_GROUP_TOPIC
+from orchestrator.swarm_orchestrator.execution_groups import (
+    EXECUTION_GROUP_TOPIC,
+    MISSION_OBJECTIVE_TOPIC,
+)
 from sim.swarm_sim.external_events import (
     CAPACITY_AVAILABLE_TOPIC,
     CapacityAvailable,
@@ -308,10 +311,25 @@ async def _capture() -> dict[str, Any]:
     milestones: dict[str, Any] = {}
 
     try:
-        # World fact 1: continuous coverage is required.
+        # World/service fact 1: this area requires continuous coverage at the
+        # declared desired/minimum service level. The scenario publishes the
+        # objective; it does not call the group-composition primitive.
         coverage = _coverage_objective(world.dock)
         milestones["coverage_objective_at_ms"] = recorder.elapsed_ms()
-        donor = await orchestrator.dispatch_execution_group(coverage)
+        await bus.publish(MISSION_OBJECTIVE_TOPIC, coverage.model_dump_json())
+        await _wait_until(
+            lambda: any(
+                group.objective_mission_id == coverage.id
+                and group.reinforces_group_id is None
+                for group in orchestrator.execution_groups.values()
+            )
+        )
+        donor = next(
+            group
+            for group in orchestrator.execution_groups.values()
+            if group.objective_mission_id == coverage.id
+            and group.reinforces_group_id is None
+        )
         await _wait_until(
             lambda: all(
                 not drones[member.agent_id].is_docked for member in donor.members
