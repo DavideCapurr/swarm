@@ -30,11 +30,11 @@ from orchestrator.swarm_orchestrator.capacity import (
     objective_key,
 )
 from orchestrator.swarm_orchestrator.execution_groups import (
-    RUNNING_GROUP_STATES,
+    _ObjectiveReinforcementRecord,
     ExecutionGroupOrchestrator,
     ExecutionRolePlan,
     ReinforcementObservation,
-    _ObjectiveReinforcementRecord,
+    RUNNING_GROUP_STATES,
 )
 from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT
 from swarm_core.execution_groups import (
