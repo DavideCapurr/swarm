@@ -1,7 +1,7 @@
 """Alarm-driven adaptive SwarmOS orchestrator.
 
-The scenario publishes an ``Anomaly``.  SwarmOS derives the response objective,
-capacity demand, composition and any preemption/reinforcement.  No scenario code
+The scenario publishes an ``Anomaly``. SwarmOS derives the response objective,
+capacity demand, composition and any preemption/reinforcement. No scenario code
 names an executor or a swarm.
 """
 
@@ -13,16 +13,16 @@ from dataclasses import dataclass, field
 from swarm_core.messages import Anomaly
 from swarm_core.missions import COOPERATIVE_VERIFY_KIND
 
-from orchestrator.swarm_orchestrator.adaptive_execution_groups import (
-    AdaptiveExecutionGroupOrchestrator,
-)
 from orchestrator.swarm_orchestrator.alarm_policy import AlarmResponsePolicy
+from orchestrator.swarm_orchestrator.demand_execution_groups import (
+    DemandAwareExecutionGroupOrchestrator,
+)
 
 logger = logging.getLogger("swarm.orchestrator.alarm_driven")
 
 
 @dataclass
-class AlarmDrivenExecutionGroupOrchestrator(AdaptiveExecutionGroupOrchestrator):
+class AlarmDrivenExecutionGroupOrchestrator(DemandAwareExecutionGroupOrchestrator):
     """Adaptive orchestrator whose public stimulus is world-state alarm truth."""
 
     alarm_policy: AlarmResponsePolicy = field(default_factory=AlarmResponsePolicy)
