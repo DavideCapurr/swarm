@@ -152,6 +152,7 @@ async def main() -> None:
             )
             await _wait_surface(page)
             await _select_intrusion(page)
+            await page.wait_for_timeout(500)
             screenshot = output / f"take-c-{label}.png"
             await page.screenshot(path=str(screenshot), full_page=False)
             screenshots[label] = str(screenshot)
