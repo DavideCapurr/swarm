@@ -49,11 +49,15 @@ ObjectiveDemand
        -> diversion provenance
        -> donor COVER/PATROL recomputation
        -> periodic reconciliation
+  -> DispositionExecutionGroupOrchestrator
+       -> objective-level station geometry
+       -> COMPOSITION / REINFORCEMENT / REPLACEMENT revisions
+       -> optional physical retask through the execution adapter
 ```
 
-The bus-backed runtime now derives from the adaptive orchestrator. The alarm
-policy is separately reusable: an `Anomaly` is external world truth; SwarmOS
-derives the response objective and demand from it.
+The bus-backed runtime now derives from the adaptive/disposition orchestrator.
+The alarm policy is separately reusable: an `Anomaly` is external world truth;
+SwarmOS derives the response objective and demand from it.
 
 ## Capability matrix
 
@@ -72,8 +76,8 @@ derives the response objective and demand from it.
 | 11 | Decide whether reinforcement is required | **IMPLEMENTED** | **IMPLEMENTED** | `shortfall_reinforcement_policy` |
 | 12 | Find reinforcement capacity | **PARTIALLY IMPLEMENTED** (idle only) | **IMPLEMENTED** for idle + preemptible capacity | adaptive `_observe_objective` |
 | 13 | Add a second swarm to an existing objective | **IMPLEMENTED** | **IMPLEMENTED** | `reinforces_group_id` + tests |
-| 14 | Coordinate several swarms against one objective | **PARTIALLY IMPLEMENTED** | **PARTIALLY IMPLEMENTED** | first-class objective/group relationship exists; full physical cross-group disposition retask is not yet wired |
-| 15 | Recompute formation/disposition when composition changes | **DEMO-ONLY** in Take C | **PARTIALLY IMPLEMENTED** | `core/swarm_core/disposition.py` derives geometry from active roles; physical retask of already-on-station members remains open |
+| 14 | Coordinate several swarms against one objective | **PARTIALLY IMPLEMENTED** | **IMPLEMENTED for current deterministic policy** | shared objective truth + first-class cross-group disposition; causal simulator proof covers origin + reinforcement together |
+| 15 | Recompute formation/disposition when composition changes | **DEMO-ONLY** in Take C | **IMPLEMENTED in SwarmOS + simulator execution** | `core/swarm_core/disposition.py`, `DispositionExecutionGroupOrchestrator`, causal 3D convergence; PX4/physical execution remains unproven |
 | 16 | Detect executor failure | **IMPLEMENTED** | **IMPLEMENTED** | group progress FAILED / executor exception |
 | 17 | Replace a failed executor | **IMPLEMENTED** | **IMPLEMENTED** with adaptive candidate policy available | `_replace_failed_member` + existing tests |
 | 18 | Preserve role/replacement provenance | **IMPLEMENTED** | **IMPLEMENTED** + diversion provenance | `role`, `replaces_agent_id`, `diverted_from_*` |
@@ -113,19 +117,26 @@ the stale row must not be quoted externally.
 - COVER/PATROL recomputation after capacity loss;
 - role, replacement, reinforcement and diversion provenance;
 - capacity release when execution tasks complete;
-- disposition geometry as a pure function of active roles.
+- disposition geometry as a pure function of active roles;
+- physical simulator retask to the published disposition slots when that execution mode is enabled.
 
 ## What remains intentionally external / scripted
 
-A deterministic simulation or acceptance scenario may still specify facts about
-the world, for example:
+A deterministic simulation or acceptance scenario may still specify facts and
+service constraints about the world, for example:
 
 - fleet size and initial availability;
-- a coverage objective and its explicit minimum/desired policy;
+- a coverage objective and its explicit minimum/desired service policy;
 - an alarm appearing at a location with a confidence/severity;
 - an executor becoming unavailable or failing;
 - capacity becoming available later;
 - deterministic clock/seed.
+
+System/deployment policy may separately configure reusable alarm thresholds,
+team-size limits, safety caps and reconciliation cadence. Those settings must be
+independent of a particular scenario timeline: the scenario must not tune them
+from the response it wants to display. In particular, a baseline coverage floor
+must not be computed from the later alarm-response team size.
 
 It must not specify:
 
@@ -141,13 +152,8 @@ Those are SwarmOS outputs.
 
 ## Remaining gaps
 
-1. `compute_disposition()` is production-side deterministic geometry, but
-   already-on-station physical children are not yet retasked when combined
-   membership changes. A replay may use the computed geometry, but that is not
-   yet a field/SITL proof of formation reconfiguration.
-2. The system has explicit priority/preemption policy, not a global utility
-   optimizer. This is deliberate for the current product proof.
-3. The new adaptive preemption/reconciliation path is test/simulator logic until
-   separately run through PX4 SITL. Existing phase 11/12 SITL evidence remains
-   valid but does not automatically validate these new branches.
-4. No physical-aircraft proof is added by this change.
+1. Disposition retask is now wired through the kinematic simulated execution path and the causal acceptance proof verifies 3D convergence after composition, reinforcement and replacement. The same new retask path has **not** yet been validated through MAVLink/PX4 or physical aircraft.
+2. The system has explicit priority/preemption policy, not a global utility optimizer. This is deliberate for the current product proof.
+3. Reinforcement and replacement retain explicit bounded safety caps. Those are SwarmOS policy limits, not scenario commands; broader multi-wave/global optimization remains future policy work.
+4. The new adaptive preemption/reconciliation path is test/simulator logic until separately run through PX4 SITL. Existing phase 11/12 SITL evidence remains valid but does not automatically validate these new branches.
+5. No physical-aircraft proof is added by this change.
