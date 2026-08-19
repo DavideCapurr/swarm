@@ -533,7 +533,10 @@ describe("swarms on one objective", () => {
     expect(objective.swarms.map((s) => s.groupId)).toEqual(["group-1", "group-2"]);
     expect(objective.swarms[0].reinforcesGroupId).toBeNull();
     expect(objective.swarms[1].reinforcesGroupId).toBe("group-1");
-    expect(objective.requestedMembers).toBe(5);
+    // Reinforcement fills the originating objective's demand; it does not add
+    // a second demand budget on top of the same objective.
+    expect(objective.requestedMembers).toBe(3);
+    expect(objective.swarms[1].requestedMembers).toBe(2);
     expect(objective.slots).toHaveLength(4);
   });
 
