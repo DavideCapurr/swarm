@@ -1,19 +1,26 @@
-"""Deterministic SwarmOS disposition geometry.
+"""Deterministic SwarmOS disposition geometry and decision truth.
 
-The renderer must not decide how a swarm widens or contracts.  Given an
+The renderer must not decide how a swarm widens or contracts. Given an
 objective point and the active role set, SwarmOS derives station geometry from
-membership.  The first implementation is intentionally simple: evenly spaced
-slots on a radius that grows with active strength.
+membership. The orchestration layer publishes :class:`DispositionDecision`
+frames so the Console can render the decision without recreating it.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from pydantic import BaseModel, Field
 
 from swarm_core.messages import Geo
 
 _M_PER_DEG = 111_000.0
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
@@ -30,6 +37,29 @@ class ObjectiveDisposition:
     active_members: int
     radius_m: float
     slots: tuple[DispositionSlot, ...]
+
+
+class DispositionAssignment(BaseModel):
+    """One physical executor assigned to one SwarmOS-computed station slot."""
+
+    group_id: str
+    agent_id: str
+    role: str
+    mission_id: str
+    geo: Geo
+
+
+class DispositionDecision(BaseModel):
+    """Published disposition truth for one logical objective."""
+
+    objective_mission_id: str
+    revision: int = Field(ge=1)
+    reason: str
+    center: Geo
+    active_members: int = Field(ge=0)
+    radius_m: float = Field(ge=0.0)
+    assignments: list[DispositionAssignment] = Field(default_factory=list)
+    ts: datetime = Field(default_factory=_now)
 
 
 def _offset(center: Geo, east_m: float, north_m: float) -> Geo:
@@ -86,4 +116,10 @@ def compute_disposition(
     )
 
 
-__all__ = ("DispositionSlot", "ObjectiveDisposition", "compute_disposition")
+__all__ = (
+    "DispositionAssignment",
+    "DispositionDecision",
+    "DispositionSlot",
+    "ObjectiveDisposition",
+    "compute_disposition",
+)
