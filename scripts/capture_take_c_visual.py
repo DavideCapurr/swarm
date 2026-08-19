@@ -43,13 +43,13 @@ def _sample_times(capture: dict[str, Any]) -> dict[str, int]:
     }
 
 
-def _replay_url(base_url: str, capture_at_ms: int) -> str:
+def _replay_url(base_url: str, capture_at_ms: int, *, controls: bool) -> str:
     query = urlencode(
         {
             "take": "c",
             "at": capture_at_ms * PLAYBACK_SCALE,
             "replay": "0",
-            "controls": "0",
+            "controls": "1" if controls else "0",
         }
     )
     return f"{base_url.rstrip('/')}/dev/replay?{query}"
@@ -72,7 +72,8 @@ async def main() -> None:
     args = parser.parse_args()
 
     capture_path = Path(args.capture)
-    capture = json.loads(capture_path.read_text(encoding="utf-8"))
+    source = await asyncio.to_thread(capture_path.read_text, encoding="utf-8")
+    capture = json.loads(source)
     if capture.get("provenance") != "causal-simulator-runtime":
         raise RuntimeError("visual capture source is not a causal simulator runtime capture")
     proof_scope = capture.get("proof_scope", {})
@@ -89,11 +90,19 @@ async def main() -> None:
         browser = await playwright.chromium.launch(headless=True)
         context = await browser.new_context(viewport=VIEWPORT, device_scale_factor=1)
         page = await context.new_page()
-        page.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
+        page.on(
+            "console",
+            lambda message: console_errors.append(message.text)
+            if message.type == "error"
+            else None,
+        )
         page.on("pageerror", lambda error: console_errors.append(str(error)))
 
         for label, capture_at_ms in sample_times.items():
-            await page.goto(_replay_url(args.url, capture_at_ms), wait_until="networkidle")
+            await page.goto(
+                _replay_url(args.url, capture_at_ms, controls=False),
+                wait_until="networkidle",
+            )
             await _wait_surface(page)
             screenshot = output / f"take-c-{label}.png"
             await page.screenshot(path=str(screenshot), full_page=False)
@@ -117,9 +126,15 @@ async def main() -> None:
             else None,
         )
         video_page.on("pageerror", lambda error: console_errors.append(str(error)))
-        await video_page.goto(_replay_url(args.url, 0), wait_until="networkidle")
+        await video_page.goto(
+            _replay_url(args.url, 0, controls=True),
+            wait_until="networkidle",
+        )
         await _wait_surface(video_page)
         await video_page.get_by_role("button", name="PLAY").click()
+        await video_page.locator('[data-testid="replay-controls"]').evaluate(
+            "element => { element.style.display = 'none'; }"
+        )
         await video_page.wait_for_timeout(
             int(capture["duration_ms"]) * PLAYBACK_SCALE + 1_000
         )
@@ -130,7 +145,7 @@ async def main() -> None:
             raise RuntimeError("Playwright did not create a Take C video")
         recorded_path = Path(await video.path())
         final_video = output / "take-c-causal-runtime.webm"
-        shutil.copy2(recorded_path, final_video)
+        await asyncio.to_thread(shutil.copy2, recorded_path, final_video)
         await browser.close()
 
     manifest = {
@@ -146,8 +161,10 @@ async def main() -> None:
         "video": str(final_video),
         "console_errors": console_errors,
     }
-    (output / "manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n",
+    payload = json.dumps(manifest, indent=2) + "\n"
+    await asyncio.to_thread(
+        (output / "manifest.json").write_text,
+        payload,
         encoding="utf-8",
     )
     if console_errors:
