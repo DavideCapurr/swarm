@@ -9,6 +9,7 @@
  * type and is intentionally absent from the demo narration.
  */
 
+import type { DispositionDecision } from "@/lib/api";
 import type { CompositionSlot, ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
 
 import { HAIRLINE } from "./Surface";
@@ -39,9 +40,7 @@ function requiredRoles(objective: ObjectiveAuthority): number {
  */
 function rolesCovered(objective: ObjectiveAuthority): number {
   const required = requiredRoles(objective);
-  const roles = new Set(
-    objective.slots.filter(liveSlot).map((slot) => slot.role)
-  );
+  const roles = new Set(objective.slots.filter(liveSlot).map((slot) => slot.role));
   return Math.min(required, roles.size);
 }
 
@@ -61,9 +60,16 @@ function primaryUnderStrength(objective: ObjectiveAuthority): boolean {
   return Boolean(primary && primary.composedMembers < primary.requestedMembers);
 }
 
+function dispositionLine(decision: DispositionDecision): string {
+  const revision = String(decision.revision).padStart(2, "0");
+  const radius = Math.round(decision.radius_m);
+  return `DISPOSITION R${revision} ISSUED · R ${radius} M`;
+}
+
 export function narrationFor(
   objective: ObjectiveAuthority | null,
-  beat: AdaptationBeat
+  beat: AdaptationBeat,
+  disposition: DispositionDecision | null = null
 ): string {
   if (!objective) return "AWAITING FLEET STATE";
 
@@ -95,6 +101,15 @@ export function narrationFor(
       }
 
       if (reinforcement && !reinforcementOnStation(reinforcement)) {
+        // On the live path this statement comes from a SwarmOS disposition
+        // frame. It deliberately does not claim that physical reconfiguration
+        // is occurring: bus-backed deployments may publish the decision while
+        // keeping physical retask disabled until separately validated.
+        if (disposition?.reason === "REINFORCEMENT") {
+          return `SWARM 02 EN ROUTE · ${dispositionLine(disposition)}`;
+        }
+        // Compatibility only for historical replay fixtures that predate
+        // DispositionDecision. New live demos must provide disposition truth.
         return "SWARM 02 EN ROUTE · FORMATION RECONFIGURING";
       }
 
@@ -135,11 +150,13 @@ function toneFor(objective: ObjectiveAuthority | null, beat: AdaptationBeat): st
 export function NarrationStrip({
   focused,
   beat,
+  disposition = null,
 }: {
   focused: ObjectiveAuthority | null;
   beat: AdaptationBeat;
+  disposition?: DispositionDecision | null;
 }) {
-  const text = narrationFor(focused, beat);
+  const text = narrationFor(focused, beat, disposition);
   return (
     <div
       data-testid="narration-strip"
