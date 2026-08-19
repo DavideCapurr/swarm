@@ -66,8 +66,8 @@ function epoch(ts: string | null | undefined): number {
  * One logical role inside an objective.
  *
  * A role outlives the machine holding it — that is the whole point of the
- * architecture, and it is why the slot carries `replacesAgentId` and the
- * displaced holder rather than simply swapping an id.
+ * architecture, and it is why the slot carries replacement/diversion provenance
+ * rather than simply swapping an id.
  */
 export type CompositionSlot = {
   /** 1-based display order. Stable across a replacement. */
@@ -88,6 +88,12 @@ export type CompositionSlot = {
   replacesAgentId: string | null;
   /** The displaced holder of this role, when SwarmOS replaced one. */
   replacedAgentId: string | null;
+  /** Agent deliberately removed from this role by SwarmOS preemption. */
+  divertedAgentId: string | null;
+  /** Source mission for a live assignment obtained through SwarmOS preemption. */
+  divertedFromMissionId: string | null;
+  /** Source objective for a live assignment obtained through SwarmOS preemption. */
+  divertedFromObjectiveId: string | null;
   /** True between observed failure and an observed replacement for this role. */
   adapting: boolean;
   /** The swarm holding this role — its `ExecutionGroup` id. Null when there is no group. */
@@ -141,7 +147,7 @@ export type SwarmComposition = {
    * between what was asked for and what was committed, exactly as the ADR says.
    */
   composedMembers: number;
-  /** Roles whose holder is present and has not failed. */
+  /** Roles whose holder is present and has not failed or been diverted. */
   heldMembers: number;
   /** Amber on the panel. Never red. */
   underStrength: boolean;
@@ -380,6 +386,7 @@ const TERMINAL_MEMBER_STATES: ReadonlySet<ExecutionGroupMemberState> = new Set([
   "COMPLETED",
   "FAILED",
   "REPLACED",
+  "DIVERTED",
 ]);
 
 /**
@@ -422,10 +429,9 @@ function latestRuntimeByMission(
 /**
  * Group the members of an ExecutionGroup by the role they hold.
  *
- * SwarmOS appends a replacement rather than editing the failed member, so a
- * role can carry several rows. The live holder is the one SwarmOS has not
- * marked `REPLACED`; the displaced holder stays visible because the
- * replacement is the thing this surface exists to show.
+ * Replacement and diversion rows are history, not current holders. A donor role
+ * that was diverted can later be re-filled by a recomputed child; the historical
+ * agent remains visible as provenance without being double-counted as capacity.
  */
 function slotsFromGroup(
   group: ExecutionGroup,
@@ -447,11 +453,15 @@ function slotsFromGroup(
     const members = (byRole.get(role) ?? [])
       .slice()
       .sort((a, b) => epoch(a.ts) - epoch(b.ts));
-    const live = members.filter((m) => m.state !== "REPLACED").at(-1) ?? null;
+    const live =
+      members
+        .filter((m) => m.state !== "REPLACED" && m.state !== "DIVERTED")
+        .at(-1) ?? null;
     const replaced = members.filter((m) => m.state === "REPLACED").at(-1) ?? null;
+    const diverted = members.filter((m) => m.state === "DIVERTED").at(-1) ?? null;
     const frame = live?.mission_id ? runtime.get(live.mission_id) ?? null : null;
     // A role is adapting while its live holder has failed and SwarmOS has not
-    // yet put a replacement in. Both halves are read off member state.
+    // yet put a replacement in. Diversion is a policy transfer, not a failure.
     const adapting = Boolean(live && live.state === "FAILED");
 
     return {
@@ -460,12 +470,15 @@ function slotsFromGroup(
       roleIsAssigned: true,
       agentId: live?.agent_id ?? null,
       missionId: live?.mission_id ?? null,
-      memberState: live?.state ?? null,
+      memberState: live?.state ?? diverted?.state ?? null,
       phase: frame?.phase ?? null,
       proof: runtimeEvidenceLabel(frame),
       score: live?.score ?? null,
       replacesAgentId: live?.replaces_agent_id ?? null,
       replacedAgentId: replaced?.agent_id ?? null,
+      divertedAgentId: diverted?.agent_id ?? null,
+      divertedFromMissionId: live?.diverted_from_mission_id ?? null,
+      divertedFromObjectiveId: live?.diverted_from_objective_id ?? null,
       adapting,
       groupId: group.id,
       swarmIndex,
@@ -547,6 +560,9 @@ function slotFromDecision(
       score: decision.winner_score,
       replacesAgentId: null,
       replacedAgentId: null,
+      divertedAgentId: null,
+      divertedFromMissionId: decision.diverted_from_mission_id ?? null,
+      divertedFromObjectiveId: null,
       adapting: false,
       groupId: null,
       swarmIndex: 1,
@@ -601,7 +617,11 @@ function foldObjectiveState(states: readonly ObjectiveState[]): ObjectiveState {
 /** The strength readings for one swarm, over the roles it actually holds. */
 function heldIn(slots: readonly CompositionSlot[]): number {
   return slots.filter(
-    (slot) => slot.agentId && slot.memberState !== "FAILED" && slot.phase !== "FAILED"
+    (slot) =>
+      slot.agentId &&
+      slot.memberState !== "FAILED" &&
+      slot.memberState !== "DIVERTED" &&
+      slot.phase !== "FAILED"
   ).length;
 }
 
@@ -613,10 +633,12 @@ function buildTrace(
   frames: MissionRuntimeEvent[]
 ): TraceStage[] {
   const ordered = frames.slice().sort((a, b) => epoch(a.ts) - epoch(b.ts));
-  const composed = slots.some((s) => s.agentId);
+  const composed = slots.some((s) => s.agentId || s.divertedAgentId);
   const firstFrame = ordered[0] ?? null;
   const replacement = slots.find((s) => s.replacesAgentId);
-  const adapted = Boolean(replacement) || slots.some((s) => s.adapting);
+  const adapted =
+    Boolean(replacement) ||
+    slots.some((s) => s.adapting || s.divertedAgentId != null);
   const verified = state === "VERIFIED";
 
   // The replacement's own first frame is what dates the adaptation. Falling back
@@ -643,9 +665,7 @@ function buildTrace(
       name: "ADAPTED",
       // Never "pending": ADAPTED does not sit in a queue waiting its turn the
       // way COMPOSED/EXECUTING/VERIFIED do. It is either actively resolving a
-      // failure, closed because it resolved one, or not required because none
-      // has occurred — and the surface can say that last one as a fact of the
-      // present, live-updating the instant it stops being true.
+      // failure/transfer, closed because it resolved one, or not required.
       state: !adapted ? "not_required" : state === "ADAPTING" ? "active" : "done",
       at: adaptedAt,
     },
@@ -737,9 +757,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
         swarms,
         requestedMembers: swarms.reduce((total, swarm) => total + swarm.requestedMembers, 0),
         slots,
-        activeMembers: slots.filter(
-          (s) => s.memberState === "ACTIVE" || s.memberState === "ASSIGNED"
-        ).length,
+        activeMembers: heldIn(slots),
         state,
         active: state !== "VERIFIED" && state !== "FAILED",
         trace: buildTrace(slots, state, anomaly?.detected_at ?? null, decisionAt, frames),
@@ -929,15 +947,10 @@ export type CompositionDigest = {
  *
  * Two rules keep the summary honest. A slot that needs attention is never
  * summarised away: anything failing, adapting, holding a role by replacement,
- * or newly committed as reinforcement is listed whatever the count, because
- * those are the rows the surface exists to show. And what is left out is still
- * stated — how many, and in which phase — rather than silently dropped.
- *
- * Reinforcement earns its place on the same grounds as replacement. A second
- * swarm arriving on an objective that never reached strength is the one thing
- * that just changed, and at the scale where this function starts summarising it
- * is also the thing most easily folded into `+25 ROLES · 25 ON STATION` — which
- * would delete the beat exactly where it matters most.
+ * diverted by policy, or newly committed as reinforcement is listed whatever
+ * the count, because those are the rows the surface exists to show. And what is
+ * left out is still stated — how many, and in which phase — rather than silently
+ * dropped.
  */
 export function compositionDigest(
   slots: readonly CompositionSlot[],
@@ -950,8 +963,11 @@ export function compositionDigest(
       (slot) =>
         slot.adapting ||
         slot.memberState === "FAILED" ||
+        slot.memberState === "DIVERTED" ||
         slot.phase === "FAILED" ||
         slot.replacesAgentId != null ||
+        slot.divertedAgentId != null ||
+        slot.divertedFromMissionId != null ||
         slot.reinforcement
     )
   );
