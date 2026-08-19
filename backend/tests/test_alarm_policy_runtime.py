@@ -108,10 +108,28 @@ def test_alarm_policy_is_opt_in_by_default(
     assert fleet.alarm_policy.max_team_size == 3
 
 
-def test_alarm_policy_rejects_inverted_thresholds(
+def test_disabled_alarm_policy_ignores_its_optional_parameters(
     bus: InMemoryBus,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("SWARM_ALARM_RESPONSE_POLICY", "0")
+    monkeypatch.setenv("SWARM_ALARM_COOPERATIVE_THRESHOLD", "0.90")
+    monkeypatch.setenv("SWARM_ALARM_HIGH_CONFIDENCE_THRESHOLD", "0.80")
+    monkeypatch.setenv("SWARM_ALARM_MAX_TEAM_SIZE", "999")
+
+    fleet = fleet_from_env(bus)
+
+    assert fleet.alarm_response_policy_enabled is False
+    assert fleet.alarm_policy.cooperative_threshold == 0.80
+    assert fleet.alarm_policy.high_confidence_threshold == 0.93
+    assert fleet.alarm_policy.max_team_size == 3
+
+
+def test_alarm_policy_rejects_inverted_thresholds_when_enabled(
+    bus: InMemoryBus,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SWARM_ALARM_RESPONSE_POLICY", "1")
     monkeypatch.setenv("SWARM_ALARM_COOPERATIVE_THRESHOLD", "0.90")
     monkeypatch.setenv("SWARM_ALARM_HIGH_CONFIDENCE_THRESHOLD", "0.80")
 
