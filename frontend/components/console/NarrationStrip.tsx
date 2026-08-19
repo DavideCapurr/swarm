@@ -73,6 +73,15 @@ export function narrationFor(
 ): string {
   if (!objective) return "AWAITING FLEET STATE";
 
+  // Terminal objective truth is authoritative and must not be hidden by a
+  // presentation beat that began a few frames earlier.
+  if (objective.state === "VERIFIED") {
+    return "OBJECTIVE VERIFIED · MISSION COMPLETE";
+  }
+  if (objective.state === "FAILED") {
+    return "OBJECTIVE CLOSED · NOT VERIFIED";
+  }
+
   if (beat.phase === "adapting") {
     return "SUBUNIT LOST · SWARMOS SELECTING REPLACEMENT";
   }
@@ -85,10 +94,6 @@ export function narrationFor(
       return "OBJECTIVE DETECTED · SWARMOS COMPOSING SWARM";
     case "ADAPTING":
       return "SUBUNIT LOST · SWARMOS SELECTING REPLACEMENT";
-    case "VERIFIED":
-      return "OBJECTIVE VERIFIED · MISSION COMPLETE";
-    case "FAILED":
-      return "OBJECTIVE CLOSED · NOT VERIFIED";
     case "EXECUTING":
     default: {
       const required = requiredRoles(objective);
@@ -127,14 +132,12 @@ export function narrationFor(
 }
 
 function toneFor(objective: ObjectiveAuthority | null, beat: AdaptationBeat): string {
-  if (
-    beat.phase === "adapting" ||
-    objective?.state === "ADAPTING" ||
-    objective?.state === "FAILED"
-  ) {
+  if (objective?.state === "VERIFIED") return "#B8FF66";
+  if (objective?.state === "FAILED") return "#FFB45C";
+  if (beat.phase === "adapting" || objective?.state === "ADAPTING") {
     return "#FFB45C";
   }
-  if (beat.phase === "restored" || objective?.state === "VERIFIED") return "#B8FF66";
+  if (beat.phase === "restored") return "#B8FF66";
   if (objective?.state === "EXECUTING") {
     const reinforcement = reinforcementOf(objective);
     if (reinforcement?.state === "COMPOSING") return "#FFB45C";
