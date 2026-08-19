@@ -23,6 +23,11 @@ from sim.swarm_sim.external_events import (
     CapacityAvailable,
     consume_capacity_availability,
 )
+from sim.swarm_sim.faults import (
+    EXECUTOR_FAULT_TOPIC,
+    ExecutorFault,
+    consume_executor_faults,
+)
 from sim.swarm_sim.world import World
 
 
@@ -108,6 +113,7 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
     capacity_runtime = asyncio.create_task(
         consume_capacity_availability(bus, reserve_adapters)
     )
+    fault_runtime = asyncio.create_task(consume_executor_faults(bus, adapters))
     runtime = asyncio.create_task(orchestrator.run())
     await asyncio.sleep(0.02)
 
@@ -232,13 +238,17 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
             )
         )
 
-        # Scripted input 4: one currently active physical executor fails. The
-        # identity is observed from SwarmOS output; the stimulus never names a
-        # replacement or asks for replacement review.
+        # Scripted input 4: one currently active physical executor fails. Its
+        # identity is an external world fact; the event cannot name a replacement,
+        # role reassignment, reinforcement or formation response.
         failed_assignment = reinforcement.assignments[0]
         failed_agent = failed_assignment.agent_id
         failed_role = failed_assignment.role
-        adapters[failed_agent].inject_failure("EXTERNAL_SIMULATED_FAILURE")
+        fault = ExecutorFault(
+            agent_id=failed_agent,
+            reason="EXTERNAL_SIMULATED_FAILURE",
+        )
+        await bus.publish(EXECUTOR_FAULT_TOPIC, fault.model_dump_json())
 
         await _wait_until(
             lambda: any(
@@ -303,10 +313,12 @@ async def test_take_c_behavior_emerges_only_from_world_facts() -> None:
     finally:
         runtime.cancel()
         capacity_runtime.cancel()
+        fault_runtime.cancel()
         collector.cancel()
         await asyncio.gather(
             runtime,
             capacity_runtime,
+            fault_runtime,
             collector,
             return_exceptions=True,
         )
