@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from swarm_core.execution_groups import (
     ExecutionGroup,
@@ -43,9 +44,17 @@ from orchestrator.swarm_orchestrator.execution_groups import (
     ExecutionGroupOrchestrator,
     ExecutionRolePlan,
     ReinforcementObservation,
-    _ObjectiveReinforcementRecord,
 )
 from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT
+
+
+class _ReinforcementRecordView(Protocol):
+    """Only the base-record fields adaptive reconciliation actually consumes."""
+
+    objective: MissionTask
+    anomaly_id: str | None
+    unfilled_plans: list[ExecutionRolePlan]
+    reinforcement_group_ids: list[str]
 
 
 _LOST_STATES = frozenset(
@@ -184,7 +193,7 @@ class AdaptiveExecutionGroupOrchestrator(ExecutionGroupOrchestrator):
     def _observe_objective(
         self,
         origin: ExecutionGroup,
-        record: _ObjectiveReinforcementRecord,
+        record: _ReinforcementRecordView,
     ) -> ReinforcementObservation:
         groups = [origin] + [
             self._execution_groups[group_id]
