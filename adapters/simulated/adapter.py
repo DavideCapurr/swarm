@@ -72,6 +72,12 @@ class SimulatedAdapter:
         self._tick_hz = tick_hz
         self._tick_task: asyncio.Task[None] | None = None
 
+    @property
+    def connected(self) -> bool:
+        """Cached simulation execution-link state for synchronous fleet truth."""
+
+        return self._connected
+
     async def connect(self) -> None:
         self._connected = True
         self._failure_reason = None

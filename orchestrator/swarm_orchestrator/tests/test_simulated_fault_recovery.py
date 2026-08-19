@@ -5,7 +5,8 @@ import asyncio
 import pytest
 from swarm_core.disposition import DispositionDecision
 from swarm_core.execution_groups import ExecutionGroup, ExecutionGroupMemberState
-from swarm_core.messages import Anomaly, AnomalyKind, Geo
+from swarm_core.messages import AgentState, Anomaly, AnomalyKind, Geo
+from swarm_core.missions import VERIFY
 
 from adapters.base import AdapterRegistry
 from adapters.simulated import SimulatedAdapter
@@ -146,6 +147,19 @@ async def test_external_failure_selects_replacement_and_recomputes_disposition()
     assert failed_agent not in {
         assignment.agent_id for assignment in replacement_disposition.assignments
     }
+
+    # The physical fault must survive later fleet projection/allocation review.
+    # Before this regression, the Drone object alone projected the failed unit
+    # back to EN_ROUTE, and legacy airborne diversion could select it again.
+    fleet_after_failure = orchestrator._snapshot_fleet()
+    failed_fleet_state = next(
+        state for state in fleet_after_failure if state.agent_id == failed_agent
+    )
+    assert failed_fleet_state.fsm_state is AgentState.OFFLINE
+    probe = VERIFY(geo=failed_fleet_state.geo, hover_s=0.0, priority=100)
+    assert (
+        orchestrator._nearest_airborne(fleet_after_failure, probe) != failed_agent
+    )
 
     runtime.cancel()
     collector.cancel()

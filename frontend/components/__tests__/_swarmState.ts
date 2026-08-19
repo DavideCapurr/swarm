@@ -10,6 +10,7 @@ import type {
   AllocationDecision,
   AnomalyView,
   AwarenessBreakdown,
+  DispositionDecision,
   DockState,
   ExecutionGroup,
   MissionRuntimeEvent,
@@ -57,6 +58,7 @@ export function makeSwarmState(overrides: Partial<SwarmState> = {}): SwarmState 
     commands: overrides.commands ?? ([] as OperatorCommand[]),
     allocations: overrides.allocations ?? ([] as AllocationDecision[]),
     executionGroups: overrides.executionGroups ?? ([] as ExecutionGroup[]),
+    dispositions: overrides.dispositions ?? ([] as DispositionDecision[]),
     missionRuntime: overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
     missionRuntimeLog:
       overrides.missionRuntimeLog ?? overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
