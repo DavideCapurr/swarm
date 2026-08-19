@@ -155,7 +155,10 @@ async def main() -> None:
 
     alarm_max_team = max(2, int(os.getenv("SWARM_ALARM_MAX_TEAM", "4")))
     initially_online = fleet_size - reserve_count
-    default_patrol_floor = max(1, initially_online - (alarm_max_team - 1))
+    # The baseline coverage floor is a service/world constraint, not a response
+    # instruction. Keep it independent from alarm team-size policy so the demo
+    # cannot stage exactly how much capacity the later intrusion may borrow.
+    default_patrol_floor = max(1, (initially_online * 3) // 4)
     patrol_floor = int(
         os.getenv("SWARM_ALARM_DEMO_PATROL_MIN", str(default_patrol_floor))
     )
