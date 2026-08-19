@@ -211,9 +211,10 @@ class SwarmCoordinator:
     ) -> list[dict[str, Any]]:
         """Project a SwarmOS-owned group and aggregate cooperative outcome.
 
-        Child VERIFY completion is intentionally insufficient. Only the parent
-        group lifecycle may transition its anomaly to VERIFIED (or back to
-        PENDING after an unrecoverable group failure).
+        Child VERIFY completion is intentionally insufficient. For an objective
+        served by an origin group plus reinforcement groups, no single subgroup
+        may verify the anomaly by itself: the objective is VERIFIED only once
+        every execution group carrying the same objective_mission_id completes.
         """
 
         async with self.state.lock:
@@ -237,6 +238,16 @@ class SwarmCoordinator:
                     ),
                     None,
                 )
+                objective_groups = [
+                    candidate
+                    for candidate in self.state.execution_groups.values()
+                    if candidate.objective_mission_id == group.objective_mission_id
+                    and candidate.anomaly_id == group.anomaly_id
+                ]
+                objective_complete = bool(objective_groups) and all(
+                    candidate.state is ExecutionGroupState.COMPLETED
+                    for candidate in objective_groups
+                )
                 updates: dict[str, Any] = {}
                 active_states = {
                     ExecutionGroupState.FORMING,
@@ -249,7 +260,7 @@ class SwarmCoordinator:
                     if primary is not None:
                         updates["verifying_agent"] = primary.agent_id
                 elif (
-                    group.state is ExecutionGroupState.COMPLETED
+                    objective_complete
                     and anomaly.state in {AnomalyState.PENDING, AnomalyState.VERIFYING}
                 ):
                     updates["state"] = AnomalyState.VERIFIED
