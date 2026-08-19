@@ -59,6 +59,11 @@ from sim.swarm_sim.external_events import (
     CapacityAvailable,
     consume_capacity_availability,
 )
+from sim.swarm_sim.faults import (
+    EXECUTOR_FAULT_TOPIC,
+    ExecutorFault,
+    consume_executor_faults,
+)
 from sim.swarm_sim.world import World
 
 # These pauses schedule only later EXTERNAL WORLD FACTS. They do not name or
@@ -286,6 +291,7 @@ async def _capture() -> dict[str, Any]:
             )
         ),
         asyncio.create_task(consume_capacity_availability(bus, reserve_adapters)),
+        asyncio.create_task(consume_executor_faults(bus, adapters)),
         asyncio.create_task(orchestrator.run()),
         asyncio.create_task(
             _sample_units(
@@ -422,15 +428,20 @@ async def _capture() -> dict[str, Any]:
         # Again, only the timing of a later external physical fact is scripted.
         await asyncio.sleep(WORLD_FACT_PAUSE_S)
 
-        # World fact 4: one active physical executor fails. Its identity is read
-        # from SwarmOS's own active disposition; no replacement is nominated.
+        # World fact 4: one active physical executor fails. Its identity is a
+        # world fact observed from the active disposition. The event names no
+        # replacement, role reassignment, reinforcement or geometry response.
         failed_assignment = reinforcement.assignments[0]
         failed_agent = failed_assignment.agent_id
         failed_role = failed_assignment.role
         milestones["failure_at_ms"] = recorder.elapsed_ms()
         milestones["failed_agent"] = failed_agent
         milestones["failed_role"] = failed_role
-        adapters[failed_agent].inject_failure("EXTERNAL_SIMULATED_FAILURE")
+        fault = ExecutorFault(
+            agent_id=failed_agent,
+            reason="EXTERNAL_SIMULATED_FAILURE",
+        )
+        await bus.publish(EXECUTOR_FAULT_TOPIC, fault.model_dump_json())
 
         await _wait_until(
             lambda: any(
