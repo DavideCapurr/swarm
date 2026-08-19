@@ -17,6 +17,7 @@ import time
 from typing import TYPE_CHECKING
 
 from swarm_core.allocations import AllocationDecision
+from swarm_core.disposition import DispositionDecision
 from swarm_core.execution_groups import ExecutionGroup
 from swarm_core.messages import (
     AgentState,
@@ -114,6 +115,7 @@ class BusConsumer:
             asyncio.create_task(self._consume_progress()),
             asyncio.create_task(self._consume_allocations()),
             asyncio.create_task(self._consume_execution_groups()),
+            asyncio.create_task(self._consume_dispositions()),
             asyncio.create_task(self._consume_mission_runtime()),
             asyncio.create_task(self._consume_payload_events()),
             asyncio.create_task(self._consume_streams()),
@@ -234,6 +236,21 @@ class BusConsumer:
                 continue
             for frame in await self._coordinator.apply_execution_group(group):
                 await self._hub.broadcast(frame)
+
+    async def _consume_dispositions(self) -> None:
+        """Forward SwarmOS-computed station geometry without client inference."""
+
+        async for _topic, payload in self.bus.subscribe("swarm:dispositions"):
+            try:
+                decision = DispositionDecision.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed disposition decision from bus")
+                continue
+            async with self._coordinator.state.lock:
+                self._coordinator.state.dispositions[decision.objective_mission_id] = decision
+            await self._hub.broadcast(
+                {"kind": "disposition", "data": decision.model_dump(mode="json")}
+            )
 
     async def _consume_mission_runtime(self) -> None:
         """Forward mission ownership + adapter-supplied phase evidence."""
