@@ -188,7 +188,10 @@ describe("take c — reinforcement", () => {
     expect(lineAt(10_000)).toContain("UNDER STRENGTH");
     expect(lineAt(15_200)).toContain("REINFORCEMENT");
     expect(lineAt(20_000)).toContain("FORMATION RECONFIGURING");
-    expect(lineAt(30_000)).toContain("COORDINATED");
+    // The raw recorded/scripted take does not claim coordination until the
+    // reinforcing member has actually reached station. The presentation-only
+    // augmented take gets there earlier because its support subunit arrives at T+19.
+    expect(lineAt(34_000)).toContain("COORDINATED");
   });
 
   it("keeps focus on the hero objective through the whole recorded failover", () => {
