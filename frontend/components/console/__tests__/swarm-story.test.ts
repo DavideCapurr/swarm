@@ -169,8 +169,11 @@ describe("causal Take C replay", () => {
   it("keeps objective demand on the origin group instead of summing reinforcement demand", () => {
     const slice = foldCausalTakeC(150 * TAKE_C_PLAYBACK_SCALE, CAPTURE);
     const view = buildAuthorityView(slice);
-    const objective = view.objectives.find((entry) => entry.key === "objective-causal");
+    const objective = view.objectives.find(
+      (entry) => entry.missionId === "objective-causal"
+    );
 
+    expect(objective?.groupId).toBe("origin");
     expect(objective?.swarms).toHaveLength(2);
     expect(objective?.requestedMembers).toBe(3);
     expect(objective?.swarms[1].requestedMembers).toBe(1);
