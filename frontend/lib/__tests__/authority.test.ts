@@ -6,7 +6,16 @@ import type {
   MissionRuntimeEvent,
   UnitState,
 } from "../api";
-import { buildAuthorityView, type AuthorityInput } from "../authority";
+import {
+  buildAuthorityView,
+  capacitySummary,
+  capacitySummaryLabel,
+  compositionDigest,
+  compositionDigestLabel,
+  type AuthorityInput,
+  type CapacityRow,
+  type CompositionSlot,
+} from "../authority";
 
 /**
  * The composition layer is where this surface could most easily start inventing
@@ -278,5 +287,176 @@ describe("single-executor objectives", () => {
 
     expect(view.objectives.map((o) => o.index)).toEqual([1, 2]);
     expect(view.defaultFocusKey).toBe("mission-1");
+  });
+});
+
+/**
+ * Spare capacity, aggregated.
+ *
+ * The summary is the one place where the surface stops naming machines, so it
+ * has to be arithmetic over what it was handed and nothing else: it must not
+ * decide what is spare, invent a range, or hide the fact that a set is empty.
+ */
+describe("capacitySummary", () => {
+  const row = (agentId: string, batteryPct: number): CapacityRow => ({
+    agentId,
+    commitment: "SPARE",
+    role: null,
+    objectiveKey: null,
+    objectiveLabel: null,
+    missionId: null,
+    fsmState: "DOCKED",
+    phase: null,
+    batteryPct,
+    linkQuality: 1,
+    altitudeAglM: 0,
+    headingDeg: 0,
+    geo: { lat: 47.398, lon: 8.546 },
+    dockId: "dock-sitl-01",
+    excluded: null,
+    replacedOut: false,
+  });
+
+  it("is null for an empty set, so the caller says NONE itself", () => {
+    expect(capacitySummary([])).toBeNull();
+  });
+
+  it("counts the rows and reports the observed battery range", () => {
+    const summary = capacitySummary([row("mav-005", 91), row("mav-006", 88), row("mav-007", 96)]);
+    expect(summary).toEqual({ count: 3, minBattery: 88, maxBattery: 96 });
+  });
+
+  it("collapses a single row to a range of one", () => {
+    expect(capacitySummary([row("mav-005", 90)])).toEqual({
+      count: 1,
+      minBattery: 90,
+      maxBattery: 90,
+    });
+  });
+
+  it("labels a range, and drops the dash when there is no spread", () => {
+    expect(capacitySummaryLabel({ count: 27, minBattery: 88, maxBattery: 96 })).toBe(
+      "27 AGENTS · BATTERY 088-096%"
+    );
+    expect(capacitySummaryLabel({ count: 4, minBattery: 90, maxBattery: 90 })).toBe(
+      "04 AGENTS · BATTERY 090%"
+    );
+  });
+});
+
+/**
+ * Composition at scale.
+ *
+ * The summary is where the panel stops naming roles, which makes it the one
+ * place a failure could be summarised out of sight. These pin the two rules
+ * that stop it happening.
+ */
+describe("compositionDigest", () => {
+  const slot = (i: number, over: Partial<CompositionSlot> = {}): CompositionSlot => ({
+    index: i,
+    role: `SWEEP_${String(i).padStart(2, "0")}`,
+    roleIsAssigned: true,
+    agentId: `mav-${String(i).padStart(3, "0")}`,
+    missionId: `mission-${i}`,
+    memberState: "ACTIVE",
+    phase: "ON_STATION",
+    proof: null,
+    score: 2.1,
+    replacesAgentId: null,
+    replacedAgentId: null,
+    adapting: false,
+    ...over,
+  });
+
+  it("lists every role while the composition is small", () => {
+    const slots = [slot(1), slot(2), slot(3)];
+    expect(compositionDigest(slots)).toEqual({ rows: slots, hidden: null });
+  });
+
+  it("summarises the remainder, and says what state it is in", () => {
+    const slots = Array.from({ length: 30 }, (_, i) => slot(i + 1));
+    const digest = compositionDigest(slots, 5);
+
+    expect(digest.rows).toHaveLength(5);
+    expect(digest.hidden).toEqual({
+      count: 25,
+      byPhase: [{ label: "ON STATION", count: 25 }],
+    });
+    expect(compositionDigestLabel(digest.hidden!)).toBe("+25 ROLES · 25 ON STATION");
+  });
+
+  it("never summarises away a role that has failed or been replaced", () => {
+    const slots = Array.from({ length: 30 }, (_, i) => slot(i + 1));
+    slots[27] = slot(28, { memberState: "FAILED", phase: "FAILED", adapting: true });
+    slots[28] = slot(29, { replacesAgentId: "mav-028" });
+
+    const digest = compositionDigest(slots, 5);
+    const shown = digest.rows.map((s) => s.index);
+
+    expect(shown).toContain(28);
+    expect(shown).toContain(29);
+    expect(digest.hidden?.count).toBe(25);
+  });
+
+  it("keeps rows in composition order, not in the order it picked them", () => {
+    const slots = Array.from({ length: 12 }, (_, i) => slot(i + 1));
+    slots[9] = slot(10, { memberState: "FAILED", adapting: true });
+    const digest = compositionDigest(slots, 4);
+    const shown = digest.rows.map((s) => s.index);
+    expect(shown).toEqual([...shown].sort((a, b) => a - b));
+  });
+
+  it("counts each hidden phase separately", () => {
+    const slots = [
+      ...Array.from({ length: 6 }, (_, i) => slot(i + 1, { phase: "EN_ROUTE" })),
+      ...Array.from({ length: 8 }, (_, i) => slot(i + 7, { phase: "ON_STATION" })),
+    ];
+    const digest = compositionDigest(slots, 2);
+    expect(digest.hidden?.byPhase).toEqual([
+      { label: "ON STATION", count: 8 },
+      { label: "EN ROUTE", count: 4 },
+    ]);
+  });
+});
+
+/**
+ * When an objective was decided.
+ *
+ * `ExecutionGroup.ts` is the newest frame's timestamp, not the decision's. Read
+ * as the decision it walks forward for the life of the objective, which re-dates
+ * the composition, reorders the objectives, and can hand focus to an older one.
+ */
+describe("composition time", () => {
+  it("dates an objective from its earliest member, not its latest frame", () => {
+    const view = buildAuthorityView(
+      input({
+        executionGroups: [
+          {
+            ...GROUP,
+            ts: "2026-08-15T17:29:40.000Z",
+            members: [
+              { ...GROUP.members[0], ts: "2026-08-15T17:28:52.000Z" },
+              { ...GROUP.members[1], ts: "2026-08-15T17:28:52.000Z" },
+              { ...GROUP.members[2], ts: "2026-08-15T17:29:08.000Z" },
+            ],
+          },
+        ],
+      })
+    );
+
+    expect(view.objectives[0].decisionAt).toBe("2026-08-15T17:28:52.000Z");
+    const composed = view.objectives[0].trace.find((s) => s.name === "COMPOSED");
+    expect(composed?.at).toBe("2026-08-15T17:28:52.000Z");
+  });
+
+  it("falls back to the group frame when it carries no members yet", () => {
+    const view = buildAuthorityView(
+      input({
+        executionGroups: [
+          { ...GROUP, state: "FORMING", ts: "2026-08-15T17:28:50.000Z", members: [] },
+        ],
+      })
+    );
+    expect(view.objectives[0].decisionAt).toBe("2026-08-15T17:28:50.000Z");
   });
 });

@@ -212,11 +212,60 @@ export type CapacityRow = {
   altitudeAglM: number;
   headingDeg: number;
   geo: { lat: number; lon: number };
+  /** Dock the agent reports itself on. The server's own `UnitState.dock_id`. */
+  dockId: string | null;
   /** Set when the newest allocation excluded this agent, with the server's reason. */
   excluded: { reason: string; activeMissionId: string | null } | null;
   /** True when SwarmOS replaced this agent out of a role. */
   replacedOut: boolean;
 };
+
+/**
+ * A bucket of capacity, collapsed to the two facts that survive scale.
+ *
+ * With a handful of executors the panels list capacity row by row, and that is
+ * the right reading: each machine is nameable. With a few dozen it stops being
+ * a list anyone reads and starts being a column of identical lines that pushes
+ * the rest of the panel out of the viewport — which a recorded surface cannot
+ * scroll its way out of.
+ *
+ * What a reader actually needs from a bucket at that size is how much of it
+ * there is and whether it is charged. That is all this returns. It aggregates;
+ * it never decides what is committed or spare — `buildCapacity` already did
+ * that from composition, and this only counts what it was handed.
+ *
+ * Null for an empty set, so the caller renders its own honest NONE rather than
+ * a zero dressed up as a summary.
+ */
+export const CAPACITY_SUMMARY_THRESHOLD = 6;
+
+export type CapacitySummary = {
+  count: number;
+  /** Lowest reported battery in the set, percent. */
+  minBattery: number;
+  /** Highest reported battery in the set, percent. */
+  maxBattery: number;
+};
+
+export function capacitySummary(rows: readonly CapacityRow[]): CapacitySummary | null {
+  if (rows.length === 0) return null;
+  let minBattery = Number.POSITIVE_INFINITY;
+  let maxBattery = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    if (row.batteryPct < minBattery) minBattery = row.batteryPct;
+    if (row.batteryPct > maxBattery) maxBattery = row.batteryPct;
+  }
+  return { count: rows.length, minBattery, maxBattery };
+}
+
+/** One line for a summarised set: `27 AGENTS · BATTERY 088-096%`. */
+export function capacitySummaryLabel(summary: CapacitySummary): string {
+  const lo = summary.minBattery.toFixed(0).padStart(3, "0");
+  const hi = summary.maxBattery.toFixed(0).padStart(3, "0");
+  return lo === hi
+    ? `${String(summary.count).padStart(2, "0")} AGENTS · BATTERY ${lo}%`
+    : `${String(summary.count).padStart(2, "0")} AGENTS · BATTERY ${lo}-${hi}%`;
+}
 
 // ── Build ────────────────────────────────────────────────────────────────────
 
@@ -261,6 +310,29 @@ const TERMINAL_MEMBER_STATES: ReadonlySet<ExecutionGroupMemberState> = new Set([
   "FAILED",
   "REPLACED",
 ]);
+
+/**
+ * When SwarmOS decided this objective.
+ *
+ * Not when it last said anything about it. `ExecutionGroup.ts` is the timestamp
+ * of the newest frame, so reading the decision off it made the composition time
+ * walk forward for the life of the objective: the trace's COMPOSED stage
+ * re-dated itself every time a member changed state, the objective indices could
+ * swap places mid-take, and focus — which follows the newest objective — could
+ * hand itself to an older one that happened to publish last.
+ *
+ * The members carry the real answer. SwarmOS stamps each one when it puts it in,
+ * and it appends rather than rewrites, so the earliest member timestamp is when
+ * the group was composed. The group's own `ts` is the fallback for a frame that
+ * has no members yet.
+ */
+function composedAt(group: ExecutionGroup): string {
+  let earliest: string | null = null;
+  for (const member of group.members) {
+    if (earliest == null || epoch(member.ts) < epoch(earliest)) earliest = member.ts;
+  }
+  return earliest ?? group.ts;
+}
 
 /** Latest runtime frame per mission, from the append-only log plus the projection. */
 function latestRuntimeByMission(
@@ -477,7 +549,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
       ).length,
       state,
       active: state !== "VERIFIED" && state !== "FAILED",
-      trace: buildTrace(slots, state, anomaly?.detected_at ?? null, group.ts, frames),
+      trace: buildTrace(slots, state, anomaly?.detected_at ?? null, composedAt(group), frames),
       routes: slots
         .filter((s) => s.agentId && s.missionId)
         .map((s) => ({
@@ -489,7 +561,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
           })),
         })),
       latestProof: slots.map((s) => s.proof).filter(Boolean).at(-1) ?? null,
-      decisionAt: group.ts,
+      decisionAt: composedAt(group),
     };
   });
 
@@ -629,8 +701,88 @@ function buildCapacity(
         altitudeAglM: unit.altitude_agl_m,
         headingDeg: unit.heading_deg,
         geo: { lat: unit.geo.lat, lon: unit.geo.lon },
+        dockId: unit.dock_id,
         excluded: exclusions.get(unit.agent_id) ?? null,
         replacedOut: wasReplaced,
       };
     });
+}
+
+// ── Composition at scale ─────────────────────────────────────────────────────
+
+/** Roles listed individually before the composition starts summarising. */
+export const COMPOSITION_ROWS_MAX = 5;
+
+export type CompositionDigest = {
+  /** Slots to render as rows, in their own index order. */
+  rows: CompositionSlot[];
+  /** What was left out, and what state it is in. Null when nothing was. */
+  hidden: {
+    count: number;
+    byPhase: { label: string; count: number }[];
+  } | null;
+};
+
+/**
+ * What a composition shows when SwarmOS put thirty executors on one objective.
+ *
+ * A cooperative verify has three roles and the panel lists all three. A fleet
+ * sweep has thirty, and thirty identical rows is not a composition anyone
+ * reads — it is a scrollbar, and it buries the evidence section underneath it.
+ *
+ * Two rules keep the summary honest. A slot that needs attention is never
+ * summarised away: anything failing, adapting, or holding a role by
+ * replacement is listed whatever the count, because those are the rows the
+ * surface exists to show. And what is left out is still stated — how many, and
+ * in which phase — rather than silently dropped.
+ */
+export function compositionDigest(
+  slots: readonly CompositionSlot[],
+  maxRows: number = COMPOSITION_ROWS_MAX
+): CompositionDigest {
+  if (slots.length <= maxRows) return { rows: [...slots], hidden: null };
+
+  const notable = new Set(
+    slots.filter(
+      (slot) =>
+        slot.adapting ||
+        slot.memberState === "FAILED" ||
+        slot.phase === "FAILED" ||
+        slot.replacesAgentId != null
+    )
+  );
+  const shown = new Set(notable);
+  for (const slot of slots) {
+    if (shown.size >= Math.max(maxRows, notable.size)) break;
+    shown.add(slot);
+  }
+
+  const hidden = slots.filter((slot) => !shown.has(slot));
+  if (hidden.length === 0) return { rows: [...slots], hidden: null };
+
+  const counts = new Map<string, number>();
+  for (const slot of hidden) {
+    const label = phaseLabel(slot.phase ?? slot.memberState);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+
+  return {
+    rows: slots.filter((slot) => shown.has(slot)),
+    hidden: {
+      count: hidden.length,
+      byPhase: [...counts.entries()]
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    },
+  };
+}
+
+/** One line for the summarised remainder: `+25 ROLES · 25 ON STATION`. */
+export function compositionDigestLabel(
+  hidden: NonNullable<CompositionDigest["hidden"]>
+): string {
+  const phases = hidden.byPhase
+    .map((entry) => `${String(entry.count).padStart(2, "0")} ${entry.label}`)
+    .join(" · ");
+  return `+${String(hidden.count).padStart(2, "0")} ROLES · ${phases}`;
 }

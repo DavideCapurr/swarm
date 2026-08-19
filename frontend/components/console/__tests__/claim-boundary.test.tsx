@@ -74,6 +74,7 @@ describe("bounded response", () => {
       <MissionAuthorityPanel
         objectives={[OBJECTIVE]}
         focused={OBJECTIVE}
+        beat={{ phase: "idle" }}
         capacity={[]}
         channels={CHANNELS}
         onSelectObjective={() => {}}
@@ -98,6 +99,7 @@ describe("bounded response", () => {
       <MissionAuthorityPanel
         objectives={[OBJECTIVE]}
         focused={OBJECTIVE}
+        beat={{ phase: "idle" }}
         capacity={[]}
         channels={empty}
         onSelectObjective={() => {}}
