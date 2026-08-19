@@ -2,6 +2,7 @@
 
 import type { CapacityRow, CompositionSlot, ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
 import { roleLabel } from "@/lib/authority";
+import type { PayloadChannel } from "@/lib/mission-story";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
 import type { AdaptationBeat } from "./useAdaptation";
@@ -48,15 +49,18 @@ export function SwarmAuthorityPanel({
   focused,
   beat,
   capacity,
+  channels,
   onSelectObjective,
 }: {
   objectives: ObjectiveAuthority[];
   focused: ObjectiveAuthority | null;
   beat: AdaptationBeat;
   capacity: CapacityRow[];
+  channels: PayloadChannel[];
   onSelectObjective: (key: string) => void;
 }) {
   const spare = capacity.filter((row) => row.commitment === "SPARE").length;
+  const visibleChannels = channels.filter((channel) => channel.ts);
 
   return (
     <Surface
@@ -74,11 +78,7 @@ export function SwarmAuthorityPanel({
       ) : (
         <>
           {objectives.length > 1 ? (
-            <ObjectiveSwitch
-              objectives={objectives}
-              focusKey={focused.key}
-              onSelect={onSelectObjective}
-            />
+            <ObjectiveSwitch objectives={objectives} focusKey={focused.key} onSelect={onSelectObjective} />
           ) : null}
 
           <ObjectiveBlock objective={focused} />
@@ -88,7 +88,6 @@ export function SwarmAuthorityPanel({
           {beat.phase !== "idle" ? <AdaptationBanner beat={beat} focused={focused} /> : null}
 
           <Divider />
-
           <div className="flex flex-col">
             {focused.swarms.length > 0 ? (
               focused.swarms.map((swarm) => (
@@ -102,10 +101,35 @@ export function SwarmAuthorityPanel({
           <Divider />
           <div className="flex items-baseline justify-between gap-3 px-3 py-[10px]">
             <Label>reserve capacity</Label>
-            <Mono size={11} tone={spare > 0 ? "silver" : "ash"}>
-              {pad(spare)} SUBUNITS
-            </Mono>
+            <Mono size={11} tone={spare > 0 ? "silver" : "ash"}>{pad(spare)} SUBUNITS</Mono>
           </div>
+
+          {visibleChannels.length > 0 ? (
+            <>
+              <Divider />
+              <div className="px-3 py-[10px]">
+                <Label>bounded response</Label>
+                <div className="mt-[8px] flex flex-col gap-[7px]">
+                  {visibleChannels.map((channel) => (
+                    <div key={channel.channel} className="flex items-baseline justify-between gap-3">
+                      <div className="flex items-baseline gap-2">
+                        <Mono size={10} tone="ash">{channel.channel}</Mono>
+                        <Mono size={11} tone={channel.tier === "simulated" ? "amber" : "silver"}>
+                          {channel.state}
+                        </Mono>
+                      </div>
+                      <div className="flex items-center gap-[6px]">
+                        <Dot tone={channel.tier === "verified" ? "green" : "amber"} />
+                        <Mono size={9.5} tone={channel.tier === "verified" ? "green" : "amber"}>
+                          {channel.proof}
+                        </Mono>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
         </>
       )}
     </Surface>
@@ -131,18 +155,11 @@ function ObjectiveSwitch({
             type="button"
             onClick={() => onSelect(objective.key)}
             className="flex flex-1 items-center gap-2 px-3 py-[9px] text-left"
-            style={{
-              background: active ? "rgba(19, 25, 32, 0.72)" : "transparent",
-              opacity: active ? 1 : 0.45,
-            }}
+            style={{ background: active ? "rgba(19, 25, 32, 0.72)" : "transparent", opacity: active ? 1 : 0.45 }}
           >
             <Dot tone={objective.active ? (active ? "orbital" : "silver") : "green"} />
-            <Mono size={10} tone={active ? "platinum" : "silver"}>
-              {pad(objective.index)}
-            </Mono>
-            <Mono size={10} tone="ash" className="truncate">
-              {objective.kind}
-            </Mono>
+            <Mono size={10} tone={active ? "platinum" : "silver"}>{pad(objective.index)}</Mono>
+            <Mono size={10} tone="ash" className="truncate">{objective.kind}</Mono>
           </button>
         );
       })}
@@ -154,16 +171,12 @@ function ObjectiveBlock({ objective }: { objective: ObjectiveAuthority }) {
   return (
     <div className="px-3 pb-[10px] pt-[11px]">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-grotesk text-[16px] font-medium uppercase leading-none tracking-[0.13em] text-platinum">
-          {objective.kind}
-        </span>
+        <span className="font-grotesk text-[16px] font-medium uppercase leading-none tracking-[0.13em] text-platinum">{objective.kind}</span>
         <Mono size={11} tone="ash">{objective.label}</Mono>
       </div>
       <div className="mt-[8px] flex items-center gap-2">
         <Dot tone={objective.state === "VERIFIED" ? "green" : objective.state === "ADAPTING" ? "amber" : "orbital"} />
-        <Mono size={11} tone={objective.state === "VERIFIED" ? "green" : objective.state === "ADAPTING" ? "amber" : "orbital"}>
-          {objective.state}
-        </Mono>
+        <Mono size={11} tone={objective.state === "VERIFIED" ? "green" : objective.state === "ADAPTING" ? "amber" : "orbital"}>{objective.state}</Mono>
       </div>
     </div>
   );
@@ -176,9 +189,7 @@ function OwnershipStamp({ objective }: { objective: ObjectiveAuthority }) {
       style={{ background: "rgba(123, 231, 255, 0.055)", borderTop: `1px solid ${HAIRLINE}`, borderBottom: `1px solid ${HAIRLINE}` }}
     >
       <Dot tone="orbital" />
-      <span className="font-grotesk text-[11.5px] font-medium uppercase leading-none tracking-[0.16em] text-orbital-blue">
-        SwarmOS owns objective
-      </span>
+      <span className="font-grotesk text-[11.5px] font-medium uppercase leading-none tracking-[0.16em] text-orbital-blue">SwarmOS owns objective</span>
       <Mono size={10} tone="ash" className="ml-auto">{objective.label}</Mono>
     </div>
   );
@@ -195,9 +206,7 @@ function CoverageBlock({ objective }: { objective: ObjectiveAuthority }) {
       </div>
       <div className="flex items-center gap-2">
         <Dot tone={complete ? "green" : "amber"} />
-        <Mono size={18} tone={complete ? "green" : "amber"} data-testid="objective-role-coverage">
-          {pad(coverage.held)} / {pad(coverage.required)}
-        </Mono>
+        <Mono size={18} tone={complete ? "green" : "amber"} data-testid="objective-role-coverage">{pad(coverage.held)} / {pad(coverage.required)}</Mono>
       </div>
     </div>
   );
@@ -221,13 +230,9 @@ function SwarmBlock({ swarm, objective }: { swarm: SwarmComposition; objective: 
         <div className="flex min-w-0 items-start gap-[9px]">
           <Dot tone={tone} className="mt-[4px]" />
           <div className="min-w-0">
-            <div className="font-grotesk text-[14px] font-medium uppercase leading-none tracking-[0.16em] text-platinum">
-              {swarmName(swarm)}
-            </div>
+            <div className="font-grotesk text-[14px] font-medium uppercase leading-none tracking-[0.16em] text-platinum">{swarmName(swarm)}</div>
             <div className="mt-[6px]">
-              <Label tone={reinforcing ? "amber" : "silver"}>
-                {reinforcing ? "reinforcement swarm" : "primary swarm"}
-              </Label>
+              <Label tone={reinforcing ? "amber" : "silver"}>{reinforcing ? "reinforcement swarm" : "primary swarm"}</Label>
             </div>
             {targetSwarm ? (
               <div className="mt-[5px]">
@@ -238,12 +243,8 @@ function SwarmBlock({ swarm, objective }: { swarm: SwarmComposition; objective: 
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-[5px]">
-          <Mono size={13} tone={tone} data-testid={`swarm-subunits-${swarm.groupId}`}>
-            {pad(slots.length)} SUBUNITS
-          </Mono>
-          <Mono size={10} tone={swarm.underStrength ? "amber" : "silver"}>
-            {pad(swarm.heldMembers)} / {pad(swarm.requestedMembers)} STRENGTH
-          </Mono>
+          <Mono size={13} tone={tone} data-testid={`swarm-subunits-${swarm.groupId}`}>{pad(slots.length)} SUBUNITS</Mono>
+          <Mono size={10} tone={swarm.underStrength ? "amber" : "silver"}>{pad(swarm.heldMembers)} / {pad(swarm.requestedMembers)} STRENGTH</Mono>
         </div>
       </div>
 
@@ -271,15 +272,9 @@ function SubunitRow({ slot }: { slot: CompositionSlot }) {
           <Mono size={10} tone="ash">→</Mono>
         </>
       ) : null}
-      <Mono size={11.5} tone={tone} className={replaced ? "line-through" : ""}>
-        {slot.agentId ?? "UNASSIGNED"}
-      </Mono>
-      <span className="min-w-0 flex-1 truncate font-grotesk text-[9.5px] font-medium uppercase leading-none tracking-[0.14em] text-muted-silver">
-        {roleLabel(slot.role)}
-      </span>
-      <Mono size={9.5} tone={failed ? "amber" : "ash"}>
-        {failed ? "LOST" : slot.phase ?? slot.memberState ?? "ASSIGNED"}
-      </Mono>
+      <Mono size={11.5} tone={tone} className={replaced ? "line-through" : ""}>{slot.agentId ?? "UNASSIGNED"}</Mono>
+      <span className="min-w-0 flex-1 truncate font-grotesk text-[9.5px] font-medium uppercase leading-none tracking-[0.14em] text-muted-silver">{roleLabel(slot.role)}</span>
+      <Mono size={9.5} tone={failed ? "amber" : "ash"}>{failed ? "LOST" : slot.phase ?? slot.memberState ?? "ASSIGNED"}</Mono>
     </div>
   );
 }
@@ -304,17 +299,12 @@ function AdaptationBanner({
   beat: Exclude<AdaptationBeat, { phase: "idle" }>;
   focused: ObjectiveAuthority;
 }) {
-  const swarm = focused.swarms.find((candidate) =>
-    candidate.slots.some((slot) => slot.role === beat.role)
-  );
+  const swarm = focused.swarms.find((candidate) => candidate.slots.some((slot) => slot.role === beat.role));
   const label = swarm ? swarmName(swarm) : "SWARM";
 
   if (beat.phase === "adapting") {
     return (
-      <div
-        className="mx-3 mb-[9px] px-[10px] py-[9px]"
-        style={{ background: "rgba(255, 180, 92, 0.07)", border: "1px solid rgba(255, 180, 92, 0.34)", borderRadius: 4 }}
-      >
+      <div className="mx-3 mb-[9px] px-[10px] py-[9px]" style={{ background: "rgba(255, 180, 92, 0.07)", border: "1px solid rgba(255, 180, 92, 0.34)", borderRadius: 4 }}>
         <Label tone="amber">subunit lost · {label} recomposing</Label>
         <div className="mt-[7px] flex items-baseline gap-2">
           <Mono size={12} tone="amber">{beat.lostAgent}</Mono>
@@ -325,10 +315,7 @@ function AdaptationBanner({
   }
 
   return (
-    <div
-      className="mx-3 mb-[9px] px-[10px] py-[9px]"
-      style={{ background: "rgba(184, 255, 102, 0.06)", border: "1px solid rgba(184, 255, 102, 0.30)", borderRadius: 4 }}
-    >
+    <div className="mx-3 mb-[9px] px-[10px] py-[9px]" style={{ background: "rgba(184, 255, 102, 0.06)", border: "1px solid rgba(184, 255, 102, 0.30)", borderRadius: 4 }}>
       <Label tone="green">subunit replaced · {label} restored</Label>
       <div className="mt-[7px] flex items-baseline gap-2">
         <Mono size={10} tone="ash" className="line-through">{beat.fromAgent}</Mono>
