@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 from swarm_core.disposition import DispositionDecision
-from swarm_core.execution_groups import ExecutionGroupMemberState
+from swarm_core.execution_groups import ExecutionGroup, ExecutionGroupMemberState
 from swarm_core.messages import Anomaly, AnomalyKind, Geo
 
 from adapters.base import AdapterRegistry
@@ -29,8 +29,8 @@ async def _collect_dispositions(
 async def _wait_for_alarm_group(
     orchestrator: AlarmDrivenExecutionGroupOrchestrator,
     alarm_id: str,
-):
-    async def _wait():
+) -> ExecutionGroup:
+    async def _wait() -> ExecutionGroup:
         while True:
             for group in orchestrator.execution_groups.values():
                 if group.anomaly_id == alarm_id:
