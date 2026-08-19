@@ -10,6 +10,7 @@ import type { LinkState } from "@/lib/state";
 import type {
   AllocationDecision,
   AnomalyView,
+  DispositionDecision,
   ExecutionGroup,
   MissionRuntimeEvent,
   MissionView,
@@ -44,6 +45,8 @@ export type SurfaceFrame = {
   anomalies: AnomalyView[];
   allocations: AllocationDecision[];
   executionGroups: ExecutionGroup[];
+  /** Latest server-issued station geometry. Old replay fixtures may omit it. */
+  dispositions?: DispositionDecision[];
   missions: MissionView[];
   missionRuntime: MissionRuntimeEvent[];
   missionRuntimeLog: MissionRuntimeEvent[];
@@ -112,6 +115,15 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       ? heldFocus
       : view.defaultFocusKey;
   const focused = view.objectives.find((o) => o.key === focusKey) ?? null;
+  const focusedDisposition = useMemo(
+    () =>
+      focused
+        ? (frame.dispositions ?? []).find(
+            (decision) => decision.objective_mission_id === focused.missionId
+          ) ?? null
+        : null,
+    [focused, frame.dispositions]
+  );
 
   const namedAgents = useMemo(() => {
     const named = new Set<string>();
@@ -141,8 +153,11 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       .map((row) => row.geo)
       .filter(live);
     if (focused.geo) out.push(focused.geo);
+    for (const assignment of focusedDisposition?.assignments ?? []) {
+      if (live(assignment.geo)) out.push(assignment.geo);
+    }
     return out.length > 0 ? out : view.capacity.map((row) => row.geo).filter(live);
-  }, [focused, view.capacity, view.objectives]);
+  }, [focused, focusedDisposition, view.capacity, view.objectives]);
 
   if (!originRef.current) {
     originRef.current = anchorOrigin(view.capacity.map((row) => row.geo));
@@ -206,6 +221,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
             projection={projection}
             objectives={view.objectives}
             capacity={view.capacity}
+            disposition={focusedDisposition}
             focusKey={focusKey}
             selectedExecutor={selectedExecutor}
             namedAgents={namedAgents}
