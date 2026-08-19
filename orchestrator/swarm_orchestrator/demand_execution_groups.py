@@ -5,8 +5,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from swarm_core.execution_groups import ExecutionGroup, ExecutionGroupState
-from swarm_core.messages import MissionTask
+from swarm_core.execution_groups import (
+    ExecutionGroup,
+    ExecutionGroupMemberState,
+    ExecutionGroupState,
+)
+from swarm_core.messages import MissionProgress, MissionTask
+from swarm_core.missions import MissionKind
 from swarm_core.objectives import demand_for_mission
 
 from orchestrator.swarm_orchestrator.adaptive_execution_groups import (
@@ -81,6 +86,53 @@ class DemandAwareExecutionGroupOrchestrator(AdaptiveExecutionGroupOrchestrator):
             anomaly_id=anomaly_id,
             reinforces_group_id=reinforces_group_id,
         )
+
+    async def _apply_group_progress(
+        self,
+        progress: MissionProgress,
+        group_id: str,
+        role: str,
+    ) -> None:
+        """Do not let child progress erase a policy-derived COVER shortfall.
+
+        The base lifecycle marks a group ACTIVE when any non-terminal child makes
+        progress. That is correct for ordinary groups, but after adaptive
+        preemption a COVER donor can be executing normally while still below its
+        desired strength. Its DEGRADED state is demand truth, not a child-health
+        error, so restore that state after applying the progress frame.
+        """
+
+        await super()._apply_group_progress(progress, group_id, role)
+
+        group = self._execution_groups.get(group_id)
+        record = self._reinforcement_records.get(group_id)
+        if (
+            group is None
+            or record is None
+            or record.objective.kind != MissionKind.COVER.value
+            or group.state not in RUNNING_GROUP_STATES
+        ):
+            return
+
+        active_capacity = sum(
+            member.state
+            not in {
+                ExecutionGroupMemberState.DIVERTED,
+                ExecutionGroupMemberState.FAILED,
+                ExecutionGroupMemberState.REPLACED,
+                ExecutionGroupMemberState.COMPLETED,
+            }
+            for member in group.members
+        )
+        demand = demand_for_mission(record.objective)
+        desired_state = (
+            ExecutionGroupState.ACTIVE
+            if active_capacity >= demand.desired_capacity
+            else ExecutionGroupState.DEGRADED
+        )
+        if group.state is not desired_state:
+            group.state = desired_state
+            await self._publish_group(group)
 
     async def review_reinforcements(self) -> list[ExecutionGroup]:
         """Reconcile shortfalls without forgetting satisfied live objectives.
