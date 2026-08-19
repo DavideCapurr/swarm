@@ -83,9 +83,7 @@ def _can_preempt(
         return False
     if request.priority <= donor_demand.priority:
         return False
-    if active_count - 1 < donor_demand.minimum_capacity:
-        return False
-    return True
+    return active_count - 1 >= donor_demand.minimum_capacity
 
 
 def evaluate_capacity(
