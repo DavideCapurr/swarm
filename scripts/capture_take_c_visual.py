@@ -77,7 +77,7 @@ async def main() -> None:
         default="frontend/public/dev/take-c-causal-sim.json",
     )
     parser.add_argument("--output", default="artifacts/take-c-visual")
-    parser.add_argument("--url", default="http://127.0.0.1:3000")
+    parser.add_argument("--url", default="http://localhost:3000")
     args = parser.parse_args()
 
     capture_path = Path(args.capture)
