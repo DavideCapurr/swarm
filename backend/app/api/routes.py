@@ -2,8 +2,8 @@
 
 These endpoints feed the frontend's initial render. Live updates ride the
 WebSocket (`/ws/telemetry`). Read routes require the viewer JWT role.
-Execution-group membership/roles are returned exactly as SwarmOS published
-them; this layer never recomputes a group.
+Execution-group membership/roles and disposition geometry are returned exactly
+as SwarmOS published them; this layer never recomputes either.
 """
 
 from __future__ import annotations
@@ -83,6 +83,12 @@ async def allocations(_: _VIEWER) -> dict[str, Any]:
 async def execution_groups(_: _VIEWER) -> dict[str, Any]:
     ordered = sorted(SWARM_STATE.execution_groups.values(), key=lambda group: group.ts)
     return {"execution_groups": [group.model_dump(mode="json") for group in ordered]}
+
+
+@router.get("/dispositions")
+async def dispositions(_: _VIEWER) -> dict[str, Any]:
+    ordered = sorted(SWARM_STATE.dispositions.values(), key=lambda decision: decision.ts)
+    return {"dispositions": [decision.model_dump(mode="json") for decision in ordered]}
 
 
 @router.get("/mission-runtime")
