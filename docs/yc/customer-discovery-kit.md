@@ -1,6 +1,6 @@
 # SWARM — customer discovery kit
 
-> Updated 2026-08-15.
+> Updated 2026-08-20.
 >
 > Purpose: discover the first commercial wedge from real workflows instead of forcing SWARM into wildfire, vineyards, industrial security, or another favorite vertical before evidence exists.
 >
@@ -17,6 +17,12 @@ The most useful opening question is:
 > **What situations on your site currently require a person to physically go and check what is happening?**
 
 The first market should emerge from repeated answers to that question.
+
+A second discovery lens, especially with existing UAS operators, is the capability-selection chain:
+
+> **What output or data do you need, what sensor/payload does that require, and how does that determine which aircraft can take the mission?**
+
+Do not assume this chain exists everywhere. Ask for the current process and record what is actually described.
 
 ---
 
@@ -87,7 +93,11 @@ These are not substitutes for buyers, but they can expose operational and regula
 
 For every conversation, capture:
 
-- **specific workflow**: what exactly triggers someone to go and look?
+- **specific workflow**: what exactly triggers someone to go and look?;
+- **required output / data product**: what does the requester actually need back?;
+- **capability derivation**: how does that output translate into sensing, payload, endurance, range, relay, or other requirements?;
+- **platform compatibility**: how do those requirements determine which aircraft or robot can be used?;
+- **payload configuration**: integrated sensor, interchangeable payload, or another setup?;
 - **frequency**: times per day/week/month/year;
 - **response time**: how long from alert/request to useful verification;
 - **current operator**: who physically goes today?;
@@ -100,6 +110,7 @@ For every conversation, capture:
 - **availability constraints**: battery, people, shift coverage, weather, access;
 - **sensor need**: RGB, thermal, zoom, other payload;
 - **drone use today**: yes/no, manual/autonomous, vendor;
+- **allocation owner**: who actually decides which compatible asset takes the mission?;
 - **regulatory constraints**: what already blocks them?;
 - **budget owner**: who can approve spend?;
 - **existing budget line**: security, inspection, maintenance, O&M, drone services, etc.;
@@ -135,17 +146,37 @@ If they give several, ask:
 
 Do not accept abstractions if a concrete story is available.
 
-### 4. Quantify frequency
+### 4. If they already operate UAS, map the capability chain
+
+Ask only after the workflow is clear:
+
+> “What data or output did the customer actually need from that mission?”
+
+> “How did that determine the sensor or payload you needed?”
+
+> “Once you knew that, how did you decide which aircraft could do it?”
+
+If relevant:
+
+> “Are those sensors fixed to the aircraft, or do you swap payloads between missions?”
+
+Then separate compatibility from allocation:
+
+> “Once you know which aircraft are capable, who decides which available one actually takes the mission?”
+
+This distinction matters. Capability filtering and mission allocation may be separate decisions and should not be collapsed into one assumed workflow.
+
+### 5. Quantify frequency
 
 > “How often does this happen?”
 
 > “Is that predictable or random?”
 
-### 5. Quantify time
+### 6. Quantify time
 
 > “From the moment you know there may be a problem, how long until someone actually sees what is happening?”
 
-### 6. Quantify current cost
+### 7. Quantify current cost
 
 > “Who goes?”
 
@@ -155,15 +186,15 @@ Do not accept abstractions if a concrete story is available.
 
 > “Do you ever call an external contractor?”
 
-### 7. Explore false alarms
+### 8. Explore false alarms
 
 > “How often does someone go out and discover there was nothing important?”
 
-### 8. Explore delay cost
+### 9. Explore delay cost
 
 > “What happens if nobody verifies it for 10 minutes? An hour? Until the next shift?”
 
-### 9. Existing drone usage
+### 10. Existing drone usage
 
 > “Do you use drones anywhere in this workflow today?”
 
@@ -175,7 +206,7 @@ If yes:
 
 > “What prevents it from being used more often?”
 
-### 10. Multi-agent relevance
+### 11. Multi-agent relevance
 
 Only after understanding the workflow:
 
@@ -183,7 +214,7 @@ Only after understanding the workflow:
 
 This tests whether SWARM's coordination primitive matters or whether one manual drone is enough.
 
-### 11. Budget
+### 12. Budget
 
 > “Which team would normally pay to solve this?”
 
@@ -191,7 +222,7 @@ This tests whether SWARM's coordination primitive matters or whether one manual 
 
 Avoid asking “how much would you pay for SWARM?” too early.
 
-### 12. Pilot conditions
+### 13. Pilot conditions
 
 At the end, if the problem is real:
 
@@ -268,6 +299,12 @@ Site type / approximate scale:
 
 Top physical-verification workflow:
 Last concrete example:
+Required output / data product:
+Derived capability requirements:
+Sensor / payload required:
+Payload integrated or interchangeable:
+Compatible platforms:
+Who decides final asset allocation:
 Frequency:
 Current response time:
 People involved:
@@ -287,6 +324,7 @@ Exact useful quotes:
 
 Signals FOR this wedge:
 Signals AGAINST this wedge:
+Unknowns / not established:
 
 Follow-up:
 ```
@@ -304,6 +342,7 @@ After enough interviews, score each recurring workflow from 1–5.
 | Cost | Current process is visibly expensive |
 | Budget clarity | Clear buyer and existing spend |
 | Drone fit | Mobile aerial verification clearly helps |
+| Capability heterogeneity | Different mission outputs materially change sensor/payload/platform choice |
 | Multi-agent fit | Coordination materially improves the workflow |
 | Deployment feasibility | Bounded/supervised early deployment is credible |
 | Repeatability | Same workflow exists across many sites |
@@ -328,6 +367,7 @@ Treat signals differently:
 ### Useful
 
 - concrete repeated workflow;
+- concrete output → capability → platform selection chain;
 - quantified frequency and response time;
 - clear budget owner;
 - existing spend on the workaround.
