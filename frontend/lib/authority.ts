@@ -111,13 +111,6 @@ export type CompositionSlot = {
    * that folded it away would delete the only thing that just changed.
    */
   reinforcement: boolean;
-  /**
-   * Set when the latest allocation naming this slot's mission carried
-   * `mode: "diversion"`: the mission this agent was pulled off, not the one it
-   * now holds. Read off the published allocation frame, never inferred from
-   * flight state.
-   */
-  divertedFromMissionId: string | null;
 };
 
 /**
@@ -396,7 +389,8 @@ function latestRuntimeByMission(
 function slotsFromGroup(
   group: ExecutionGroup,
   runtime: Map<string, MissionRuntimeEvent>,
-  swarmIndex: number
+  swarmIndex: number,
+  allocationsByMission: Map<string, AllocationDecision>
 ): CompositionSlot[] {
   const byRole = new Map<string, ExecutionGroupMember[]>();
   const order: string[] = [];
@@ -435,7 +429,15 @@ function slotsFromGroup(
       replacesAgentId: live?.replaces_agent_id ?? null,
       replacedAgentId: replaced?.agent_id ?? null,
       divertedAgentId: diverted?.agent_id ?? null,
-      divertedFromMissionId: live?.diverted_from_mission_id ?? null,
+      // The member record carries this once SwarmOS marks a role DIVERTED on
+      // its own group; a role a diversion just *filled* has no such member
+      // history yet, so fall back to the winning allocation itself — the
+      // authoritative record of a preemptive award (`mode: "diversion"`).
+      divertedFromMissionId:
+        live?.diverted_from_mission_id ??
+        (live?.mission_id
+          ? allocationsByMission.get(live.mission_id)?.diverted_from_mission_id ?? null
+          : null),
       divertedFromObjectiveId: live?.diverted_from_objective_id ?? null,
       adapting,
       groupId: group.id,
@@ -505,8 +507,6 @@ function slotFromDecision(
       groupId: null,
       swarmIndex: 1,
       reinforcement: false,
-      divertedFromMissionId:
-        decision.mode === "diversion" ? decision.diverted_from_mission_id ?? null : null,
     },
   ];
 }
@@ -618,11 +618,22 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
     .slice()
     .sort((a, b) => epoch(a.ts) - epoch(b.ts));
 
+  // Keyed by mission id regardless of whether that mission belongs to a group
+  // or stands alone — a group child's own allocation still carries `mode` and
+  // `diverted_from_mission_id`, which `slotsFromGroup` reads as its fallback.
+  const allocationsByMission = new Map<string, AllocationDecision>();
+  for (const decision of input.allocations) {
+    const held = allocationsByMission.get(decision.mission_id);
+    if (!held || epoch(decision.ts) >= epoch(held.ts)) {
+      allocationsByMission.set(decision.mission_id, decision);
+    }
+  }
+
   const groupObjectives: ObjectiveAuthority[] = groupSwarms(input.executionGroups).map(
     (groups) => {
       const origin = groups[0];
       const swarms: SwarmComposition[] = groups.map((group, i) => {
-        const swarmSlots = slotsFromGroup(group, runtime, i + 1);
+        const swarmSlots = slotsFromGroup(group, runtime, i + 1, allocationsByMission);
         const held = heldIn(swarmSlots);
         return {
           index: i + 1,

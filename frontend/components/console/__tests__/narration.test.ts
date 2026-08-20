@@ -298,8 +298,11 @@ describe("narrationFor", () => {
         }),
       ],
     });
+    // `rolesCovered` deliberately caps at the *originating* swarm's own
+    // requirement (3), not the objective-level override: a reinforcement adds
+    // capacity without inflating what was originally asked for.
     expect(narrationFor(combined, { phase: "idle" })).toBe(
-      "02 SWARMS COORDINATED · 05 / 05 ROLES COVERED"
+      "02 SWARMS COORDINATED · 03 / 03 ROLES COVERED"
     );
   });
 
