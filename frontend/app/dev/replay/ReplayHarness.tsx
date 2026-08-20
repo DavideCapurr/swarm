@@ -21,6 +21,14 @@ import {
 /**
  * Drives the operational surface from recorded truth.
  *
+ *   A — two concurrent single-executor objectives with the BUSY exclusion.
+ *   B — one SwarmOS-owned ExecutionGroup, a live member failure, and the
+ *       central replacement of the vacated role.
+ *   C — a swarm composed under strength, reinforced by a second ExecutionGroup,
+ *       the disposition widening to hold both, take B's recorded failure and
+ *       replacement landing inside that wide shot, and a second, thirty-
+ *       executor sweep objective SwarmOS holds concurrently.
+ *
  * A and B retain their historical static bench captures. C is different: it
  * has no authored fallback. The dev/recording workflow must first generate
  * `/public/dev/take-c-causal-sim.json` from the causal simulator runtime. The
@@ -30,6 +38,7 @@ import {
  *
  * Every take remains stamped `REPLAY · RECORDED FRAMES · NOT LIVE` unless the
  * badge is explicitly disabled for layout measurement on this dev-only route.
+ * `replayBadge` can drop the stamp for that measurement only.
  */
 export type TakeId = "a" | "b" | "c";
 
@@ -100,12 +109,25 @@ export function ReplayHarness({
     setAtMs((current) => Math.min(current, durationMs));
   }, [durationMs]);
 
+  // Advances by real elapsed wall time rather than a fixed 250 ms tick, so
+  // playback reads as continuous motion at whatever frame rate the source
+  // frames were actually authored at — the same `dt`-clamped, self-cancelling
+  // shape `useCameraGlide` already uses for the camera.
   useEffect(() => {
     if (!playing || durationMs <= 0) return;
-    const id = window.setInterval(() => {
-      setAtMs((prev) => (prev >= durationMs ? 0 : Math.min(durationMs, prev + 250)));
-    }, 250);
-    return () => window.clearInterval(id);
+    let raf: number;
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      setAtMs((prev) => {
+        const next = prev + dt * 1000;
+        return next >= durationMs ? 0 : next;
+      });
+      raf = window.requestAnimationFrame(step);
+    };
+    raf = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(raf);
   }, [playing, durationMs]);
 
   const slice = useMemo(() => {

@@ -812,6 +812,32 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
     };
   }
 
+  /** `payload()` above stamps `ts` off `TAKE_A.t0`; this take runs on `TAKE_B.t0`. */
+  function payloadB(
+    missionId: string,
+    anomalyId: string,
+    agentId: string,
+    kind: PayloadEvent["kind"],
+    mode: PayloadEvent["execution_mode"],
+    atS: number
+  ): PayloadEvent {
+    return {
+      id: `${missionId}-${kind}`,
+      mission_id: missionId,
+      anomaly_id: anomalyId,
+      action_id: `${missionId}-${kind}-action`,
+      agent_id: agentId,
+      kind,
+      status: mode === "simulated" ? "simulated" : "confirmed",
+      execution_mode: mode,
+      light_on: kind === "light_on",
+      speaker_active: kind === "play_message",
+      message: kind === "play_message" || kind === "stop_message" ? "restricted_area" : null,
+      error_code: null,
+      ts: isoB(atS * 1000),
+    };
+  }
+
   const roster = [
     { agent: TAKE_B.primary.agent, mission: TAKE_B.primary.mission, from: 8 },
     { agent: TAKE_B.secondary.agent, mission: TAKE_B.secondary.mission, from: 8 },
@@ -942,22 +968,22 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
   frames.push({
     at: 33_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 33),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 33),
   });
   frames.push({
     at: 34_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 34),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 34),
   });
   frames.push({
     at: 44_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "stop_message", "simulated", 44),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "stop_message", "simulated", 44),
   });
   frames.push({
     at: 44_500,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_off", "mavlink_output_confirmed", 44.5),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_off", "mavlink_output_confirmed", 44.5),
   });
 
   // Completion, each on an acknowledged RTL, then the aggregate group.
@@ -1017,51 +1043,79 @@ export function foldTakeB(atMs: number, frames: DemoFrame[] = takeBFrames()): Ta
 // never extra members on the first — reinforcing it once capacity returns. Take C
 // is the cut that proves that layer, inside a fleet large enough for "central
 // authority" to be a claim worth making, alongside a second objective SwarmOS
-// holds concurrently.
+// holds concurrently: a continuous area sweep, patrolling its sector on a
+// repeating track rather than holding one point, that both feeds the hero
+// objective — SwarmOS diverts subunits off it, the way `_auction_and_dispatch`
+// diverts a single patrolling unit today — and keeps running at reduced
+// strength while it does.
 //
 // Provenance, stated exactly:
 //
 //   RECORDED — the failover inside the reinforcement beat. `mav-003` fails at
-//   T+21 while `SECONDARY_OBSERVER`, and SwarmOS replaces it with `mav-001` at
-//   T+23: the agents, the roles, the child mission ids, the scores and the
+//   T+38.5 while `SECONDARY_OBSERVER`, and SwarmOS replaces it with `mav-001` at
+//   T+40.5: the agents, the roles, the child mission ids, the scores and the
 //   failure/recovery evidence strings are all read from `TAKE_B`'s own constants
 //   below, which are themselves
 //   `docs/bench/phase12-execution-group-live-failover.md`, unchanged and not
-//   retimed. What is NOT recorded is which group each agent sits in or when
-//   each group was dispatched — see SCRIPTED.
+//   retimed. The pair's 2 s gap and its 5 s/8.5 s offsets from
+//   `REINFORCE_DISPATCH_S` are the bench's own; only the take-wide position of
+//   `REINFORCE_DISPATCH_S` itself is scripted compression — see SCRIPTED. What
+//   is NOT recorded is which group each agent sits in or when each group was
+//   dispatched.
 //
 //   SCRIPTED — the composition this take wires that recorded beat into, and it
 //   is worth being blunt about the scope of that word here. The bench ran one
 //   group of three, composed at once. This take never happened on a bench:
-//   SwarmOS composes a group of two (`PRIMARY_OBSERVER` + `OVERWATCH`) under the
-//   three roles the objective asked for, holds it under strength and tight over
-//   the objective, then — once capacity frees up — dispatches a *second* group
-//   carrying `reinforces_group_id` for the missing `SECONDARY_OBSERVER` role.
-//   `mav-003` is that reinforcement's first member, and its recorded failure and
-//   `mav-001`'s recorded replacement both happen inside the second group, not
-//   the first. Every station point, the widening leg each already-stationed
-//   subunit flies when the reinforcement is dispatched, the dispatch timing, and
-//   the stated cruise speed are presentation values chosen to fit the fixed
-//   T+21/T+23 beat into a legible take — not decoded from any planner field.
-//   `shortfall_reinforcement_policy` is real, orchestrator-test-validated code
-//   that would make a matching call given matching input (`docs/STATUS.md`), but
-//   no run — bench or orchestrator test — produced *this* timing; it is scripted
-//   to show the policy's outcome, not a replay of it. The anomaly, the
-//   objective/group ids and the second objective's identifiers are likewise made
-//   up rather than borrowed from a recorded run, for the same reason the thirty
-//   reserve executors below are: reusing a recorded id for a scripted event would
-//   misattribute real data. The thirty reserve executors themselves — their ids,
-//   headings and batteries — are `dockedFleet`'s presentation values; no bench
-//   ever ran thirty-four aircraft. They sit DOCKED on the one shared pad for the
-//   whole take — the same pad every hero subunit launches from — which is the
-//   one state that needs no flight data to be true of them.
+//   SwarmOS composes a group of two pad-launched roles (`PRIMARY_OBSERVER` +
+//   `OVERWATCH`) plus three more diverted off the sweep (`CONTAINMENT_01-03`)
+//   under the six roles the objective asks for, holds it under strength and
+//   tight over the objective, then — once capacity frees up — dispatches a
+//   *second* group carrying `reinforces_group_id` for the missing
+//   `SECONDARY_OBSERVER` role plus two more diverted subunits
+//   (`CONTAINMENT_04-05`). `mav-003` is that reinforcement's pad-launched
+//   member, and its recorded failure and `mav-001`'s recorded replacement both
+//   happen inside the second group, not the first. Every station point, the
+//   widening leg each already-stationed subunit flies when the reinforcement is
+//   dispatched, the sweep's own boustrophedon track, the five diversion
+//   instants, and the stated cruise speeds are presentation values chosen to
+//   fit the fixed failure/replacement pair into a legible take — not decoded
+//   from any planner field. `shortfall_reinforcement_policy` is real,
+//   orchestrator-test-validated code that would make a matching call given
+//   matching input (`docs/STATUS.md`), but no run — bench or orchestrator
+//   test — produced *this* timing; it is scripted to show the policy's outcome,
+//   not a replay of it.
 //
-//   COMPUTED — the second objective's allocation. The bids are not typed in:
-//   `scoreBid` is the real allocator formula (`core/swarm_core/allocator.py`
-//   `::score_bid`, priority `80 + int(confidence * 20)`), applied to the real
-//   distances between the scripted positions, and the winner is the argmax over
-//   it. The numbers are therefore illustrative in their inputs and honest in
-//   their arithmetic.
+//   The five diversion allocation frames (`mode: "diversion"`,
+//   `winner_score: null`, `diverted_from_mission_id`, the winner absent from
+//   its own `excluded_units`) reproduce the *shape*
+//   `Orchestrator._auction_and_dispatch` actually publishes for a real
+//   single-executor diversion under continuous patrol
+//   (`orchestrator/swarm_orchestrator/tests/test_diversion_truth.py`). What goes
+//   beyond real backend behaviour is the destination: diverting a unit into an
+//   `ExecutionGroup` role specifically. `_eligible_fleet`
+//   (`orchestrator/swarm_orchestrator/execution_groups.py`) excludes any agent
+//   already holding a mission, so a real deployment cannot compose a patrolling
+//   aircraft into a group today — this take scripts the outcome that capability
+//   would have, not a replay of it.
+//
+//   The anomaly, the objective/group ids and the second objective's identifiers
+//   are likewise made up rather than borrowed from a recorded run, for the same
+//   reason the thirty reserve executors below are: reusing a recorded id for a
+//   scripted event would misattribute real data. The thirty reserve executors
+//   themselves — their ids, headings and batteries — are `dockedFleet`'s
+//   presentation values; no bench ever ran thirty-four aircraft. They sit
+//   DOCKED on the one shared pad for the whole take — the same pad every hero
+//   subunit launches from — which is the one state that needs no flight data to
+//   be true of them.
+//
+//   COMPUTED — the second objective's allocation, and every diverted subunit's
+//   own role score. The bids are not typed in: `scoreBid` is the real allocator
+//   formula (`core/swarm_core/allocator.py` `::score_bid`, priority
+//   `80 + int(confidence * 20)`), applied to the real distances between the
+//   scripted positions — including the real distance a diverting subunit has to
+//   close from wherever its own sweep track put it, not a shortened stand-in —
+//   and the winner is the argmax over it. The numbers are therefore
+//   illustrative in their inputs and honest in their arithmetic.
 
 /**
  * The reserve fleet.
@@ -1153,29 +1207,45 @@ const REINFORCE_WIDE_PRIMARY = offsetEN(OBJECTIVE_B, -40, 15);
 const REINFORCE_WIDE_OVERWATCH = offsetEN(OBJECTIVE_B, 40, 15);
 const REINFORCE_WIDE_SECONDARY = offsetEN(OBJECTIVE_B, 0, -25);
 
-// Beat timing, in take-seconds. Composition and dispatch are scripted; T+21 and
-// T+23 are the two that are not — see `REINFORCE_FAIL_AT_S`/`REINFORCE_REPLACED_AT_S`.
+// Beat timing, in take-seconds. Composition and dispatch are scripted; T+36.5
+// and T+38.5 are the two that are not — see
+// `REINFORCE_FAIL_AT_S`/`REINFORCE_REPLACED_AT_S`. Every constant below is
+// take B's own recorded rhythm (`docs/bench/phase12-execution-group-live-
+// failover.md`), shifted 15.5 s later as a block so the beat lands after the
+// sweep has been visibly patrolling on its own — every gap between these
+// numbers, including the failure/replacement pair's, is exactly what it was
+// before the shift.
 //
 // The hero objective must compose *after* the sweep (`SWEEP` below composes at
 // t=2.5s): focus follows the newest active objective, and if the hero composed
 // first the sweep would outrank it and hold the camera through the failover.
-const REINFORCE_DETECT_S = 2.5;
-const REINFORCE_FORM_S = 3;
-const REINFORCE_ACTIVE_S = 3.5;
-const REINFORCE_LAUNCH_PRIMARY_S = 4;
-const REINFORCE_LAUNCH_OVERWATCH_S = 4.5;
+const REINFORCE_DETECT_S = 18;
+const REINFORCE_FORM_S = 18.5;
+const REINFORCE_ACTIVE_S = 19;
+const REINFORCE_LAUNCH_PRIMARY_S = 19.5;
+const REINFORCE_LAUNCH_OVERWATCH_S = 20;
 const REINFORCE_ARRIVE_TIGHT_PRIMARY_S =
   REINFORCE_LAUNCH_PRIMARY_S + reinforceTransitS(HOME_B["mav-004"], REINFORCE_TIGHT_PRIMARY);
 const REINFORCE_ARRIVE_TIGHT_OVERWATCH_S =
   REINFORCE_LAUNCH_OVERWATCH_S + reinforceTransitS(HOME_B["mav-002"], REINFORCE_TIGHT_OVERWATCH);
 
-/** Capacity frees up; SwarmOS dispatches swarm 02. */
-const REINFORCE_DISPATCH_S = 14.5;
-const REINFORCE_SWARM_B_ACTIVE_S = 15.5;
-const REINFORCE_LAUNCH_SECONDARY_S = 16;
+/**
+ * Capacity frees up; SwarmOS dispatches swarm 02.
+ *
+ * Held 2 s later than a uniform shift would give it (was T+30): the real
+ * distance a diverted sweep subunit has to close — the sector sits behind the
+ * dock, and the dock itself is the better part of the objective's own stated
+ * distance away again — puts wave one's own arrival at T+29.2-29.5, and
+ * dispatching swarm 02 before that would land it on top of a beat that has not
+ * finished yet. Everything downstream keeps the exact gaps it already had from
+ * this constant.
+ */
+const REINFORCE_DISPATCH_S = 32;
+const REINFORCE_SWARM_B_ACTIVE_S = 33;
+const REINFORCE_LAUNCH_SECONDARY_S = 33.5;
 /** The already-stationed subunits begin their second ON_STATION leg, tight → wide. */
-const REINFORCE_REPOSITION_PRIMARY_S = 16;
-const REINFORCE_REPOSITION_OVERWATCH_S = 16.3;
+const REINFORCE_REPOSITION_PRIMARY_S = 33.5;
+const REINFORCE_REPOSITION_OVERWATCH_S = 33.8;
 const REINFORCE_WIDE_PRIMARY_SETTLE_S =
   REINFORCE_REPOSITION_PRIMARY_S + reinforceTransitS(REINFORCE_TIGHT_PRIMARY, REINFORCE_WIDE_PRIMARY, 1);
 const REINFORCE_WIDE_OVERWATCH_SETTLE_S =
@@ -1183,32 +1253,98 @@ const REINFORCE_WIDE_OVERWATCH_SETTLE_S =
   reinforceTransitS(REINFORCE_TIGHT_OVERWATCH, REINFORCE_WIDE_OVERWATCH, 1);
 
 /**
- * T+21 / T+23. RECORDED, not retimed: `docs/bench/phase12-execution-group-live-
- * failover.md`. `mav-003` fails while EN_ROUTE to the wide `SECONDARY_OBSERVER`
- * station — it is dispatched well before T+21 so it is genuinely mid-transit,
- * not arriving, when the recorded failure lands.
+ * T+38.5 / T+40.5. RECORDED, not retimed: `docs/bench/phase12-execution-group-
+ * live-failover.md`. `mav-003` fails while EN_ROUTE to the wide
+ * `SECONDARY_OBSERVER` station — it is dispatched well before T+38.5 so it is
+ * genuinely mid-transit, not arriving, when the recorded failure lands. The
+ * pair's absolute position in the take is scripted compression; the 2 s gap
+ * between them, and their 5 s/8.5 s offsets from `REINFORCE_DISPATCH_S`, are
+ * the bench's own and are untouched by the T+32 retime above.
  */
-const REINFORCE_FAIL_AT_S = 21;
-const REINFORCE_REPLACED_AT_S = 23;
+const REINFORCE_FAIL_AT_S = 38.5;
+const REINFORCE_REPLACED_AT_S = 40.5;
 
-const REINFORCE_LAUNCH_REPLACEMENT_S = 24;
+const REINFORCE_LAUNCH_REPLACEMENT_S = 41.5;
 const REINFORCE_ARRIVE_REPLACEMENT_S =
   REINFORCE_LAUNCH_REPLACEMENT_S + reinforceTransitS(HOME_B["mav-001"], REINFORCE_WIDE_SECONDARY);
 
-const REINFORCE_LIGHT_ON_S = 34;
-const REINFORCE_PLAY_MSG_S = 34.5;
-const REINFORCE_STOP_MSG_S = 44;
-const REINFORCE_LIGHT_OFF_S = 44.5;
+const REINFORCE_LIGHT_ON_S = 51.5;
+const REINFORCE_PLAY_MSG_S = 52;
+const REINFORCE_STOP_MSG_S = 61.5;
+const REINFORCE_LIGHT_OFF_S = 62;
 
-const REINFORCE_RTL_PRIMARY_S = 46;
-const REINFORCE_RTL_OVERWATCH_S = 47;
-const REINFORCE_RTL_REPLACEMENT_S = 49;
-const REINFORCE_DONE_PRIMARY_S = 48;
-const REINFORCE_DONE_OVERWATCH_S = 49;
-const REINFORCE_DONE_REPLACEMENT_S = 51;
+const REINFORCE_RTL_PRIMARY_S = 63.5;
+const REINFORCE_RTL_OVERWATCH_S = 64.5;
+const REINFORCE_RTL_REPLACEMENT_S = 66.5;
+const REINFORCE_DONE_PRIMARY_S = 65.5;
+const REINFORCE_DONE_OVERWATCH_S = 66.5;
+const REINFORCE_DONE_REPLACEMENT_S = 68.5;
 /** Each group completes once its own members have all reported DONE. */
-const REINFORCE_GROUP_A_COMPLETE_S = 50;
-const REINFORCE_GROUP_B_COMPLETE_S = 52;
+const REINFORCE_GROUP_A_COMPLETE_S = 67.5;
+const REINFORCE_GROUP_B_COMPLETE_S = 69.5;
+
+// ── Containment — subunits pulled off the sweep ─────────────────────────────
+//
+// SwarmOS widens both swarm 01 and swarm 02 with roles no bench run ever
+// composed: three `CONTAINMENT` subunits diverted off the running sweep join
+// swarm 01 shortly after it forms, and two more join swarm 02 alongside the
+// recorded `SECONDARY_OBSERVER` dispatch. See the take C header for exactly
+// what is SCRIPTED here versus what the diversion *shape* borrows from real,
+// orchestrator-test-validated behaviour.
+//
+// Altitudes continue the role ladder past `ROLE_ALT_M`'s 40/55/70 so every
+// subunit over the objective still separates on its own line of pixels.
+const CONTAINMENT_ALT_M: Record<string, number> = {
+  "mav-008": 25,
+  "mav-009": 85,
+  "mav-010": 100,
+  "mav-011": 115,
+  "mav-012": 130,
+};
+
+/** Stations ring the objective. SCRIPTED presentation geometry, as `REINFORCE_TIGHT_*` is. */
+const CONTAINMENT_STATION: Record<string, Geo> = {
+  "mav-008": offsetEN(OBJECTIVE_B, -30, -15),
+  "mav-009": offsetEN(OBJECTIVE_B, 30, -15),
+  "mav-010": offsetEN(OBJECTIVE_B, 0, -35),
+  "mav-011": offsetEN(OBJECTIVE_B, -50, 0),
+  "mav-012": offsetEN(OBJECTIVE_B, 50, 0),
+};
+
+/** Made up, deterministically, on the same terms as `sweepMission` — see the header. */
+const containmentMission = (i: number) =>
+  (0x8f2c0000 + i).toString(16).padStart(8, "0") + "b7e451f9c3a6d820be94a3f1";
+
+/**
+ * SwarmOS commits the diverted subunits to their new roles at these instants.
+ *
+ * Wave two moves with `REINFORCE_DISPATCH_S` (T+32) so it leaves the sweep the
+ * moment swarm 02 exists to receive it, the same relationship wave one has to
+ * swarm 01's own T+19 activation.
+ */
+const CONTAINMENT_DIVERT_S: Record<string, number> = {
+  "mav-008": 19.5,
+  "mav-009": 19.7,
+  "mav-010": 19.9,
+  "mav-011": 33.0,
+  "mav-012": 33.2,
+};
+
+/**
+ * The moment SwarmOS re-publishes each swarm's roster with its new members in.
+ *
+ * Pinned to the *earliest* diversion in each wave, never later: the roster
+ * update and the first member's own diversion allocation must land in the same
+ * folded instant, or that member's mission id is briefly absent from
+ * `childMissionIds` and the surface reads it as a stray single-executor
+ * objective for the gap between the two frames.
+ */
+const CONTAINMENT_SWARM_A_JOIN_S = 19.5;
+const CONTAINMENT_SWARM_B_JOIN_S = 33.0;
+
+/** RTL for a role serving the objective, not the sweep it was pulled from. */
+const REINFORCE_RTL_CONTAINMENT_A_S = 63.8;
+const REINFORCE_RTL_CONTAINMENT_B_S = 66.8;
 
 const REINFORCE_LAND_PRIMARY_S =
   REINFORCE_RTL_PRIMARY_S + reinforceTransitS(REINFORCE_WIDE_PRIMARY, HOME_B["mav-004"], 0);
@@ -1546,15 +1682,15 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
     },
   ];
 
-  // Telemetry, at 1 Hz. `mav-003`'s last reported position holds from the
-  // recorded failure onward, exactly as `pushHeroGroupFrames` does for the same
-  // agent in take B.
-  for (let t = 0; t <= REINFORCE_COMPLETED_S + 5; t += 1) {
+  // Telemetry, at 10 Hz — `SimulatedAdapter.stream_telemetry`'s real publish
+  // rate. `mav-003`'s last reported position holds from the recorded failure
+  // onward, exactly as `pushHeroGroupFrames` does for the same agent in take B.
+  for (let t = 0; t <= REINFORCE_COMPLETED_S + 5; t += 0.1) {
     for (const entry of roster) {
       const dead = entry.agent === "mav-003" && t > REINFORCE_FAIL_AT_S;
       const sample = dead ? REINFORCE_FAIL_AT_S : t;
       frames.push({
-        at: t * 1000,
+        at: Math.round(t * 1000),
         kind: "unit",
         data: unitR(
           entry.agent,
@@ -1601,13 +1737,13 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
   frames.push({
     at: REINFORCE_FORM_S * 1000,
     kind: "group",
-    data: groupFrameR(REINFORCE_SWARM_A_GROUP, null, 3, "FORMING", swarmAInitial, REINFORCE_FORM_S),
+    data: groupFrameR(REINFORCE_SWARM_A_GROUP, null, 6, "FORMING", swarmAInitial, REINFORCE_FORM_S),
   });
   const swarmAActive = swarmAInitial.map((m) => ({ ...m, state: "ACTIVE" as const }));
   frames.push({
     at: REINFORCE_ACTIVE_S * 1000,
     kind: "group",
-    data: groupFrameR(REINFORCE_SWARM_A_GROUP, null, 3, "ACTIVE", swarmAActive, REINFORCE_ACTIVE_S),
+    data: groupFrameR(REINFORCE_SWARM_A_GROUP, null, 6, "ACTIVE", swarmAActive, REINFORCE_ACTIVE_S),
   });
 
   frames.push({
@@ -1658,7 +1794,7 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
   frames.push({
     at: REINFORCE_DISPATCH_S * 1000,
     kind: "group",
-    data: groupFrameR(REINFORCE_SWARM_B_GROUP, REINFORCE_SWARM_A_GROUP, 1, "FORMING", swarmBInitial, REINFORCE_DISPATCH_S),
+    data: groupFrameR(REINFORCE_SWARM_B_GROUP, REINFORCE_SWARM_A_GROUP, 3, "FORMING", swarmBInitial, REINFORCE_DISPATCH_S),
   });
   const swarmBActive = swarmBInitial.map((m) => ({ ...m, state: "ACTIVE" as const }));
   frames.push({
@@ -1667,7 +1803,7 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
     data: groupFrameR(
       REINFORCE_SWARM_B_GROUP,
       REINFORCE_SWARM_A_GROUP,
-      1,
+      3,
       "ACTIVE",
       swarmBActive,
       REINFORCE_SWARM_B_ACTIVE_S
@@ -1700,9 +1836,12 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
     data: groupFrameR(
       REINFORCE_SWARM_B_GROUP,
       REINFORCE_SWARM_A_GROUP,
-      1,
+      3,
       "DEGRADED",
-      [{ ...swarmBActive[0], state: "FAILED" }],
+      [
+        { ...swarmBActive[0], state: "FAILED" },
+        ...CONTAINMENT_B.map((c) => containmentMember(c, "ACTIVE")),
+      ],
       REINFORCE_FAIL_AT_S + 0.2
     ),
   });
@@ -1727,9 +1866,9 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
     data: groupFrameR(
       REINFORCE_SWARM_B_GROUP,
       REINFORCE_SWARM_A_GROUP,
-      1,
+      3,
       "ACTIVE",
-      swarmBRestored,
+      [...swarmBRestored, ...CONTAINMENT_B.map((c) => containmentMember(c, "ACTIVE"))],
       REINFORCE_REPLACED_AT_S
     ),
   });
@@ -1820,9 +1959,12 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
     data: groupFrameR(
       REINFORCE_SWARM_A_GROUP,
       null,
-      3,
+      6,
       "COMPLETED",
-      swarmAActive.map((m) => ({ ...m, state: "COMPLETED" as const })),
+      [
+        ...swarmAActive.map((m) => ({ ...m, state: "COMPLETED" as const })),
+        ...CONTAINMENT_A.map((c) => containmentMember(c, "COMPLETED")),
+      ],
       REINFORCE_GROUP_A_COMPLETE_S
     ),
   });
@@ -1832,9 +1974,12 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
     data: groupFrameR(
       REINFORCE_SWARM_B_GROUP,
       REINFORCE_SWARM_A_GROUP,
-      1,
+      3,
       "COMPLETED",
-      swarmBRestored.map((m) => (m.state === "REPLACED" ? m : { ...m, state: "COMPLETED" as const })),
+      [
+        ...swarmBRestored.map((m) => (m.state === "REPLACED" ? m : { ...m, state: "COMPLETED" as const })),
+        ...CONTAINMENT_B.map((c) => containmentMember(c, "COMPLETED")),
+      ],
       REINFORCE_GROUP_B_COMPLETE_S
     ),
   });
@@ -1874,6 +2019,14 @@ function pushReinforcementFrames(frames: DemoFrame[]): void {
  *
  * The whole formation sits south of the dock. The hero group flies due north,
  * so the two never contend for the same ground.
+ *
+ * The formation does not hold its station once it arrives: `legsForSweep`
+ * carries each subunit through a repeating north/south track with a lateral
+ * jog between passes (`SWEEP_PATTERN_DELTA_M`), so the sector is patrolled
+ * rather than parked over. Five of the thirty are later diverted onto the hero
+ * objective — see `CONTAINMENT` below — and the sweep's own roster shrinks to
+ * match; the twenty-five that remain keep patrolling their sector until
+ * SwarmOS recalls the whole formation.
  */
 const SWEEP_RANKS = 3;
 const SWEEP_PER_RANK = 10;
@@ -1955,7 +2108,7 @@ type SweepStation = {
  * newest objective still running, and a patrol that outlived the verification
  * would take the last frames of the take with it.
  */
-const SWEEP_RETURN_S = 35;
+const SWEEP_RETURN_S = 48;
 
 const SWEEP: SweepStation[] = RESERVE_C.map((agent, i) => {
   const rank = Math.floor(i / SWEEP_PER_RANK);
@@ -2006,7 +2159,7 @@ export const TAKE_C = {
     objectiveMission: REINFORCE_OBJECTIVE_MISSION,
     swarmA: REINFORCE_SWARM_A_GROUP,
     swarmB: REINFORCE_SWARM_B_GROUP,
-    requestedMembers: 3,
+    requestedMembers: 6,
     failAtS: REINFORCE_FAIL_AT_S,
     replacedAtS: REINFORCE_REPLACED_AT_S,
   },
@@ -2015,6 +2168,9 @@ export const TAKE_C = {
     objectiveMission: SWEEP_OBJECTIVE_MISSION,
     members: SWEEP.length,
     ranks: SWEEP_RANKS,
+    /** Subunits diverted onto swarm 01 and swarm 02 respectively — see `CONTAINMENT` below. */
+    divertedToA: 3,
+    divertedToB: 2,
   },
 } as const;
 
@@ -2048,16 +2204,206 @@ function unitC(
   };
 }
 
+/**
+ * The formation's own track over its station, relative to each subunit's
+ * arrival: seconds and a metres offset from the assigned station point. Two
+ * full north/south passes with a lateral jog between each — a lawnmower, not a
+ * hold. SCRIPTED, on the same terms as the station geometry above: nothing
+ * operational is computed from it, and the amplitude is chosen to keep the
+ * whole formation's footprint legible at the recording viewport rather than to
+ * cover any stated area.
+ */
+const SWEEP_PATTERN_DELTA_M: { dt: number; eastM: number; northM: number }[] = [
+  { dt: 0, eastM: 0, northM: 0 },
+  { dt: 6, eastM: 0, northM: -55 },
+  { dt: 6.6, eastM: 22, northM: -55 },
+  { dt: 12.6, eastM: 22, northM: 0 },
+  { dt: 13.2, eastM: 44, northM: 0 },
+  { dt: 19.2, eastM: 44, northM: -55 },
+  { dt: 19.8, eastM: 22, northM: -55 },
+  { dt: 25.8, eastM: 22, northM: 0 },
+  { dt: 26.4, eastM: 0, northM: 0 },
+  { dt: 32.4, eastM: 0, northM: -55 },
+  { dt: 33.0, eastM: -22, northM: -55 },
+  { dt: 39.0, eastM: -22, northM: 0 },
+];
+
 function legsForSweep(s: SweepStation): Leg[] {
-  return [
+  const pattern: Leg[] = [];
+  for (let i = 1; i < SWEEP_PATTERN_DELTA_M.length; i += 1) {
+    const prev = SWEEP_PATTERN_DELTA_M[i - 1];
+    const next = SWEEP_PATTERN_DELTA_M[i];
+    pattern.push({
+      from: s.arriveS + prev.dt,
+      to: s.arriveS + next.dt,
+      a: offsetEN(s.station, prev.eastM, prev.northM),
+      b: offsetEN(s.station, next.eastM, next.northM),
+      state: "ON_STATION",
+      alt: s.altM,
+    });
+  }
+  const flying: Leg[] = [
     { from: s.launchS, to: s.arriveS, a: s.agent.home, b: s.station, state: "EN_ROUTE", alt: s.altM },
-    { from: s.arriveS, to: s.returnS, a: s.station, b: s.station, state: "ON_STATION", alt: s.altM },
-    { from: s.returnS, to: s.landS, a: s.station, b: s.agent.home, state: "RTL", alt: s.altM },
-    { from: s.landS, to: 68, a: s.agent.home, b: s.agent.home, state: "DOCKED", alt: 0 },
+    ...pattern,
+  ];
+  // Wherever the pattern has it when SwarmOS recalls it — not necessarily back
+  // at the nominal station point, since the sector track has moved it.
+  const holdGeo = positionAt(flying, s.agent.home, s.returnS).geo;
+  return [
+    ...flying,
+    { from: s.returnS, to: s.landS, a: holdGeo, b: s.agent.home, state: "RTL", alt: s.altM },
+    { from: s.landS, to: 100, a: s.agent.home, b: s.agent.home, state: "DOCKED", alt: 0 },
   ];
 }
 
 const SWEEP_LEGS = new Map(SWEEP.map((s) => [s.agent.agentId, legsForSweep(s)]));
+
+/** The prefix of `legs` up to `atS`, its last leg cut short there. */
+function truncateLegsAt(legs: Leg[], atS: number): Leg[] {
+  const out: Leg[] = [];
+  for (const leg of legs) {
+    if (leg.from >= atS) break;
+    if (leg.to > atS) {
+      out.push({ ...leg, to: atS });
+      break;
+    }
+    out.push(leg);
+  }
+  return out;
+}
+
+/**
+ * Subunits SwarmOS diverts off the sweep onto the hero objective — three into
+ * swarm 01 shortly after it forms, two more into swarm 02 alongside the
+ * recorded `SECONDARY_OBSERVER` dispatch. See the take C header for what this
+ * borrows from real diversion behaviour (`Orchestrator._auction_and_dispatch`'s
+ * `mode="diversion"` branch, `docs/bench` and
+ * `orchestrator/swarm_orchestrator/tests/test_diversion_truth.py`) and what
+ * goes beyond it: diverting into an `ExecutionGroup` role specifically, which
+ * `_eligible_fleet` does not allow today because it excludes any agent already
+ * holding a mission.
+ */
+const CONTAINMENT_AGENTS = ["mav-008", "mav-009", "mav-010", "mav-011", "mav-012"] as const;
+const CONTAINMENT_ROLE: Record<string, string> = {
+  "mav-008": "CONTAINMENT_01",
+  "mav-009": "CONTAINMENT_02",
+  "mav-010": "CONTAINMENT_03",
+  "mav-011": "CONTAINMENT_04",
+  "mav-012": "CONTAINMENT_05",
+};
+const CONTAINMENT_SWARM: Record<string, "A" | "B"> = {
+  "mav-008": "A",
+  "mav-009": "A",
+  "mav-010": "A",
+  "mav-011": "B",
+  "mav-012": "B",
+};
+
+type Containment = {
+  role: string;
+  agentId: string;
+  sweepIndex: number;
+  altM: number;
+  station: Geo;
+  missionId: string;
+  swarm: "A" | "B";
+  divertS: number;
+  arriveS: number;
+  rtlS: number;
+  landS: number;
+  score: number;
+  legs: Leg[];
+};
+
+const CONTAINMENT: Containment[] = CONTAINMENT_AGENTS.map((agentId, idx) => {
+  const sweepIndex = SWEEP.findIndex((s) => s.agent.agentId === agentId);
+  const divertS = CONTAINMENT_DIVERT_S[agentId];
+  const swarm = CONTAINMENT_SWARM[agentId];
+  const station = CONTAINMENT_STATION[agentId];
+  const altM = CONTAINMENT_ALT_M[agentId];
+  const rtlS = swarm === "A" ? REINFORCE_RTL_CONTAINMENT_A_S : REINFORCE_RTL_CONTAINMENT_B_S;
+  const prefix = truncateLegsAt(SWEEP_LEGS.get(agentId) as Leg[], divertS);
+  const departPoint = positionAt(prefix, DOCK_B, divertS).geo;
+  const arriveS = divertS + reinforceTransitS(departPoint, station);
+  const landS = rtlS + reinforceTransitS(station, DOCK_B, 0);
+  const legs: Leg[] = [
+    ...prefix,
+    { from: divertS, to: arriveS, a: departPoint, b: station, state: "EN_ROUTE", alt: altM },
+    { from: arriveS, to: rtlS, a: station, b: station, state: "ON_STATION", alt: altM },
+    { from: rtlS, to: landS, a: station, b: DOCK_B, state: "RTL", alt: altM },
+    { from: landS, to: 100, a: DOCK_B, b: DOCK_B, state: "DOCKED", alt: 0 },
+  ];
+  return {
+    role: CONTAINMENT_ROLE[agentId],
+    agentId,
+    sweepIndex,
+    altM,
+    station,
+    missionId: containmentMission(idx + 1),
+    swarm,
+    divertS,
+    arriveS,
+    rtlS,
+    landS,
+    // COMPUTED: the real allocator formula over the real station distance and
+    // the agent's own battery at the moment of diversion.
+    score: scoreBid(
+      metresBetween(DOCK_B, station),
+      Math.max(55, RESERVE_C[sweepIndex].batteryPct - divertS * 0.22),
+      PRIORITY_B
+    ),
+    legs,
+  };
+});
+
+const CONTAINMENT_BY_AGENT = new Map(CONTAINMENT.map((c) => [c.agentId, c]));
+const CONTAINMENT_A = CONTAINMENT.filter((c) => c.swarm === "A");
+const CONTAINMENT_B = CONTAINMENT.filter((c) => c.swarm === "B");
+
+/** A pad-launched member row, stamped at `atS` — its own recorded identity, carried forward. */
+function groupMemberAt(
+  agentId: string,
+  role: string,
+  missionId: string,
+  score: number,
+  atS: number,
+  replaces: string | null = null
+): ExecutionGroupMember {
+  return {
+    agent_id: agentId,
+    role,
+    mission_id: missionId,
+    state: "ACTIVE",
+    score,
+    score_breakdown: {},
+    replaces_agent_id: replaces,
+    ts: isoC(atS * 1000),
+  };
+}
+
+/**
+ * A containment subunit's own member row. Callable from both `pushReinforcementFrames`
+ * and `pushContainmentFrames`: every group frame is a full roster snapshot, not
+ * a merge (`foldFrames`'s `case "group"` replaces wholesale), so any publish of
+ * swarm 01 or swarm 02 made after a subunit joined has to carry it forward
+ * itself or the subunit vanishes from that swarm the moment the next frame
+ * lands.
+ */
+function containmentMember(
+  c: Containment,
+  state: ExecutionGroupMember["state"]
+): ExecutionGroupMember {
+  return {
+    agent_id: c.agentId,
+    role: c.role,
+    mission_id: c.missionId,
+    state,
+    score: c.score,
+    score_breakdown: {},
+    replaces_agent_id: null,
+    ts: isoC(c.divertS * 1000),
+  };
+}
 
 function sweepMember(
   s: SweepStation,
@@ -2128,20 +2474,31 @@ function runtimeSweep(
  * It closes before the hero too, so the take's last frames settle on the
  * objective that was verified rather than on a patrol that outlived it.
  */
+/** Take-seconds the unit loop must run through: the later of the sweep's own
+ *  recovery and the last diverted subunit's. */
+const SWEEP_UNIT_LOOP_END_S = Math.max(SWEEP_COMPLETED_S, REINFORCE_COMPLETED_S) + 1;
+
 function pushSweepFrames(frames: DemoFrame[]): void {
-  for (let t = 0; t <= 68; t += 1) {
+  // Telemetry, at 10 Hz — `SimulatedAdapter.stream_telemetry`'s real publish
+  // rate — so the formation's own track reads as flight, not a slideshow. A
+  // diverted subunit's position comes off its own legs (sweep pattern up to
+  // the diversion instant, then the transit and station it was pulled onto)
+  // rather than off the sweep's, from the moment SwarmOS committed it.
+  for (let t = 0; t <= SWEEP_UNIT_LOOP_END_S; t += 0.1) {
+    const atMs = Math.round(t * 1000);
     for (const s of SWEEP) {
-      frames.push({
-        at: t * 1000,
-        kind: "unit",
-        data: unitC(
-          s.agent,
-          t,
-          SWEEP_LEGS.get(s.agent.agentId) as Leg[],
-          t >= 2.5 && t < s.landS ? s.missionId : null,
-          Math.max(55, s.agent.batteryPct - Math.max(0, t - s.launchS) * 0.22)
-        ),
-      });
+      const c = CONTAINMENT_BY_AGENT.get(s.agent.agentId) ?? null;
+      const diverted = c !== null && t >= c.divertS;
+      const legs = diverted ? c.legs : (SWEEP_LEGS.get(s.agent.agentId) as Leg[]);
+      const missionId = diverted
+        ? c.missionId
+        : t >= 2.5 && t < s.landS
+          ? s.missionId
+          : null;
+      const battery = diverted
+        ? Math.max(55, s.agent.batteryPct - c.divertS * 0.22 - (t - c.divertS) * 0.15)
+        : Math.max(55, s.agent.batteryPct - Math.max(0, t - s.launchS) * 0.22);
+      frames.push({ at: atMs, kind: "unit", data: unitC(s.agent, t, legs, missionId, battery) });
     }
   }
 
@@ -2163,27 +2520,181 @@ function pushSweepFrames(frames: DemoFrame[]): void {
       kind: "runtime",
       data: runtimeSweep(s, "ON_STATION", s.arriveS, "mavlink_mission_item_reached"),
     });
-    frames.push({
-      at: s.landS * 1000,
-      kind: "runtime",
-      data: runtimeSweep(s, "DONE", s.landS, "mavlink_rtl_command_acknowledged"),
-    });
+    // A diverted subunit never completes the sweep mission it was pulled off —
+    // its own DONE is published on the hero objective's child mission instead,
+    // by `pushContainmentFrames`.
+    if (!CONTAINMENT_BY_AGENT.has(s.agent.agentId)) {
+      frames.push({
+        at: s.landS * 1000,
+        kind: "runtime",
+        data: runtimeSweep(s, "DONE", s.landS, "mavlink_rtl_command_acknowledged"),
+      });
+    }
   }
+
+  // SwarmOS shrinks the sweep's own roster as it commits subunits elsewhere.
+  // `requested_members` stays the full 30 — this is capacity SwarmOS diverted,
+  // not capacity that was never asked for — so the swarm reads under strength
+  // and its hull turns amber the moment the first wave leaves.
+  const divertedByWaveA = new Set(
+    CONTAINMENT.filter((c) => c.swarm === "A").map((c) => c.agentId)
+  );
+  const afterWaveA = active.filter((m) => !divertedByWaveA.has(m.agent_id));
+  frames.push({
+    at: CONTAINMENT_SWARM_A_JOIN_S * 1000,
+    kind: "group",
+    data: sweepGroup("ACTIVE", afterWaveA, CONTAINMENT_SWARM_A_JOIN_S),
+  });
+
+  const divertedByWaveB = new Set(CONTAINMENT.map((c) => c.agentId));
+  const afterWaveB = afterWaveA.filter((m) => !divertedByWaveB.has(m.agent_id));
+  frames.push({
+    at: CONTAINMENT_SWARM_B_JOIN_S * 1000,
+    kind: "group",
+    data: sweepGroup("ACTIVE", afterWaveB, CONTAINMENT_SWARM_B_JOIN_S),
+  });
 
   frames.push({
     at: SWEEP_COMPLETED_S * 1000,
     kind: "group",
     data: sweepGroup(
       "COMPLETED",
-      active.map((member) => ({ ...member, state: "COMPLETED" as const })),
+      afterWaveB.map((member) => ({ ...member, state: "COMPLETED" as const })),
       SWEEP_COMPLETED_S
     ),
+  });
+}
+
+/**
+ * The five diversions themselves: the allocation frame that pulls each
+ * subunit off the sweep, the runtime ladder for its new child mission on the
+ * hero objective, and the roster updates that put it into swarm 01 or 02.
+ *
+ * The allocation frame's shape mirrors what `Orchestrator._auction_and_dispatch`
+ * actually publishes for a single-executor diversion — `mode: "diversion"`,
+ * `winner_score: null` because a diverted unit never bid, the winner absent
+ * from its own `excluded_units` — even though the real orchestrator has no
+ * path that diverts an aircraft into an `ExecutionGroup` role. `eligible_units`
+ * and `excluded_units` are left empty: reproducing a full fleet-wide bid list
+ * for a scripted instant would invent detail no run ever computed.
+ */
+function pushContainmentFrames(frames: DemoFrame[]): void {
+  function allocationC(c: Containment): AllocationDecision {
+    return {
+      mission_id: c.missionId,
+      mission_kind: c.role,
+      anomaly_id: REINFORCE_ANOMALY,
+      mode: "diversion",
+      eligible_units: [],
+      excluded_units: [],
+      winner_agent_id: c.agentId,
+      winner_score: null,
+      diverted_from_mission_id: sweepMission(c.sweepIndex),
+      ts: isoC(c.divertS * 1000),
+    };
+  }
+
+  function runtimeC(
+    c: Containment,
+    phase: string,
+    atS: number,
+    evidence: MissionRuntimeEvent["evidence"] = null
+  ): MissionRuntimeEvent {
+    return {
+      id: `${c.missionId}-${phase}`,
+      mission_id: c.missionId,
+      agent_id: c.agentId,
+      phase,
+      progress_pct: phase === "DONE" ? 100 : phase === "ON_STATION" ? 90 : 5,
+      evidence,
+      error: null,
+      ts: isoC(atS * 1000),
+    };
+  }
+
+  // No `mission`/track frames for a diverted subunit — the same choice already
+  // made for the sweep it came from, which publishes no track either. Five
+  // solid lines converging on the objective from 300-400 m out, on top of the
+  // tethers already doing that job schematically, read as clutter rather than
+  // signal. The tether states the commitment; the dart's own motion states the
+  // transit. `waypoints`/`track` stay available on `MissionView` for anything
+  // that reads them directly — this only stops the map drawing the line.
+  for (const c of CONTAINMENT) {
+    frames.push({ at: c.divertS * 1000, kind: "allocation", data: allocationC(c) });
+    frames.push({
+      at: c.divertS * 1000,
+      kind: "runtime",
+      data: runtimeC(c, "EN_ROUTE", c.divertS),
+    });
+    frames.push({
+      at: c.arriveS * 1000,
+      kind: "runtime",
+      data: runtimeC(c, "ON_STATION", c.arriveS, "mavlink_mission_item_reached"),
+    });
+    frames.push({
+      at: c.landS * 1000,
+      kind: "runtime",
+      data: runtimeC(c, "DONE", c.landS, "mavlink_rtl_command_acknowledged"),
+    });
+  }
+
+  // The pad-launched pair keeps its own recorded mission ids, scores and
+  // composition timestamp — this frame carries them forward, it does not
+  // reassign them. Only the three diverted subunits are new here.
+  const swarmAJoined = [
+    groupMemberAt("mav-004", "PRIMARY_OBSERVER", TAKE_B.primary.mission, TAKE_B.primary.score, REINFORCE_FORM_S),
+    groupMemberAt("mav-002", "OVERWATCH", TAKE_B.overwatch.mission, TAKE_B.overwatch.score, REINFORCE_FORM_S),
+    ...CONTAINMENT_A.map((c) => containmentMember(c, "ACTIVE")),
+  ];
+  frames.push({
+    at: CONTAINMENT_SWARM_A_JOIN_S * 1000,
+    kind: "group",
+    data: {
+      id: REINFORCE_SWARM_A_GROUP,
+      objective_mission_id: REINFORCE_OBJECTIVE_MISSION,
+      objective_kind: "COOPERATIVE_VERIFY",
+      anomaly_id: REINFORCE_ANOMALY,
+      reinforces_group_id: null,
+      requested_members: 6,
+      members: swarmAJoined,
+      state: "ACTIVE",
+      failure_reason: null,
+      ts: isoC(CONTAINMENT_SWARM_A_JOIN_S * 1000),
+    },
+  });
+
+  const swarmBJoined = [
+    groupMemberAt(
+      "mav-003",
+      "SECONDARY_OBSERVER",
+      TAKE_B.secondary.mission,
+      TAKE_B.secondary.score,
+      REINFORCE_DISPATCH_S
+    ),
+    ...CONTAINMENT_B.map((c) => containmentMember(c, "ACTIVE")),
+  ];
+  frames.push({
+    at: CONTAINMENT_SWARM_B_JOIN_S * 1000,
+    kind: "group",
+    data: {
+      id: REINFORCE_SWARM_B_GROUP,
+      objective_mission_id: REINFORCE_OBJECTIVE_MISSION,
+      objective_kind: "COOPERATIVE_VERIFY",
+      anomaly_id: REINFORCE_ANOMALY,
+      reinforces_group_id: REINFORCE_SWARM_A_GROUP,
+      requested_members: 3,
+      members: swarmBJoined,
+      state: "ACTIVE",
+      failure_reason: null,
+      ts: isoC(CONTAINMENT_SWARM_B_JOIN_S * 1000),
+    },
   });
 }
 export function takeCFrames(): DemoFrame[] {
   const frames: DemoFrame[] = [];
   pushReinforcementFrames(frames);
   pushSweepFrames(frames);
+  pushContainmentFrames(frames);
   return frames.sort((a, b) => a.at - b.at);
 }
 

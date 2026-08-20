@@ -3,14 +3,10 @@
   "configurations": [
     {
       "name": "swarmos-console",
-      "runtimeExecutable": "corepack",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
-        "pnpm",
-        "--dir",
-        "frontend",
-        "dev",
-        "--port",
-        "3001"
+        "-lc",
+        "cd frontend && exec corepack pnpm dev --port 3001"
       ],
       "port": 3001,
       "autoPort": false

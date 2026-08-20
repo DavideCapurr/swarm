@@ -41,6 +41,7 @@ const OBJECTIVE: ObjectiveAuthority = {
   swarms: [],
   requestedMembers: 3,
   slots: [],
+  excludedUnits: [],
   activeMembers: 0,
   state: "EXECUTING",
   active: true,

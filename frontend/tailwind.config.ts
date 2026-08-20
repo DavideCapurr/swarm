@@ -42,6 +42,7 @@ const config: Config = {
         display: tokens.font.display.split(",").map((s) => s.trim().replace(/'/g, "")),
         sans: tokens.font.body.split(",").map((s) => s.trim().replace(/'/g, "")),
         mono: tokens.font.mono.split(",").map((s) => s.trim().replace(/'/g, "")),
+        "console-mono": tokens.font.consoleMono.split(",").map((s) => s.trim().replace(/'/g, "")),
         grotesk: tokens.font.grotesk.split(",").map((s) => s.trim().replace(/'/g, "")),
       },
       fontSize: {

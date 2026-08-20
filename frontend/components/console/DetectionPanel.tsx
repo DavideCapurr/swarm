@@ -77,7 +77,7 @@ export function DetectionPanel({ objective }: { objective: ObjectiveAuthority })
       {/* 1 — what it is. Kind and confidence on one line: this is the fact a
           viewer has to register first. */}
       <div className="flex items-baseline justify-between gap-3 px-3 pb-[8px] pt-[11px]">
-        <span className="font-grotesk text-[15px] font-medium uppercase leading-none tracking-[0.12em] text-platinum">
+        <span className="font-grotesk text-[15px] font-medium uppercase leading-none tracking-[0.06em] text-platinum">
           {objective.kind}
         </span>
         {objective.confidence != null ? (

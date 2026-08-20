@@ -19,6 +19,7 @@
 
 import type {
   AllocationDecision,
+  AllocationExclusionReason,
   AnomalyView,
   ExecutionGroup,
   ExecutionGroupMember,
@@ -110,6 +111,13 @@ export type CompositionSlot = {
    * that folded it away would delete the only thing that just changed.
    */
   reinforcement: boolean;
+  /**
+   * Set when the latest allocation naming this slot's mission carried
+   * `mode: "diversion"`: the mission this agent was pulled off, not the one it
+   * now holds. Read off the published allocation frame, never inferred from
+   * flight state.
+   */
+  divertedFromMissionId: string | null;
 };
 
 /**
@@ -254,6 +262,12 @@ export type ObjectiveAuthority = {
   requestedMembers: number;
   /** Every role on the objective, swarm by swarm. `index` stays swarm-local. */
   slots: CompositionSlot[];
+  /**
+   * Units this objective's own allocation excluded, with the allocator's reason.
+   * Empty on a group objective — reinforcement/replacement has its own reading
+   * via `slots`, and grouping does not carry a single award to read this off.
+   */
+  excludedUnits: { agentId: string; reason: AllocationExclusionReason; activeMissionId: string | null }[];
   activeMembers: number;
   state: ObjectiveState;
   /** True while the objective has not reached a terminal state. */
@@ -491,6 +505,8 @@ function slotFromDecision(
       groupId: null,
       swarmIndex: 1,
       reinforcement: false,
+      divertedFromMissionId:
+        decision.mode === "diversion" ? decision.diverted_from_mission_id ?? null : null,
     },
   ];
 }
@@ -647,6 +663,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
         swarms,
         requestedMembers: origin.requested_members,
         slots,
+        excludedUnits: [],
         activeMembers: heldIn(slots),
         state,
         active: state !== "VERIFIED" && state !== "FAILED",
@@ -688,6 +705,15 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
       swarms: [],
       requestedMembers: 1,
       slots,
+      // The single award this objective ever gets. Reading it straight off
+      // `decision` rather than the capacity-wide "newest allocation" trick
+      // `buildCapacity` uses ties the exclusion to the objective whose award
+      // actually produced it, not to whichever decision happened most recently.
+      excludedUnits: decision.excluded_units.map((unit) => ({
+        agentId: unit.agent_id,
+        reason: unit.reason,
+        activeMissionId: unit.active_mission_id,
+      })),
       activeMembers: slots.filter((s) => s.agentId).length,
       state,
       active: state !== "VERIFIED" && state !== "FAILED",

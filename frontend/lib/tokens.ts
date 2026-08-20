@@ -126,6 +126,18 @@ export const tokens = {
   // JetBrains Mono ships `calt` code ligatures (`->`, `!=`, `==`). Telemetry
   // is not code, so globals.css disables them — a fused arrow inside a
   // coordinate or an ID would misreport state.
+  //
+  // `consoleMono` is a second face, not a replacement: the `/demo/intrusion`
+  // surface (`components/console/`) reads as a code editor with JetBrains
+  // Mono set this densely, so that surface alone moved to Roboto Mono —
+  // Android/Material system-UI association rather than an IDE's, with a
+  // slashed zero for the same digit/letter disambiguation this stack already
+  // requires. Measured the same way as the table below (canvas-rendered 'x',
+  // pixel bounds / em): x-height 0.527 against JetBrains Mono's own 0.547 in
+  // the same test, a 3.7% loss — smaller than the 6.6% loss that ruled out
+  // IBM Plex Mono in the first place, and the closest of every face tried
+  // (Red Hat Mono 0.487, DM Mono / Space Mono 0.493). The legacy `/`
+  // dashboard keeps `mono` untouched — see docs/design-system.md.
   font: {
     editorial:
       "'Cormorant Garamond', 'EB Garamond', Georgia, serif",
@@ -135,6 +147,8 @@ export const tokens = {
       "'Inter', system-ui, -apple-system, sans-serif",
     mono:
       "'JetBrains Mono', 'SF Mono', ui-monospace, monospace",
+    consoleMono:
+      "'Roboto Mono', 'SF Mono', ui-monospace, monospace",
     grotesk:
       "'Space Grotesk', system-ui, sans-serif",
   },

@@ -95,6 +95,39 @@ not code, and a fused glyph inside a coordinate, unit ID or timestamp would
 misreport operational state, so `styles/globals.css` sets
 `font-variant-ligatures: none` on every selector that reaches the mono face.
 
+### Console mono: Roboto Mono, not JetBrains Mono
+
+`components/console/` (the `/demo/intrusion` surface) uses a second mono face,
+`consoleMono` in `lib/tokens.ts`, exposed as the `font-console-mono` Tailwind
+utility. The legacy `/` dashboard keeps `font-mono` → JetBrains Mono exactly as
+above; the two now diverge on purpose rather than by omission.
+
+JetBrains Mono is a code-editor brand face, and at the density this console
+sets it — every operational number, tracked and often uppercase — it read as a
+terminal rather than an operator console. Retested every mono candidate from
+this doc plus three more against the same metric used above (canvas-rendered
+lowercase `x` at 400px, pixel bounds of the glyph / em):
+
+| Face | x-height / em | vs JetBrains Mono | zero |
+|---|---|---|---|
+| **JetBrains Mono** | **0.547** | — | dotted |
+| **Roboto Mono** | **0.527** | **−3.7%** | slashed |
+| DM Mono | 0.493 | −9.9% | slashed |
+| Space Mono | 0.493 | −9.9% | slashed |
+| IBM Plex Mono | 0.516 | −5.7% | dotted, ties `O` ink width |
+| Red Hat Mono | 0.487 | −11.0% | slashed |
+
+Roboto Mono is the only candidate that loses less than the 6.6% gap that ruled
+out IBM Plex Mono in the first place, so it is the only one that does not
+trade away this console's own legibility floor to get a calmer face. It reads
+as Android/Material system UI rather than an IDE, which is the actual
+complaint being answered, and its zero is slashed — Google Fonts' current
+build, contra the "plain oval" this doc originally logged against it; type
+foundries revise metrics, so that line was stale rather than wrong at the
+time. Self-hosted the same way as the rest of this stack: `latin` +
+`latin-ext` from the `css2` variable-weight request, `300 700`, under
+`public/fonts/roboto-mono-*`.
+
 ### Label contrast
 
 `ash` is the label tier and the second most used text colour in the Console (97

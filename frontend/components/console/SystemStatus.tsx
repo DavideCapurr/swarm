@@ -59,14 +59,14 @@ export function SystemStatus({
           style={{ background: HAIRLINE }}
           aria-hidden="true"
         />
-        <Mono size={10} tone="ash" className="uppercase !tracking-[0.2em]">
+        <Mono size={10} tone="ash" className="!tracking-[0.04em]">
           SwarmOS · mission authority
         </Mono>
       </div>
 
       <div className="flex items-center gap-5">
         {replay ? (
-          <span className="border border-launch-amber/70 px-[7px] py-[3px] font-mono text-[9px] uppercase leading-none tracking-[0.16em] text-launch-amber">
+          <span className="border border-launch-amber/70 px-[7px] py-[3px] font-console-mono text-[9px] uppercase leading-none tracking-[0.06em] text-launch-amber">
             REPLAY · RECORDED FRAMES · NOT LIVE
           </span>
         ) : null}
