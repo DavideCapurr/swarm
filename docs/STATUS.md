@@ -35,7 +35,7 @@ The MAVLink/PX4 path remains **SITL-validated, not bench- or field-validated on 
 | Reinforcement of a running objective by a second group | **implemented behind a policy seam; orchestrator-test-validated only, no SITL run** |
 | Intrusion demo Console `/demo/intrusion` | **final demo surface; truth renderer** |
 | Final demo rehearsal | **3 consecutive clean PASS takes, ~62 s each (2026-08-15); Console surface re-verified 2026-08-18** |
-| Same-aircraft preemption/diversion | **not implemented / not claimed** |
+| Same-aircraft preemption/diversion | **single-executor VERIFY under continuous patrol: implemented, orchestrator-test-validated (`test_diversion_truth.py`), no SITL run. Diverting a unit into an `ExecutionGroup` role: not implemented — `_eligible_fleet` excludes any agent already holding a mission** |
 | Physical bench / field proof | **not yet done** |
 | Pilot / revenue | **none yet** |
 

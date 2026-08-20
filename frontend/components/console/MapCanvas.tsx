@@ -200,7 +200,7 @@ export function MapCanvas({
 
       <div
         data-testid="imagery-attribution"
-        className="pointer-events-none absolute bottom-[10px] right-[14px] z-30 font-mono text-[9px] uppercase leading-none tracking-[0.16em] text-ash/70"
+        className="pointer-events-none absolute bottom-[10px] right-[14px] z-30 font-console-mono text-[9px] uppercase leading-none tracking-[0.06em] text-ash/70"
       >
         {status === "ok"
           ? IMAGERY_ATTRIBUTION

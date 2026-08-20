@@ -19,6 +19,7 @@
 
 import type {
   AllocationDecision,
+  AllocationExclusionReason,
   AnomalyView,
   ExecutionGroup,
   ExecutionGroupMember,
@@ -104,6 +105,13 @@ export type CompositionSlot = {
    * that folded it away would delete the only thing that just changed.
    */
   reinforcement: boolean;
+  /**
+   * Set when the latest allocation naming this slot's mission carried
+   * `mode: "diversion"`: the mission this agent was pulled off, not the one it
+   * now holds. Read off the published allocation frame, never inferred from
+   * flight state.
+   */
+  divertedFromMissionId: string | null;
 };
 
 /**
@@ -248,6 +256,12 @@ export type ObjectiveAuthority = {
   requestedMembers: number;
   /** Every role on the objective, swarm by swarm. `index` stays swarm-local. */
   slots: CompositionSlot[];
+  /**
+   * Units this objective's own allocation excluded, with the allocator's reason.
+   * Empty on a group objective — reinforcement/replacement has its own reading
+   * via `slots`, and grouping does not carry a single award to read this off.
+   */
+  excludedUnits: { agentId: string; reason: AllocationExclusionReason; activeMissionId: string | null }[];
   activeMembers: number;
   state: ObjectiveState;
   /** True while the objective has not reached a terminal state. */
@@ -430,7 +444,8 @@ function latestRuntimeByMission(
 function slotsFromGroup(
   group: ExecutionGroup,
   runtime: Map<string, MissionRuntimeEvent>,
-  swarmIndex: number
+  swarmIndex: number,
+  allocationsByMission: Map<string, AllocationDecision>
 ): CompositionSlot[] {
   const byRole = new Map<string, ExecutionGroupMember[]>();
   const order: string[] = [];
@@ -450,6 +465,7 @@ function slotsFromGroup(
     const live = members.filter((m) => m.state !== "REPLACED").at(-1) ?? null;
     const replaced = members.filter((m) => m.state === "REPLACED").at(-1) ?? null;
     const frame = live?.mission_id ? runtime.get(live.mission_id) ?? null : null;
+    const allocation = live?.mission_id ? allocationsByMission.get(live.mission_id) ?? null : null;
     // A role is adapting while its live holder has failed and SwarmOS has not
     // yet put a replacement in. Both halves are read off member state.
     const adapting = Boolean(live && live.state === "FAILED");
@@ -470,6 +486,8 @@ function slotsFromGroup(
       groupId: group.id,
       swarmIndex,
       reinforcement: (group.reinforces_group_id ?? null) != null,
+      divertedFromMissionId:
+        allocation?.mode === "diversion" ? allocation.diverted_from_mission_id ?? null : null,
     };
   });
 }
@@ -551,6 +569,8 @@ function slotFromDecision(
       groupId: null,
       swarmIndex: 1,
       reinforcement: false,
+      divertedFromMissionId:
+        decision.mode === "diversion" ? decision.diverted_from_mission_id ?? null : null,
     },
   ];
 }
@@ -678,6 +698,17 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
     for (const member of group.members) childMissionIds.add(member.mission_id);
   }
 
+  // Keyed by mission id regardless of whether that mission belongs to a group
+  // or stands alone — a group child's own allocation still carries `mode` and
+  // `diverted_from_mission_id`, which `slotsFromGroup` reads for its slot.
+  const allocationsByMission = new Map<string, AllocationDecision>();
+  for (const decision of input.allocations) {
+    const held = allocationsByMission.get(decision.mission_id);
+    if (!held || epoch(decision.ts) >= epoch(held.ts)) {
+      allocationsByMission.set(decision.mission_id, decision);
+    }
+  }
+
   const decisions = input.allocations
     .filter((d) => !childMissionIds.has(d.mission_id))
     .filter((d) => d.winner_agent_id || d.excluded_units.length > 0)
@@ -693,7 +724,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
     (groups) => {
       const origin = groups[0];
       const swarms: SwarmComposition[] = groups.map((group, i) => {
-        const swarmSlots = slotsFromGroup(group, runtime, i + 1);
+        const swarmSlots = slotsFromGroup(group, runtime, i + 1, allocationsByMission);
         const held = heldIn(swarmSlots);
         return {
           index: i + 1,
@@ -737,6 +768,7 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
         swarms,
         requestedMembers: swarms.reduce((total, swarm) => total + swarm.requestedMembers, 0),
         slots,
+        excludedUnits: [],
         activeMembers: slots.filter(
           (s) => s.memberState === "ACTIVE" || s.memberState === "ASSIGNED"
         ).length,
@@ -782,6 +814,15 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
       swarms: [],
       requestedMembers: 1,
       slots,
+      // The single award this objective ever gets. Reading it straight off
+      // `decision` rather than the capacity-wide "newest allocation" trick
+      // `buildCapacity` uses ties the exclusion to the objective whose award
+      // actually produced it, not to whichever decision happened most recently.
+      excludedUnits: decision.excluded_units.map((unit) => ({
+        agentId: unit.agent_id,
+        reason: unit.reason,
+        activeMissionId: unit.active_mission_id,
+      })),
       activeMembers: slots.filter((s) => s.agentId).length,
       state,
       active: state !== "VERIFIED" && state !== "FAILED",

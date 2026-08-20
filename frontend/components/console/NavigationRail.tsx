@@ -60,7 +60,7 @@ function RailItem({ item, active }: { item: Item; active: boolean }) {
       ) : null}
       <Icon size={19} className={active ? "text-orbital-blue" : "text-muted-silver"} />
       <span
-        className={`font-grotesk text-[8.5px] font-medium uppercase leading-none tracking-[0.11em] ${
+        className={`font-grotesk text-[8.5px] font-medium leading-none tracking-[0.03em] ${
           active ? "text-platinum" : "text-ash"
         }`}
       >

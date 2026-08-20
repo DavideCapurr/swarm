@@ -164,11 +164,11 @@ export function PhysicalCapacityPanel({
               {row.agentId}
             </Mono>
 
-            <span className="min-w-0 flex-1 truncate font-grotesk text-[9.5px] font-medium uppercase leading-none tracking-[0.15em] text-muted-silver">
+            <span className="min-w-0 flex-1 truncate font-grotesk text-[9.5px] font-medium uppercase leading-none tracking-[0.06em] text-muted-silver">
               {row.role ? roleLabel(row.role) : "—"}
             </span>
 
-            <Mono size={9.5} tone={COMMITMENT_TONE[row.commitment]} className="uppercase">
+            <Mono size={9.5} tone={COMMITMENT_TONE[row.commitment]} className="uppercase !tracking-[0.06em]">
               {row.commitment}
             </Mono>
 
@@ -237,7 +237,7 @@ function SelectedExecutor({
           <button
             type="button"
             onClick={onClear}
-            className="font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-ash"
+            className="font-console-mono text-[9px] leading-none tracking-[0.04em] text-ash"
           >
             close
           </button>
@@ -258,7 +258,7 @@ function SelectedExecutor({
 
       {row.role ? (
         <div className="px-3 pb-[11px]">
-          <span className="font-grotesk text-[12px] font-medium uppercase leading-none tracking-[0.16em] text-orbital-blue">
+          <span className="font-grotesk text-[12px] font-medium uppercase leading-none tracking-[0.06em] text-orbital-blue">
             {roleLabel(row.role)}
           </span>
         </div>

@@ -289,7 +289,7 @@ SWARM is not:
 - a consumer drone app;
 - a proprietary-airframe thesis;
 - a fixed-camera network;
-- a dashboard that merely shows drone positions;
+- a dashboard that merely shows drone positions, renders maps, or produces inspection reports and video analytics (those are commodity features; if they become the product's center of gravity instead of decision authority, SWARM becomes interchangeable with the next drone-ops startup);
 - a replacement for the onboard autopilot;
 - a peer-to-peer swarm in which each aircraft independently decides fleet objectives;
 - a claim that simulation equals field validation;
@@ -329,6 +329,29 @@ The end-state is not “more drones.”
 
 It is a runtime for autonomous physical infrastructure: a distributed physical system with centralized mission intelligence that turns software intent into coordinated action in the real world.
 
+### Two different companies sit inside this trajectory
+
+The small one looks like a dashboard for a fixed drone fleet: mission planning, monitoring, alerts, some automation. That is a legitimate vertical SaaS. It can generate revenue. It also risks becoming a feature that a hardware OEM (Skydio, Auterion, DJI Enterprise, FlytBase, or the next one) ships for free.
+
+The large one starts when the customer stops naming individual units. Instead of “send drone 4 to sector B,” the customer states an objective: “keep the perimeter secure,” “keep the pipeline inspected,” “clear these 17 inspection jobs by 18:00,” “this event now outranks everything else.” SWARM decides how to use whatever heterogeneous assets are available, across vendors, to satisfy it.
+
+```text
+small
+  customer -> SWARM dashboard -> N drones
+
+large
+  ERP / work orders / sensors / operators -> OBJECTIVES -> SWARM (decision authority)
+    -> drones (vendor A)
+    -> robots (vendor B)
+    -> vehicles (vendor C)
+```
+
+Nothing about the current phase requires choosing the large outcome now. It requires not building the domain model in a way that forecloses it later; see the ontology rule in Expansion logic below.
+
+**The moat is not the algorithm.** `best_agent = min(available_agents, key=cost)` is not defensible, and it never will be. What can become defensible is the accumulated operational model required to make real fleet decisions under real constraints: capability, battery/range, location, payload, weather, airspace, mission priority, risk, SLA, maintenance state, operator rules, regulation, historical performance, failure probability, cost, resolved reliably into who does what, when, with whom, and what happens when reality changes. That model compounds with every deployment, integration, and edge case; a scheduling formula does not.
+
+Competition for this layer can arrive from three directions: hardware/OEM companies moving up from the airframe, autonomy companies moving up from single-agent intelligence to fleet-level decisions, and operations software (ERP, work-order, asset-management vendors) moving down into execution. Companies like Anduril show how strategically important a software layer over physical systems can become, even though their market, stack, and customer are very different from SWARM's. The idea of a decision layer is reachable by all of these; it is not the advantage. The advantage, if there is one, is being deployed first, discovering the real decision problems operators have, and building the system customers trust to make them.
+
 ---
 
 ## Expansion logic
@@ -346,6 +369,10 @@ SWARM should expand in this order:
 The current software/SITL coordination milestone in step 1 includes dynamic multi-event allocation, first-class `ExecutionGroup` composition, live member replacement, and a deterministic final demo rehearsal. The next technical evidence gap is the physical-hardware bridge, not another speculative coordination feature.
 
 More software is not automatically more progress. From the current state, field evidence and customer evidence are higher-value than adding speculative platform breadth.
+
+Steps 6 and 7 hide a maturity distinction worth naming explicitly. A **system of execution** is where SWARM receives work orders or events from an external system and controls the assets needed to complete them; the customer still decides what work exists. A **system of decision** is where the customer stops assigning individual units and instead hands SWARM objectives and policy, trusting it to resolve them into unit-level action. That second transition, not multi-vendor breadth by itself, is what turns SWARM from a tool into infrastructure.
+
+**Beachhead narrow, ontology general.** The pitch, the wedge, and the roadmap stay drone-only until evidence earns the next domain; broadening the pitch to robots, vessels, or vehicles now would be premature-platform syndrome. But the internal domain model must not be drone-specific. It is built around `Mission`, `Unit`/`Agent`, `Capability`, `Constraint`, `Objective`, `Event`, `Decision`, `Execution`, not `Drone`, `DroneMission`, `DroneBattery`, `DroneAction`. This costs nothing today and is the difference between winning a narrow problem and being structurally unable to leave it later.
 
 ---
 

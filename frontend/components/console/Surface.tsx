@@ -60,7 +60,7 @@ export function Surface({
   );
 }
 
-/** Panel header. One line, uppercase, the smallest type on the surface. */
+/** Panel header. One line, the smallest type on the surface. */
 export function SurfaceHeader({
   title,
   sub,
@@ -76,11 +76,11 @@ export function SurfaceHeader({
       style={{ ...RAISED_STYLE, borderBottom: `1px solid ${HAIRLINE}` }}
     >
       <div className="flex min-w-0 items-baseline gap-2">
-        <span className="font-grotesk text-[10px] font-medium uppercase leading-none tracking-[0.22em] text-muted-silver">
+        <span className="font-grotesk text-[10px] font-medium leading-none tracking-[0.03em] text-muted-silver">
           {title}
         </span>
         {sub ? (
-          <span className="truncate font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-ash">
+          <span className="truncate font-console-mono text-[9px] leading-none tracking-[0.03em] text-ash">
             {sub}
           </span>
         ) : null}
@@ -90,7 +90,7 @@ export function SurfaceHeader({
   );
 }
 
-/** The 10px uppercase label tier. */
+/** The 10px label tier. */
 export function Label({
   children,
   tone = "ash",
@@ -109,7 +109,7 @@ export function Label({
   } as const;
   return (
     <span
-      className={`font-grotesk text-[10px] font-medium uppercase leading-none tracking-[0.2em] ${tones[tone]} ${className}`}
+      className={`font-grotesk text-[10px] font-medium leading-none tracking-[0.03em] ${tones[tone]} ${className}`}
     >
       {children}
     </span>
@@ -146,7 +146,7 @@ export function Mono({
   } as const;
   return (
     <span
-      className={`font-mono tabular-nums leading-none tracking-[0.07em] ${tones[tone]} ${className}`}
+      className={`font-console-mono tabular-nums leading-none tracking-[0.07em] ${tones[tone]} ${className}`}
       style={{ fontSize: size }}
       {...rest}
     >

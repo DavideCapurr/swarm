@@ -46,6 +46,7 @@ function slot(over: Partial<CompositionSlot> = {}): CompositionSlot {
     groupId: "group-1",
     swarmIndex: 1,
     reinforcement: false,
+    divertedFromMissionId: null,
     ...over,
   };
 }
@@ -108,6 +109,7 @@ function objective(over: Partial<ObjectiveAuthority> = {}): ObjectiveAuthority {
     swarms: [],
     requestedMembers: 2,
     slots: [],
+    excludedUnits: [],
     activeMembers: 2,
     state: "EXECUTING",
     active: true,

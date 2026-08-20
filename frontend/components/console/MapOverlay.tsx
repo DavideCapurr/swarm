@@ -1070,16 +1070,16 @@ export function MapOverlay({
             }}
           >
             <div
-              className={`font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.2em] ${
+              className={`font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.06em] ${
                 isFocus ? "text-orbital-blue" : "text-muted-silver"
               }`}
             >
               {objective.kind}
             </div>
-            <div className="mt-[5px] font-mono text-[13px] leading-none tracking-[0.08em] text-platinum">
+            <div className="mt-[5px] font-console-mono text-[13px] leading-none tracking-[0.08em] text-platinum">
               {objective.label}
             </div>
-            <div className="mt-[5px] font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-ash">
+            <div className="mt-[5px] font-console-mono text-[9px] uppercase leading-none tracking-[0.06em] text-ash">
               {isFocus ? "OWNED · SWARMOS" : objective.state}
             </div>
           </button>
@@ -1099,14 +1099,14 @@ export function MapOverlay({
           style={{ left: at.x, top: at.y, whiteSpace: "nowrap" }}
         >
           <div
-            className={`font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.2em] ${
+            className={`font-grotesk text-[11px] font-medium leading-none tracking-[0.03em] ${
               swarm.reinforcesGroupId ? "text-launch-amber" : "text-muted-silver"
             }`}
           >
             {swarm.reinforcesGroupId ? "reinforcement" : "execution group"}
           </div>
           <div
-            className={`mt-[5px] font-mono text-[13px] leading-none tracking-[0.08em] ${
+            className={`mt-[5px] font-console-mono text-[13px] leading-none tracking-[0.08em] ${
               swarm.underStrength ? "text-launch-amber" : "text-platinum"
             }`}
           >
@@ -1116,7 +1116,7 @@ export function MapOverlay({
             </span>{" "}
             ROLES
           </div>
-          <div className="mt-[5px] font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-ash">
+          <div className="mt-[5px] font-console-mono text-[9px] uppercase leading-none tracking-[0.06em] text-ash">
             {swarm.label}
           </div>
         </div>
@@ -1133,16 +1133,16 @@ export function MapOverlay({
           className="pointer-events-none absolute z-20 text-left"
           style={{ left: at.x, top: at.y }}
         >
-          <div className="font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.2em] text-muted-silver">
+          <div className="font-grotesk text-[11px] font-medium leading-none tracking-[0.03em] text-muted-silver">
             dock
           </div>
-          <div className="mt-[5px] font-mono text-[13px] leading-none tracking-[0.08em] text-platinum">
+          <div className="mt-[5px] font-console-mono text-[13px] leading-none tracking-[0.08em] text-platinum">
             <span data-testid={`dock-count-${dock.dockId}`}>
               {String(dock.docked).padStart(2, "0")} / {String(dock.total).padStart(2, "0")}
             </span>{" "}
             DOCKED
           </div>
-          <div className="mt-[5px] font-mono text-[9px] uppercase leading-none tracking-[0.18em] text-ash">
+          <div className="mt-[5px] font-console-mono text-[9px] uppercase leading-none tracking-[0.06em] text-ash">
             {dock.dockId}
           </div>
         </div>
@@ -1174,7 +1174,7 @@ export function MapOverlay({
             }}
           >
             <div
-              className={`font-mono text-[11px] leading-none tracking-[0.1em] ${
+              className={`font-console-mono text-[11px] leading-none tracking-[0.1em] ${
                 unavailable
                   ? "text-launch-amber"
                   : mark.focused
@@ -1186,7 +1186,7 @@ export function MapOverlay({
             </div>
             {secondary ? (
               <div
-                className={`mt-[4px] font-mono text-[9px] uppercase leading-none tracking-[0.16em] ${
+                className={`mt-[4px] font-console-mono text-[9px] uppercase leading-none tracking-[0.06em] ${
                   unavailable ? "text-launch-amber/80" : mark.focused ? "text-orbital-blue" : "text-ash"
                 }`}
               >

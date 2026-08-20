@@ -14,7 +14,6 @@ import {
   takeBFrames,
   takeCFrames,
 } from "@/lib/demo-frames";
-import { augmentTakeCForSwarmStory } from "@/lib/demo-swarm-story";
 
 /**
  * Drives the operational surface from a recorded frame script.
@@ -25,12 +24,10 @@ import { augmentTakeCForSwarmStory } from "@/lib/demo-swarm-story";
  *   A — two concurrent single-executor objectives with the BUSY exclusion.
  *   B — one SwarmOS-owned ExecutionGroup, a live member failure, and the
  *       central replacement of the vacated role.
- *   C — a primary swarm composed under strength, a second multi-subunit swarm
- *       dispatched as reinforcement, the disposition widening to hold both,
- *       and take B's recorded failure/replacement landing inside that wide shot.
- *
- * The extra support subunit in take C is explicitly scripted presentation data
- * in `demo-swarm-story.ts`; it never borrows or relabels recorded evidence.
+ *   C — a swarm composed under strength, reinforced by a second ExecutionGroup,
+ *       the disposition widening to hold both, take B's recorded failure and
+ *       replacement landing inside that wide shot, and a second, thirty-
+ *       executor sweep objective SwarmOS holds concurrently.
  *
  * `replayBadge` can drop the stamp for layout measurement only.
  */
@@ -56,19 +53,28 @@ export function ReplayHarness({
   );
   const [playing, setPlaying] = useState(false);
 
+  // Advances by real elapsed wall time rather than a fixed 250 ms tick, so
+  // playback reads as continuous motion at whatever frame rate the source
+  // frames were actually authored at — the same `dt`-clamped, self-cancelling
+  // shape `useCameraGlide` already uses for the camera.
   useEffect(() => {
     if (!playing) return;
-    const id = window.setInterval(() => {
-      setAtMs((prev) => (prev >= script.durationMs ? 0 : prev + 250));
-    }, 250);
-    return () => window.clearInterval(id);
+    let raf: number;
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      setAtMs((prev) => {
+        const next = prev + dt * 1000;
+        return next >= script.durationMs ? 0 : next;
+      });
+      raf = window.requestAnimationFrame(step);
+    };
+    raf = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(raf);
   }, [playing, script.durationMs]);
 
-  const rawSlice = useMemo(() => FOLD[take](atMs, frames), [take, atMs, frames]);
-  const slice = useMemo(
-    () => (take === "c" ? augmentTakeCForSwarmStory(rawSlice, atMs) : rawSlice),
-    [take, rawSlice, atMs]
-  );
+  const slice = useMemo(() => FOLD[take](atMs, frames), [take, atMs, frames]);
 
   const frame: SurfaceFrame = {
     link: "connected",
