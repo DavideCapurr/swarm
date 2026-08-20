@@ -1,43 +1,28 @@
 "use client";
 
 /**
- * PhysicalCapacityPanel — the fleet as replaceable capacity.
+ * PhysicalCapacityPanel — the fleet as replaceable physical capacity.
  *
- * Not a fleet list. The distinction the product turns on is what SwarmOS has
- * committed and what it is holding in reserve, so the rows are ordered by
- * commitment and the role is the second thing on every line. Battery is the one
- * number kept, because it is the reminder that these are physical machines with
- * a finite budget; altitude, velocity, heading and link belong to a selected
- * executor, not to a standing list.
- *
- * Selecting an executor transforms this same surface rather than opening a
- * second card. One panel, two states — the composition never changes shape.
+ * Not a fleet list. Rows answer two questions: what capacity SwarmOS can see,
+ * and what it has committed. Capability labels are canonical UnitState truth;
+ * this surface never infers them from model names, roles or mission state.
  */
 
-import type { CapacityRow } from "@/lib/authority";
+import type { CapacityRow, ObjectiveAuthority } from "@/lib/authority";
 import {
-  missionLabel,
-  groupLabel,
-  phaseLabel,
-  roleLabel,
+  capabilityLabel,
   capacitySummary,
   capacitySummaryLabel,
+  groupLabel,
+  missionLabel,
+  phaseLabel,
+  roleLabel,
   CAPACITY_SUMMARY_THRESHOLD,
 } from "@/lib/authority";
-import type { ObjectiveAuthority } from "@/lib/authority";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
 
 export const CAPACITY_WIDTH = 338;
-
-/**
- * Ceiling on the scrolling part of the roster.
- *
- * The panel is bottom-anchored over the map, so an unbounded list grows upward
- * through the narration band and off the top of the viewport. This is a safety
- * net, not a layout: with the reserve summarised, the rows that remain are the
- * committed and unavailable ones and they fit well inside it.
- */
 const ROSTER_MAX_H = 320;
 
 const ORDER: Record<CapacityRow["commitment"], number> = {
@@ -54,13 +39,17 @@ const COMMITMENT_TONE = {
   UNAVAILABLE: "amber",
 } as const;
 
-/** What a summarised bucket is called, as an operator reads it. */
 const BUCKET_LABEL: Record<CapacityRow["commitment"], string> = {
   ASSIGNED: "committed",
   COMMITTED: "committed",
   SPARE: "reserve",
   UNAVAILABLE: "unavailable",
 };
+
+function capabilitySummary(row: CapacityRow): string {
+  if (row.capabilities.length === 0) return "—";
+  return row.capabilities.map(capabilityLabel).join(" · ");
+}
 
 export function PhysicalCapacityPanel({
   capacity,
@@ -72,7 +61,6 @@ export function PhysicalCapacityPanel({
   capacity: CapacityRow[];
   selected: string | null;
   objectives: ObjectiveAuthority[];
-  /** Executors the surface names. Never summarised, however large the fleet. */
   namedAgents: ReadonlySet<string>;
   onSelect: (agentId: string | null) => void;
 }) {
@@ -95,12 +83,6 @@ export function PhysicalCapacityPanel({
         ORDER[a.commitment] - ORDER[b.commitment] || a.agentId.localeCompare(b.agentId)
     );
 
-  // A fleet is the part of this panel that scales: three spares are three
-  // machines worth naming, thirty are a number. Two kinds of row are never
-  // summarised — the executors serving the objective the surface is following,
-  // because they are the story, and anything unavailable, because a machine
-  // that has dropped out has to stay nameable. Everything else collapses into
-  // one line per bucket once the bucket is bigger than a reader will count.
   const named = sorted.filter(
     (row) => row.commitment === "UNAVAILABLE" || namedAgents.has(row.agentId)
   );
@@ -138,16 +120,10 @@ export function PhysicalCapacityPanel({
 
       {rows.length === 0 && summarised.length === 0 ? (
         <div className="px-3 py-5">
-          <Mono size={10} tone="ash">
-            WAITING FOR FLEET STATE
-          </Mono>
+          <Mono size={10} tone="ash">WAITING FOR FLEET STATE</Mono>
         </div>
       ) : null}
 
-      {/* Defensive only: take C's own roster is sized so the recording never
-          needs to scroll, and a panel that silently ran off the bottom of the
-          viewport on a larger fleet would be a defect nobody saw until it was
-          on tape. */}
       <div className="flex flex-col overflow-y-auto" style={{ maxHeight: ROSTER_MAX_H }}>
         {rows.map((row, i) => (
           <button
@@ -165,10 +141,14 @@ export function PhysicalCapacityPanel({
             </Mono>
 
             <span className="min-w-0 flex-1 truncate font-grotesk text-[9.5px] font-medium uppercase leading-none tracking-[0.06em] text-muted-silver">
-              {row.role ? roleLabel(row.role) : "—"}
+              {row.role ? roleLabel(row.role) : capabilitySummary(row)}
             </span>
 
-            <Mono size={9.5} tone={COMMITMENT_TONE[row.commitment]} className="uppercase !tracking-[0.06em]">
+            <Mono
+              size={9.5}
+              tone={COMMITMENT_TONE[row.commitment]}
+              className="uppercase !tracking-[0.06em]"
+            >
               {row.commitment}
             </Mono>
 
@@ -204,15 +184,6 @@ export function PhysicalCapacityPanel({
   );
 }
 
-/**
- * The selected executor.
- *
- * Answers where this machine sits in the decision, then what it is doing. Only
- * telemetry SwarmOS actually publishes appears: battery, altitude AGL, heading
- * and link quality are `UnitState` fields. Link is shown as the number the
- * runtime reports rather than a word this surface graded it into — a word would
- * be a Console-side derivation of operational state.
- */
 function SelectedExecutor({
   row,
   objectives,
@@ -250,9 +221,7 @@ function SelectedExecutor({
         </Mono>
         <div className="flex items-center gap-2">
           <Dot tone={COMMITMENT_TONE[row.commitment]} />
-          <Mono size={10} tone={COMMITMENT_TONE[row.commitment]}>
-            {row.commitment}
-          </Mono>
+          <Mono size={10} tone={COMMITMENT_TONE[row.commitment]}>{row.commitment}</Mono>
         </div>
       </div>
 
@@ -263,6 +232,23 @@ function SelectedExecutor({
           </span>
         </div>
       ) : null}
+
+      <Divider />
+
+      <div className="px-3 py-[10px]" data-testid="selected-executor-capabilities">
+        <Label>capabilities</Label>
+        <div className="mt-[7px] flex flex-wrap gap-x-2 gap-y-[5px]">
+          {row.capabilities.length === 0 ? (
+            <Mono size={10} tone="ash">NONE DECLARED</Mono>
+          ) : (
+            row.capabilities.map((capability) => (
+              <Mono key={capability} size={10} tone="orbital">
+                {capabilityLabel(capability)}
+              </Mono>
+            ))
+          )}
+        </div>
+      </div>
 
       <Divider />
 
@@ -284,15 +270,9 @@ function SelectedExecutor({
           <div className="px-3 py-[10px]">
             <Label tone="green">central replacement</Label>
             <div className="mt-[7px] flex items-baseline gap-2">
-              <Mono size={11} tone="ash" className="line-through">
-                {slot.replacesAgentId}
-              </Mono>
-              <Mono size={10} tone="ash">
-                →
-              </Mono>
-              <Mono size={12} tone="green">
-                {row.agentId}
-              </Mono>
+              <Mono size={11} tone="ash" className="line-through">{slot.replacesAgentId}</Mono>
+              <Mono size={10} tone="ash">→</Mono>
+              <Mono size={12} tone="green">{row.agentId}</Mono>
             </div>
           </div>
         </>
@@ -303,9 +283,7 @@ function SelectedExecutor({
           <Divider />
           <div className="flex items-baseline justify-between gap-3 px-3 py-[10px]">
             <Label tone="amber">excluded</Label>
-            <Mono size={10} tone="amber">
-              {row.excluded.reason}
-            </Mono>
+            <Mono size={10} tone="amber">{row.excluded.reason}</Mono>
           </div>
         </>
       ) : null}
@@ -333,9 +311,7 @@ function Field({
       }}
     >
       <Label>{label}</Label>
-      <Mono size={12} tone="platinum">
-        {value}
-      </Mono>
+      <Mono size={12} tone="platinum">{value}</Mono>
     </div>
   );
 }
