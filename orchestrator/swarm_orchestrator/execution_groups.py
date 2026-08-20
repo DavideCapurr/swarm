@@ -37,6 +37,7 @@ from swarm_core.messages import (
     Geo,
     MissionProgress,
     MissionTask,
+    SensorKind,
 )
 from swarm_core.missions import (
     COOPERATIVE_VERIFY,
@@ -51,6 +52,7 @@ from orchestrator.swarm_orchestrator.service import (
     MIN_BATTERY_PCT,
     Orchestrator,
     verification_capabilities,
+    verification_sensors,
 )
 
 logger = logging.getLogger("swarm.orchestrator.execution_groups")
@@ -58,11 +60,9 @@ logger = logging.getLogger("swarm.orchestrator.execution_groups")
 EXECUTION_GROUP_TOPIC = "swarm:execution-groups"
 MISSION_OBJECTIVE_TOPIC = "swarm:missions:objectives"
 
-# A group is "running" — and therefore reinforceable — while it still owns work.
 RUNNING_GROUP_STATES = frozenset(
     {ExecutionGroupState.ACTIVE, ExecutionGroupState.DEGRADED}
 )
-# Members that no longer contribute strength to the objective.
 _LOST_MEMBER_STATES = frozenset(
     {ExecutionGroupMemberState.FAILED, ExecutionGroupMemberState.REPLACED}
 )
@@ -76,21 +76,12 @@ class ExecutionRolePlan:
 
 @dataclass(frozen=True)
 class ReinforcementObservation:
-    """The complete input to the reinforcement judgement.
-
-    Everything the policy is allowed to see. Assembled by SwarmOS from its own
-    canonical state; nothing here is agent-authored authority.
-    """
+    """The complete input to the reinforcement judgement."""
 
     objective_kind: str
-    # Lifecycle of the originating group for this objective.
     objective_state: ExecutionGroupState
-    # Strength the objective asked for.
     requested_members: int
-    # Members still contributing across the originating group and every group
-    # already dispatched to reinforce it.
     committed_members: int
-    # Executors SwarmOS could commit right now.
     eligible_agents: int
     reinforcements_dispatched: int
     max_reinforcements: int
@@ -101,7 +92,6 @@ class ReinforcementDecision:
     """The complete output of the reinforcement judgement."""
 
     reinforce: bool
-    # How many roles the reinforcing group should compose.
     strength: int
     reason: str
 
@@ -112,16 +102,6 @@ ReinforcementPolicy = Callable[[ReinforcementObservation], ReinforcementDecision
 def shortfall_reinforcement_policy(
     observation: ReinforcementObservation,
 ) -> ReinforcementDecision:
-    """Reinforce a running objective that is short of its requested strength.
-
-    This is the policy seam: a pure function, observed state in and a decision
-    out, called by the orchestration path rather than written as a condition
-    inside it. The rule below is hand-written and deliberately simple. What
-    matters is that it can be replaced — by a different rule, or eventually by a
-    learned decision layer — without touching how a group is composed,
-    dispatched or published.
-    """
-
     if observation.objective_state not in RUNNING_GROUP_STATES:
         return ReinforcementDecision(False, 0, "GROUP_NOT_RUNNING")
     if observation.reinforcements_dispatched >= observation.max_reinforcements:
@@ -138,11 +118,8 @@ def shortfall_reinforcement_policy(
 
 @dataclass
 class _ObjectiveReinforcementRecord:
-    """What SwarmOS must retain to reinforce one objective later."""
-
     objective: MissionTask
     anomaly_id: str | None
-    # Roles the originating group asked for and never filled.
     unfilled_plans: list[ExecutionRolePlan]
     reinforcement_group_ids: list[str] = field(default_factory=list)
 
@@ -202,11 +179,13 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 anomaly.geo.lat,
                 anomaly.geo.lon,
             )
+            sensors = verification_sensors(anomaly)
             requirements = verification_capabilities(anomaly)
             if self._should_cooperative_verify(anomaly):
                 parent = COOPERATIVE_VERIFY(
                     geo=anomaly.geo,
                     team_size=self.cooperative_verify_team_size,
+                    sensors=sensors,
                     hover_s=self.cooperative_verify_hover_s,
                     priority=80 + int(anomaly.confidence * 20),
                     required_capabilities=requirements,
@@ -216,6 +195,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
 
             mission = VERIFY(
                 geo=anomaly.geo,
+                sensors=sensors,
                 hover_s=self.verify_hover_s,
                 priority=80 + int(anomaly.confidence * 20),
                 required_capabilities=requirements,
@@ -230,8 +210,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         )
 
     async def _objective_loop(self) -> None:
-        """Accept explicit orchestration-only group objectives from the bus."""
-
         async for _topic, payload in self.bus.subscribe(MISSION_OBJECTIVE_TOPIC):
             try:
                 objective = MissionTask.model_validate_json(payload)
@@ -245,8 +223,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         *,
         anomaly_id: str | None = None,
     ) -> ExecutionGroup:
-        """Plan and dispatch a group objective without sending the parent to agents."""
-
         if objective.kind == COOPERATIVE_VERIFY_KIND:
             plans = self._cooperative_verify_plans(objective)
         elif objective.kind == MissionKind.COVER.value:
@@ -274,6 +250,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
         altitude_step_m = float(objective.params.get("altitude_step_m", 15.0))
         configured_roles = list(objective.params.get("roles", []))
         required = list(objective.params.get("required_capabilities", []))
+        sensors = [SensorKind(raw) for raw in objective.params.get("sensors", [])]
         default_roles = ["PRIMARY_OBSERVER", "SECONDARY_OBSERVER", "OVERWATCH"]
 
         plans: list[ExecutionRolePlan] = []
@@ -287,6 +264,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
             )
             child = VERIFY(
                 geo=geo,
+                sensors=sensors or None,
                 hover_s=hover_s,
                 altitude_m=base_altitude_m + altitude_step_m * idx,
                 priority=objective.priority,
@@ -339,6 +317,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
             objective_mission_id=objective.id,
             objective_kind=objective.kind,
             anomaly_id=anomaly_id,
+            required_capabilities=sorted(required_capabilities(objective)),
             reinforces_group_id=reinforces_group_id,
             requested_members=len(plans),
         )
@@ -353,10 +332,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 plan.mission, excluded_agent_ids=reserved
             )
             if choice is None:
-                # Partial strength is a dispatch, not a refusal. The roles that
-                # can be filled fly; `len(members) < requested_members` is the
-                # shortfall, and the unfilled roles stay eligible for a later
-                # reinforcing group.
                 unfilled.append(plan)
                 continue
             agent_id, score, breakdown = choice
@@ -364,7 +339,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
             assignments.append((plan, agent_id, score, breakdown))
 
         if not assignments:
-            # Fail closed only when no role at all can be filled.
             group.state = ExecutionGroupState.FAILED
             group.failure_reason = "INSUFFICIENT_ELIGIBLE_CAPACITY"
             self._execution_groups[group.id] = group
@@ -393,8 +367,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         self._execution_groups[group.id] = group
         self._group_role_templates[group.id] = templates
         if reinforces_group_id is None:
-            # Only an originating group carries the objective's reinforcement
-            # record; a reinforcing group never reinforces in turn.
             self._reinforcement_records[group.id] = _ObjectiveReinforcementRecord(
                 objective=objective,
                 anomaly_id=anomaly_id,
@@ -434,8 +406,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         excluded_agent_ids: set[str],
         mission: MissionTask | None = None,
     ) -> list[FleetState]:
-        """Executors SwarmOS may commit to a group child mission right now."""
-
         required = required_capabilities(mission) if mission is not None else set()
         eligible: list[FleetState] = []
         for state in self._snapshot_fleet():
@@ -470,25 +440,15 @@ class ExecutionGroupOrchestrator(Orchestrator):
         ranked.sort(key=lambda row: (-row[1], row[0]))
         return ranked[0]
 
-    # ── reinforcement ────────────────────────────────────────────────────────
-
     async def _reinforcement_loop(self) -> None:
-        """SwarmOS-initiated periodic reinforcement review.
-
-        The trigger is central and time-based. No agent, adapter or aircraft can
-        request reinforcement, and none is consulted about it (ADR-0011).
-        """
-
         while True:
             await asyncio.sleep(self.reinforcement_review_period_s)
             try:
                 await self.review_reinforcements()
-            except Exception:  # never let a transient error kill the loop
+            except Exception:
                 logger.exception("reinforcement review failed")
 
     async def review_reinforcements(self) -> list[ExecutionGroup]:
-        """Ask the policy whether any running objective needs another swarm."""
-
         dispatched: list[ExecutionGroup] = []
         async with self._group_lock:
             for origin_id in list(self._reinforcement_records):
@@ -498,7 +458,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
                     self._reinforcement_records.pop(origin_id, None)
                     continue
                 if not record.unfilled_plans:
-                    # Nothing the objective asked for is still missing.
                     self._reinforcement_records.pop(origin_id, None)
                     continue
                 decision = self.reinforcement_policy(
@@ -554,8 +513,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         record: _ObjectiveReinforcementRecord,
         decision: ReinforcementDecision,
     ) -> ExecutionGroup:
-        """Compose and dispatch a second group against the same objective."""
-
         plans = [
             ExecutionRolePlan(
                 role=plan.role, mission=self._clone_mission(plan.mission)
@@ -568,8 +525,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
             anomaly_id=record.anomaly_id,
             reinforces_group_id=origin.id,
         )
-        # The attempt is spent whether or not it composed, so a refusal cannot
-        # spin the review loop.
         record.reinforcement_group_ids.append(group.id)
         filled_roles = {member.role for member in group.members}
         record.unfilled_plans = [
@@ -600,8 +555,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         *,
         is_verify: bool,
     ) -> None:
-        """Run group children with explicit terminal failure truth."""
-
         if mission.id not in self._group_task_to_role:
             await super()._run_mission(
                 agent_id, adapter, mission, is_verify=is_verify
