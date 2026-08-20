@@ -5,6 +5,13 @@ on:
     branches: ["**"]
   pull_request:
 
+# Cancel an in-progress run when a newer commit lands on the same ref
+# (PR or branch). Halves runner minutes on fast push cycles without
+# changing coverage — the newest commit's run still completes.
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

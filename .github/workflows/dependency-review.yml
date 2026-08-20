@@ -3,6 +3,12 @@ name: dependency-review
 on:
   pull_request:
 
+# Cancel an in-progress dependency review when a newer commit lands on
+# the same PR ref. The newest commit's review still runs.
+concurrency:
+  group: dependency-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   # Required by dependency-review-action to comment on the PR.
