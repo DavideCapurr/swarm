@@ -18,6 +18,7 @@ from swarm_core.messages import Geo
 _TAKEOFF_TARGET_ALT_M = 30.0
 _LANDING_THRESHOLD_M = 1.5
 _AT_TARGET_THRESHOLD_M = 5.0
+_AT_TARGET_ALT_THRESHOLD_M = 1.5
 _M_PER_DEG = 111_000.0  # equirectangular approximation
 
 
@@ -64,7 +65,11 @@ class Drone:
         return self._mode in ("FLYING", "HOVER")
 
     def at_target(self, target: Geo) -> bool:
-        return _planar_distance_m(self.geo, target) < _AT_TARGET_THRESHOLD_M
+        target_alt_m = min(target.alt_m or _TAKEOFF_TARGET_ALT_M, self.max_alt_m)
+        return (
+            _planar_distance_m(self.geo, target) < _AT_TARGET_THRESHOLD_M
+            and abs(self.geo.alt_m - target_alt_m) < _AT_TARGET_ALT_THRESHOLD_M
+        )
 
     # ── commands (called by the adapter) ────────────────────────────────────
 
@@ -119,13 +124,23 @@ class Drone:
 
         if self._mode == "FLYING" and self.target is not None:
             d = _planar_distance_m(self.geo, self.target)
+            target_alt_m = self.target.alt_m or _TAKEOFF_TARGET_ALT_M
+            dz = target_alt_m - self.geo.alt_m
             if d < _AT_TARGET_THRESHOLD_M:
-                # Arrived horizontally — handle vertical and dock landing if RTL.
-                if self._rtl_pending:
-                    self._mode = "LANDING"
-                else:
-                    self._mode = "HOVER"
+                if abs(dz) < _AT_TARGET_ALT_THRESHOLD_M:
+                    if self._rtl_pending:
+                        self._mode = "LANDING"
+                    else:
+                        self._mode = "HOVER"
+                    return
+                dz_step = max(-self.climb_mps * dt, min(self.climb_mps * dt, dz))
+                self.geo = Geo(
+                    lat=self.geo.lat,
+                    lon=self.geo.lon,
+                    alt_m=self.geo.alt_m + dz_step,
+                )
                 return
+
             step_m = min(self.speed_mps * dt, d)
             ratio = step_m / d
             dlat = (self.target.lat - self.geo.lat) * ratio
@@ -133,7 +148,6 @@ class Drone:
             new_lat = self.geo.lat + dlat
             new_lon = self.geo.lon + dlon
             # Track altitude separately at climb_mps rate.
-            dz = (self.target.alt_m or _TAKEOFF_TARGET_ALT_M) - self.geo.alt_m
             dz_step = max(-self.climb_mps * dt, min(self.climb_mps * dt, dz))
             new_alt = self.geo.alt_m + dz_step
             self.geo = Geo(lat=new_lat, lon=new_lon, alt_m=new_alt)

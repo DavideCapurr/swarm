@@ -74,7 +74,9 @@ def VERIFY(  # noqa: N802 — DSL verb, matches MissionKind.VERIFY
         kind=MissionKind.VERIFY.value,
         params={
             "geo": geo.model_dump(),
-            "sensors": [s.value for s in (sensors or [SensorKind.RGB, SensorKind.THERMAL])],
+            "sensors": [
+                s.value for s in (sensors or [SensorKind.RGB, SensorKind.THERMAL])
+            ],
             "hover_s": hover_s,
             "altitude_m": altitude_m,
         },
@@ -92,18 +94,25 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
     base_altitude_m: float = 40.0,
     altitude_step_m: float = 15.0,
     priority: int = 80,
+    minimum_capacity: int = 1,
 ) -> MissionTask:
     """One logical verification objective requiring multiple physical agents.
 
     This parent task is SwarmOS-only. `ExecutionGroupOrchestrator` centrally
     selects the members and decomposes the objective into individual VERIFY
     child missions. Physical adapters must never execute this parent directly.
+
+    ``minimum_capacity`` is the lowest degraded strength SwarmOS may accept
+    while reconciliation searches for the desired ``team_size``. Cooperative
+    verification itself is not preemptible by default.
     """
 
     if team_size < 2:
         raise ValueError("COOPERATIVE_VERIFY team_size must be >= 2")
     if roles is not None and len(roles) > team_size:
         raise ValueError("COOPERATIVE_VERIFY roles cannot exceed team_size")
+    if minimum_capacity < 1 or minimum_capacity > team_size:
+        raise ValueError("minimum_capacity must be between 1 and team_size")
     return MissionTask(
         kind=COOPERATIVE_VERIFY_KIND,
         params={
@@ -113,6 +122,10 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
             "hover_s": hover_s,
             "base_altitude_m": base_altitude_m,
             "altitude_step_m": altitude_step_m,
+            "minimum_capacity": minimum_capacity,
+            "acceptable_degradation": minimum_capacity < team_size,
+            "preemptible": False,
+            "preemption_policy": "never",
         },
         priority=priority,
     )
@@ -125,12 +138,24 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
     rotation: bool = True,
     altitude_m: float = 60.0,
     priority: int = 10,
+    minimum_capacity: int | None = None,
+    preemptible: bool = False,
 ) -> MissionTask:
-    """Multi-drone area coverage with battery-aware rotation.
+    """Multi-drone area coverage with explicit degradation policy.
 
     SwarmOS decomposes this parent into per-agent PATROL slices and owns every
-    assignment/replacement.
+    assignment/replacement. ``fleet_size`` is desired strength. By default the
+    objective is non-preemptible and its minimum equals desired strength, which
+    preserves the historical behaviour. A caller may explicitly lower
+    ``minimum_capacity`` and set ``preemptible=True`` to allow a higher-priority
+    objective to borrow capacity without dropping this sweep below its floor.
     """
+
+    if fleet_size < 1:
+        raise ValueError("COVER fleet_size must be >= 1")
+    minimum = fleet_size if minimum_capacity is None else minimum_capacity
+    if minimum < 1 or minimum > fleet_size:
+        raise ValueError("minimum_capacity must be between 1 and fleet_size")
 
     return MissionTask(
         kind=MissionKind.COVER.value,
@@ -139,6 +164,10 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
             "fleet_size": fleet_size,
             "rotation": rotation,
             "altitude_m": altitude_m,
+            "minimum_capacity": minimum,
+            "acceptable_degradation": minimum < fleet_size,
+            "preemptible": preemptible,
+            "preemption_policy": "higher_priority" if preemptible else "never",
         },
         priority=priority,
     )
@@ -164,7 +193,9 @@ def RELAY(  # noqa: N802 — DSL verb, matches MissionKind.RELAY
     )
 
 
-def RTL_DOCK(*, priority: int = 5) -> MissionTask:  # noqa: N802 — DSL verb, matches MissionKind.RTL_DOCK
+def RTL_DOCK(  # noqa: N802 — DSL verb, matches MissionKind.RTL_DOCK
+    *, priority: int = 5
+) -> MissionTask:
     """Return to home dock. Autopilot-side failsafes can also trigger this."""
 
     return MissionTask(kind=MissionKind.RTL_DOCK.value, params={}, priority=priority)

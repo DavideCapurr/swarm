@@ -5,15 +5,9 @@
  *
  * It reads `useSwarm()` and hands the frames to `ConsoleSurface`. It makes no
  * operational decision and holds no operational state: allocation, ownership,
- * execution-group composition, role assignment, replacement, runtime phase,
- * evidence and payload results all arrive from SwarmOS. The Console renders
- * them.
- *
- * The operating scenario is simulated for the recording. The surface preserves
- * the runtime-truth boundary on its own terms: the telemetry source is read off
- * the units' own vendor/model rather than asserted, PX4 output confirmation is
- * distinguished from simulated payload response, and no camera feed is drawn
- * because the MAVLink path publishes none.
+ * execution-group composition, role assignment, disposition, replacement,
+ * runtime phase, evidence and payload results all arrive from SwarmOS. The
+ * Console renders them.
  */
 
 import { useMemo } from "react";
@@ -26,6 +20,7 @@ export function IntrusionResponseDemo() {
     allocations,
     anomalies,
     executionGroups,
+    dispositions,
     missionRuntime,
     missionRuntimeLog,
     missions,
@@ -43,6 +38,7 @@ export function IntrusionResponseDemo() {
       anomalies,
       allocations,
       executionGroups,
+      dispositions,
       missions,
       missionRuntime,
       missionRuntimeLog,
@@ -55,6 +51,7 @@ export function IntrusionResponseDemo() {
       anomalies,
       allocations,
       executionGroups,
+      dispositions,
       missions,
       missionRuntime,
       missionRuntimeLog,

@@ -19,14 +19,22 @@ from datetime import UTC, datetime
 
 from swarm_core.messages import FleetState
 
-from orchestrator.swarm_orchestrator.execution_groups import ExecutionGroupOrchestrator
+from orchestrator.swarm_orchestrator.disposition_execution_groups import (
+    DispositionExecutionGroupOrchestrator,
+)
 
 logger = logging.getLogger("swarm.orchestrator.bus_fleet")
 
 
 @dataclass
-class BusFleetOrchestrator(ExecutionGroupOrchestrator):
-    """Orchestrator whose fleet snapshot is projected from bus state."""
+class BusFleetOrchestrator(DispositionExecutionGroupOrchestrator):
+    """Orchestrator whose fleet snapshot is projected from bus state.
+
+    The bus-backed runtime uses demand-aware capacity reconciliation and also
+    publishes objective disposition decisions. Physical disposition retask stays
+    disabled by default; enabling it is an explicit deployment choice that must
+    be validated separately on the target execution stack.
+    """
 
     fleet_state_stale_s: float = 5.0
     _fleet_state_by_id: dict[str, FleetState] = field(default_factory=dict)

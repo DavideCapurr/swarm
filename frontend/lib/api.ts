@@ -56,8 +56,6 @@ export type AgentState =
 
 export type AnomalyKind = "SMOKE" | "FIRE" | "HEAT_SPOT" | "INTRUSION" | "UNKNOWN";
 
-// Evidence layer — provenance of the triggering signal. Mirrors
-// core/swarm_core/messages.py::AnomalySource.
 export type AnomalySource =
   | "drone_cv"
   | "thermal_sat"
@@ -66,8 +64,6 @@ export type AnomalySource =
 
 export type SensorKind = "RGB" | "THERMAL" | "MULTISPECTRAL" | "LIDAR";
 
-// The *why* behind an anomaly. `headline` is the server-built, confidence-bound
-// one-liner — the Console renders it; it never composes operational truth.
 export type AnomalyEvidence = {
   source: AnomalySource;
   sensor: SensorKind;
@@ -159,8 +155,6 @@ export type Session = {
   id: string;
   label: string;
   site_id: string;
-  // Phase 7.C — boot-time gate on the deterministic autonomy baseline.
-  // True when SWARM_AUTONOMY_BASELINE=1 or a scenario YAML opted in.
   autonomy_enabled: boolean;
   started_at: string;
   ts: string;
@@ -248,8 +242,6 @@ export type AnomalyView = {
   detected_at: string;
   detected_by: string | null;
   verifying_agent: string | null;
-  // Evidence layer — the *why* (source + triggering signal + server headline).
-  // Nullable: pre-evidence anomalies and existing fixtures leave it undefined.
   evidence?: AnomalyEvidence | null;
   ts: string;
 };
@@ -266,8 +258,6 @@ export type TimelineEvent = {
   confidence: number | null;
   body: string;
   action_label: string | null;
-  // Phase 7.C — mirrors OperatorCommand.source; the EventFeed renders an
-  // "auto" kind label (Orbital Blue) when this is "autonomy".
   source: "operator" | "autonomy";
 };
 
@@ -276,11 +266,7 @@ export type OperatorCommand = {
   action: OperatorAction;
   target: string;
   operator_id: string;
-  // Phase 7.B — "operator" or "autonomy". Defaults to "operator" on every
-  // existing API surface; Phase 7.C renders the AUTO eyebrow off this field.
   source: "operator" | "autonomy";
-  // Phase 7.C — autonomy rule label ("R1" / "R2" / "R3") when the command
-  // came from the deterministic baseline. Null for every operator command.
   rule?: string | null;
   submitted_at: string;
   accepted_at: string | null;
@@ -299,7 +285,7 @@ export type CommandResponse = {
   mission_id?: string | null;
 };
 
-// ── Allocator / runtime / payload truth frames ───────────────────────────────
+// ── Allocator / orchestration / runtime / payload truth frames ───────────────
 
 export type AllocationExclusionReason = "BUSY" | "LOW_BATTERY" | "UNAVAILABLE";
 
@@ -338,7 +324,6 @@ export type AllocationDecision = {
   excluded_units: AllocationExcludedUnit[];
   winner_agent_id: string | null;
   winner_score: number | null;
-  /** Set only under mode "diversion": the mission the winner was pulled off. */
   diverted_from_mission_id?: string | null;
   ts: string;
 };
@@ -403,7 +388,8 @@ export type ExecutionGroupMemberState =
   | "ACTIVE"
   | "COMPLETED"
   | "FAILED"
-  | "REPLACED";
+  | "REPLACED"
+  | "DIVERTED";
 
 export type ExecutionGroupMember = {
   agent_id: string;
@@ -413,6 +399,8 @@ export type ExecutionGroupMember = {
   score: number;
   score_breakdown: Record<string, number>;
   replaces_agent_id: string | null;
+  diverted_from_mission_id?: string | null;
+  diverted_from_objective_id?: string | null;
   ts: string;
 };
 
@@ -421,16 +409,6 @@ export type ExecutionGroup = {
   objective_mission_id: string;
   objective_kind: string;
   anomaly_id: string | null;
-  /**
-   * Set when SwarmOS dispatched this group to reinforce an already-running one
-   * against the same objective. Published provenance, exactly like
-   * `ExecutionGroupMember.replaces_agent_id` — mirrors ADR-0012 and
-   * `core/swarm_core/execution_groups.py`. A reader must never infer the
-   * relationship from a shared `anomaly_id`.
-   *
-   * Optional rather than required because recorded fixtures predate the field;
-   * every live frame carries it, and every read site resolves it with `?? null`.
-   */
   reinforces_group_id?: string | null;
   requested_members: number;
   members: ExecutionGroupMember[];
@@ -439,19 +417,33 @@ export type ExecutionGroup = {
   ts: string;
 };
 
-// ── Phase 5 stream descriptors (mirror core/swarm_core/streams.py) ───────────
+export type DispositionAssignment = {
+  group_id: string;
+  agent_id: string;
+  role: string;
+  mission_id: string;
+  geo: Geo;
+};
+
+/** SwarmOS-owned station geometry. The Console must not recompute these slots. */
+export type DispositionDecision = {
+  objective_mission_id: string;
+  revision: number;
+  reason: string;
+  center: Geo;
+  active_members: number;
+  radius_m: number;
+  assignments: DispositionAssignment[];
+  ts: string;
+};
+
+// ── Phase 5 stream descriptors ────────────────────────────────────────────────
 
 export type StreamProtocol = "rtsps" | "https";
 
 export type StreamDescriptor = {
   agent_id: string;
   available: boolean;
-  /**
-   * A simulated feed is a synthetic SIM-labeled clip bundled with the
-   * Console (Blender render, CC0). Its `url` is a same-origin `/sim-feed/…`
-   * path and the viewport stamps it `SIMULATED FEED`. Mirrors the
-   * `simulated` field on `core/swarm_core/streams.py`.
-   */
   simulated: boolean;
   url: string | null;
   protocol: StreamProtocol | null;
@@ -459,7 +451,6 @@ export type StreamDescriptor = {
   ts: string;
 };
 
-/** Client-side allowlist — same set as the backend's `ALLOWED_STREAM_SCHEMES`. */
 export const ALLOWED_STREAM_SCHEMES: ReadonlySet<string> = new Set([
   "rtsps",
   "https",
@@ -475,21 +466,11 @@ export function isAllowedStreamUrl(url: string): boolean {
   }
 }
 
-/** Same-origin prefix a simulated clip must live under (mirrors `SIM_FEED_PREFIX`). */
 export const SIM_FEED_PREFIX = "/sim-feed/";
 
-/**
- * Client-side mirror of `validate_sim_feed_path` — a simulated feed must be a
- * same-origin path under `/sim-feed/`, never an absolute/protocol-relative URL
- * and never a `..` traversal. Defense in depth: the backend is the source of
- * truth, but the Console refuses to point a `<video>` at anything else.
- */
 export function isAllowedSimFeedPath(path: string): boolean {
   if (typeof path !== "string" || path.length === 0) return false;
   if (/[\r\n\0\\]/.test(path)) return false;
-  // A real URL parses with a protocol/host; a same-origin path does not. Use a
-  // dummy base so a bare path parses, then reject anything that resolved to a
-  // different origin (absolute or protocol-relative URLs do).
   let resolved: URL;
   try {
     resolved = new URL(path, "https://console.invalid");
@@ -502,7 +483,7 @@ export function isAllowedSimFeedPath(path: string): boolean {
   return true;
 }
 
-// ── Auth hooks (installed by lib/auth.tsx) ─────────────────────────────────────
+// ── Auth hooks ────────────────────────────────────────────────────────────────
 
 type AuthHooks = {
   getAccessToken: () => string | null;
@@ -542,9 +523,7 @@ async function post<T>(
     },
     body: JSON.stringify(body),
   });
-  if (res.status === 401) {
-    _authHooks?.onUnauthorized();
-  }
+  if (res.status === 401) _authHooks?.onUnauthorized();
   let data: T;
   try {
     data = (await res.json()) as T;
@@ -560,8 +539,6 @@ export const api = {
   },
 
   health: () => get<{ status: string }>("/health"),
-
-  // ── Phase 1 view-oriented endpoints ─────────────────────────────────────────
   session: () => get<{ session: Session }>("/session"),
   awareness: () => get<{ awareness: AwarenessBreakdown }>("/awareness"),
   docks: () => get<{ docks: DockState[] }>("/docks"),
@@ -571,6 +548,8 @@ export const api = {
   allocations: () => get<{ allocations: AllocationDecision[] }>("/allocations"),
   executionGroups: () =>
     get<{ execution_groups: ExecutionGroup[] }>("/execution-groups"),
+  dispositions: () =>
+    get<{ dispositions: DispositionDecision[] }>("/dispositions"),
   missionRuntime: () =>
     get<{ mission_runtime: MissionRuntimeEvent[] }>("/mission-runtime"),
   payloadEvents: (limit = 200) =>
@@ -586,18 +565,10 @@ export const api = {
     return get<{ events: TimelineEvent[] }>(`/events?${q.toString()}`);
   },
 
-  // ── Operator intents (auth header now carries identity + role) ─────────────
-  verify: (target: string) =>
-    post<CommandResponse>("/actions/verify", { target }),
-  holdPatrol: (target: string) =>
-    post<CommandResponse>("/actions/hold-patrol", { target }),
-  dismiss: (target: string) =>
-    post<CommandResponse>("/actions/dismiss", { target }),
-  returnUnit: (target: string) =>
-    post<CommandResponse>("/actions/return", { target }),
-  // Phase 6.G — fleet-wide stop. Commander-only. The backend requires
-  // both fields; the modal that calls this passes them after the
-  // operator types the confirmation phrase.
+  verify: (target: string) => post<CommandResponse>("/actions/verify", { target }),
+  holdPatrol: (target: string) => post<CommandResponse>("/actions/hold-patrol", { target }),
+  dismiss: (target: string) => post<CommandResponse>("/actions/dismiss", { target }),
+  returnUnit: (target: string) => post<CommandResponse>("/actions/return", { target }),
   emergencyRtlAll: (confirmationPhrase: string) =>
     post<CommandResponse>("/actions/emergency-rtl-all", {
       confirm: true,
@@ -605,6 +576,4 @@ export const api = {
     }),
 };
 
-// Phase 6.G — exported so the EmergencyStop modal and the dispatcher can
-// share the canonical phrase. Mirrors backend ``EMERGENCY_CONFIRMATION``.
 export const EMERGENCY_CONFIRMATION_PHRASE = "RETURN ALL UNITS";

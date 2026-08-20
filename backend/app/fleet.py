@@ -21,8 +21,13 @@ from adapters.mavlink.adapter import MAVLinkAdapter
 from adapters.mavlink.fleet_runner import MAVLinkFleetRunner, boot_fleet_runner
 from adapters.mavlink.payload import MAVLinkPayloadController
 from adapters.payload import PayloadControllerRegistry
+from orchestrator.swarm_orchestrator.alarm_policy import AlarmResponsePolicy
 from orchestrator.swarm_orchestrator.bus import Bus
 from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
+from orchestrator.swarm_orchestrator.policy_bus import (
+    AlarmPolicyBusFleetOrchestrator,
+    AlarmPolicyPresenceResponseBusFleetOrchestrator,
+)
 from orchestrator.swarm_orchestrator.presence_bus import (
     PresenceResponseBusFleetOrchestrator,
 )
@@ -101,6 +106,49 @@ def _env_float(
     return value
 
 
+def _alarm_policy_from_env() -> AlarmResponsePolicy:
+    cooperative_threshold = _env_float(
+        "SWARM_ALARM_COOPERATIVE_THRESHOLD",
+        0.80,
+        minimum=0.0,
+        maximum=1.0,
+    )
+    high_confidence_threshold = _env_float(
+        "SWARM_ALARM_HIGH_CONFIDENCE_THRESHOLD",
+        0.93,
+        minimum=0.0,
+        maximum=1.0,
+    )
+    if high_confidence_threshold < cooperative_threshold:
+        raise ValueError(
+            "SWARM_ALARM_HIGH_CONFIDENCE_THRESHOLD must be >= "
+            "SWARM_ALARM_COOPERATIVE_THRESHOLD"
+        )
+    max_team_size = (
+        _env_optional_int_range(
+            "SWARM_ALARM_MAX_TEAM_SIZE",
+            minimum=2,
+            maximum=32,
+        )
+        or 3
+    )
+    return AlarmResponsePolicy(
+        cooperative_threshold=cooperative_threshold,
+        high_confidence_threshold=high_confidence_threshold,
+        max_team_size=max_team_size,
+        single_hover_s=_env_float(
+            "SWARM_ALARM_SINGLE_HOVER_S",
+            15.0,
+            minimum=0.0,
+        ),
+        cooperative_hover_s=_env_float(
+            "SWARM_ALARM_COOPERATIVE_HOVER_S",
+            15.0,
+            minimum=0.0,
+        ),
+    )
+
+
 VendorBooter = Callable[[Bus, AdapterRegistry], Awaitable[object]]
 
 
@@ -116,6 +164,12 @@ class FleetManager:
     cooperative_verify_enabled: bool = False
     cooperative_verify_min_confidence: float = 0.90
     cooperative_verify_team_size: int = 3
+
+    # Opt-in product policy. When false, existing legacy anomaly handling remains
+    # unchanged. When true, external alarm truth is converted into response demand
+    # by AlarmResponsePolicy inside SwarmOS.
+    alarm_response_policy_enabled: bool = False
+    alarm_policy: AlarmResponsePolicy = field(default_factory=AlarmResponsePolicy)
 
     presence_response_enabled: bool = False
     presence_min_confidence: float = 0.85
@@ -189,6 +243,40 @@ class FleetManager:
                 "and/or SWARM_PRESENCE_SIMULATE_SPEAKER=1"
             )
 
+    def _build_mission_orchestrator(self) -> BusFleetOrchestrator:
+        common: dict[str, object] = {
+            "bus": self.bus,
+            "registry": self.registry,
+            "continuous_patrol": False,
+        }
+        if self.alarm_response_policy_enabled:
+            common["alarm_policy"] = self.alarm_policy
+
+        if self.presence_response_enabled:
+            presence: dict[str, object] = {
+                **common,
+                "payload_registry": self.payload_registry,
+                "presence_min_confidence": self.presence_min_confidence,
+                "presence_hold_s": self.presence_hold_s,
+            }
+            if self.alarm_response_policy_enabled:
+                return AlarmPolicyPresenceResponseBusFleetOrchestrator(**presence)  # type: ignore[arg-type]
+            return PresenceResponseBusFleetOrchestrator(
+                **presence,  # type: ignore[arg-type]
+                cooperative_verify_enabled=self.cooperative_verify_enabled,
+                cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
+                cooperative_verify_team_size=self.cooperative_verify_team_size,
+            )
+
+        if self.alarm_response_policy_enabled:
+            return AlarmPolicyBusFleetOrchestrator(**common)  # type: ignore[arg-type]
+        return BusFleetOrchestrator(
+            **common,  # type: ignore[arg-type]
+            cooperative_verify_enabled=self.cooperative_verify_enabled,
+            cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
+            cooperative_verify_team_size=self.cooperative_verify_team_size,
+        )
+
     async def _start_mission_runtime(self) -> None:
         if self.vendors != ("mavlink",):
             if "mavlink" in self.vendors:
@@ -201,28 +289,7 @@ class FleetManager:
         if self._mission_task is not None:
             raise RuntimeError("mission runtime already started")
 
-        if self.presence_response_enabled:
-            orchestrator: BusFleetOrchestrator = PresenceResponseBusFleetOrchestrator(
-                bus=self.bus,
-                registry=self.registry,
-                continuous_patrol=False,
-                payload_registry=self.payload_registry,
-                presence_min_confidence=self.presence_min_confidence,
-                presence_hold_s=self.presence_hold_s,
-                cooperative_verify_enabled=self.cooperative_verify_enabled,
-                cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
-                cooperative_verify_team_size=self.cooperative_verify_team_size,
-            )
-        else:
-            orchestrator = BusFleetOrchestrator(
-                bus=self.bus,
-                registry=self.registry,
-                continuous_patrol=False,
-                cooperative_verify_enabled=self.cooperative_verify_enabled,
-                cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
-                cooperative_verify_team_size=self.cooperative_verify_team_size,
-            )
-
+        orchestrator = self._build_mission_orchestrator()
         task = asyncio.create_task(orchestrator.run())
         self._mission_orchestrator = orchestrator
         self._mission_task = task
@@ -230,12 +297,18 @@ class FleetManager:
             timeout_s=self.mission_ready_timeout_s
         )
         logger.info(
-            "fleet: mission orchestrator ready for %d MAVLink adapter(s)%s%s",
+            "fleet: mission orchestrator ready for %d MAVLink adapter(s)%s%s%s",
             len(self.registry),
             " with bounded presence response" if self.presence_response_enabled else "",
             (
+                " with alarm response policy"
+                if self.alarm_response_policy_enabled
+                else ""
+            ),
+            (
                 f" with cooperative verify team={self.cooperative_verify_team_size}"
                 if self.cooperative_verify_enabled
+                and not self.alarm_response_policy_enabled
                 else ""
             ),
         )
@@ -278,6 +351,12 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
         )
         or 3
     )
+    alarm_response_policy_enabled = _env_flag("SWARM_ALARM_RESPONSE_POLICY")
+    alarm_policy = (
+        _alarm_policy_from_env()
+        if alarm_response_policy_enabled
+        else AlarmResponsePolicy()
+    )
     return FleetManager(
         bus=bus,
         registry=registry or AdapterRegistry(),
@@ -290,6 +369,8 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
             maximum=1.0,
         ),
         cooperative_verify_team_size=cooperative_team_size,
+        alarm_response_policy_enabled=alarm_response_policy_enabled,
+        alarm_policy=alarm_policy,
         presence_response_enabled=_env_flag("SWARM_PRESENCE_RESPONSE"),
         presence_min_confidence=_env_float(
             "SWARM_PRESENCE_MIN_CONFIDENCE",

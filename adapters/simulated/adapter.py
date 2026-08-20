@@ -67,13 +67,23 @@ class SimulatedAdapter:
         self._connected = False
         self._cancelled = False
         self._paused = False
+        self._failure_reason: str | None = None
         self._self_tick = self_tick
         self._tick_hz = tick_hz
         self._tick_task: asyncio.Task[None] | None = None
 
+    @property
+    def connected(self) -> bool:
+        """Cached simulation execution-link state for synchronous fleet truth."""
+
+        return self._connected
+
     async def connect(self) -> None:
         self._connected = True
-        if self._self_tick and self._tick_task is None:
+        self._failure_reason = None
+        if self._self_tick and (
+            self._tick_task is None or self._tick_task.done()
+        ):
             self._tick_task = asyncio.create_task(self._tick_loop())
 
     async def disconnect(self) -> None:
@@ -96,7 +106,7 @@ class SimulatedAdapter:
         return HealthReport(
             online=self._connected,
             battery_pct=self._drone.battery_pct,
-            link_quality=1.0,
+            link_quality=1.0 if self._connected else 0.0,
             last_telemetry_age_s=0.0,
         )
 
@@ -112,6 +122,7 @@ class SimulatedAdapter:
             raise RuntimeError("adapter not connected")
         self._cancelled = False
         self._paused = False
+        self._failure_reason = None
         async for p in self._execute(mission):
             yield p
 
@@ -134,7 +145,10 @@ class SimulatedAdapter:
             self._drone.command_takeoff()
             while not self._drone.is_airborne and not self._cancelled:
                 await asyncio.sleep(0.05)
-            yield MissionProgress(mission_id=mission.id, phase="EN_ROUTE", progress_pct=5.0)
+            if not self._cancelled:
+                yield MissionProgress(
+                    mission_id=mission.id, phase="EN_ROUTE", progress_pct=5.0
+                )
 
         waypoints = mission_waypoints(mission)
         total = len(waypoints) or 1
@@ -150,6 +164,8 @@ class SimulatedAdapter:
                 await asyncio.sleep(0.05)
                 if self._paused:
                     self._drone.command_hover()
+            if self._cancelled:
+                break
 
             yield MissionProgress(
                 mission_id=mission.id,
@@ -163,6 +179,8 @@ class SimulatedAdapter:
                 t0 = time.monotonic()
                 while time.monotonic() - t0 < hover_s and not self._cancelled:
                     await asyncio.sleep(0.1)
+                if self._cancelled:
+                    break
                 for sensor_str in mission.params.get("sensors", []):
                     await self.request_capture(SensorKind(sensor_str))
                 yield MissionProgress(
@@ -182,13 +200,16 @@ class SimulatedAdapter:
                 await asyncio.sleep(0.05)
                 if self._paused:
                     self._drone.command_hover()
-            yield MissionProgress(mission_id=mission.id, phase="DONE", progress_pct=100.0)
-        else:
+            if not self._cancelled:
+                yield MissionProgress(
+                    mission_id=mission.id, phase="DONE", progress_pct=100.0
+                )
+        if self._cancelled:
             yield MissionProgress(
                 mission_id=mission.id,
                 phase="FAILED",
                 progress_pct=0.0,
-                error="cancelled",
+                error=self._failure_reason or "cancelled",
             )
 
     async def pause_mission(self) -> None:
@@ -198,8 +219,24 @@ class SimulatedAdapter:
         self._paused = False
 
     async def cancel_mission(self) -> None:
+        self._failure_reason = None
         self._cancelled = True
         self._drone.command_rtl()
+
+    def inject_failure(self, reason: str = "SIMULATED_EXECUTOR_FAILURE") -> None:
+        """Simulation-only physical fault; never selects a recovery action.
+
+        The active mission emits FAILED through the ordinary adapter progress
+        stream. SwarmOS then decides whether/how to replace the member. Unlike
+        ``cancel_mission`` this does not command RTL: a fault is a world fact,
+        not a fleet-level decision disguised as one.
+        """
+
+        self._failure_reason = reason
+        self._paused = False
+        self._cancelled = True
+        self._connected = False
+        self._drone.command_hover()
 
     async def divert(self, new_waypoint: Waypoint) -> None:
         self._drone.command_goto(new_waypoint.geo)

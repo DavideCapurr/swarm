@@ -31,11 +31,13 @@ function slot(over: Partial<CompositionSlot> = {}): CompositionSlot {
     score: 2.26,
     replacesAgentId: null,
     replacedAgentId: null,
+    divertedAgentId: null,
+    divertedFromMissionId: null,
+    divertedFromObjectiveId: null,
     adapting: false,
     groupId: "group-1",
     swarmIndex: 1,
     reinforcement: false,
-    divertedFromMissionId: null,
     ...over,
   };
 }
@@ -100,7 +102,7 @@ describe("narrationFor", () => {
       "OBJECTIVE DETECTED · SWARMOS EVALUATING"
     );
     expect(narrationFor(objective("EXECUTING"), { phase: "idle" })).toBe(
-      "SWARM EXECUTING · 03 / 03 ROLES ACTIVE"
+      "SWARM 01 EXECUTING · 03 / 03 ROLES COVERED"
     );
     expect(narrationFor(objective("VERIFIED"), { phase: "idle" })).toBe(
       "OBJECTIVE VERIFIED · MISSION COMPLETE"
@@ -116,7 +118,7 @@ describe("narrationFor", () => {
       ],
     });
     expect(narrationFor(degraded, { phase: "idle" })).toBe(
-      "SWARM EXECUTING · 02 / 03 ROLES ACTIVE"
+      "SWARM 01 EXECUTING · 02 / 03 ROLES COVERED"
     );
   });
 
@@ -180,7 +182,7 @@ describe("narrationFor", () => {
         active: 3,
         required: 3,
       })
-    ).toBe("REPLACEMENT DISPATCHED · GROUP RESTORED");
+    ).toBe("SUBUNIT REPLACED · SWARM RESTORED");
   });
 
   it("still announces the adaptation when the beat timer has expired", () => {
@@ -211,15 +213,77 @@ describe("narrationFor", () => {
     );
   });
 
-  it("counts both swarms once they are running the objective together", () => {
+  it("does not claim a formation change without disposition truth", () => {
+    const inbound = objective("EXECUTING", {
+      swarms: [
+        swarm(),
+        swarm({
+          index: 2,
+          groupId: "group-2",
+          reinforcesGroupId: "group-1",
+          requestedMembers: 2,
+          composedMembers: 2,
+          heldMembers: 2,
+          slots: [
+            slot({
+              groupId: "group-2",
+              swarmIndex: 2,
+              reinforcement: true,
+              phase: "EN_ROUTE",
+            }),
+          ],
+        }),
+      ],
+    });
+    expect(narrationFor(inbound, { phase: "idle" })).toBe("SWARM 02 EN ROUTE");
+  });
+
+  it("says a sweep subunit is being diverted while the first wave is inbound", () => {
+    const diverting = objective("EXECUTING", {
+      slots: [
+        slot(),
+        slot({ index: 2, role: "SECONDARY_OBSERVER", agentId: "mav-003" }),
+        slot({
+          index: 3,
+          role: "OVERWATCH",
+          agentId: "mav-009",
+          phase: "EN_ROUTE",
+          divertedFromMissionId: "mission-sweep-1",
+        }),
+      ],
+    });
+    expect(narrationFor(diverting, { phase: "idle" })).toBe(
+      "SWARMOS DIVERTING SWEEP CAPACITY · 01 SUBUNITS REASSIGNED"
+    );
+  });
+
+  it("calls the swarms coordinated only once reinforcement reaches station", () => {
+    const reinforcementSlots = [
+      slot({
+        groupId: "group-2",
+        swarmIndex: 2,
+        reinforcement: true,
+        phase: "ON_STATION",
+        role: "SECONDARY_OBSERVER",
+        agentId: "mav-011",
+      }),
+      slot({
+        index: 2,
+        groupId: "group-2",
+        swarmIndex: 2,
+        reinforcement: true,
+        phase: "ON_STATION",
+        role: "OVERWATCH",
+        agentId: "mav-012",
+      }),
+    ];
     const combined = objective("EXECUTING", {
       requestedMembers: 5,
       slots: [
         slot(),
         slot({ index: 2, role: "SECONDARY_OBSERVER", agentId: "mav-003" }),
         slot({ index: 3, role: "OVERWATCH", agentId: "mav-002" }),
-        slot({ index: 1, role: "PRIMARY_OBSERVER", agentId: "mav-011", groupId: "group-2", swarmIndex: 2, reinforcement: true }),
-        slot({ index: 2, role: "OVERWATCH", agentId: "mav-012", groupId: "group-2", swarmIndex: 2, reinforcement: true }),
+        ...reinforcementSlots,
       ],
       swarms: [
         swarm(),
@@ -230,11 +294,15 @@ describe("narrationFor", () => {
           requestedMembers: 2,
           composedMembers: 2,
           heldMembers: 2,
+          slots: reinforcementSlots,
         }),
       ],
     });
+    // `rolesCovered` deliberately caps at the *originating* swarm's own
+    // requirement (3), not the objective-level override: a reinforcement adds
+    // capacity without inflating what was originally asked for.
     expect(narrationFor(combined, { phase: "idle" })).toBe(
-      "02 SWARMS COMBINED · 05 / 05 ROLES ACTIVE"
+      "02 SWARMS COORDINATED · 03 / 03 ROLES COVERED"
     );
   });
 
@@ -246,7 +314,7 @@ describe("narrationFor", () => {
       swarms: [swarm({ composedMembers: 2, heldMembers: 2, underStrength: true })],
     });
     expect(narrationFor(partial, { phase: "idle" })).toBe(
-      "SWARM UNDER STRENGTH · 02 / 03 ROLES HELD"
+      "SWARM 01 UNDER STRENGTH · 02 / 03 ROLES COVERED"
     );
   });
 

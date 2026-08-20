@@ -368,7 +368,8 @@ class Orchestrator:
         airborne = [
             f
             for f in fleet
-            if f.fsm_state is not AgentState.DOCKED
+            if f.fsm_state
+            in (AgentState.TAKEOFF, AgentState.EN_ROUTE, AgentState.ON_STATION)
             and f.battery_pct >= MIN_BATTERY_PCT
             and f.agent_id not in self._verifying
         ]
@@ -475,7 +476,10 @@ class Orchestrator:
         if self.world_drones:
             for d in self.world_drones:
                 adapter = self.registry.get(d.agent_id)
-                state = AgentState.DOCKED if d.is_docked else AgentState.EN_ROUTE
+                if getattr(adapter, "connected", True):
+                    state = AgentState.DOCKED if d.is_docked else AgentState.EN_ROUTE
+                else:
+                    state = AgentState.OFFLINE
                 out.append(
                     FleetState(
                         agent_id=d.agent_id,

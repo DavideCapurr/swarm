@@ -19,18 +19,17 @@ import { narrationFor } from "../NarrationStrip";
  * The recorded takes, held to what they already say.
  *
  * The swarm layer restructures the view model every take is rendered through:
- * objectives are now built from a *set* of related `ExecutionGroup`s rather than
- * one at a time, and the composition, the trace and the narration all read off
- * the result. That is exactly the kind of change that moves a timestamp or
- * rewords a line without anyone noticing until the recording is watched back.
+ * objectives are built from a set of related `ExecutionGroup`s, while the
+ * public narration deliberately speaks in product nouns: swarms and subunits.
+ * That is exactly the kind of change that moves a timestamp or rewords a line
+ * without anyone noticing until the recording is watched back.
  *
  * So this replays all three takes frame by frame and pins the properties the
  * rehearsal is judged on. It asserts against the takes' own recorded content,
  * not against a hand-copied transcript: a golden list would have to be updated
  * to match a regression, which is the failure mode it exists to prevent.
  *
- * `demo-frames.ts` is read here and never written — the take belongs to a later
- * phase.
+ * `demo-frames.ts` is read here and never written.
  */
 
 const TAKES = [
@@ -44,7 +43,7 @@ const STEP_MS = 500;
 /** The surface's own reading of one instant of a take. */
 function frameAt(take: (typeof TAKES)[number], atMs: number) {
   const view = buildAuthorityView(take.fold(atMs, take.frames as never));
-  const focused = view.objectives.find((o) => o.key === view.defaultFocusKey) ?? null;
+  const focused = view.objectives.find((objective) => objective.key === view.defaultFocusKey) ?? null;
   return { view, focused };
 }
 
@@ -90,11 +89,11 @@ describe.each(TAKES)("take $id", (take) => {
         continue;
       }
       expect(focused).not.toBeNull();
-      expect(view.objectives.filter((o) => o.key === focused?.key)).toHaveLength(1);
+      expect(view.objectives.filter((objective) => objective.key === focused?.key)).toHaveLength(1);
     }
   });
 
-  it("says one line at a time, from the state the panels are showing", () => {
+  it("says one line at a time without inventing reinforcement", () => {
     for (let at = 0; at <= take.script.durationMs; at += STEP_MS) {
       const { focused } = frameAt(take, at);
       const line = narrationFor(focused, { phase: "idle" });
@@ -104,7 +103,7 @@ describe.each(TAKES)("take $id", (take) => {
       // partial-strength composition in it. Take C does have both — see the
       // dedicated "take c — reinforcement" block below.
       expect(line).not.toContain("REINFORCEMENT");
-      expect(line).not.toContain("COMBINED");
+      expect(line).not.toContain("COORDINATED");
       expect(line).not.toContain("UNDER STRENGTH");
       expect(line).not.toContain("REASSIGNED");
     }
@@ -263,7 +262,7 @@ describe("take c — reinforcement", () => {
     expect(secondary?.replacedAgentId).toBe("mav-003");
   });
 
-  it("says UNDER STRENGTH, then REINFORCEMENT, then COMBINED, in that order", () => {
+  it("says UNDER STRENGTH, then REINFORCEMENT, then COORDINATED, in that order", () => {
     const lineAt = (atMs: number) => narrationFor(heroAt(atMs), { phase: "idle" });
     // Wave one has settled onto its containment stations (arrival ~T+29.2-29.5)
     // and swarm 02 does not exist yet (dispatch is T+32): swarm 01 is short one
@@ -272,8 +271,9 @@ describe("take c — reinforcement", () => {
     // Swarm 02 is FORMING (T+32-33): the reinforcement is dispatched, not yet active.
     expect(lineAt(32_500)).toContain("REINFORCEMENT");
     // Both swarms are active and wave two has arrived (~T+43.9-45.1) and settled,
-    // well clear of the T+38.5 failure and its T+40.5 replacement.
-    expect(lineAt(50_000)).toContain("COMBINED");
+    // well clear of the T+38.5 failure and its T+40.5 replacement — reinforcement
+    // is on station, so the objective reads coordinated rather than just inbound.
+    expect(lineAt(50_000)).toContain("COORDINATED");
   });
 
   it("says a sweep subunit is being diverted while the first wave is inbound", () => {

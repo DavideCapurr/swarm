@@ -3,12 +3,8 @@
 /**
  * SwarmStateProvider — the Console's single source of state.
  *
- * Phase 3 truth-layer: every value here is server-issued. The `derived` flags
- * from Phase 2 are gone — `mode`, `verifier`, and `primaryDock` are read
- * directly off the WS/REST frames. SwarmOS decides; Console renders.
- *
+ * Every value here is server-issued. SwarmOS decides; Console renders.
  * Boots from REST snapshots, then merges live WS frames keyed by `kind`.
- * Surfaces never fetch on their own — they read from `useSwarm()`.
  */
 
 import {
@@ -27,6 +23,7 @@ import {
   type AnomalyView,
   type AwarenessBreakdown,
   type CommandResponse,
+  type DispositionDecision,
   type DockState,
   type ExecutionGroup,
   type MissionRuntimeEvent,
@@ -44,12 +41,7 @@ import { useAuth, type Role } from "./auth";
 import { fallbackAwareness, formatClock } from "./derive";
 import { SwarmSocket, type WSMessage } from "./ws";
 
-// ── Link health ────────────────────────────────────────────────────────────────
-
 export type LinkState = "connected" | "connecting" | "lost";
-
-// ── Dispatch ───────────────────────────────────────────────────────────────────
-
 export type Intent = "verify" | "hold_patrol" | "dismiss" | "return";
 
 export type IntentResult = {
@@ -59,8 +51,6 @@ export type IntentResult = {
 };
 
 export type Dispatch = (intent: Intent, target: string) => Promise<IntentResult>;
-
-// ── Context shape ──────────────────────────────────────────────────────────────
 
 export type SwarmState = {
   session: Session | null;
@@ -73,39 +63,26 @@ export type SwarmState = {
   commands: OperatorCommand[];
   allocations: AllocationDecision[];
   executionGroups: ExecutionGroup[];
+  /** Latest SwarmOS-owned station geometry per objective mission. */
+  dispositions: DispositionDecision[];
   missionRuntime: MissionRuntimeEvent[];
-  /**
-   * Append-only record of the runtime frames this session observed.
-   *
-   * `missionRuntime` — like the backend's own projection — keeps only the
-   * latest frame per mission, so the discrete execution ladder (ALLOCATED →
-   * … → DONE) would be unreadable from it alone. This buffers the frames as
-   * they arrive, de-duplicated by their server-issued id. It stores server
-   * truth; it derives nothing.
-   */
+  /** Append-only runtime frames observed this session; still server truth. */
   missionRuntimeLog: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
-  // Phase 5: stream descriptors per agent_id. `null` ≡ no descriptor yet
-  // received; in that case the Console falls back to the placard.
   streams: Record<string, StreamDescriptor>;
   awareness: AwarenessBreakdown;
   link: LinkState;
   clock: { time: string; date: string };
   operatorId: string;
   role: Role | null;
-  // Truth values projected by SwarmOS — no derive layer.
   mode: OperatingMode;
   verifier: UnitState | null;
   primaryDock: DockState | null;
-  // Phase 7.C — mirrors session.autonomy_enabled. Read by HeadBar to
-  // render the inline `autonomy baseline` chip.
   autonomyEnabled: boolean;
   dispatch: Dispatch;
 };
 
 const SwarmContext = createContext<SwarmState | null>(null);
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function upsertById<T extends { [k: string]: unknown }>(
   list: T[],
@@ -119,18 +96,12 @@ function upsertById<T extends { [k: string]: unknown }>(
   return copy;
 }
 
-// ── Provider ───────────────────────────────────────────────────────────────────
-
-export function SwarmStateProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function SwarmStateProvider({ children }: { children: ReactNode }) {
   const { state: authState } = useAuth();
   const isAuthed = authState.status === "authenticated";
   const operatorId = isAuthed ? authState.session.operatorId : "";
   const role: Role | null = isAuthed ? authState.session.role : null;
-  // Server-issued aggregates.
+
   const [session, setSession] = useState<Session | null>(null);
   const [units, setUnits] = useState<UnitState[]>([]);
   const [docks, setDocks] = useState<DockState[]>([]);
@@ -141,38 +112,39 @@ export function SwarmStateProvider({
   const [commands, setCommands] = useState<OperatorCommand[]>([]);
   const [allocations, setAllocations] = useState<AllocationDecision[]>([]);
   const [executionGroups, setExecutionGroups] = useState<ExecutionGroup[]>([]);
+  const [dispositions, setDispositions] = useState<DispositionDecision[]>([]);
   const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);
   const [missionRuntimeLog, setMissionRuntimeLog] = useState<MissionRuntimeEvent[]>([]);
   const [payloadEvents, setPayloadEvents] = useState<PayloadEvent[]>([]);
   const [streams, setStreams] = useState<Record<string, StreamDescriptor>>({});
-  const [awareness, setAwareness] = useState<AwarenessBreakdown>(() => fallbackAwareness(new Date()));
-  // Link + clock.
+  const [awareness, setAwareness] = useState<AwarenessBreakdown>(() =>
+    fallbackAwareness(new Date())
+  );
   const [link, setLink] = useState<LinkState>("connecting");
   const [clock, setClock] = useState(() => formatClock(new Date()));
 
-  // Boot REST snapshot. Re-run whenever auth flips so a fresh login
-  // pulls fresh data; an anonymous user gets no snapshot calls (which
-  // would 401 anyway).
   useEffect(() => {
     if (!isAuthed) return;
     let cancelled = false;
     (async () => {
       try {
-        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, mr, pe] = await Promise.all([
-          api.session(),
-          api.awareness(),
-          api.docks(),
-          api.sectors(),
-          api.units(),
-          api.missions(),
-          api.anomalies(),
-          api.events(50),
-          api.commands(50),
-          api.allocations(),
-          api.executionGroups(),
-          api.missionRuntime(),
-          api.payloadEvents(200),
-        ]);
+        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, dp, mr, pe] =
+          await Promise.all([
+            api.session(),
+            api.awareness(),
+            api.docks(),
+            api.sectors(),
+            api.units(),
+            api.missions(),
+            api.anomalies(),
+            api.events(50),
+            api.commands(50),
+            api.allocations(),
+            api.executionGroups(),
+            api.dispositions(),
+            api.missionRuntime(),
+            api.payloadEvents(200),
+          ]);
         if (cancelled) return;
         setSession(s.session);
         setAwareness(aw.awareness);
@@ -185,9 +157,8 @@ export function SwarmStateProvider({
         setCommands(cm.commands);
         setAllocations(al.allocations);
         setExecutionGroups(eg.execution_groups);
+        setDispositions(dp.dispositions);
         setMissionRuntime(mr.mission_runtime);
-        // The REST snapshot is latest-per-mission, so it seeds the log with
-        // whatever the backend currently holds; live frames extend it.
         setMissionRuntimeLog(mr.mission_runtime);
         setPayloadEvents(pe.payload_events);
       } catch {
@@ -199,9 +170,6 @@ export function SwarmStateProvider({
     };
   }, [isAuthed]);
 
-  // Drop all server data on logout so a later login (possibly a different
-  // operator) starts from a clean slate instead of the previous session's
-  // frames.
   useEffect(() => {
     if (isAuthed) return;
     setSession(null);
@@ -214,6 +182,7 @@ export function SwarmStateProvider({
     setCommands([]);
     setAllocations([]);
     setExecutionGroups([]);
+    setDispositions([]);
     setMissionRuntime([]);
     setMissionRuntimeLog([]);
     setPayloadEvents([]);
@@ -221,8 +190,6 @@ export function SwarmStateProvider({
     setAwareness(fallbackAwareness(new Date()));
   }, [isAuthed]);
 
-  // Boot WS subscription only when authenticated; the backend refuses
-  // upgrades without an access token.
   useEffect(() => {
     if (!isAuthed) {
       setLink("lost");
@@ -230,9 +197,6 @@ export function SwarmStateProvider({
     }
     const sock = new SwarmSocket(() => {
       if (authState.status !== "authenticated") return null;
-      // A token this close to expiry would die server-side right after
-      // the upgrade; report none and let the socket's retry loop pick up
-      // the refreshed token instead.
       if (authState.session.expiresAt - Date.now() < 30_000) return null;
       return authState.session.accessToken;
     });
@@ -289,6 +253,11 @@ export function SwarmStateProvider({
         case "execution_group":
           setExecutionGroups((prev) => upsertById(prev, msg.data, "id"));
           return;
+        case "disposition":
+          setDispositions((prev) =>
+            upsertById(prev, msg.data, "objective_mission_id")
+          );
+          return;
         case "mission_runtime":
           setMissionRuntime((prev) => upsertById(prev, msg.data, "mission_id"));
           setMissionRuntimeLog((prev) => {
@@ -311,7 +280,6 @@ export function SwarmStateProvider({
     };
   }, [isAuthed, authState]);
 
-  // Clock tick (UTC, 30s cadence is enough — operator surfaces show hh:mm).
   useEffect(() => {
     const tick = () => setClock(formatClock(new Date()));
     tick();
@@ -319,31 +287,25 @@ export function SwarmStateProvider({
     return () => clearInterval(id);
   }, []);
 
-  // Dispatch — operator identity rides on the JWT, so the action signatures
-  // don't need an operatorId argument anymore.
-  const dispatch: Dispatch = useCallback(
-    async (intent, target) => {
-      const route =
-        intent === "verify"
-          ? api.verify
-          : intent === "hold_patrol"
-            ? api.holdPatrol
-            : intent === "dismiss"
-              ? api.dismiss
-              : api.returnUnit;
-      const { data, status } = await route(target);
-      return { ok: status >= 200 && status < 300, status, body: data };
-    },
-    []
-  );
+  const dispatch: Dispatch = useCallback(async (intent, target) => {
+    const route =
+      intent === "verify"
+        ? api.verify
+        : intent === "hold_patrol"
+          ? api.holdPatrol
+          : intent === "dismiss"
+            ? api.dismiss
+            : api.returnUnit;
+    const { data, status } = await route(target);
+    return { ok: status >= 200 && status < 300, status, body: data };
+  }, []);
 
-  // Truth selectors — every one of these reads a field the server has
-  // already populated. No client-side heuristics.
   const verifier = useMemo<UnitState | null>(() => {
     const id = awareness.verifying_agent;
     if (!id) return null;
     return units.find((u) => u.agent_id === id) ?? null;
   }, [units, awareness.verifying_agent]);
+
   const primaryDock = useMemo<DockState | null>(() => {
     if (docks.length === 0) return null;
     return docks.find((d) => d.primary) ?? docks[0];
@@ -361,6 +323,7 @@ export function SwarmStateProvider({
       commands,
       allocations,
       executionGroups,
+      dispositions,
       missionRuntime,
       missionRuntimeLog,
       payloadEvents,
@@ -387,6 +350,7 @@ export function SwarmStateProvider({
       commands,
       allocations,
       executionGroups,
+      dispositions,
       missionRuntime,
       missionRuntimeLog,
       payloadEvents,
@@ -410,8 +374,6 @@ export function useSwarm(): SwarmState {
   if (!ctx) throw new Error("useSwarm must be used inside <SwarmStateProvider>");
   return ctx;
 }
-
-// ── Convenience selectors ─────────────────────────────────────────────────────
 
 export function useFocusAnomaly(): AnomalyView | null {
   const { anomalies } = useSwarm();

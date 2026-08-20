@@ -21,7 +21,8 @@
  * intents and SwarmOS decides, and the narration describes SwarmOS deciding.
  */
 
-import type { ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
+import type { DispositionDecision } from "@/lib/api";
+import type { CompositionSlot, ObjectiveAuthority, SwarmComposition } from "@/lib/authority";
 
 import { HAIRLINE } from "./Surface";
 import type { AdaptationBeat } from "./useAdaptation";
@@ -29,11 +30,29 @@ import type { AdaptationBeat } from "./useAdaptation";
 /** Height the strip claims, so the camera's clear area can account for it. */
 export const NARRATION_HEIGHT = 30;
 
-/** Roles whose holder is present and has not failed — the panel's own count. */
-function rolesHeld(objective: ObjectiveAuthority): number {
-  return objective.slots.filter(
-    (slot) => slot.agentId && slot.memberState !== "FAILED" && slot.phase !== "FAILED"
-  ).length;
+function liveSlot(slot: CompositionSlot): boolean {
+  return Boolean(
+    slot.agentId &&
+      slot.memberState !== "FAILED" &&
+      slot.memberState !== "REPLACED" &&
+      slot.phase !== "FAILED"
+  );
+}
+
+/** The originating swarm defines what the objective originally required. */
+function requiredRoles(objective: ObjectiveAuthority): number {
+  return objective.swarms[0]?.requestedMembers ?? objective.requestedMembers;
+}
+
+/**
+ * Objective coverage is role coverage, not the sum of each reinforcing swarm's
+ * requested_members. A reinforcement can bring extra capacity without changing
+ * the original objective from 3 required roles into a fictitious 5-role task.
+ */
+function rolesCovered(objective: ObjectiveAuthority): number {
+  const required = requiredRoles(objective);
+  const roles = new Set(objective.slots.filter(liveSlot).map((slot) => slot.role));
+  return Math.min(required, roles.size);
 }
 
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -43,19 +62,24 @@ function reinforcementOf(objective: ObjectiveAuthority): SwarmComposition | null
   return objective.swarms.find((swarm) => swarm.reinforcesGroupId != null) ?? null;
 }
 
-/**
- * A swarm that never reached the strength it was asked for.
- *
- * Read as a *composition* shortfall — roles SwarmOS could not fill at all,
- * which is ADR-0012 partial-strength composition — and not as a holder that has
- * since dropped out. The second is the adaptation beat, it already has a line,
- * and it already outranks this one; conflating them would have the strip
- * announce a shortfall in the middle of a replacement that is fixing it.
- */
-function underStrength(objective: ObjectiveAuthority): SwarmComposition | null {
-  return (
-    objective.swarms.find((swarm) => swarm.composedMembers < swarm.requestedMembers) ?? null
+function reinforcementOnStation(swarm: SwarmComposition | null): boolean {
+  if (!swarm) return false;
+  return swarm.slots.some(
+    (slot) => liveSlot(slot) && (slot.phase === "ON_STATION" || slot.phase === "DONE")
   );
+}
+
+/** True while the objective's originating swarm never reached the strength it was asked for. */
+function primaryUnderStrength(objective: ObjectiveAuthority): boolean {
+  const primary = objective.swarms[0];
+  return Boolean(primary && primary.composedMembers < primary.requestedMembers);
+}
+
+/** A SwarmOS-issued disposition revision, rendered as the geometry it just committed to. */
+function dispositionLine(decision: DispositionDecision): string {
+  const revision = String(decision.revision).padStart(2, "0");
+  const radius = Math.round(decision.radius_m);
+  return `DISPOSITION R${revision} ISSUED · R ${radius} M`;
 }
 
 /**
@@ -89,36 +113,49 @@ function busyExclusionOf(objective: ObjectiveAuthority) {
 /**
  * The whole vocabulary, in priority order.
  *
- * The beat outranks the objective's settled state, because the beat is the
- * thing that just changed and this line exists to say what just changed.
+ * The beat outranks the objective's settled state during EXECUTING, but
+ * terminal objective truth (VERIFIED/FAILED) is authoritative and must not be
+ * hidden by a presentation beat that began a few frames earlier.
  */
 export function narrationFor(
   objective: ObjectiveAuthority | null,
-  beat: AdaptationBeat
+  beat: AdaptationBeat,
+  disposition: DispositionDecision | null = null
 ): string {
   if (!objective) return "AWAITING FLEET STATE";
-  if (beat.phase === "adapting") return "SUBUNIT LOST · SWARMOS SELECTING REPLACEMENT";
-  if (beat.phase === "restored") return "REPLACEMENT DISPATCHED · GROUP RESTORED";
+
+  if (objective.state === "VERIFIED") {
+    return "OBJECTIVE VERIFIED · MISSION COMPLETE";
+  }
+  if (objective.state === "FAILED") {
+    return "OBJECTIVE CLOSED · NOT VERIFIED";
+  }
+
+  if (beat.phase === "adapting") {
+    return "SUBUNIT LOST · SWARMOS SELECTING REPLACEMENT";
+  }
+  if (beat.phase === "restored") {
+    return "SUBUNIT REPLACED · SWARM RESTORED";
+  }
 
   switch (objective.state) {
     case "COMPOSING":
       return "OBJECTIVE DETECTED · SWARMOS EVALUATING";
     case "ADAPTING":
       return "SUBUNIT LOST · SWARMOS SELECTING REPLACEMENT";
-    case "VERIFIED":
-      return "OBJECTIVE VERIFIED · MISSION COMPLETE";
-    case "FAILED":
-      return "OBJECTIVE CLOSED · NOT VERIFIED";
     case "EXECUTING":
     default: {
-      const held = `${pad(rolesHeld(objective))} / ${pad(objective.requestedMembers)}`;
+      const required = requiredRoles(objective);
+      const covered = rolesCovered(objective);
+      const coverage = `${pad(covered)} / ${pad(required)}`;
+      const reinforcement = reinforcementOf(objective);
 
       // An objective SwarmOS is adding a swarm to. The reinforcement is still
       // composing, so the line says what SwarmOS decided, not what has arrived.
-      const reinforcement = reinforcementOf(objective);
-      if (reinforcement && reinforcement.state === "COMPOSING") {
+      if (reinforcement?.state === "COMPOSING") {
         return "REINFORCEMENT DISPATCHED · SWARMOS ADDING SWARM";
       }
+
       // Subunits SwarmOS pulled off another objective are still inbound. Below
       // the reinforcement line — dispatching a whole second swarm outranks one
       // subunit still in transit — and above the steady-state lines, because
@@ -127,15 +164,24 @@ export function narrationFor(
       if (diverting > 0) {
         return `SWARMOS DIVERTING SWEEP CAPACITY · ${pad(diverting)} SUBUNITS REASSIGNED`;
       }
-      // Both swarms are running the objective. The count is the objective's,
-      // across every swarm, because that is now the strength on the target.
-      if (objective.swarms.length > 1) {
-        return `${pad(objective.swarms.length)} SWARMS COMBINED · ${held} ROLES ACTIVE`;
+
+      if (reinforcement && !reinforcementOnStation(reinforcement)) {
+        // A formation/disposition claim requires a SwarmOS disposition frame.
+        // Group state alone is enough to say the reinforcing swarm is inbound,
+        // but absence of disposition truth must never be interpreted as a
+        // physical reconfiguration.
+        if (disposition?.reason === "REINFORCEMENT") {
+          return `SWARM 02 EN ROUTE · ${dispositionLine(disposition)}`;
+        }
+        return "SWARM 02 EN ROUTE";
       }
-      // Composed, running, and short of the strength it asked for. Stated
-      // rather than left to a count nobody is looking at.
-      if (underStrength(objective)) {
-        return `SWARM UNDER STRENGTH · ${held} ROLES HELD`;
+
+      if (objective.swarms.length > 1 && reinforcementOnStation(reinforcement)) {
+        return `${pad(objective.swarms.length)} SWARMS COORDINATED · ${coverage} ROLES COVERED`;
+      }
+
+      if (objective.swarms.length === 1 && primaryUnderStrength(objective)) {
+        return `SWARM 01 UNDER STRENGTH · ${coverage} ROLES COVERED`;
       }
 
       // The nearest subunit was already committed elsewhere, and SwarmOS
@@ -150,24 +196,27 @@ export function narrationFor(
       // in as many words. Claiming one here would be the surface inventing a
       // composition SwarmOS never made.
       return objective.groupId
-        ? `SWARM EXECUTING · ${held} ROLES ACTIVE`
-        : `SINGLE SUBUNIT ON OBJECTIVE · ${held} ASSIGNED`;
+        ? `SWARM 01 EXECUTING · ${coverage} ROLES COVERED`
+        : `SINGLE SUBUNIT ON OBJECTIVE · ${coverage} ASSIGNED`;
     }
   }
 }
 
 /** Amber only where the state is genuinely degraded; never red, ever. */
 function toneFor(objective: ObjectiveAuthority | null, beat: AdaptationBeat): string {
-  if (beat.phase === "adapting" || objective?.state === "ADAPTING" || objective?.state === "FAILED") {
+  if (objective?.state === "VERIFIED") return "#B8FF66";
+  if (objective?.state === "FAILED") return "#FFB45C";
+  if (beat.phase === "adapting" || objective?.state === "ADAPTING") {
     return "#FFB45C";
   }
-  if (beat.phase === "restored" || objective?.state === "VERIFIED") return "#B8FF66";
+  if (beat.phase === "restored") return "#B8FF66";
   // Under strength, and SwarmOS composing the swarm that answers it, are the
   // same condition read a moment apart. Both are amber; neither is a fault.
-  if (objective && objective.state === "EXECUTING") {
+  if (objective?.state === "EXECUTING") {
     const reinforcement = reinforcementOf(objective);
     if (reinforcement?.state === "COMPOSING") return "#FFB45C";
-    if (objective.swarms.length === 1 && underStrength(objective)) return "#FFB45C";
+    if (reinforcement && !reinforcementOnStation(reinforcement)) return "#FFB45C";
+    if (objective.swarms.length === 1 && primaryUnderStrength(objective)) return "#FFB45C";
     // Not a degraded reading — SwarmOS answered a second objective while
     // holding the first. Orbital blue is the product's own "SwarmOS decided,
     // live" accent (see `OwnershipStamp`), which is exactly what this is.
@@ -179,11 +228,13 @@ function toneFor(objective: ObjectiveAuthority | null, beat: AdaptationBeat): st
 export function NarrationStrip({
   focused,
   beat,
+  disposition = null,
 }: {
   focused: ObjectiveAuthority | null;
   beat: AdaptationBeat;
+  disposition?: DispositionDecision | null;
 }) {
-  const text = narrationFor(focused, beat);
+  const text = narrationFor(focused, beat, disposition);
   return (
     <div
       data-testid="narration-strip"

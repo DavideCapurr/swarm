@@ -67,8 +67,8 @@ function epoch(ts: string | null | undefined): number {
  * One logical role inside an objective.
  *
  * A role outlives the machine holding it — that is the whole point of the
- * architecture, and it is why the slot carries `replacesAgentId` and the
- * displaced holder rather than simply swapping an id.
+ * architecture, and it is why the slot carries replacement/diversion provenance
+ * rather than simply swapping an id.
  */
 export type CompositionSlot = {
   /** 1-based display order. Stable across a replacement. */
@@ -89,6 +89,12 @@ export type CompositionSlot = {
   replacesAgentId: string | null;
   /** The displaced holder of this role, when SwarmOS replaced one. */
   replacedAgentId: string | null;
+  /** Agent deliberately removed from this role by SwarmOS preemption. */
+  divertedAgentId: string | null;
+  /** Source mission for a live assignment obtained through SwarmOS preemption. */
+  divertedFromMissionId: string | null;
+  /** Source objective for a live assignment obtained through SwarmOS preemption. */
+  divertedFromObjectiveId: string | null;
   /** True between observed failure and an observed replacement for this role. */
   adapting: boolean;
   /** The swarm holding this role — its `ExecutionGroup` id. Null when there is no group. */
@@ -105,13 +111,6 @@ export type CompositionSlot = {
    * that folded it away would delete the only thing that just changed.
    */
   reinforcement: boolean;
-  /**
-   * Set when the latest allocation naming this slot's mission carried
-   * `mode: "diversion"`: the mission this agent was pulled off, not the one it
-   * now holds. Read off the published allocation frame, never inferred from
-   * flight state.
-   */
-  divertedFromMissionId: string | null;
 };
 
 /**
@@ -149,7 +148,7 @@ export type SwarmComposition = {
    * between what was asked for and what was committed, exactly as the ADR says.
    */
   composedMembers: number;
-  /** Roles whose holder is present and has not failed. */
+  /** Roles whose holder is present and has not failed or been diverted. */
   heldMembers: number;
   /** Amber on the panel. Never red. */
   underStrength: boolean;
@@ -252,7 +251,7 @@ export type ObjectiveAuthority = {
   groupStateLabel: string | null;
   /** Every swarm SwarmOS put on this objective, oldest first. Empty on a single-executor objective. */
   swarms: SwarmComposition[];
-  /** Strength SwarmOS asked for across every swarm. 1 on a single-executor objective. */
+  /** Objective demand established by the originating swarm. Reinforcement fills it; it does not add demand. */
   requestedMembers: number;
   /** Every role on the objective, swarm by swarm. `index` stays swarm-local. */
   slots: CompositionSlot[];
@@ -276,17 +275,15 @@ export type ObjectiveAuthority = {
 // ── Physical capacity ────────────────────────────────────────────────────────
 
 export type Commitment =
-  | "ASSIGNED"   // serving the focused objective
-  | "COMMITTED"  // serving another objective
-  | "SPARE"      // available capacity SwarmOS did not need
-  | "UNAVAILABLE"; // failed or offline
+  | "ASSIGNED"
+  | "COMMITTED"
+  | "SPARE"
+  | "UNAVAILABLE";
 
 export type CapacityRow = {
   agentId: string;
   commitment: Commitment;
-  /** Role, when the agent holds one in an ExecutionGroup. */
   role: string | null;
-  /** Objective key this agent serves, when it serves one. */
   objectiveKey: string | null;
   objectiveLabel: string | null;
   missionId: string | null;
@@ -297,38 +294,16 @@ export type CapacityRow = {
   altitudeAglM: number;
   headingDeg: number;
   geo: { lat: number; lon: number };
-  /** Dock the agent reports itself on. The server's own `UnitState.dock_id`. */
   dockId: string | null;
-  /** Set when the newest allocation excluded this agent, with the server's reason. */
   excluded: { reason: string; activeMissionId: string | null } | null;
-  /** True when SwarmOS replaced this agent out of a role. */
   replacedOut: boolean;
 };
 
-/**
- * A bucket of capacity, collapsed to the two facts that survive scale.
- *
- * With a handful of executors the panels list capacity row by row, and that is
- * the right reading: each machine is nameable. With a few dozen it stops being
- * a list anyone reads and starts being a column of identical lines that pushes
- * the rest of the panel out of the viewport — which a recorded surface cannot
- * scroll its way out of.
- *
- * What a reader actually needs from a bucket at that size is how much of it
- * there is and whether it is charged. That is all this returns. It aggregates;
- * it never decides what is committed or spare — `buildCapacity` already did
- * that from composition, and this only counts what it was handed.
- *
- * Null for an empty set, so the caller renders its own honest NONE rather than
- * a zero dressed up as a summary.
- */
 export const CAPACITY_SUMMARY_THRESHOLD = 6;
 
 export type CapacitySummary = {
   count: number;
-  /** Lowest reported battery in the set, percent. */
   minBattery: number;
-  /** Highest reported battery in the set, percent. */
   maxBattery: number;
 };
 
@@ -343,7 +318,6 @@ export function capacitySummary(rows: readonly CapacityRow[]): CapacitySummary |
   return { count: rows.length, minBattery, maxBattery };
 }
 
-/** One line for a summarised set: `27 AGENTS · BATTERY 088-096%`. */
 export function capacitySummaryLabel(summary: CapacitySummary): string {
   const lo = summary.minBattery.toFixed(0).padStart(3, "0");
   const hi = summary.maxBattery.toFixed(0).padStart(3, "0");
@@ -351,8 +325,6 @@ export function capacitySummaryLabel(summary: CapacitySummary): string {
     ? `${String(summary.count).padStart(2, "0")} AGENTS · BATTERY ${lo}%`
     : `${String(summary.count).padStart(2, "0")} AGENTS · BATTERY ${lo}-${hi}%`;
 }
-
-// ── Build ────────────────────────────────────────────────────────────────────
 
 export type AuthorityInput = {
   units: UnitState[];
@@ -368,7 +340,6 @@ export type AuthorityInput = {
 export type AuthorityView = {
   objectives: ObjectiveAuthority[];
   capacity: CapacityRow[];
-  /** Objective the surface focuses by default — the newest one still running. */
   defaultFocusKey: string | null;
 };
 
@@ -381,9 +352,6 @@ function detectionOf(anomaly: AnomalyView | null): Detection | null {
     label: evidence?.label ?? null,
     value: evidence?.value ?? null,
     headline: evidence?.headline ?? null,
-    // Absent evidence is not a claim of a real sensor. A frame that never said
-    // where it came from is treated as simulated, which is what it is on every
-    // scenario path this Console serves.
     simulated: evidence?.simulated ?? true,
     reportedBy: anomaly.detected_by,
     at: anomaly.detected_at,
@@ -394,23 +362,9 @@ const TERMINAL_MEMBER_STATES: ReadonlySet<ExecutionGroupMemberState> = new Set([
   "COMPLETED",
   "FAILED",
   "REPLACED",
+  "DIVERTED",
 ]);
 
-/**
- * When SwarmOS decided this objective.
- *
- * Not when it last said anything about it. `ExecutionGroup.ts` is the timestamp
- * of the newest frame, so reading the decision off it made the composition time
- * walk forward for the life of the objective: the trace's COMPOSED stage
- * re-dated itself every time a member changed state, the objective indices could
- * swap places mid-take, and focus — which follows the newest objective — could
- * hand itself to an older one that happened to publish last.
- *
- * The members carry the real answer. SwarmOS stamps each one when it puts it in,
- * and it appends rather than rewrites, so the earliest member timestamp is when
- * the group was composed. The group's own `ts` is the fallback for a frame that
- * has no members yet.
- */
 function composedAt(group: ExecutionGroup): string {
   let earliest: string | null = null;
   for (const member of group.members) {
@@ -419,7 +373,6 @@ function composedAt(group: ExecutionGroup): string {
   return earliest ?? group.ts;
 }
 
-/** Latest runtime frame per mission, from the append-only log plus the projection. */
 function latestRuntimeByMission(
   input: AuthorityInput
 ): Map<string, MissionRuntimeEvent> {
@@ -433,14 +386,6 @@ function latestRuntimeByMission(
   return latest;
 }
 
-/**
- * Group the members of an ExecutionGroup by the role they hold.
- *
- * SwarmOS appends a replacement rather than editing the failed member, so a
- * role can carry several rows. The live holder is the one SwarmOS has not
- * marked `REPLACED`; the displaced holder stays visible because the
- * replacement is the thing this surface exists to show.
- */
 function slotsFromGroup(
   group: ExecutionGroup,
   runtime: Map<string, MissionRuntimeEvent>,
@@ -462,12 +407,13 @@ function slotsFromGroup(
     const members = (byRole.get(role) ?? [])
       .slice()
       .sort((a, b) => epoch(a.ts) - epoch(b.ts));
-    const live = members.filter((m) => m.state !== "REPLACED").at(-1) ?? null;
+    const live =
+      members
+        .filter((m) => m.state !== "REPLACED" && m.state !== "DIVERTED")
+        .at(-1) ?? null;
     const replaced = members.filter((m) => m.state === "REPLACED").at(-1) ?? null;
+    const diverted = members.filter((m) => m.state === "DIVERTED").at(-1) ?? null;
     const frame = live?.mission_id ? runtime.get(live.mission_id) ?? null : null;
-    const allocation = live?.mission_id ? allocationsByMission.get(live.mission_id) ?? null : null;
-    // A role is adapting while its live holder has failed and SwarmOS has not
-    // yet put a replacement in. Both halves are read off member state.
     const adapting = Boolean(live && live.state === "FAILED");
 
     return {
@@ -476,43 +422,36 @@ function slotsFromGroup(
       roleIsAssigned: true,
       agentId: live?.agent_id ?? null,
       missionId: live?.mission_id ?? null,
-      memberState: live?.state ?? null,
+      memberState: live?.state ?? diverted?.state ?? null,
       phase: frame?.phase ?? null,
       proof: runtimeEvidenceLabel(frame),
       score: live?.score ?? null,
       replacesAgentId: live?.replaces_agent_id ?? null,
       replacedAgentId: replaced?.agent_id ?? null,
+      divertedAgentId: diverted?.agent_id ?? null,
+      // The member record carries this once SwarmOS marks a role DIVERTED on
+      // its own group; a role a diversion just *filled* has no such member
+      // history yet, so fall back to the winning allocation itself — the
+      // authoritative record of a preemptive award (`mode: "diversion"`).
+      divertedFromMissionId:
+        live?.diverted_from_mission_id ??
+        (live?.mission_id
+          ? allocationsByMission.get(live.mission_id)?.diverted_from_mission_id ?? null
+          : null),
+      divertedFromObjectiveId: live?.diverted_from_objective_id ?? null,
       adapting,
       groupId: group.id,
       swarmIndex,
       reinforcement: (group.reinforces_group_id ?? null) != null,
-      divertedFromMissionId:
-        allocation?.mode === "diversion" ? allocation.diverted_from_mission_id ?? null : null,
     };
   });
 }
 
-/**
- * The swarms of one objective, grouped by the relationship SwarmOS published.
- *
- * ADR-0012 is explicit that the link is `reinforces_group_id` and nothing else:
- * two groups can share an `anomaly_id` or an `objective_mission_id` for reasons
- * that are not reinforcement, and a reader that grouped on either would be
- * inventing an operational relationship out of a coincidence.
- *
- * So a group joins another only when it names it *and* the named group is real
- * and serves the same objective mission. A dangling or inconsistent reference
- * leaves the group standing on its own, which is the honest reading and which
- * heals itself the moment the missing frame arrives.
- */
 function groupSwarms(groups: readonly ExecutionGroup[]): ExecutionGroup[][] {
   const byId = new Map(groups.map((group) => [group.id, group]));
 
   const rootOf = (group: ExecutionGroup): ExecutionGroup => {
     let held = group;
-    // Bounded rather than `while (true)`: ADR-0012 says a reinforcing group
-    // never reinforces in turn, but a frame that said otherwise must not spin
-    // this reader.
     for (let hop = 0; hop < groups.length; hop += 1) {
       const parentId = held.reinforces_group_id ?? null;
       if (!parentId || parentId === held.id) return held;
@@ -536,7 +475,6 @@ function groupSwarms(groups: readonly ExecutionGroup[]): ExecutionGroup[][] {
     }
   }
 
-  // Oldest first, so swarm 01 is the swarm that took the objective.
   return order.map((rootId) =>
     (buckets.get(rootId) ?? [])
       .slice()
@@ -544,7 +482,6 @@ function groupSwarms(groups: readonly ExecutionGroup[]): ExecutionGroup[][] {
   );
 }
 
-/** The single-executor case: the allocation itself is the whole composition. */
 function slotFromDecision(
   decision: AllocationDecision,
   runtime: Map<string, MissionRuntimeEvent>
@@ -553,8 +490,6 @@ function slotFromDecision(
   return [
     {
       index: 1,
-      // SwarmOS assigned no role on a single-executor objective, so the surface
-      // says what it actually awarded: the child mission kind.
       role: decision.mission_kind,
       roleIsAssigned: false,
       agentId: decision.winner_agent_id,
@@ -565,12 +500,13 @@ function slotFromDecision(
       score: decision.winner_score,
       replacesAgentId: null,
       replacedAgentId: null,
+      divertedAgentId: null,
+      divertedFromMissionId: decision.diverted_from_mission_id ?? null,
+      divertedFromObjectiveId: null,
       adapting: false,
       groupId: null,
       swarmIndex: 1,
       reinforcement: false,
-      divertedFromMissionId:
-        decision.mode === "diversion" ? decision.diverted_from_mission_id ?? null : null,
     },
   ];
 }
@@ -593,22 +529,6 @@ function objectiveState(
   return slots.some((s) => s.agentId) ? "EXECUTING" : "COMPOSING";
 }
 
-/**
- * One objective's state, read from the swarms serving it.
- *
- * With one swarm this is exactly `objectiveState` and nothing else, which is
- * what keeps every existing take reading as it did. With two it has to answer
- * for both, and the order below is the reading order the surface owes: what is
- * being recomposed outranks what is merely running, and what is running
- * outranks what is still forming — a second swarm still composing does not make
- * an objective with aircraft over the target read as COMPOSING.
- *
- * Only once nothing is live do the terminal states get a say. A mixed terminal
- * result — one swarm verified, one failed — reads VERIFIED, because verification
- * did happen; the swarm rows carry which swarm failed and the counts carry the
- * strength it was served at. ADR-0012 is explicit that a partly served
- * objective is an honest outcome stated by its counts, not a failure.
- */
 function foldObjectiveState(states: readonly ObjectiveState[]): ObjectiveState {
   if (states.length === 0) return "COMPOSING";
   if (states.length === 1) return states[0];
@@ -618,10 +538,13 @@ function foldObjectiveState(states: readonly ObjectiveState[]): ObjectiveState {
   return states.includes("VERIFIED") ? "VERIFIED" : "FAILED";
 }
 
-/** The strength readings for one swarm, over the roles it actually holds. */
 function heldIn(slots: readonly CompositionSlot[]): number {
   return slots.filter(
-    (slot) => slot.agentId && slot.memberState !== "FAILED" && slot.phase !== "FAILED"
+    (slot) =>
+      slot.agentId &&
+      slot.memberState !== "FAILED" &&
+      slot.memberState !== "DIVERTED" &&
+      slot.phase !== "FAILED"
   ).length;
 }
 
@@ -633,14 +556,13 @@ function buildTrace(
   frames: MissionRuntimeEvent[]
 ): TraceStage[] {
   const ordered = frames.slice().sort((a, b) => epoch(a.ts) - epoch(b.ts));
-  const composed = slots.some((s) => s.agentId);
+  const composed = slots.some((s) => s.agentId || s.divertedAgentId);
   const firstFrame = ordered[0] ?? null;
   const replacement = slots.find((s) => s.replacesAgentId);
-  const adapted = Boolean(replacement) || slots.some((s) => s.adapting);
+  const adapted =
+    Boolean(replacement) || slots.some((s) => s.adapting || s.divertedAgentId != null);
   const verified = state === "VERIFIED";
 
-  // The replacement's own first frame is what dates the adaptation. Falling back
-  // to the failure frame keeps the stage honest while a replacement is pending.
   const adaptedAt =
     ordered.find((f) => replacement?.agentId && f.agent_id === replacement.agentId)?.ts ??
     ordered.find((f) => f.phase === "FAILED")?.ts ??
@@ -661,11 +583,6 @@ function buildTrace(
     },
     {
       name: "ADAPTED",
-      // Never "pending": ADAPTED does not sit in a queue waiting its turn the
-      // way COMPOSED/EXECUTING/VERIFIED do. It is either actively resolving a
-      // failure, closed because it resolved one, or not required because none
-      // has occurred — and the surface can say that last one as a fact of the
-      // present, live-updating the instant it stops being true.
       state: !adapted ? "not_required" : state === "ADAPTING" ? "active" : "done",
       at: adaptedAt,
     },
@@ -690,23 +607,9 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
     } else framesByMission.set(frame.mission_id, [frame]);
   }
 
-  // Child missions of a group are awarded too, so their allocations would
-  // otherwise read as objectives in their own right. They are not: the group is
-  // the objective.
   const childMissionIds = new Set<string>();
   for (const group of input.executionGroups) {
     for (const member of group.members) childMissionIds.add(member.mission_id);
-  }
-
-  // Keyed by mission id regardless of whether that mission belongs to a group
-  // or stands alone — a group child's own allocation still carries `mode` and
-  // `diverted_from_mission_id`, which `slotsFromGroup` reads for its slot.
-  const allocationsByMission = new Map<string, AllocationDecision>();
-  for (const decision of input.allocations) {
-    const held = allocationsByMission.get(decision.mission_id);
-    if (!held || epoch(decision.ts) >= epoch(held.ts)) {
-      allocationsByMission.set(decision.mission_id, decision);
-    }
   }
 
   const decisions = input.allocations
@@ -715,11 +618,17 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
     .slice()
     .sort((a, b) => epoch(a.ts) - epoch(b.ts));
 
-  // One objective per *set* of related groups, never one per group. A
-  // reinforcement joins the objective it was dispatched to serve; giving it its
-  // own would put a second tab in the switch, a second mark on the map, and —
-  // because focus follows the newest active objective — take the surface off
-  // the beat at the exact moment the beat lands.
+  // Keyed by mission id regardless of whether that mission belongs to a group
+  // or stands alone — a group child's own allocation still carries `mode` and
+  // `diverted_from_mission_id`, which `slotsFromGroup` reads as its fallback.
+  const allocationsByMission = new Map<string, AllocationDecision>();
+  for (const decision of input.allocations) {
+    const held = allocationsByMission.get(decision.mission_id);
+    if (!held || epoch(decision.ts) >= epoch(held.ts)) {
+      allocationsByMission.set(decision.mission_id, decision);
+    }
+  }
+
   const groupObjectives: ObjectiveAuthority[] = groupSwarms(input.executionGroups).map(
     (groups) => {
       const origin = groups[0];
@@ -748,9 +657,6 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
         s.missionId ? framesByMission.get(s.missionId) ?? [] : []
       );
       const state = foldObjectiveState(swarms.map((swarm) => swarm.state));
-      // The originating swarm's composition time. A reinforcement is a later
-      // frame about an objective SwarmOS already decided, and dating the
-      // objective from it would re-order the switch and move focus.
       const decisionAt = swarms[0].composedAt;
       return {
         key: origin.id,
@@ -766,12 +672,10 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
         groupId: origin.id,
         groupStateLabel: origin.state,
         swarms,
-        requestedMembers: swarms.reduce((total, swarm) => total + swarm.requestedMembers, 0),
+        requestedMembers: origin.requested_members,
         slots,
         excludedUnits: [],
-        activeMembers: slots.filter(
-          (s) => s.memberState === "ACTIVE" || s.memberState === "ASSIGNED"
-        ).length,
+        activeMembers: heldIn(slots),
         state,
         active: state !== "VERIFIED" && state !== "FAILED",
         trace: buildTrace(slots, state, anomaly?.detected_at ?? null, decisionAt, frames),
@@ -809,8 +713,6 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
       geo: anomaly ? { lat: anomaly.geo.lat, lon: anomaly.geo.lon } : null,
       groupId: null,
       groupStateLabel: null,
-      // No ExecutionGroup, so no swarm. The panel says "single executor" in as
-      // many words rather than dressing one award up as a unit.
       swarms: [],
       requestedMembers: 1,
       slots,
@@ -846,8 +748,6 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
     .sort((a, b) => epoch(a.decisionAt) - epoch(b.decisionAt))
     .map((objective, i) => ({ ...objective, index: i + 1 }));
 
-  // Focus follows the newest objective that is still running, so the surface
-  // lands on the thing that is happening rather than on history.
   const defaultFocusKey =
     objectives.filter((o) => o.active).at(-1)?.key ?? objectives.at(-1)?.key ?? null;
 
@@ -858,13 +758,6 @@ export function buildAuthorityView(input: AuthorityInput): AuthorityView {
   };
 }
 
-/**
- * Physical capacity — every executor SwarmOS can see, and what it is doing.
- *
- * Commitment is read from composition, not guessed from flight state: an agent
- * is ASSIGNED because SwarmOS put it in a role, and SPARE because SwarmOS left
- * it out. That distinction is the product.
- */
 function buildCapacity(
   input: AuthorityInput,
   objectives: ObjectiveAuthority[]
@@ -881,8 +774,6 @@ function buildCapacity(
       if (slot.replacedAgentId) replacedOut.add(slot.replacedAgentId);
       if (!slot.agentId) continue;
       const current = held.get(slot.agentId);
-      // An agent serving several objectives shows the newest — the same rule
-      // the focus uses.
       if (!current || epoch(objective.decisionAt) >= epoch(current.objective.decisionAt)) {
         held.set(slot.agentId, { objective, slot });
       }
@@ -915,7 +806,12 @@ function buildCapacity(
         );
 
       let state: Commitment;
-      if (unit.fsm_state === "ERROR" || unit.fsm_state === "OFFLINE" || failedInRole || wasReplaced) {
+      if (
+        unit.fsm_state === "ERROR" ||
+        unit.fsm_state === "OFFLINE" ||
+        failedInRole ||
+        wasReplaced
+      ) {
         state = "UNAVAILABLE";
       } else if (stillServing) {
         state = "ASSIGNED";
@@ -946,40 +842,16 @@ function buildCapacity(
     });
 }
 
-// ── Composition at scale ─────────────────────────────────────────────────────
-
-/** Roles listed individually before the composition starts summarising. */
 export const COMPOSITION_ROWS_MAX = 5;
 
 export type CompositionDigest = {
-  /** Slots to render as rows, in their own index order. */
   rows: CompositionSlot[];
-  /** What was left out, and what state it is in. Null when nothing was. */
   hidden: {
     count: number;
     byPhase: { label: string; count: number }[];
   } | null;
 };
 
-/**
- * What a composition shows when SwarmOS put thirty executors on one objective.
- *
- * A cooperative verify has three roles and the panel lists all three. A fleet
- * sweep has thirty, and thirty identical rows is not a composition anyone
- * reads — it is a scrollbar, and it buries the evidence section underneath it.
- *
- * Two rules keep the summary honest. A slot that needs attention is never
- * summarised away: anything failing, adapting, holding a role by replacement,
- * or newly committed as reinforcement is listed whatever the count, because
- * those are the rows the surface exists to show. And what is left out is still
- * stated — how many, and in which phase — rather than silently dropped.
- *
- * Reinforcement earns its place on the same grounds as replacement. A second
- * swarm arriving on an objective that never reached strength is the one thing
- * that just changed, and at the scale where this function starts summarising it
- * is also the thing most easily folded into `+25 ROLES · 25 ON STATION` — which
- * would delete the beat exactly where it matters most.
- */
 export function compositionDigest(
   slots: readonly CompositionSlot[],
   maxRows: number = COMPOSITION_ROWS_MAX
@@ -991,8 +863,11 @@ export function compositionDigest(
       (slot) =>
         slot.adapting ||
         slot.memberState === "FAILED" ||
+        slot.memberState === "DIVERTED" ||
         slot.phase === "FAILED" ||
         slot.replacesAgentId != null ||
+        slot.divertedAgentId != null ||
+        slot.divertedFromMissionId != null ||
         slot.reinforcement
     )
   );
@@ -1022,7 +897,6 @@ export function compositionDigest(
   };
 }
 
-/** One line for the summarised remainder: `+25 ROLES · 25 ON STATION`. */
 export function compositionDigestLabel(
   hidden: NonNullable<CompositionDigest["hidden"]>
 ): string {

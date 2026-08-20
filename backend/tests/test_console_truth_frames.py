@@ -6,6 +6,8 @@ from collections import deque
 
 import pytest
 from swarm_core.allocations import AllocationDecision
+from swarm_core.disposition import DispositionAssignment, DispositionDecision
+from swarm_core.messages import Geo
 from swarm_core.payloads import (
     PayloadActionKind,
     PayloadActionStatus,
@@ -32,6 +34,7 @@ class RecordingHub:
 class TruthState:
     def __init__(self) -> None:
         self.allocations: dict[str, AllocationDecision] = {}
+        self.dispositions: dict[str, DispositionDecision] = {}
         self.mission_runtime: dict[str, MissionRuntimeEvent] = {}
         self.payload_events: deque[PayloadEvent] = deque(maxlen=500)
         self.lock = asyncio.Lock()
@@ -54,6 +57,7 @@ async def test_structured_console_truth_is_validated_stored_and_broadcast() -> N
 
     tasks = [
         asyncio.create_task(consumer._consume_allocations()),
+        asyncio.create_task(consumer._consume_dispositions()),
         asyncio.create_task(consumer._consume_mission_runtime()),
         asyncio.create_task(consumer._consume_payload_events()),
     ]
@@ -65,6 +69,23 @@ async def test_structured_console_truth_is_validated_stored_and_broadcast() -> N
         anomaly_id="anomaly-1",
         winner_agent_id="mav-002",
         winner_score=2.64,
+    )
+    disposition = DispositionDecision(
+        objective_mission_id="objective-1",
+        revision=2,
+        reason="REINFORCEMENT",
+        center=Geo(lat=45.0, lon=9.0),
+        active_members=1,
+        radius_m=30.0,
+        assignments=[
+            DispositionAssignment(
+                group_id="group-1",
+                agent_id="mav-002",
+                role="PRIMARY_OBSERVER",
+                mission_id="mission-1",
+                geo=Geo(lat=45.0002, lon=9.0001, alt_m=40.0),
+            )
+        ],
     )
     runtime = MissionRuntimeEvent(
         mission_id="mission-1",
@@ -86,20 +107,23 @@ async def test_structured_console_truth_is_validated_stored_and_broadcast() -> N
     )
 
     await bus.publish("swarm:allocations", decision.model_dump_json())
+    await bus.publish("swarm:dispositions", disposition.model_dump_json())
     await bus.publish("swarm:missions:runtime", runtime.model_dump_json())
     await bus.publish("swarm:payload:events", payload.model_dump_json())
 
     for _ in range(50):
-        if len(hub.frames) >= 3:
+        if len(hub.frames) >= 4:
             break
         await asyncio.sleep(0.01)
 
     assert {frame["kind"] for frame in hub.frames} == {
         "allocation",
+        "disposition",
         "mission_runtime",
         "payload",
     }
     assert coordinator.state.allocations["mission-1"] == decision
+    assert coordinator.state.dispositions["objective-1"] == disposition
     assert coordinator.state.mission_runtime["mission-1"] == runtime
     assert list(coordinator.state.payload_events) == [payload]
 

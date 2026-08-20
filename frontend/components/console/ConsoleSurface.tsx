@@ -23,6 +23,7 @@ import type { LinkState } from "@/lib/state";
 import type {
   AllocationDecision,
   AnomalyView,
+  DispositionDecision,
   ExecutionGroup,
   MissionRuntimeEvent,
   MissionView,
@@ -32,6 +33,7 @@ import type {
 
 import { MapCanvas, useImageryStatus } from "./MapCanvas";
 import { MapOverlay } from "./MapOverlay";
+import { DispositionOverlay } from "./DispositionOverlay";
 import { DetectionPanel, DETECTION_WIDTH } from "./DetectionPanel";
 import { MissionAuthorityPanel, AUTHORITY_WIDTH } from "./MissionAuthorityPanel";
 import { MissionTrace, TRACE_WIDTH } from "./MissionTrace";
@@ -56,6 +58,8 @@ export type SurfaceFrame = {
   anomalies: AnomalyView[];
   allocations: AllocationDecision[];
   executionGroups: ExecutionGroup[];
+  /** Latest server-issued station geometry. Old replay fixtures may omit it. */
+  dispositions?: DispositionDecision[];
   missions: MissionView[];
   missionRuntime: MissionRuntimeEvent[];
   missionRuntimeLog: MissionRuntimeEvent[];
@@ -135,6 +139,15 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       ? heldFocus
       : view.defaultFocusKey;
   const focused = view.objectives.find((o) => o.key === focusKey) ?? null;
+  const focusedDisposition = useMemo(
+    () =>
+      focused
+        ? (frame.dispositions ?? []).find(
+            (decision) => decision.objective_mission_id === focused.missionId
+          ) ?? null
+        : null,
+    [focused, frame.dispositions]
+  );
 
   // Executors the surface names, everywhere it names anything.
   //
@@ -197,8 +210,11 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       .map((row) => row.geo)
       .filter(live);
     if (focused.geo) out.push(focused.geo);
+    for (const assignment of focusedDisposition?.assignments ?? []) {
+      if (live(assignment.geo)) out.push(assignment.geo);
+    }
     return out.length > 0 ? out : view.capacity.map((row) => row.geo).filter(live);
-  }, [focused, view.capacity, view.objectives]);
+  }, [focused, focusedDisposition, view.capacity, view.objectives]);
 
   if (!originRef.current) {
     originRef.current = anchorOrigin(view.capacity.map((row) => row.geo));
@@ -272,18 +288,21 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
     >
       <MapCanvas tiles={tiles} status={imagery}>
         {projection ? (
-          <MapOverlay
-            projection={projection}
-            objectives={view.objectives}
-            capacity={view.capacity}
-            focusKey={focusKey}
-            selectedExecutor={selectedExecutor}
-            namedAgents={namedAgents}
-            channels={channels}
-            safeArea={safeArea}
-            onSelectObjective={setHeldFocus}
-            onSelectExecutor={setSelectedExecutor}
-          />
+          <>
+            <MapOverlay
+              projection={projection}
+              objectives={view.objectives}
+              capacity={view.capacity}
+              focusKey={focusKey}
+              selectedExecutor={selectedExecutor}
+              namedAgents={namedAgents}
+              channels={channels}
+              safeArea={safeArea}
+              onSelectObjective={setHeldFocus}
+              onSelectExecutor={setSelectedExecutor}
+            />
+            <DispositionOverlay projection={projection} decision={focusedDisposition} />
+          </>
         ) : null}
       </MapCanvas>
 
@@ -314,7 +333,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
         className="pointer-events-none absolute z-30 flex justify-center"
         style={{ left: RAIL_WIDTH + 16, right: 20, top: STATUS_HEIGHT + 10 }}
       >
-        <NarrationStrip focused={focused} beat={beat} />
+        <NarrationStrip focused={focused} beat={beat} disposition={focusedDisposition} />
       </div>
 
       <div
