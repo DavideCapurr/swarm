@@ -24,7 +24,7 @@ jobs:
       # Phase 0 posture: severity gate only. License deny-list will be added
       # in Phase 6 after legal review of the dep tree (likely deny AGPL/GPL
       # for shipped code; allow them for build-only tools).
-      - uses: actions/dependency-review-action@e58c696e52cac8e62d61cc21fda89565d71505d7
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
         with:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
