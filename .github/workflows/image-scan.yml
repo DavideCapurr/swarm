@@ -10,6 +10,13 @@ on:
     # drift.
     - cron: "11 3 * * *"
 
+# Cancel an in-progress scan when a newer commit lands on the same ref;
+# the daily cron run is keyed on `schedule` so it never collides with a
+# branch/PR scan.
+concurrency:
+  group: image-scan-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
 permissions:
   contents: read
   security-events: write

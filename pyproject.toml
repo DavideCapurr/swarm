@@ -16,7 +16,7 @@ dependencies = [
     "pydantic>=2.6,<3",
     "fastapi>=0.110,<1",
     "uvicorn[standard]>=0.27,<1",
-    "websockets>=12,<17",
+    "websockets>=12,<18",
     "redis>=5.0,<9",
     # `[asyncio]` extra pulls greenlet, which SQLAlchemy needs for the async
     # session/engine path (PEP 555 emulation). Declared explicitly so a
@@ -67,7 +67,7 @@ otel = [
 cv = [
     "ultralytics>=8.3,<8.5",
     "torch>=2.4,<2.13",
-    "torchvision>=0.19,<0.28",
+    "torchvision>=0.19,<0.29",
     "opencv-python-headless>=4.10,<4.14",
     "numpy>=1.26,<3",
     "Pillow>=10.0,<13",

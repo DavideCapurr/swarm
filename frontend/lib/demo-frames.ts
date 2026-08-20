@@ -812,6 +812,32 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
     };
   }
 
+  /** `payload()` above stamps `ts` off `TAKE_A.t0`; this take runs on `TAKE_B.t0`. */
+  function payloadB(
+    missionId: string,
+    anomalyId: string,
+    agentId: string,
+    kind: PayloadEvent["kind"],
+    mode: PayloadEvent["execution_mode"],
+    atS: number
+  ): PayloadEvent {
+    return {
+      id: `${missionId}-${kind}`,
+      mission_id: missionId,
+      anomaly_id: anomalyId,
+      action_id: `${missionId}-${kind}-action`,
+      agent_id: agentId,
+      kind,
+      status: mode === "simulated" ? "simulated" : "confirmed",
+      execution_mode: mode,
+      light_on: kind === "light_on",
+      speaker_active: kind === "play_message",
+      message: kind === "play_message" || kind === "stop_message" ? "restricted_area" : null,
+      error_code: null,
+      ts: isoB(atS * 1000),
+    };
+  }
+
   const roster = [
     { agent: TAKE_B.primary.agent, mission: TAKE_B.primary.mission, from: 8 },
     { agent: TAKE_B.secondary.agent, mission: TAKE_B.secondary.mission, from: 8 },
@@ -942,22 +968,22 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
   frames.push({
     at: 33_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 33),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_on", "mavlink_output_confirmed", 33),
   });
   frames.push({
     at: 34_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 34),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "play_message", "simulated", 34),
   });
   frames.push({
     at: 44_000,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "stop_message", "simulated", 44),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "stop_message", "simulated", 44),
   });
   frames.push({
     at: 44_500,
     kind: "payload",
-    data: payload(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_off", "mavlink_output_confirmed", 44.5),
+    data: payloadB(TAKE_B.primary.mission, TAKE_B.anomaly, TAKE_B.primary.agent, "light_off", "mavlink_output_confirmed", 44.5),
   });
 
   // Completion, each on an acknowledged RTL, then the aggregate group.
