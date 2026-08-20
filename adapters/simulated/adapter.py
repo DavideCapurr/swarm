@@ -52,12 +52,17 @@ class SimulatedAdapter:
         model: str = "sim-x500",
         self_tick: bool = True,
         tick_hz: float = 50.0,
+        sensors: frozenset[SensorKind] | None = None,
     ) -> None:
         self.agent_id = agent_id
         self.model = model
         self._drone = drone
         self.capabilities = Capabilities(
-            sensors=frozenset({SensorKind.RGB, SensorKind.THERMAL}),
+            sensors=(
+                sensors
+                if sensors is not None
+                else frozenset({SensorKind.RGB, SensorKind.THERMAL})
+            ),
             has_obstacle_avoidance=False,
             max_flight_time_s=600.0,
             max_speed_mps=12.0,
@@ -205,6 +210,10 @@ class SimulatedAdapter:
         self._drone.command_goto(new_waypoint.geo)
 
     async def request_capture(self, sensor: SensorKind) -> CaptureResult:
+        if sensor not in self.capabilities.sensors:
+            raise UnsupportedMission(
+                f"{self.agent_id} cannot capture {sensor.value}: sensor unavailable"
+            )
         return CaptureResult(
             sensor=sensor,
             uri=f"sim://{self.agent_id}/{sensor.value}/{int(time.time() * 1000)}",

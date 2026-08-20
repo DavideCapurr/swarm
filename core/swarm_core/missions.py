@@ -33,6 +33,12 @@ class UnsupportedMission(Exception):
     """Raised by an adapter when the vendor cannot execute a given mission shape."""
 
 
+def _required_capabilities(values: list[str] | None) -> list[str]:
+    """Canonicalize objective requirements without naming physical agents."""
+
+    return sorted(set(values or []))
+
+
 # ── Constructors ──────────────────────────────────────────────────────────────
 
 
@@ -43,6 +49,7 @@ def PATROL(  # noqa: N802 — DSL verb, matches MissionKind.PATROL
     sensors: list[SensorKind] | None = None,
     altitude_m: float = 60.0,
     priority: int = 1,
+    required_capabilities: list[str] | None = None,
 ) -> MissionTask:
     """Scheduled territorial scan over the given polygon."""
 
@@ -53,6 +60,7 @@ def PATROL(  # noqa: N802 — DSL verb, matches MissionKind.PATROL
             "cadence_s": cadence_s,
             "sensors": [s.value for s in (sensors or [SensorKind.RGB])],
             "altitude_m": altitude_m,
+            "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
     )
@@ -66,6 +74,7 @@ def VERIFY(  # noqa: N802 — DSL verb, matches MissionKind.VERIFY
     altitude_m: float = 40.0,
     priority: int = 50,
     deadline_s: float | None = 300.0,
+    required_capabilities: list[str] | None = None,
 ) -> MissionTask:
     """Fly to anomaly, multi-sensor capture, classify, confirm or refute."""
 
@@ -77,6 +86,7 @@ def VERIFY(  # noqa: N802 — DSL verb, matches MissionKind.VERIFY
             "sensors": [s.value for s in (sensors or [SensorKind.RGB, SensorKind.THERMAL])],
             "hover_s": hover_s,
             "altitude_m": altitude_m,
+            "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
         deadline=deadline,
@@ -88,10 +98,12 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
     geo: Geo,
     team_size: int = 3,
     roles: list[str] | None = None,
+    sensors: list[SensorKind] | None = None,
     hover_s: float = 20.0,
     base_altitude_m: float = 40.0,
     altitude_step_m: float = 15.0,
     priority: int = 80,
+    required_capabilities: list[str] | None = None,
 ) -> MissionTask:
     """One logical verification objective requiring multiple physical agents.
 
@@ -110,9 +122,14 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
             "geo": geo.model_dump(),
             "team_size": team_size,
             "roles": list(roles or []),
+            "sensors": [
+                sensor.value
+                for sensor in (sensors or [SensorKind.RGB, SensorKind.THERMAL])
+            ],
             "hover_s": hover_s,
             "base_altitude_m": base_altitude_m,
             "altitude_step_m": altitude_step_m,
+            "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
     )
@@ -125,6 +142,7 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
     rotation: bool = True,
     altitude_m: float = 60.0,
     priority: int = 10,
+    required_capabilities: list[str] | None = None,
 ) -> MissionTask:
     """Multi-drone area coverage with battery-aware rotation.
 
@@ -139,6 +157,7 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
             "fleet_size": fleet_size,
             "rotation": rotation,
             "altitude_m": altitude_m,
+            "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
     )
@@ -150,6 +169,7 @@ def RELAY(  # noqa: N802 — DSL verb, matches MissionKind.RELAY
     altitude_m: float = 80.0,
     duration_s: float = 600.0,
     priority: int = 20,
+    required_capabilities: list[str] | None = None,
 ) -> MissionTask:
     """One drone holds a hover at altitude to act as a comms / observation relay."""
 
@@ -159,6 +179,7 @@ def RELAY(  # noqa: N802 — DSL verb, matches MissionKind.RELAY
             "geo": geo.model_dump(),
             "altitude_m": altitude_m,
             "duration_s": duration_s,
+            "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
     )

@@ -89,6 +89,7 @@ async def _publish_fleet_state(
     world: World, registry: AdapterRegistry, bus: Bus
 ) -> None:
     """Aggregate drone state at 2 Hz and publish on /fleet/state."""
+    from swarm_core.capabilities import planning_capabilities_from_sensors
     from swarm_core.messages import AgentState
 
     while True:
@@ -112,6 +113,9 @@ async def _publish_fleet_state(
                 fsm_state=state,
                 battery_pct=d.battery_pct,
                 geo=d.geo,
+                capabilities=sorted(
+                    planning_capabilities_from_sensors(adapter.capabilities.sensors)
+                ),
             )
             await bus.publish("swarm:fleet:state", fs.model_dump_json())
         await asyncio.sleep(0.5)
@@ -139,6 +143,7 @@ async def main() -> None:
     if not 0.0 <= cooperative_min_confidence <= 1.0:
         raise ValueError("SIM_COOPERATIVE_VERIFY_MIN_CONFIDENCE must be in [0, 1]")
 
+    scenario = None
     scenario_path = os.getenv("SIM_SCENARIO")
     if scenario_path:
         from sim.swarm_sim.scenario import load_scenario
@@ -196,7 +201,21 @@ async def main() -> None:
 
     adapters: list[SimulatedAdapter] = []
     for d in world.drones:
-        a = SimulatedAdapter(agent_id=d.agent_id, drone=d, self_tick=False)
+        configured_sensors = (
+            scenario.fleet.sensors_by_agent.get(d.agent_id)
+            if scenario is not None
+            else None
+        )
+        a = SimulatedAdapter(
+            agent_id=d.agent_id,
+            drone=d,
+            self_tick=False,
+            sensors=(
+                frozenset(configured_sensors)
+                if configured_sensors is not None
+                else None
+            ),
+        )
         await a.connect()
         registry.register(a)
         adapters.append(a)

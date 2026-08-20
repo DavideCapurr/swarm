@@ -73,6 +73,7 @@ function objective(
     detectedAt: null,
     detection: null,
     geo: null,
+    requiredCapabilities: [],
     groupId: "group-1",
     groupStateLabel: state,
     swarms: [swarm({ state: state === "ADAPTING" ? "ADAPTING" : "EXECUTING" })],
@@ -133,8 +134,6 @@ describe("narrationFor", () => {
   });
 
   it("says a second objective was dispatched around a busy executor", () => {
-    // The event-2 beat: SwarmOS answered a new objective with a different
-    // executor because the nearest one already held another active mission.
     const concurrent = objective("EXECUTING", {
       groupId: null,
       swarms: [],
@@ -148,8 +147,6 @@ describe("narrationFor", () => {
   });
 
   it("stays on the plain single-executor line for a non-busy exclusion", () => {
-    // LOW_BATTERY / UNAVAILABLE exclusions exist too. Only BUSY is the
-    // concurrent-objective beat; anything else has nothing new to say.
     const single = objective("EXECUTING", {
       groupId: null,
       swarms: [],
@@ -239,8 +236,6 @@ describe("narrationFor", () => {
   });
 
   it("states a composition shortfall rather than leaving it to a count", () => {
-    // ADR-0012 partial strength: SwarmOS asked for three roles and could fill
-    // two. The swarm is ACTIVE and serving; it simply never reached strength.
     const partial = objective("EXECUTING", {
       slots: [slot(), slot({ index: 2, role: "OVERWATCH", agentId: "mav-002" })],
       swarms: [swarm({ composedMembers: 2, heldMembers: 2, underStrength: true })],
@@ -329,7 +324,6 @@ describe("narrationFor", () => {
         // eslint-disable-next-line security/detect-non-literal-regexp -- bounded scan over an in-repo const list
         if (new RegExp(`\\b${word}\\b`, "i").test(line)) offences.push({ word, line });
       }
-      // The operator sends intents; nothing here may read as a manual command.
       expect(line).not.toMatch(/\b(manual|pilot|fly|land now)\b/i);
     }
     expect(offences, JSON.stringify(offences)).toEqual([]);

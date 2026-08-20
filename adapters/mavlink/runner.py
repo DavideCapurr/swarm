@@ -37,6 +37,7 @@ import signal
 from dataclasses import dataclass, field
 from typing import Any
 
+from swarm_core.capabilities import planning_capabilities_from_sensors
 from swarm_core.messages import AgentState, FleetState
 
 from adapters.base import AdapterRegistry
@@ -117,6 +118,11 @@ class MAVLinkRunner:
                     fsm_state=fsm_state,
                     battery_pct=health.battery_pct,
                     geo=geo,
+                    capabilities=sorted(
+                        planning_capabilities_from_sensors(
+                            self.adapter.capabilities.sensors
+                        )
+                    ),
                     link_quality=health.link_quality,
                 )
                 await self.bus.publish("swarm:fleet:state", fs.model_dump_json())
@@ -238,11 +244,3 @@ def main() -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-
-
-__all__ = (
-    "MAVLinkRunner",
-    "adapter_from_env",
-    "boot_runner",
-    "main",
-)

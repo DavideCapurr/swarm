@@ -36,6 +36,7 @@ const OBJECTIVE: ObjectiveAuthority = {
     at: "2026-08-15T17:28:51.000Z",
   },
   geo: { lat: 47.398, lon: 8.546 },
+  requiredCapabilities: [],
   groupId: "group-1",
   groupStateLabel: "ACTIVE",
   swarms: [],

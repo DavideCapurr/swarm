@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
+from swarm_core.capabilities import Capability
 from swarm_core.messages import (
     AgentState,
     Anomaly,
@@ -97,6 +98,7 @@ async def test_anomaly_dispatches_through_registered_adapter_without_world_drone
     await asyncio.sleep(0.05)
 
     target = Geo(lat=45.0, lon=10.0)
+    visual = [Capability.VISUAL_OBSERVATION.value]
     await bus.publish(
         "swarm:fleet:state",
         FleetState(
@@ -106,6 +108,7 @@ async def test_anomaly_dispatches_through_registered_adapter_without_world_drone
             fsm_state=AgentState.DOCKED,
             battery_pct=90.0,
             geo=Geo(lat=45.0001, lon=10.0001),
+            capabilities=visual,
         ).model_dump_json(),
     )
     await bus.publish(
@@ -117,6 +120,7 @@ async def test_anomaly_dispatches_through_registered_adapter_without_world_drone
             fsm_state=AgentState.DOCKED,
             battery_pct=90.0,
             geo=Geo(lat=45.02, lon=10.02),
+            capabilities=visual,
         ).model_dump_json(),
     )
     await orch.wait_for_registered_fleet(timeout_s=1.0)

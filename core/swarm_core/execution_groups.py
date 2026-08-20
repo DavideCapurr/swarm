@@ -66,6 +66,10 @@ class ExecutionGroup(BaseModel):
     objective_mission_id: str
     objective_kind: str
     anomaly_id: str | None = None
+    # Generic objective requirements copied from the parent mission. This makes
+    # the reason for group composition first-class truth without forcing a
+    # Console to infer capabilities from member roles or aircraft metadata.
+    required_capabilities: list[str] = Field(default_factory=list)
     # Set when SwarmOS dispatched this group to reinforce an already-running one
     # against the same objective. Published provenance, exactly like
     # `ExecutionGroupMember.replaces_agent_id` — a reader must never have to
