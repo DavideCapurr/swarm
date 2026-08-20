@@ -98,6 +98,7 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
     geo: Geo,
     team_size: int = 3,
     roles: list[str] | None = None,
+    sensors: list[SensorKind] | None = None,
     hover_s: float = 20.0,
     base_altitude_m: float = 40.0,
     altitude_step_m: float = 15.0,
@@ -121,6 +122,10 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
             "geo": geo.model_dump(),
             "team_size": team_size,
             "roles": list(roles or []),
+            "sensors": [
+                sensor.value
+                for sensor in (sensors or [SensorKind.RGB, SensorKind.THERMAL])
+            ],
             "hover_s": hover_s,
             "base_altitude_m": base_altitude_m,
             "altitude_step_m": altitude_step_m,
