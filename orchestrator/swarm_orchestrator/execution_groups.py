@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from swarm_core.allocator import build_bid
+from swarm_core.allocator import build_bid, has_capabilities, required_capabilities
 from swarm_core.execution_groups import (
     ExecutionGroup,
     ExecutionGroupMember,
@@ -47,7 +47,11 @@ from swarm_core.missions import (
 )
 from swarm_core.runtime_events import MissionRuntimeEvent
 
-from orchestrator.swarm_orchestrator.service import MIN_BATTERY_PCT, Orchestrator
+from orchestrator.swarm_orchestrator.service import (
+    MIN_BATTERY_PCT,
+    Orchestrator,
+    verification_capabilities,
+)
 
 logger = logging.getLogger("swarm.orchestrator.execution_groups")
 
@@ -198,12 +202,14 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 anomaly.geo.lat,
                 anomaly.geo.lon,
             )
+            requirements = verification_capabilities(anomaly)
             if self._should_cooperative_verify(anomaly):
                 parent = COOPERATIVE_VERIFY(
                     geo=anomaly.geo,
                     team_size=self.cooperative_verify_team_size,
                     hover_s=self.cooperative_verify_hover_s,
                     priority=80 + int(anomaly.confidence * 20),
+                    required_capabilities=requirements,
                 )
                 await self.dispatch_execution_group(parent, anomaly_id=anomaly.id)
                 continue
@@ -212,6 +218,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 geo=anomaly.geo,
                 hover_s=self.verify_hover_s,
                 priority=80 + int(anomaly.confidence * 20),
+                required_capabilities=requirements,
             )
             await self._auction_and_dispatch(mission, anomaly_id=anomaly.id)
 
@@ -266,6 +273,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
         base_altitude_m = float(objective.params.get("base_altitude_m", 40.0))
         altitude_step_m = float(objective.params.get("altitude_step_m", 15.0))
         configured_roles = list(objective.params.get("roles", []))
+        required = list(objective.params.get("required_capabilities", []))
         default_roles = ["PRIMARY_OBSERVER", "SECONDARY_OBSERVER", "OVERWATCH"]
 
         plans: list[ExecutionRolePlan] = []
@@ -283,6 +291,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 altitude_m=base_altitude_m + altitude_step_m * idx,
                 priority=objective.priority,
                 deadline_s=None,
+                required_capabilities=required,
             )
             child.params["execution_role"] = role
             child.params["parent_objective_id"] = objective.id
@@ -296,6 +305,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
             raise ValueError("COVER fleet_size must be >= 1")
         if not area:
             raise ValueError("COVER requires a non-empty area")
+        required = list(objective.params.get("required_capabilities", []))
 
         plans: list[ExecutionRolePlan] = []
         for idx in range(fleet_size):
@@ -304,6 +314,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 area=slice_area,
                 altitude_m=float(objective.params.get("altitude_m", 60.0)),
                 priority=objective.priority,
+                required_capabilities=required,
             )
             role = f"COVERAGE_SLICE_{idx + 1}"
             child.params["execution_role"] = role
@@ -417,9 +428,15 @@ class ExecutionGroupOrchestrator(Orchestrator):
             )
         return group
 
-    def _eligible_fleet(self, *, excluded_agent_ids: set[str]) -> list[FleetState]:
+    def _eligible_fleet(
+        self,
+        *,
+        excluded_agent_ids: set[str],
+        mission: MissionTask | None = None,
+    ) -> list[FleetState]:
         """Executors SwarmOS may commit to a group child mission right now."""
 
+        required = required_capabilities(mission) if mission is not None else set()
         eligible: list[FleetState] = []
         for state in self._snapshot_fleet():
             if state.agent_id in excluded_agent_ids:
@@ -429,6 +446,8 @@ class ExecutionGroupOrchestrator(Orchestrator):
             if state.battery_pct < MIN_BATTERY_PCT:
                 continue
             if not is_available(state.fsm_state):
+                continue
+            if not has_capabilities(state, required):
                 continue
             eligible.append(state)
         return eligible
@@ -440,7 +459,10 @@ class ExecutionGroupOrchestrator(Orchestrator):
         excluded_agent_ids: set[str],
     ) -> tuple[str, float, dict[str, float]] | None:
         ranked: list[tuple[str, float, dict[str, float]]] = []
-        for state in self._eligible_fleet(excluded_agent_ids=excluded_agent_ids):
+        for state in self._eligible_fleet(
+            excluded_agent_ids=excluded_agent_ids,
+            mission=mission,
+        ):
             bid = build_bid(mission, state)
             ranked.append((state.agent_id, bid.score, dict(bid.reason)))
         if not ranked:
@@ -508,12 +530,20 @@ class ExecutionGroupOrchestrator(Orchestrator):
             for member in group.members
             if member.state not in _LOST_MEMBER_STATES
         )
+        next_mission = (
+            record.unfilled_plans[0].mission if record.unfilled_plans else None
+        )
         return ReinforcementObservation(
             objective_kind=origin.objective_kind,
             objective_state=origin.state,
             requested_members=origin.requested_members,
             committed_members=committed,
-            eligible_agents=len(self._eligible_fleet(excluded_agent_ids=set())),
+            eligible_agents=len(
+                self._eligible_fleet(
+                    excluded_agent_ids=set(),
+                    mission=next_mission,
+                )
+            ),
             reinforcements_dispatched=len(record.reinforcement_group_ids),
             max_reinforcements=self.max_reinforcements_per_objective,
         )
