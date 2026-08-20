@@ -368,6 +368,7 @@ describe("compositionDigest", () => {
     groupId: "group-1",
     swarmIndex: 1,
     reinforcement: false,
+    divertedFromMissionId: null,
     ...over,
   });
 

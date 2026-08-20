@@ -287,7 +287,7 @@ function OwnershipStamp({ objective }: { objective: ObjectiveAuthority }) {
       data-testid="ownership-stamp"
     >
       <Dot tone="orbital" />
-      <span className="font-grotesk text-[11.5px] font-medium uppercase leading-none tracking-[0.16em] text-orbital-blue">
+      <span className="font-grotesk text-[11.5px] font-medium leading-none tracking-[0.03em] text-orbital-blue">
         SwarmOS owns this objective
       </span>
       <Mono size={11} tone="ash" className="ml-auto">
@@ -305,7 +305,7 @@ function ObjectiveIdentity({ objective }: { objective: ObjectiveAuthority }) {
   return (
     <div className="px-3 pb-[11px] pt-[11px]">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-grotesk text-[16px] font-medium uppercase leading-none tracking-[0.13em] text-platinum">
+        <span className="font-grotesk text-[16px] font-medium uppercase leading-none tracking-[0.06em] text-platinum">
           {objective.kind}
         </span>
         {objective.confidence != null ? (
@@ -375,7 +375,7 @@ function SwarmHeader({ swarm }: { swarm: SwarmComposition }) {
           {reinforcing ? "reinforcement" : "execution group"}
         </Label>
         {reinforcing ? (
-          <Mono size={9} tone="ash" className="uppercase">
+          <Mono size={9} tone="ash">
             reinforces {groupLabel(swarm.reinforcesGroupId)}
           </Mono>
         ) : null}
@@ -583,7 +583,7 @@ function SlotRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.16em] text-platinum">
+          <span className="truncate font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.06em] text-platinum">
             {slot.roleIsAssigned ? roleLabel(slot.role) : slot.role}
           </span>
           <Mono size={10} tone={tone}>
@@ -606,7 +606,7 @@ function SlotRow({
             {slot.agentId ?? "UNASSIGNED"}
           </Mono>
           {slot.replacesAgentId ? (
-            <Mono size={9} tone="ash" className="uppercase">
+            <Mono size={9} tone="ash">
               replaced by swarmos
             </Mono>
           ) : null}

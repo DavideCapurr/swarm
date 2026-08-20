@@ -49,7 +49,7 @@ export function MissionTrace({
         className="flex items-center justify-between px-3 py-[7px]"
         style={{ borderBottom: `1px solid ${HAIRLINE}` }}
       >
-        <span className="font-grotesk text-[9.5px] font-medium uppercase leading-none tracking-[0.22em] text-ash">
+        <span className="font-grotesk text-[9.5px] font-medium leading-none tracking-[0.03em] text-ash">
           mission trace
         </span>
         <Mono size={9.5} tone="ash">
@@ -98,7 +98,7 @@ export function MissionTrace({
             </div>
 
             <span
-              className={`mt-[9px] text-center font-grotesk text-[10px] font-medium uppercase leading-none tracking-[0.12em] ${
+              className={`mt-[9px] text-center font-grotesk text-[10px] font-medium uppercase leading-none tracking-[0.06em] ${
                 stage.state === "not_required"
                   ? "text-ash/35"
                   : stage.state === "pending"
@@ -111,7 +111,7 @@ export function MissionTrace({
               {stage.name}
             </span>
 
-            <span className="mt-[6px] text-center font-mono text-[9px] tabular-nums leading-none tracking-[0.06em] text-ash/70">
+            <span className="mt-[6px] text-center font-console-mono text-[9px] tabular-nums leading-none tracking-[0.06em] text-ash/70">
               {stage.state === "not_required" ? "NOT REQUIRED" : stampOf(stage.at)}
             </span>
           </div>
