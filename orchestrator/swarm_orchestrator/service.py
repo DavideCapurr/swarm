@@ -40,12 +40,19 @@ from swarm_core.allocations import (
     AllocationExclusionReason,
     AllocationScoreBreakdown,
 )
-from swarm_core.allocator import build_bid, select_winner
+from swarm_core.allocator import (
+    build_bid,
+    has_capabilities,
+    required_capabilities,
+    select_winner,
+)
+from swarm_core.capabilities import Capability, planning_capabilities_from_sensors
 from swarm_core.fsm import is_available
 from swarm_core.geometry import haversine_m
 from swarm_core.messages import (
     AgentState,
     Anomaly,
+    AnomalyKind,
     Award,
     FleetState,
     Geo,
@@ -65,6 +72,26 @@ logger = logging.getLogger("swarm.orchestrator")
 AUCTION_WINDOW_S = 0.5
 MIN_BATTERY_PCT = 25.0
 _M_PER_DEG = 111_000.0  # equirectangular approximation, matches the sim
+
+
+def verification_capabilities(anomaly: Anomaly) -> list[str]:
+    """Translate an external anomaly into generic verification capability needs.
+
+    The policy names capabilities, never aircraft. It is deliberately small:
+    intrusion verification needs visual observation; thermal/fire anomalies
+    need thermal observation. Unknown events keep the legacy unconstrained path
+    until a stronger requirement exists.
+    """
+
+    if anomaly.kind is AnomalyKind.INTRUSION:
+        return [Capability.VISUAL_OBSERVATION.value]
+    if anomaly.kind in {
+        AnomalyKind.SMOKE,
+        AnomalyKind.FIRE,
+        AnomalyKind.HEAT_SPOT,
+    }:
+        return [Capability.THERMAL_OBSERVATION.value]
+    return []
 
 
 @dataclass
@@ -116,11 +143,17 @@ class Orchestrator:
             except Exception as e:
                 logger.warning("invalid anomaly payload: %s", e)
                 continue
-            logger.info("anomaly received: %s @ (%.5f, %.5f)", anomaly.kind.value, anomaly.geo.lat, anomaly.geo.lon)
+            logger.info(
+                "anomaly received: %s @ (%.5f, %.5f)",
+                anomaly.kind.value,
+                anomaly.geo.lat,
+                anomaly.geo.lon,
+            )
             mission = VERIFY(
                 geo=anomaly.geo,
                 hover_s=self.verify_hover_s,
                 priority=80 + int(anomaly.confidence * 20),
+                required_capabilities=verification_capabilities(anomaly),
             )
             await self._auction_and_dispatch(mission, anomaly_id=anomaly.id)
 
@@ -220,14 +253,19 @@ class Orchestrator:
         eligible_units: list[AllocationEligibleUnit] = []
         excluded_units: list[AllocationExcludedUnit] = []
         bids = []
+        required = required_capabilities(mission)
 
         for fs in fleet:
+            common = {
+                "agent_id": fs.agent_id,
+                "fsm_state": fs.fsm_state,
+                "battery_pct": fs.battery_pct,
+                "capabilities": fs.capabilities,
+            }
             if fs.agent_id in self._busy:
                 excluded_units.append(
                     AllocationExcludedUnit(
-                        agent_id=fs.agent_id,
-                        fsm_state=fs.fsm_state,
-                        battery_pct=fs.battery_pct,
+                        **common,
                         reason=AllocationExclusionReason.BUSY,
                         active_mission_id=(
                             self._agent_mission_ids.get(fs.agent_id)
@@ -239,9 +277,7 @@ class Orchestrator:
             if fs.battery_pct < MIN_BATTERY_PCT:
                 excluded_units.append(
                     AllocationExcludedUnit(
-                        agent_id=fs.agent_id,
-                        fsm_state=fs.fsm_state,
-                        battery_pct=fs.battery_pct,
+                        **common,
                         reason=AllocationExclusionReason.LOW_BATTERY,
                         active_mission_id=fs.current_mission_id,
                     )
@@ -250,10 +286,17 @@ class Orchestrator:
             if not is_available(fs.fsm_state):
                 excluded_units.append(
                     AllocationExcludedUnit(
-                        agent_id=fs.agent_id,
-                        fsm_state=fs.fsm_state,
-                        battery_pct=fs.battery_pct,
+                        **common,
                         reason=AllocationExclusionReason.UNAVAILABLE,
+                        active_mission_id=fs.current_mission_id,
+                    )
+                )
+                continue
+            if not has_capabilities(fs, required):
+                excluded_units.append(
+                    AllocationExcludedUnit(
+                        **common,
+                        reason=AllocationExclusionReason.CAPABILITY_MISMATCH,
                         active_mission_id=fs.current_mission_id,
                     )
                 )
@@ -263,9 +306,7 @@ class Orchestrator:
             bids.append(bid)
             eligible_units.append(
                 AllocationEligibleUnit(
-                    agent_id=fs.agent_id,
-                    fsm_state=fs.fsm_state,
-                    battery_pct=fs.battery_pct,
+                    **common,
                     score=bid.score,
                     score_breakdown=AllocationScoreBreakdown(**bid.reason),
                 )
@@ -350,6 +391,7 @@ class Orchestrator:
             mission_id=mission.id,
             mission_kind=mission.kind,
             anomaly_id=anomaly_id,
+            required_capabilities=sorted(required_capabilities(mission)),
             mode=mode,  # type: ignore[arg-type]
             eligible_units=eligible_units,
             excluded_units=excluded_units,
@@ -365,12 +407,14 @@ class Orchestrator:
         from swarm_core.allocator import _mission_geo
 
         mgeo = _mission_geo(mission)
+        required = required_capabilities(mission)
         airborne = [
             f
             for f in fleet
             if f.fsm_state is not AgentState.DOCKED
             and f.battery_pct >= MIN_BATTERY_PCT
             and f.agent_id not in self._verifying
+            and has_capabilities(f, required)
         ]
         if not airborne:
             return None
@@ -476,6 +520,9 @@ class Orchestrator:
             for d in self.world_drones:
                 adapter = self.registry.get(d.agent_id)
                 state = AgentState.DOCKED if d.is_docked else AgentState.EN_ROUTE
+                capabilities = planning_capabilities_from_sensors(
+                    adapter.capabilities.sensors  # type: ignore[attr-defined]
+                )
                 out.append(
                     FleetState(
                         agent_id=d.agent_id,
@@ -484,6 +531,7 @@ class Orchestrator:
                         fsm_state=state,
                         battery_pct=d.battery_pct,
                         geo=Geo(lat=d.geo.lat, lon=d.geo.lon, alt_m=d.geo.alt_m),
+                        capabilities=sorted(capabilities),
                     )
                 )
             return out
