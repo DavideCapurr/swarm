@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Any, cast
 
 import pytest
 from swarm_core.messages import Anomaly, AnomalyKind, SensorKind
@@ -43,9 +44,9 @@ async def test_intrusion_publishes_capability_requirement_and_mismatch() -> None
     )
     task = asyncio.create_task(orchestrator.run())
 
-    async def next_allocation() -> dict[str, object]:
+    async def next_allocation() -> dict[str, Any]:
         async for _, payload in bus.subscribe("swarm:allocations"):
-            return json.loads(payload)
+            return cast(dict[str, Any], json.loads(payload))
         raise AssertionError("allocation stream ended")
 
     allocation_task = asyncio.create_task(next_allocation())
