@@ -2,8 +2,10 @@ id: intrusion_owner_land
 name: "Intrusion — owner land perimeter"
 description: |
   Low-confidence anomaly detected at the east edge of a fenced ~1.2 ha
-  rectangular perimeter. Single drone dispatched for sector verification,
-  inspection, and live feed. Replicable on the founder site in Phase 19.
+  rectangular perimeter. SwarmOS derives a visual-observation requirement,
+  rejects incompatible physical capacity, and dispatches a capable executor
+  for verification, inspection, and live feed. Replicable on the founder site
+  in Phase 19.
 tick_hz: 10
 # Phase 7.B — autonomy R1 fires on the 0.71 INTRUSION; deliberately
 # stays under the R2 ESCALATE floor (0.80) so the operator owns
@@ -23,6 +25,12 @@ plot:
 fleet:
   n_drones: 2
   dock_offset_m: { east: 0.0, north: 0.0 }
+  # Physical facts, not scripted assignments. sim-1 lacks RGB/visual capacity;
+  # sim-2 can satisfy the visual verification objective. SwarmOS must discover
+  # that through canonical capability filtering at allocation time.
+  sensors_by_agent:
+    sim-1: [THERMAL]
+    sim-2: [RGB, THERMAL]
 perception:
   territory_radius_m: 100.0
   # Phase 7.D — opt-in CV baseline. YOLOv8 pretrained runs on a committed
