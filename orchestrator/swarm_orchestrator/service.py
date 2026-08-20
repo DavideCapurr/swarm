@@ -46,7 +46,7 @@ from swarm_core.allocator import (
     required_capabilities,
     select_winner,
 )
-from swarm_core.capabilities import Capability, planning_capabilities_from_sensors
+from swarm_core.capabilities import planning_capabilities_from_sensors
 from swarm_core.fsm import is_available
 from swarm_core.geometry import haversine_m
 from swarm_core.messages import (
@@ -57,6 +57,7 @@ from swarm_core.messages import (
     FleetState,
     Geo,
     MissionTask,
+    SensorKind,
 )
 from swarm_core.missions import PATROL, VERIFY
 from swarm_core.runtime_events import MissionRuntimeEvent
@@ -74,24 +75,38 @@ MIN_BATTERY_PCT = 25.0
 _M_PER_DEG = 111_000.0  # equirectangular approximation, matches the sim
 
 
-def verification_capabilities(anomaly: Anomaly) -> list[str]:
-    """Translate an external anomaly into generic verification capability needs.
+def verification_sensors(anomaly: Anomaly) -> list[SensorKind] | None:
+    """Translate the required data product into the minimum sensor set.
 
-    The policy names capabilities, never aircraft. It is deliberately small:
-    intrusion verification needs visual observation; thermal/fire anomalies
-    need thermal observation. Unknown events keep the legacy unconstrained path
-    until a stronger requirement exists.
+    This is the first half of the planning chain observed in customer discovery:
+    desired verification output -> sensor requirement. ``None`` deliberately
+    preserves the legacy multi-sensor VERIFY path when the anomaly kind does not
+    yet imply a stronger requirement.
     """
 
     if anomaly.kind is AnomalyKind.INTRUSION:
-        return [Capability.VISUAL_OBSERVATION.value]
+        return [SensorKind.RGB]
     if anomaly.kind in {
         AnomalyKind.SMOKE,
         AnomalyKind.FIRE,
         AnomalyKind.HEAT_SPOT,
     }:
-        return [Capability.THERMAL_OBSERVATION.value]
-    return []
+        return [SensorKind.THERMAL]
+    return None
+
+
+def verification_capabilities(anomaly: Anomaly) -> list[str]:
+    """Derive generic planning requirements from the required sensor set.
+
+    The allocator reasons about generic capabilities, never camera models or
+    aircraft ids. Keeping this derived from ``verification_sensors`` prevents a
+    mission from selecting a thermal-only executor and later asking it for RGB.
+    """
+
+    sensors = verification_sensors(anomaly)
+    if sensors is None:
+        return []
+    return sorted(planning_capabilities_from_sensors(sensors))
 
 
 @dataclass
@@ -151,6 +166,7 @@ class Orchestrator:
             )
             mission = VERIFY(
                 geo=anomaly.geo,
+                sensors=verification_sensors(anomaly),
                 hover_s=self.verify_hover_s,
                 priority=80 + int(anomaly.confidence * 20),
                 required_capabilities=verification_capabilities(anomaly),
