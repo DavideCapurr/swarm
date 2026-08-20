@@ -13,10 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # dependency-review-action is free on public repos and requires GitHub
-    # Advanced Security on private ones. Skip on private repos until GHAS
-    # lands in Phase 6 — Dependabot weekly + pnpm/pip audit in CI cover
-    # the same vulnerability surface in the meantime.
-    if: github.event.repository.visibility != 'private'
+    # Advanced Security on private ones. On this private repo the action
+    # errors with "Dependency review is not supported on this repository"
+    # (GHAS / Dependency-graph not enabled), and the `repository.visibility`
+    # guard did not reliably skip it. Gate on an explicit opt-in variable so
+    # the job is deterministically skipped (neutral, not failing) until GHAS
+    # is enabled and `ENABLE_DEPENDENCY_REVIEW` is set to "true" in repo vars.
+    # Dependabot weekly + pnpm/pip audit in CI cover the same surface today.
+    if: vars.ENABLE_DEPENDENCY_REVIEW == 'true'
     steps:
       # actions/checkout@v4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
