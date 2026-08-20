@@ -5,7 +5,7 @@ from swarm_core.capabilities import Capability
 from swarm_core.messages import AgentState, FleetState, Geo, Telemetry
 
 from swarm_os.coordinator import SwarmCoordinator
-from swarm_os.state import SwarmState, VINEYARD_CENTER
+from swarm_os.state import VINEYARD_CENTER, SwarmState
 
 
 @pytest.mark.asyncio
