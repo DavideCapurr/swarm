@@ -7,20 +7,11 @@
  * the aircraft the hero; here the hero is the decision loop, so the reading
  * order is fixed and deliberate:
  *
- *   objective → ownership → composition → roles → executors → spare → evidence
+ *   objective → required capabilities → ownership → composition → executors
+ *             → spare → evidence
  *
- * Ownership sits directly under the objective identity, above the fold, not
- * as a footnote after the roster. The first thing a viewer who has never seen
- * this product has to register is not "four drones on a map" — it is that
- * something decided this. The map caption already says `OWNED · SWARMOS` the
- * instant SwarmOS accepts an objective; this panel makes the same claim the
- * moment the reading order gets to it.
- *
- * Every line is a server field. Roles are the roles SwarmOS assigned
- * (`PRIMARY_OBSERVER`, `SECONDARY_OBSERVER`, `OVERWATCH`); a replacement is
- * drawn from the runtime's own `replaces_agent_id`; an exclusion carries the
- * allocator's reason and the exact mission that made the agent unavailable.
- * Nothing here is composed by the Console.
+ * Every capability shown here is server truth. The Console formats labels; it
+ * never derives a requirement or decides that an executor is eligible.
  */
 
 import type {
@@ -30,6 +21,7 @@ import type {
   SwarmComposition,
 } from "@/lib/authority";
 import {
+  capabilityLabel,
   capacitySummary,
   capacitySummaryLabel,
   compositionDigest,
@@ -64,11 +56,8 @@ export function MissionAuthorityPanel({
 }: {
   objectives: ObjectiveAuthority[];
   focused: ObjectiveAuthority | null;
-  /** The adaptation announcement. Owned by `ConsoleSurface` so the panel and
-      the narration line are never two timers telling two stories. */
   beat: AdaptationBeat;
   capacity: CapacityRow[];
-  /** Bounded-response channels for the focused objective, latest frame each. */
   channels: PayloadChannel[];
   onSelectObjective: (key: string) => void;
 }) {
@@ -80,9 +69,6 @@ export function MissionAuthorityPanel({
   return (
     <Surface
       data-testid="mission-authority"
-      /* The adaptation beat is presentation state, so it is published where a
-         test — and a screen recording check — can see it without reaching into
-         React internals. */
       data-beat={beat.phase}
       className="pointer-events-auto flex flex-col"
       style={{ width: AUTHORITY_WIDTH }}
@@ -91,13 +77,9 @@ export function MissionAuthorityPanel({
 
       {!focused ? (
         <div className="px-3 py-6">
-          <Mono size={11} tone="ash">
-            NO OBJECTIVE HELD
-          </Mono>
+          <Mono size={11} tone="ash">NO OBJECTIVE HELD</Mono>
           <div className="mt-2">
-            <Mono size={10} tone="ash">
-              AWAITING ALLOCATOR FRAME
-            </Mono>
+            <Mono size={10} tone="ash">AWAITING ALLOCATOR FRAME</Mono>
           </div>
         </div>
       ) : (
@@ -111,9 +93,8 @@ export function MissionAuthorityPanel({
           ) : null}
 
           <ObjectiveIdentity objective={focused} />
-
+          <RequirementStrip objective={focused} />
           <OwnershipStamp objective={focused} />
-
           <Composition objective={focused} beat={beat} capacity={capacity} />
 
           <Divider />
@@ -122,24 +103,16 @@ export function MissionAuthorityPanel({
             <Label>spare capacity</Label>
             <div className="flex flex-col items-end gap-[6px]">
               {spare.length === 0 ? (
-                <Mono size={11} tone="ash">
-                  NONE
-                </Mono>
+                <Mono size={11} tone="ash">NONE</Mono>
               ) : spareAggregate ? (
-                /* Past a handful, the reserve stops being a list anyone reads
-                   and starts pushing the evidence below it off the panel. */
                 <Mono size={11} tone="silver" data-testid="spare-summary">
                   {capacitySummaryLabel(spareAggregate)}
                 </Mono>
               ) : (
                 spare.map((row) => (
                   <div key={row.agentId} className="flex items-center gap-2">
-                    <Mono size={12} tone="silver">
-                      {row.agentId}
-                    </Mono>
-                    <Mono size={10} tone="ash">
-                      {row.batteryPct.toFixed(0)}%
-                    </Mono>
+                    <Mono size={12} tone="silver">{row.agentId}</Mono>
+                    <Mono size={10} tone="ash">{row.batteryPct.toFixed(0)}%</Mono>
                   </div>
                 ))
               )}
@@ -149,20 +122,25 @@ export function MissionAuthorityPanel({
           {excluded.length > 0 ? (
             <>
               <Divider />
-              <div className="px-3 py-[10px]">
+              <div className="px-3 py-[10px]" data-testid="capability-exclusions">
                 <Label tone="amber">excluded from this objective</Label>
-                <div className="mt-[7px] flex flex-col gap-[6px]">
+                <div className="mt-[7px] flex flex-col gap-[8px]">
                   {excluded.map((row) => (
-                    <div key={row.agentId} className="flex items-baseline justify-between gap-3">
-                      <Mono size={12} tone="silver">
-                        {row.agentId}
-                      </Mono>
-                      <div className="flex items-baseline gap-2">
-                        <Mono size={10} tone="amber">
-                          {row.excluded?.reason}
-                        </Mono>
+                    <div key={row.agentId} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Mono size={12} tone="silver">{row.agentId}</Mono>
+                        {row.capabilities.length > 0 ? (
+                          <div className="mt-[4px] truncate">
+                            <Mono size={8.5} tone="ash">
+                              {row.capabilities.map(capabilityLabel).join(" · ")}
+                            </Mono>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-col items-end gap-[4px]">
+                        <Mono size={10} tone="amber">{row.excluded?.reason}</Mono>
                         {row.excluded?.activeMissionId ? (
-                          <Mono size={10} tone="ash">
+                          <Mono size={9} tone="ash">
                             M-{row.excluded.activeMissionId.slice(0, 8)}
                           </Mono>
                         ) : null}
@@ -178,11 +156,6 @@ export function MissionAuthorityPanel({
             <>
               <Divider />
               <div className="px-3 pb-[10px] pt-[10px]">
-                {/* What the group actually does once it is over the objective.
-                    The two channels are never merged: the light is confirmed at
-                    the PX4 output and the speaker is explicitly simulated, and
-                    collapsing them into one "evidence" line would launder the
-                    second into the first. */}
                 <Label>bounded response</Label>
                 <div className="mt-[8px] flex flex-col gap-[7px]">
                   {channels.map((channel) => (
@@ -191,9 +164,7 @@ export function MissionAuthorityPanel({
                       className="flex items-baseline justify-between gap-3"
                     >
                       <div className="flex items-baseline gap-2">
-                        <Mono size={10} tone="ash">
-                          {channel.channel}
-                        </Mono>
+                        <Mono size={10} tone="ash">{channel.channel}</Mono>
                         <Mono
                           size={11}
                           tone={channel.tier === "simulated" ? "amber" : "silver"}
@@ -222,13 +193,6 @@ export function MissionAuthorityPanel({
   );
 }
 
-/**
- * Concurrent objectives.
- *
- * SwarmOS can hold more than one at a time, and the surface has to show that
- * without turning into a queue: the other objectives stay one quiet line, and
- * the focused one gets the panel.
- */
 function ObjectiveSwitch({
   objectives,
   focusKey,
@@ -261,9 +225,7 @@ function ObjectiveSwitch({
             <Mono size={10} tone={active ? "platinum" : "silver"}>
               {String(objective.index).padStart(2, "0")}
             </Mono>
-            <Mono size={10} tone="ash" className="truncate">
-              {objective.kind}
-            </Mono>
+            <Mono size={10} tone="ash" className="truncate">{objective.kind}</Mono>
           </button>
         );
       })}
@@ -271,14 +233,31 @@ function ObjectiveSwitch({
   );
 }
 
-/**
- * The ownership stamp.
- *
- * One line, directly under the objective, in the accent that means "SwarmOS is
- * the live channel". This is the sentence the whole panel exists to make true:
- * something with mission-level authority took this objective, before anyone
- * reads what it composed to answer it.
- */
+function RequirementStrip({ objective }: { objective: ObjectiveAuthority }) {
+  return (
+    <div
+      className="px-3 py-[10px]"
+      style={{ borderTop: `1px solid ${HAIRLINE}`, borderBottom: `1px solid ${HAIRLINE}` }}
+      data-testid="objective-requirements"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <Label>requires</Label>
+        {objective.requiredCapabilities.length === 0 ? (
+          <Mono size={9.5} tone="ash">NO EXPLICIT CAPABILITY</Mono>
+        ) : (
+          <div className="flex max-w-[220px] flex-wrap justify-end gap-x-2 gap-y-[5px]">
+            {objective.requiredCapabilities.map((capability) => (
+              <Mono key={capability} size={9.5} tone="orbital">
+                {capabilityLabel(capability)}
+              </Mono>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OwnershipStamp({ objective }: { objective: ObjectiveAuthority }) {
   return (
     <div
@@ -290,9 +269,7 @@ function OwnershipStamp({ objective }: { objective: ObjectiveAuthority }) {
       <span className="font-grotesk text-[11.5px] font-medium leading-none tracking-[0.03em] text-orbital-blue">
         SwarmOS owns this objective
       </span>
-      <Mono size={11} tone="ash" className="ml-auto">
-        {objective.label}
-      </Mono>
+      <Mono size={11} tone="ash" className="ml-auto">{objective.label}</Mono>
     </div>
   );
 }
@@ -317,31 +294,21 @@ function ObjectiveIdentity({ objective }: { objective: ObjectiveAuthority }) {
           </div>
         ) : null}
       </div>
-
       <div className="mt-[7px]">
-        <Mono size={12} tone="silver">
-          {objective.label}
-        </Mono>
+        <Mono size={12} tone="silver">{objective.label}</Mono>
       </div>
-
       <div className="mt-[11px] flex items-end justify-between gap-3">
         <div className="flex flex-col gap-[6px]">
           <Label>state</Label>
           <div className="flex items-center gap-2">
             <Dot tone={tone} />
-            <Mono size={13} tone={tone} data-testid="objective-state">
-              {objective.state}
-            </Mono>
+            <Mono size={13} tone={tone} data-testid="objective-state">{objective.state}</Mono>
           </div>
         </div>
         <div className="flex flex-col items-end gap-[6px]">
           <Label>roles held</Label>
-          {/* A role whose holder has failed is not held. The count has to drop
-              while SwarmOS is recomposing, or the panel would report a full
-              group at the exact moment one of them has gone. */}
           <Mono size={13} tone={held < objective.requestedMembers ? "amber" : "platinum"}>
-            {String(held).padStart(2, "0")} /{" "}
-            {String(objective.requestedMembers).padStart(2, "0")}
+            {String(held).padStart(2, "0")} / {String(objective.requestedMembers).padStart(2, "0")}
           </Mono>
         </div>
       </div>
@@ -349,19 +316,6 @@ function ObjectiveIdentity({ objective }: { objective: ObjectiveAuthority }) {
   );
 }
 
-/**
- * One swarm's header, when the objective holds more than one.
- *
- * With a single swarm the objective's own `ROLES HELD` already is the swarm's
- * strength and this header would say it twice. With two it is the only place
- * the reading can live: an objective-wide `04 / 06` cannot tell an operator
- * *which* unit is short, and "swarm 01 is under strength" is the fact that
- * changes what happens next.
- *
- * Amber below requested strength. Never red — a swarm serving an objective at
- * partial strength is doing exactly what ADR-0012 asks it to, and an alarm
- * colour would misreport a deliberate outcome as a fault.
- */
 function SwarmHeader({ swarm }: { swarm: SwarmComposition }) {
   const reinforcing = swarm.reinforcesGroupId != null;
   return (
@@ -375,22 +329,17 @@ function SwarmHeader({ swarm }: { swarm: SwarmComposition }) {
           {reinforcing ? "reinforcement" : "execution group"}
         </Label>
         {reinforcing ? (
-          <Mono size={9} tone="ash">
-            reinforces {groupLabel(swarm.reinforcesGroupId)}
-          </Mono>
+          <Mono size={9} tone="ash">reinforces {groupLabel(swarm.reinforcesGroupId)}</Mono>
         ) : null}
       </div>
       <div className="flex flex-col items-end gap-[6px]">
-        <Mono size={10} tone="ash">
-          {swarm.label}
-        </Mono>
+        <Mono size={10} tone="ash">{swarm.label}</Mono>
         <Mono
           size={11}
           tone={swarm.underStrength ? "amber" : "platinum"}
           data-testid={`swarm-strength-${swarm.groupId}`}
         >
-          {String(swarm.heldMembers).padStart(2, "0")} /{" "}
-          {String(swarm.requestedMembers).padStart(2, "0")}
+          {String(swarm.heldMembers).padStart(2, "0")} / {String(swarm.requestedMembers).padStart(2, "0")}
         </Mono>
       </div>
     </div>
@@ -408,13 +357,6 @@ function Composition({
 }) {
   const composed = objective.groupId != null;
   const altitudeOf = new Map(capacity.map((row) => [row.agentId, row.altitudeAglM]));
-  // A three-role cooperative objective lists all three. A thirty-ship sweep
-  // lists the rows that need reading and states the rest.
-  //
-  // One digest over the whole objective, not one per swarm: `ConsoleSurface`
-  // derives `namedAgents` from this same call, and the map, the composition and
-  // the roster naming three different sets of executors is the defect that rule
-  // exists to prevent. Sectioning happens on render.
   const digest = compositionDigest(objective.slots);
   const sectioned = objective.swarms.length > 1;
   const rowsBySwarm = new Map<number, CompositionSlot[]>();
@@ -461,9 +403,7 @@ function Composition({
             style={{ borderTop: `1px solid ${HAIRLINE}` }}
             data-testid="composition-summary"
           >
-            <Mono size={11} tone="ash">
-              {compositionDigestLabel(digest.hidden)}
-            </Mono>
+            <Mono size={11} tone="ash">{compositionDigestLabel(digest.hidden)}</Mono>
           </div>
         ) : null}
       </div>
@@ -471,14 +411,6 @@ function Composition({
   );
 }
 
-/**
- * The adaptation announcement.
- *
- * Amber, not red — escalation and failure are amber across this product, which
- * is the one palette rule that never bends. It is a two-line statement inside
- * the panel, not an overlay, not a modal and not a screen flash: SwarmOS
- * handled it, and the surface should read as a system that expected this.
- */
 function AdaptationBanner({ beat }: { beat: Exclude<AdaptationBeat, { phase: "idle" }> }) {
   if (beat.phase === "adapting") {
     return (
@@ -493,17 +425,11 @@ function AdaptationBanner({ beat }: { beat: Exclude<AdaptationBeat, { phase: "id
       >
         <Label tone="amber">executor unavailable</Label>
         <div className="mt-[7px] flex items-baseline gap-2">
-          <Mono size={13} tone="amber">
-            {beat.lostAgent}
-          </Mono>
-          <Mono size={10} tone="ash">
-            {roleLabel(beat.role)}
-          </Mono>
+          <Mono size={13} tone="amber">{beat.lostAgent}</Mono>
+          <Mono size={10} tone="ash">{roleLabel(beat.role)}</Mono>
         </div>
         <div className="mt-[7px]">
-          <Mono size={10} tone="amber">
-            ADAPTING EXECUTION GROUP…
-          </Mono>
+          <Mono size={10} tone="amber">ADAPTING EXECUTION GROUP…</Mono>
         </div>
       </div>
     );
@@ -521,20 +447,12 @@ function AdaptationBanner({ beat }: { beat: Exclude<AdaptationBeat, { phase: "id
     >
       <Label tone="green">group restored</Label>
       <div className="mt-[7px] flex items-baseline gap-2">
-        <Mono size={11} tone="ash">
-          {roleLabel(beat.role)}
-        </Mono>
+        <Mono size={11} tone="ash">{roleLabel(beat.role)}</Mono>
       </div>
       <div className="mt-[6px] flex items-baseline gap-2">
-        <Mono size={12} tone="ash" className="line-through">
-          {beat.fromAgent}
-        </Mono>
-        <Mono size={11} tone="ash">
-          →
-        </Mono>
-        <Mono size={13} tone="green">
-          {beat.toAgent}
-        </Mono>
+        <Mono size={12} tone="ash" className="line-through">{beat.fromAgent}</Mono>
+        <Mono size={11} tone="ash">→</Mono>
+        <Mono size={13} tone="green">{beat.toAgent}</Mono>
       </div>
       <div className="mt-[7px]">
         <Mono size={10} tone="green">
@@ -552,7 +470,6 @@ function SlotRow({
 }: {
   slot: CompositionSlot;
   beat: AdaptationBeat;
-  /** Reported altitude AGL. SwarmOS separates the roles by height, not by station. */
   altitudeAglM: number | null;
 }) {
   const failing = slot.adapting || slot.memberState === "FAILED";
@@ -560,16 +477,11 @@ function SlotRow({
   const highlighted =
     (beat.phase === "restored" && beat.role === slot.role) ||
     (beat.phase === "adapting" && beat.role === slot.role);
-
   const tone = failing ? "amber" : done ? "green" : "orbital";
 
   return (
     <div
       className="flex items-start gap-3 px-3 py-[9px]"
-      /* Scoped by the swarm holding the role: two swarms on one objective can
-         hold the same role name, and an ambiguous hook is a measurement that
-         silently reads the wrong row. A single-executor objective has no swarm
-         to scope by and keeps the bare role. */
       data-testid={slot.groupId ? `slot-${slot.groupId}-${slot.role}` : `slot-${slot.role}`}
       style={{
         borderTop: `1px solid ${HAIRLINE}`,
@@ -586,33 +498,22 @@ function SlotRow({
           <span className="truncate font-grotesk text-[11px] font-medium uppercase leading-none tracking-[0.06em] text-platinum">
             {slot.roleIsAssigned ? roleLabel(slot.role) : slot.role}
           </span>
-          <Mono size={10} tone={tone}>
-            {phaseLabel(slot.phase ?? slot.memberState)}
-          </Mono>
+          <Mono size={10} tone={tone}>{phaseLabel(slot.phase ?? slot.memberState)}</Mono>
         </div>
 
         <div className="mt-[7px] flex items-baseline gap-2">
           {slot.replacesAgentId ? (
             <>
-              <Mono size={10} tone="ash" className="line-through">
-                {slot.replacesAgentId}
-              </Mono>
-              <Mono size={10} tone="ash">
-                →
-              </Mono>
+              <Mono size={10} tone="ash" className="line-through">{slot.replacesAgentId}</Mono>
+              <Mono size={10} tone="ash">→</Mono>
             </>
           ) : null}
           <Mono size={12} tone={failing ? "amber" : "platinum"} className="value-swap">
             {slot.agentId ?? "UNASSIGNED"}
           </Mono>
           {slot.replacesAgentId ? (
-            <Mono size={9} tone="ash">
-              replaced by swarmos
-            </Mono>
+            <Mono size={9} tone="ash">replaced by swarmos</Mono>
           ) : null}
-          {/* The roles inside a cooperative objective are separated by altitude
-              over one target, so the height is the assignment, not telemetry
-              trivia. */}
           {altitudeAglM != null && altitudeAglM >= 1 ? (
             <Mono size={9.5} tone="ash" className="ml-auto">
               {altitudeAglM.toFixed(0).padStart(3, "0")} m

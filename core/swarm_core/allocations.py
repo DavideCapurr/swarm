@@ -1,6 +1,6 @@
 """Structured allocator truth published for operator-facing surfaces.
 
-The allocator already owns eligibility and scoring.  This module only gives
+The allocator already owns eligibility and scoring. This module only gives
 those decisions a strict transport shape so a Console can render the real
 auction instead of reconstructing or narrating it client-side.
 """
@@ -27,6 +27,7 @@ class AllocationExclusionReason(str, Enum):
     BUSY = "BUSY"
     LOW_BATTERY = "LOW_BATTERY"
     UNAVAILABLE = "UNAVAILABLE"
+    CAPABILITY_MISMATCH = "CAPABILITY_MISMATCH"
 
 
 class AllocationScoreBreakdown(BaseModel):
@@ -49,6 +50,7 @@ class AllocationEligibleUnit(BaseModel):
     agent_id: str
     fsm_state: AgentState
     battery_pct: float = Field(..., ge=0.0, le=100.0)
+    capabilities: list[str] = Field(default_factory=list)
     score: float
     score_breakdown: AllocationScoreBreakdown
 
@@ -59,6 +61,7 @@ class AllocationExcludedUnit(BaseModel):
     agent_id: str
     fsm_state: AgentState
     battery_pct: float = Field(..., ge=0.0, le=100.0)
+    capabilities: list[str] = Field(default_factory=list)
     reason: AllocationExclusionReason
     active_mission_id: str | None = None
 
@@ -71,6 +74,7 @@ class AllocationDecision(BaseModel):
     mission_id: str
     mission_kind: str
     anomaly_id: str | None = None
+    required_capabilities: list[str] = Field(default_factory=list)
     mode: Literal["auction", "diversion", "no_award"] = "auction"
     eligible_units: list[AllocationEligibleUnit] = Field(default_factory=list)
     excluded_units: list[AllocationExcludedUnit] = Field(default_factory=list)

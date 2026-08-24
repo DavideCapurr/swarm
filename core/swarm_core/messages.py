@@ -183,7 +183,12 @@ class MissionProgress(BaseModel):
 
 
 class FleetState(BaseModel):
-    """Canonical snapshot of one physical agent consumed by SwarmOS."""
+    """Canonical snapshot of one physical agent consumed by SwarmOS.
+
+    ``capabilities`` are mission-planning capabilities owned by canonical
+    SwarmOS state. Adapters may describe vendor-specific sensors/payloads, but
+    allocation never reaches into an adapter to decide eligibility.
+    """
 
     agent_id: str
     vendor: str
@@ -191,6 +196,7 @@ class FleetState(BaseModel):
     fsm_state: AgentState
     battery_pct: float
     geo: Geo
+    capabilities: list[str] = Field(default_factory=list)
     current_mission_id: str | None = None
     link_quality: float = 1.0
     ts: datetime = Field(default_factory=_now)
@@ -401,6 +407,7 @@ class UnitState(BaseModel):
     fsm_state: AgentState
     battery_pct: float = Field(..., ge=0.0, le=100.0)
     geo: Geo
+    capabilities: list[str] = Field(default_factory=list)
     current_mission_id: str | None = None
     current_sector_id: str | None = None
     link_quality: float = Field(1.0, ge=0.0, le=1.0)

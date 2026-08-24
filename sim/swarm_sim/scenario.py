@@ -20,7 +20,7 @@ from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
-from swarm_core.messages import AnomalyKind, AnomalySource, Geo
+from swarm_core.messages import AnomalyKind, AnomalySource, Geo, SensorKind
 
 from sim.swarm_sim.drone import Drone
 from sim.swarm_sim.perception import EvidenceSignal, IgnitionEvent, MockPerception
@@ -54,6 +54,11 @@ class FleetCfg(BaseModel):
     model_config = _STRICT
     n_drones: int = Field(..., ge=1, le=20)
     dock_offset_m: DockOffsetCfg = Field(default_factory=DockOffsetCfg)
+    # Optional physical sensor payloads by canonical simulated agent id. Omitted
+    # agents keep the reference adapter default (RGB + thermal). This describes
+    # physical facts only; SwarmOS still decides which capability the objective
+    # requires and which executor to commit.
+    sensors_by_agent: dict[str, list[SensorKind]] = Field(default_factory=dict)
 
 
 class PerceptionCfg(BaseModel):

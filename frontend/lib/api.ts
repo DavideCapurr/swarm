@@ -173,6 +173,8 @@ export type UnitState = {
   fsm_state: AgentState;
   battery_pct: number;
   geo: Geo;
+  /** Live frames always carry this; optional keeps older recorded fixtures readable. */
+  capabilities?: string[];
   current_mission_id: string | null;
   current_sector_id: string | null;
   link_quality: number;
@@ -301,7 +303,11 @@ export type CommandResponse = {
 
 // ── Allocator / runtime / payload truth frames ───────────────────────────────
 
-export type AllocationExclusionReason = "BUSY" | "LOW_BATTERY" | "UNAVAILABLE";
+export type AllocationExclusionReason =
+  | "BUSY"
+  | "LOW_BATTERY"
+  | "UNAVAILABLE"
+  | "CAPABILITY_MISMATCH";
 
 export type AllocationScoreBreakdown = {
   distance_m: number;
@@ -317,6 +323,8 @@ export type AllocationEligibleUnit = {
   agent_id: string;
   fsm_state: AgentState;
   battery_pct: number;
+  /** Optional only for pre-capability fixtures; live frames always carry it. */
+  capabilities?: string[];
   score: number;
   score_breakdown: AllocationScoreBreakdown;
 };
@@ -325,6 +333,8 @@ export type AllocationExcludedUnit = {
   agent_id: string;
   fsm_state: AgentState;
   battery_pct: number;
+  /** Optional only for pre-capability fixtures; live frames always carry it. */
+  capabilities?: string[];
   reason: AllocationExclusionReason;
   active_mission_id: string | null;
 };
@@ -333,6 +343,8 @@ export type AllocationDecision = {
   mission_id: string;
   mission_kind: string;
   anomaly_id: string | null;
+  /** Optional only for recorded frames created before capability composition. */
+  required_capabilities?: string[];
   mode: "auction" | "diversion" | "no_award";
   eligible_units: AllocationEligibleUnit[];
   excluded_units: AllocationExcludedUnit[];

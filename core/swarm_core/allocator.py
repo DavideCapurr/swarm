@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from swarm_core.capabilities import has_required_capabilities
 from swarm_core.geometry import haversine_m
 from swarm_core.messages import Bid, FleetState, Geo, MissionTask
 from swarm_core.missions import MissionKind
@@ -37,14 +38,16 @@ def _mission_geo(mission: MissionTask) -> Geo | None:
 
 def required_capabilities(mission: MissionTask) -> set[str]:
     """Read objective capability requirements from SwarmOS mission state."""
+
     return set(mission.params.get("required_capabilities", []))
 
 
 def has_capabilities(fleet_member: FleetState, required: set[str]) -> bool:
-    """Capability eligibility is decided centrally by SwarmOS."""
+    """Capability eligibility is decided centrally from canonical state."""
+
     if not required:
         return True
-    return required.issubset(set(getattr(fleet_member, "capabilities", [])))
+    return has_required_capabilities(set(fleet_member.capabilities), required)
 
 
 def score_bid(
@@ -87,8 +90,14 @@ def select_winner(bids: list[Bid]) -> Bid | None:
     return max(bids, key=lambda b: (b.score, b.agent_id))
 
 
-def eligible(fleet: list[FleetState], *, min_battery_pct: float = 25.0, mission: MissionTask | None = None) -> list[FleetState]:
+def eligible(
+    fleet: list[FleetState],
+    *,
+    min_battery_pct: float = 25.0,
+    mission: MissionTask | None = None,
+) -> list[FleetState]:
     """Filter fleet by availability, battery and objective capability needs."""
+
     from swarm_core.fsm import is_available
 
     required = required_capabilities(mission) if mission else set()
@@ -98,5 +107,6 @@ def eligible(fleet: list[FleetState], *, min_battery_pct: float = 25.0, mission:
         for f in fleet
         if is_available(f.fsm_state)
         and f.battery_pct >= min_battery_pct
+        and f.current_mission_id is None
         and has_capabilities(f, required)
     ]

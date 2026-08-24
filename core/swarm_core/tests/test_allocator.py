@@ -7,6 +7,7 @@ from swarm_core.allocator import (
     score_bid,
     select_winner,
 )
+from swarm_core.capabilities import Capability
 from swarm_core.messages import AgentState, Bid, FleetState, Geo
 from swarm_core.missions import RTL_DOCK, VERIFY
 
@@ -19,6 +20,7 @@ def _fleet_member(
     battery: float = 90.0,
     state: AgentState = AgentState.DOCKED,
     mission_id: str | None = None,
+    capabilities: list[str] | None = None,
 ) -> FleetState:
     return FleetState(
         agent_id=agent_id,
@@ -28,6 +30,7 @@ def _fleet_member(
         battery_pct=battery,
         geo=Geo(lat=lat, lon=lon),
         current_mission_id=mission_id,
+        capabilities=list(capabilities or []),
     )
 
 
@@ -119,3 +122,94 @@ def test_rtl_dock_mission_works_without_geo() -> None:
     a = _fleet_member(agent_id="a", lat=45.0, lon=10.0)
     s, _ = score_bid(m, a)
     assert isinstance(s, float)
+
+
+def test_capable_agent_selected() -> None:
+    required = Capability.THERMAL_OBSERVATION.value
+    mission = VERIFY(
+        geo=Geo(lat=45.0, lon=10.0),
+        required_capabilities=[required],
+    )
+    capable = _fleet_member(
+        agent_id="thermal",
+        lat=45.01,
+        lon=10.01,
+        capabilities=[required],
+    )
+
+    candidates = eligible([capable], mission=mission)
+    bids = [build_bid(mission, candidate) for candidate in candidates]
+    winner = select_winner(bids)
+
+    assert winner is not None
+    assert winner.agent_id == "thermal"
+
+
+def test_nearest_incapable_agent_rejected() -> None:
+    required = Capability.THERMAL_OBSERVATION.value
+    mission = VERIFY(
+        geo=Geo(lat=45.0, lon=10.0),
+        required_capabilities=[required],
+    )
+    nearest_incapable = _fleet_member(agent_id="near", lat=45.0001, lon=10.0001)
+    farther_capable = _fleet_member(
+        agent_id="far",
+        lat=45.02,
+        lon=10.02,
+        capabilities=[required],
+    )
+
+    candidates = eligible([nearest_incapable, farther_capable], mission=mission)
+
+    assert [candidate.agent_id for candidate in candidates] == ["far"]
+
+
+def test_multiple_capable_agents_use_existing_ranking() -> None:
+    required = Capability.VISUAL_OBSERVATION.value
+    mission = VERIFY(
+        geo=Geo(lat=45.0, lon=10.0),
+        required_capabilities=[required],
+    )
+    near = _fleet_member(
+        agent_id="near",
+        lat=45.001,
+        lon=10.001,
+        capabilities=[required],
+    )
+    far = _fleet_member(
+        agent_id="far",
+        lat=45.05,
+        lon=10.05,
+        capabilities=[required],
+    )
+
+    candidates = eligible([far, near], mission=mission)
+    winner = select_winner([build_bid(mission, candidate) for candidate in candidates])
+
+    assert winner is not None
+    assert winner.agent_id == "near"
+
+
+def test_busy_capable_agent_rejected() -> None:
+    required = Capability.THERMAL_OBSERVATION.value
+    mission = VERIFY(
+        geo=Geo(lat=45.0, lon=10.0),
+        required_capabilities=[required],
+    )
+    busy = _fleet_member(
+        agent_id="busy",
+        lat=45.0,
+        lon=10.0,
+        mission_id="existing",
+        capabilities=[required],
+    )
+    idle = _fleet_member(
+        agent_id="idle",
+        lat=45.01,
+        lon=10.01,
+        capabilities=[required],
+    )
+
+    candidates = eligible([busy, idle], mission=mission)
+
+    assert [candidate.agent_id for candidate in candidates] == ["idle"]
