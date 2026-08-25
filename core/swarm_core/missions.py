@@ -16,7 +16,15 @@ from __future__ import annotations
 from datetime import timedelta
 from enum import Enum
 
-from swarm_core.messages import Geo, MissionTask, SensorKind, Waypoint, _now
+from swarm_core.messages import (
+    Geo,
+    MissionTask,
+    ObjectiveAuthorityPolicy,
+    ObjectiveSource,
+    SensorKind,
+    Waypoint,
+    _now,
+)
 
 COOPERATIVE_VERIFY_KIND = "COOPERATIVE_VERIFY"
 
@@ -50,6 +58,11 @@ def PATROL(  # noqa: N802 — DSL verb, matches MissionKind.PATROL
     altitude_m: float = 60.0,
     priority: int = 1,
     required_capabilities: list[str] | None = None,
+    source: ObjectiveSource = ObjectiveSource.SYSTEM,
+    authority_policy: ObjectiveAuthorityPolicy = ObjectiveAuthorityPolicy.AUTONOMOUS,
+    requested_by: str | None = None,
+    authority_grant_id: str | None = None,
+    authority_grant_revision: int | None = None,
 ) -> MissionTask:
     """Scheduled territorial scan over the given polygon."""
 
@@ -63,6 +76,11 @@ def PATROL(  # noqa: N802 — DSL verb, matches MissionKind.PATROL
             "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
+        source=source,
+        authority_policy=authority_policy,
+        requested_by=requested_by,
+        authority_grant_id=authority_grant_id,
+        authority_grant_revision=authority_grant_revision,
     )
 
 
@@ -75,6 +93,11 @@ def VERIFY(  # noqa: N802 — DSL verb, matches MissionKind.VERIFY
     priority: int = 50,
     deadline_s: float | None = 300.0,
     required_capabilities: list[str] | None = None,
+    source: ObjectiveSource = ObjectiveSource.SYSTEM,
+    authority_policy: ObjectiveAuthorityPolicy = ObjectiveAuthorityPolicy.AUTONOMOUS,
+    requested_by: str | None = None,
+    authority_grant_id: str | None = None,
+    authority_grant_revision: int | None = None,
 ) -> MissionTask:
     """Fly to anomaly, multi-sensor capture, classify, confirm or refute."""
 
@@ -90,6 +113,11 @@ def VERIFY(  # noqa: N802 — DSL verb, matches MissionKind.VERIFY
         },
         priority=priority,
         deadline=deadline,
+        source=source,
+        authority_policy=authority_policy,
+        requested_by=requested_by,
+        authority_grant_id=authority_grant_id,
+        authority_grant_revision=authority_grant_revision,
     )
 
 
@@ -104,6 +132,11 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
     altitude_step_m: float = 15.0,
     priority: int = 80,
     required_capabilities: list[str] | None = None,
+    source: ObjectiveSource = ObjectiveSource.SYSTEM,
+    authority_policy: ObjectiveAuthorityPolicy = ObjectiveAuthorityPolicy.AUTONOMOUS,
+    requested_by: str | None = None,
+    authority_grant_id: str | None = None,
+    authority_grant_revision: int | None = None,
 ) -> MissionTask:
     """One logical verification objective requiring multiple physical agents.
 
@@ -132,6 +165,11 @@ def COOPERATIVE_VERIFY(  # noqa: N802 — orchestration DSL verb
             "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
+        source=source,
+        authority_policy=authority_policy,
+        requested_by=requested_by,
+        authority_grant_id=authority_grant_id,
+        authority_grant_revision=authority_grant_revision,
     )
 
 
@@ -143,6 +181,11 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
     altitude_m: float = 60.0,
     priority: int = 10,
     required_capabilities: list[str] | None = None,
+    source: ObjectiveSource = ObjectiveSource.SYSTEM,
+    authority_policy: ObjectiveAuthorityPolicy = ObjectiveAuthorityPolicy.AUTONOMOUS,
+    requested_by: str | None = None,
+    authority_grant_id: str | None = None,
+    authority_grant_revision: int | None = None,
 ) -> MissionTask:
     """Multi-drone area coverage with battery-aware rotation.
 
@@ -160,6 +203,11 @@ def COVER(  # noqa: N802 — DSL verb, matches MissionKind.COVER
             "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
+        source=source,
+        authority_policy=authority_policy,
+        requested_by=requested_by,
+        authority_grant_id=authority_grant_id,
+        authority_grant_revision=authority_grant_revision,
     )
 
 
@@ -170,6 +218,11 @@ def RELAY(  # noqa: N802 — DSL verb, matches MissionKind.RELAY
     duration_s: float = 600.0,
     priority: int = 20,
     required_capabilities: list[str] | None = None,
+    source: ObjectiveSource = ObjectiveSource.SYSTEM,
+    authority_policy: ObjectiveAuthorityPolicy = ObjectiveAuthorityPolicy.AUTONOMOUS,
+    requested_by: str | None = None,
+    authority_grant_id: str | None = None,
+    authority_grant_revision: int | None = None,
 ) -> MissionTask:
     """One drone holds a hover at altitude to act as a comms / observation relay."""
 
@@ -182,13 +235,35 @@ def RELAY(  # noqa: N802 — DSL verb, matches MissionKind.RELAY
             "required_capabilities": _required_capabilities(required_capabilities),
         },
         priority=priority,
+        source=source,
+        authority_policy=authority_policy,
+        requested_by=requested_by,
+        authority_grant_id=authority_grant_id,
+        authority_grant_revision=authority_grant_revision,
     )
 
 
-def RTL_DOCK(*, priority: int = 5) -> MissionTask:  # noqa: N802 — DSL verb, matches MissionKind.RTL_DOCK
+def RTL_DOCK(  # noqa: N802 — DSL verb, matches MissionKind.RTL_DOCK
+    *,
+    priority: int = 5,
+    source: ObjectiveSource = ObjectiveSource.SYSTEM,
+    authority_policy: ObjectiveAuthorityPolicy = ObjectiveAuthorityPolicy.AUTONOMOUS,
+    requested_by: str | None = None,
+    authority_grant_id: str | None = None,
+    authority_grant_revision: int | None = None,
+) -> MissionTask:
     """Return to home dock. Autopilot-side failsafes can also trigger this."""
 
-    return MissionTask(kind=MissionKind.RTL_DOCK.value, params={}, priority=priority)
+    return MissionTask(
+        kind=MissionKind.RTL_DOCK.value,
+        params={},
+        priority=priority,
+        source=source,
+        authority_policy=authority_policy,
+        requested_by=requested_by,
+        authority_grant_id=authority_grant_id,
+        authority_grant_revision=authority_grant_revision,
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

@@ -13,6 +13,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
+from swarm_core.authority import (
+    MissionAuthorityGrant,
+    MissionAuthorityVerdict,
+    MissionDecision,
+    MissionDecisionKind,
+    MissionDecisionReview,
+    MissionReviewAction,
+)
 from swarm_core.messages import (
     AnomalyKind,
     AnomalyState,
@@ -48,6 +56,82 @@ async def test_disabled_repository_is_noop(disabled_repository: Repository) -> N
     await disabled_repository.write_events([_event()])
     assert await disabled_repository.list_events() == []
     assert await disabled_repository.list_operator_commands() == []
+    assert await disabled_repository.list_mission_authority_grants() == []
+    assert await disabled_repository.list_mission_decisions() == []
+    assert await disabled_repository.list_mission_decision_reviews() == []
+
+
+# ── Mission authority: append-only audit records ───────────────────────────
+
+
+async def test_mission_authority_records_round_trip(
+    memory_repository: Repository,
+) -> None:
+    grant = MissionAuthorityGrant(
+        grant_id="grant-1",
+        revision=2,
+        objective_id="objective-1",
+        holder_id="risk-owner-1",
+        approver_ids=["operator-1"],
+    )
+    decision = MissionDecision(
+        decision_id="decision-1",
+        objective_id="objective-1",
+        objective_revision=3,
+        decision_kind=MissionDecisionKind.LAUNCH_COMPOSITION,
+        requirements_snapshot={"required_capabilities": ["THERMAL_IMAGING"]},
+        full_requirements_satisfied=True,
+        authority_grant_id=grant.grant_id,
+        authority_grant_revision=grant.revision,
+        authority_verdict=MissionAuthorityVerdict.REVIEW_REQUIRED,
+        authority_reasons=["REVIEW_REQUIRED"],
+    )
+    review = MissionDecisionReview(
+        review_id="review-1",
+        decision_id=decision.decision_id,
+        objective_id=decision.objective_id,
+        action=MissionReviewAction.APPROVE,
+        actor_id="operator-1",
+    )
+
+    await memory_repository.write_mission_authority_grant(grant)
+    await memory_repository.write_mission_decision(decision)
+    await memory_repository.write_mission_decision_review(review)
+
+    assert await memory_repository.list_mission_authority_grants() == [grant]
+    assert await memory_repository.list_mission_decisions() == [decision]
+    assert await memory_repository.list_mission_decision_reviews() == [review]
+    assert await memory_repository.list_mission_decisions(
+        objective_id="objective-1"
+    ) == [decision]
+    assert await memory_repository.list_mission_decision_reviews(
+        decision_id="decision-1"
+    ) == [review]
+
+
+async def test_mission_decision_replay_cannot_mutate_original(
+    memory_repository: Repository,
+) -> None:
+    original = MissionDecision(
+        decision_id="decision-immutable",
+        objective_id="objective-1",
+        objective_revision=1,
+        decision_kind=MissionDecisionKind.LAUNCH_COMPOSITION,
+        full_requirements_satisfied=True,
+        authority_verdict=MissionAuthorityVerdict.AUTO_AUTHORIZED,
+        authority_reasons=["MATCHED_DELEGATED_RULE"],
+    )
+    altered_replay = original.model_copy(
+        update={
+            "authority_verdict": MissionAuthorityVerdict.DENIED,
+            "authority_reasons": ["MUTATED_REPLAY"],
+        }
+    )
+
+    await memory_repository.write_mission_decision(original)
+    await memory_repository.write_mission_decision(altered_replay)
+
+    assert await memory_repository.list_mission_decisions() == [original]
 
 
 # ── Events: write + read + filter ────────────────────────────────────────────

@@ -21,6 +21,11 @@ from sqlalchemy import delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from swarm_core.authority import (
+    MissionAuthorityGrant,
+    MissionDecision,
+    MissionDecisionReview,
+)
 from swarm_core.messages import (
     AnomalyView,
     Event,
@@ -36,6 +41,9 @@ from swarm_core.messages import (
 from backend.app.db.models import (
     AnomalyRow,
     EventRow,
+    MissionAuthorityGrantRow,
+    MissionDecisionReviewRow,
+    MissionDecisionRow,
     MissionRow,
     OperatorCommandRow,
     SectorVisitRow,
@@ -262,6 +270,78 @@ class Repository:
         except Exception:  # pragma: no cover
             _record_failure("write_sector_visit")
 
+    async def write_mission_authority_grant(
+        self, grant: MissionAuthorityGrant
+    ) -> None:
+        if not self.enabled:
+            return
+        try:
+            async with self._session() as db:
+                await self._insert_immutable(
+                    db,
+                    MissionAuthorityGrantRow,
+                    {
+                        "grant_id": grant.grant_id,
+                        "revision": grant.revision,
+                        "objective_id": grant.objective_id,
+                        "holder_id": grant.holder_id,
+                        "payload": grant.model_dump(mode="json"),
+                        "created_at": grant.created_at,
+                    },
+                    pk_cols=("grant_id", "revision"),
+                )
+                await db.commit()
+        except Exception:  # pragma: no cover
+            _record_failure("write_mission_authority_grant")
+
+    async def write_mission_decision(self, decision: MissionDecision) -> None:
+        if not self.enabled:
+            return
+        try:
+            async with self._session() as db:
+                await self._insert_immutable(
+                    db,
+                    MissionDecisionRow,
+                    {
+                        "decision_id": decision.decision_id,
+                        "objective_id": decision.objective_id,
+                        "objective_revision": decision.objective_revision,
+                        "decision_kind": decision.decision_kind.value,
+                        "authority_verdict": decision.authority_verdict.value,
+                        "payload": decision.model_dump(mode="json"),
+                        "created_at": decision.created_at,
+                    },
+                    pk_cols=("decision_id",),
+                )
+                await db.commit()
+        except Exception:  # pragma: no cover
+            _record_failure("write_mission_decision")
+
+    async def write_mission_decision_review(
+        self, review: MissionDecisionReview
+    ) -> None:
+        if not self.enabled:
+            return
+        try:
+            async with self._session() as db:
+                await self._insert_immutable(
+                    db,
+                    MissionDecisionReviewRow,
+                    {
+                        "review_id": review.review_id,
+                        "decision_id": review.decision_id,
+                        "objective_id": review.objective_id,
+                        "action": review.action.value,
+                        "actor_id": review.actor_id,
+                        "payload": review.model_dump(mode="json"),
+                        "created_at": review.created_at,
+                    },
+                    pk_cols=("review_id",),
+                )
+                await db.commit()
+        except Exception:  # pragma: no cover
+            _record_failure("write_mission_decision_review")
+
     # ── Reads ────────────────────────────────────────────────────────────────
 
     async def list_events(
@@ -324,6 +404,89 @@ class Repository:
                 return [_row_to_command(r) for r in reversed(rows)]
         except Exception:  # pragma: no cover
             _record_failure("list_operator_commands")
+            return []
+
+    async def list_mission_authority_grants(
+        self, *, objective_id: str | None = None, limit: int = 100
+    ) -> list[MissionAuthorityGrant]:
+        if not self.enabled:
+            return []
+        limit = min(max(1, limit), MAX_QUERY_LIMIT)
+        try:
+            async with self._session() as db:
+                stmt = (
+                    select(MissionAuthorityGrantRow)
+                    .order_by(MissionAuthorityGrantRow.created_at.desc())
+                    .limit(limit)
+                )
+                if objective_id is not None:
+                    stmt = stmt.where(
+                        MissionAuthorityGrantRow.objective_id == objective_id
+                    )
+                rows = (await db.execute(stmt)).scalars().all()
+                return [
+                    MissionAuthorityGrant.model_validate(row.payload)
+                    for row in reversed(rows)
+                ]
+        except Exception:  # pragma: no cover
+            _record_failure("list_mission_authority_grants")
+            return []
+
+    async def list_mission_decisions(
+        self, *, objective_id: str | None = None, limit: int = 100
+    ) -> list[MissionDecision]:
+        if not self.enabled:
+            return []
+        limit = min(max(1, limit), MAX_QUERY_LIMIT)
+        try:
+            async with self._session() as db:
+                stmt = (
+                    select(MissionDecisionRow)
+                    .order_by(MissionDecisionRow.created_at.desc())
+                    .limit(limit)
+                )
+                if objective_id is not None:
+                    stmt = stmt.where(MissionDecisionRow.objective_id == objective_id)
+                rows = (await db.execute(stmt)).scalars().all()
+                return [
+                    MissionDecision.model_validate(row.payload) for row in reversed(rows)
+                ]
+        except Exception:  # pragma: no cover
+            _record_failure("list_mission_decisions")
+            return []
+
+    async def list_mission_decision_reviews(
+        self,
+        *,
+        decision_id: str | None = None,
+        objective_id: str | None = None,
+        limit: int = 100,
+    ) -> list[MissionDecisionReview]:
+        if not self.enabled:
+            return []
+        limit = min(max(1, limit), MAX_QUERY_LIMIT)
+        try:
+            async with self._session() as db:
+                stmt = (
+                    select(MissionDecisionReviewRow)
+                    .order_by(MissionDecisionReviewRow.created_at.desc())
+                    .limit(limit)
+                )
+                if decision_id is not None:
+                    stmt = stmt.where(
+                        MissionDecisionReviewRow.decision_id == decision_id
+                    )
+                if objective_id is not None:
+                    stmt = stmt.where(
+                        MissionDecisionReviewRow.objective_id == objective_id
+                    )
+                rows = (await db.execute(stmt)).scalars().all()
+                return [
+                    MissionDecisionReview.model_validate(row.payload)
+                    for row in reversed(rows)
+                ]
+        except Exception:  # pragma: no cover
+            _record_failure("list_mission_decision_reviews")
             return []
 
     async def mission_history(self, mission_id: str, limit: int = 200) -> list[Event]:
@@ -457,6 +620,33 @@ class Repository:
             return {"sessions": 0, "sector_visits": 0}
 
     # ── Helpers ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def _insert_immutable(
+        db: AsyncSession,
+        model: type[Any],
+        row: dict[str, Any],
+        *,
+        pk_cols: tuple[str, ...],
+    ) -> None:
+        """Insert once; replaying an immutable record never updates its payload."""
+
+        dialect = db.get_bind().dialect.name
+        if dialect == "postgresql":
+            pg_stmt = pg_insert(model).values(row).on_conflict_do_nothing(
+                index_elements=list(pk_cols)
+            )
+            await db.execute(pg_stmt)
+        elif dialect == "sqlite":
+            sqlite_stmt = sqlite_insert(model).values(row).on_conflict_do_nothing(
+                index_elements=list(pk_cols)
+            )
+            await db.execute(sqlite_stmt)
+        else:  # pragma: no cover
+            key = tuple(row[column] for column in pk_cols)
+            identity = key[0] if len(key) == 1 else key
+            if await db.get(model, identity) is None:
+                db.add(model(**row))
 
     @staticmethod
     async def _upsert(

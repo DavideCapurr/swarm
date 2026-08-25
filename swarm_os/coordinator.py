@@ -17,6 +17,7 @@ from collections import deque
 from datetime import UTC, datetime
 from typing import Any
 
+from swarm_core.authority import ObjectiveStateFrame
 from swarm_core.execution_groups import (
     ExecutionGroup,
     ExecutionGroupMemberState,
@@ -33,6 +34,7 @@ from swarm_core.messages import (
     MissionPhase,
     MissionProgress,
     MissionView,
+    ObjectiveStatus,
     OperatingMode,
     OperatorCommand,
     Telemetry,
@@ -211,11 +213,10 @@ class SwarmCoordinator:
     async def apply_execution_group(
         self, group: ExecutionGroup
     ) -> list[dict[str, Any]]:
-        """Project a SwarmOS-owned group and aggregate cooperative outcome.
+        """Project physical group lifecycle without declaring semantic success.
 
-        Child VERIFY completion is intentionally insufficient. Only the parent
-        group lifecycle may transition its anomaly to VERIFIED (or back to
-        PENDING after an unrecoverable group failure).
+        Child and aggregate completion are execution facts. Only a separate
+        ``ObjectiveStateFrame(SATISFIED)`` may verify the parent anomaly.
         """
 
         async with self.state.lock:
@@ -251,13 +252,6 @@ class SwarmCoordinator:
                     if primary is not None:
                         updates["verifying_agent"] = primary.agent_id
                 elif (
-                    group.state is ExecutionGroupState.COMPLETED
-                    and anomaly.state in {AnomalyState.PENDING, AnomalyState.VERIFYING}
-                ):
-                    updates["state"] = AnomalyState.VERIFIED
-                    if primary is not None:
-                        updates["verifying_agent"] = primary.agent_id
-                elif (
                     group.state is ExecutionGroupState.FAILED
                     and anomaly.state is AnomalyState.VERIFYING
                 ):
@@ -277,6 +271,52 @@ class SwarmCoordinator:
                 new_events, autonomy_cmds = await self._refresh_async(now)
                 frames.extend(self._frame("operator", cmd) for cmd in autonomy_cmds)
                 frames.extend(self._frame("event", event) for event in new_events)
+            return frames
+
+    async def apply_objective_state(
+        self, objective: ObjectiveStateFrame
+    ) -> list[dict[str, Any]]:
+        """Project semantic objective truth independently of execution state."""
+
+        async with self.state.lock:
+            current = self.state.objective_states.get(objective.objective_id)
+            if (
+                current is not None
+                and objective.objective_revision < current.objective_revision
+            ):
+                return []
+            self.state.objective_states[objective.objective_id] = objective
+            frames = [self._frame("objective_state", objective)]
+            groups = [
+                group
+                for group in self.state.execution_groups.values()
+                if group.objective_mission_id == objective.objective_id
+            ]
+            anomaly_ids = {
+                group.anomaly_id for group in groups if group.anomaly_id is not None
+            }
+            now = datetime.now(UTC)
+            for anomaly_id in anomaly_ids:
+                anomaly = self.state.anomalies.get(anomaly_id)
+                if anomaly is None:
+                    continue
+                updates: dict[str, Any] = {}
+                if (
+                    objective.status is ObjectiveStatus.SATISFIED
+                    and anomaly.state in {AnomalyState.PENDING, AnomalyState.VERIFYING}
+                ):
+                    updates["state"] = AnomalyState.VERIFIED
+                elif (
+                    objective.status in {ObjectiveStatus.UNRESOLVED, ObjectiveStatus.FAILED}
+                    and anomaly.state is AnomalyState.VERIFYING
+                ):
+                    updates["state"] = AnomalyState.PENDING
+                    updates["verifying_agent"] = None
+                if updates:
+                    updates["ts"] = now
+                    anomaly = anomaly.model_copy(update=updates)
+                    self.state.anomalies[anomaly.id] = anomaly
+                    frames.append(self._frame("anomaly_view", anomaly))
             return frames
 
     async def apply_command(self, command: OperatorCommand) -> tuple[CommandResult, list[dict[str, Any]]]:
@@ -318,6 +358,22 @@ class SwarmCoordinator:
                 *[
                     self._frame("execution_group", group)
                     for group in self.state.execution_groups.values()
+                ],
+                *[
+                    self._frame("mission_authority_grant", grant)
+                    for grant in self.state.mission_authority_grants.values()
+                ],
+                *[
+                    self._frame("mission_decision", decision)
+                    for decision in self.state.mission_decisions.values()
+                ],
+                *[
+                    self._frame("mission_decision_review", review)
+                    for review in self.state.mission_decision_reviews
+                ],
+                *[
+                    self._frame("objective_state", objective)
+                    for objective in self.state.objective_states.values()
                 ],
                 *[
                     self._frame("anomaly_view", anomaly)

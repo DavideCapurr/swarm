@@ -24,8 +24,10 @@ import type {
   AllocationDecision,
   AnomalyView,
   ExecutionGroup,
+  MissionDecision,
   MissionRuntimeEvent,
   MissionView,
+  ObjectiveStateFrame,
   PayloadEvent,
   UnitState,
 } from "@/lib/api";
@@ -60,6 +62,13 @@ export type SurfaceFrame = {
   missionRuntime: MissionRuntimeEvent[];
   missionRuntimeLog: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
+  missionDecisions?: MissionDecision[];
+  objectiveStates?: ObjectiveStateFrame[];
+  canReviewDecision?: boolean;
+  onReviewDecision?: (
+    decisionId: string,
+    action: "approve" | "reject"
+  ) => Promise<void>;
   /** Set only by the recorded-frame harness; stamps the surface so it cannot pass for live. */
   replay?: boolean;
 };
@@ -135,6 +144,22 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       ? heldFocus
       : view.defaultFocusKey;
   const focused = view.objectives.find((o) => o.key === focusKey) ?? null;
+  const focusedDecision = useMemo(() => {
+    if (!focused) return null;
+    return (
+      [...(frame.missionDecisions ?? [])]
+        .filter((decision) => decision.objective_id === focused.missionId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null
+    );
+  }, [focused, frame.missionDecisions]);
+  const focusedObjectiveState = useMemo(() => {
+    if (!focused) return null;
+    return (
+      (frame.objectiveStates ?? []).find(
+        (state) => state.objective_id === focused.missionId
+      ) ?? null
+    );
+  }, [focused, frame.objectiveStates]);
 
   // Executors the surface names, everywhere it names anything.
   //
@@ -327,6 +352,10 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
           beat={beat}
           capacity={view.capacity}
           channels={channels}
+          decision={focusedDecision}
+          objectiveState={focusedObjectiveState}
+          canReview={frame.canReviewDecision ?? false}
+          onReview={frame.onReviewDecision}
           onSelectObjective={setHeldFocus}
         />
       </div>

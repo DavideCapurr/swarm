@@ -1,0 +1,114 @@
+# Operator/expert feedback implementation audit
+
+**Updated:** 2026-08-25  
+**Source boundary:** substantive replies supplied from the founder's iCloud
+mail and discussed in the project; Gmail was not used.
+
+This is the durable mapping from feedback that changed product strategy or
+architecture to repository proof. Generic encouragement and replies that did
+not change a product decision are intentionally excluded.
+
+## Kristin / U.S. Department of the Interior
+
+**Material insight**
+
+- Do not pitch small UAS as a general substitute for larger aircraft.
+- Start with the required data product, derive sensor/payload needs, then choose
+  a compatible platform.
+- Treat the fleet as heterogeneous physical capacity.
+
+**Repository proof**
+
+- GitHub PR [#145](https://github.com/DavideCapurr/swarm/pull/145), squash
+  commit `e6a1a4c347b1eb502a601f2ce2ed926981e01606`.
+- Generic capability derivation and filtering:
+  `core/swarm_core/capabilities.py`, `core/swarm_core/allocator.py`,
+  `orchestrator/swarm_orchestrator/service.py`.
+- Multi-agent role requirements and supplied capabilities:
+  `core/swarm_core/execution_groups.py`,
+  `orchestrator/swarm_orchestrator/execution_groups.py`.
+- Server-truth Console projection and tests: `frontend/lib/authority.ts`,
+  `frontend/components/console/MissionAuthorityPanel.tsx`, capability and
+  execution-group tests.
+- Discovery record: `docs/customer-discovery.md`.
+
+**Status:** implemented for the current generic capability model. Dynamic
+interchangeable-payload configuration remains intentionally unimplemented until
+the pattern repeats across operators.
+
+## Georgios
+
+**Material insight**
+
+- Establish mission requirements before vehicle selection.
+- Keep the process human-led where the mission/risk owner has not delegated a
+  decision.
+- Increase automation by exact decision kind and bounded constraints, not by a
+  global autonomy label.
+- Show deterministic rationale so decision support can precede broader trust.
+
+**Repository proof**
+
+- Domain aggregates and three decision kinds: `core/swarm_core/authority.py`.
+- One `recommend → evaluate authority → commit` path for single-executor,
+  launch composition, failed-executor replacement, and reinforcement:
+  `orchestrator/swarm_orchestrator/execution_groups.py`.
+- Exact authenticated approve/reject/override API:
+  `backend/app/api/mission_authority.py`; actor identity is derived from JWT.
+- Append-only grants, decisions, and reviews:
+  `backend/app/db/models.py`, `backend/app/db/repository.py`, migration
+  `20260825_0006_mission_authority.py`.
+- REST/WebSocket/state projection: `backend/app/bus_consumer.py`,
+  `swarm_os/state.py`, `frontend/lib/api.ts`, `frontend/lib/ws.ts`.
+- Compact server-rationale and exact-review UI:
+  `frontend/components/console/MissionAuthorityPanel.tsx`.
+- Execution completion separated from semantic satisfaction:
+  `swarm_os/coordinator.py` and objective-state tests.
+- Architecture decision and discovery updates:
+  `docs/adr/0013-delegated-mission-authority-and-decision-records.md`,
+  `docs/customer-discovery.md`, and
+  `docs/yc/customer-discovery-kit.md`.
+
+**Status:** implemented and test-validated. A real operator trial, a recorded
+control-plane authority demo, and a semantic evidence evaluator capable of
+promoting `UNRESOLVED → SATISFIED` are still missing. The system deliberately
+does not fabricate satisfaction from executor `DONE`.
+
+## Peder / Timothy
+
+**Material insight**
+
+- Mission reassignment is normally a human decision unless the permitted
+  automatic change is defined in advance.
+- Geofence/airspace authorization constrains which automatic changes are
+  legitimate.
+
+**Repository proof**
+
+- Delegated rules are evaluated separately for launch, replacement, and
+  reinforcement in `core/swarm_core/authority.py`.
+- Authority-envelope constraints include allowed executors, mission kinds,
+  maximum group size, authorized area, and maximum altitude.
+- Site geofence and altitude are non-waivable hard constraints in the real
+  backend mission runtime, supplied from the live `PolicyEngine` site config by
+  `backend/app/fleet.py` and rechecked at claim time.
+- Stale/revoked grant revisions and hard-constraint denial cannot be approved
+  away; covered in `core/swarm_core/tests/test_mission_authority.py` and
+  `orchestrator/swarm_orchestrator/tests/test_mission_authority.py`.
+
+**Status:** implemented for configured site geofence/altitude and mission grant
+constraints. Integration with an external airspace-authorization provider is
+not implemented and must not be claimed. Weather, regulatory approval, and
+live-airspace changes still rely on existing operational policy/integration
+work rather than the new grant model.
+
+## Remaining changes not attributable to a forgotten email item
+
+- Active objective/group cancel, pause, and mission-level revocation are not
+  yet coordinated end to end.
+- “Spare” still means available/uncommitted capacity; no deliberate reserve
+  optimization policy exists.
+- There is no automatic trust score or automatic widening of authority. This is
+  intentionally deferred, consistent with Georgios's feedback.
+- The new authority path is test-validated but not yet PX4 SITL-, bench-,
+  field-, or customer-validated.

@@ -95,6 +95,33 @@ class AnomalySource(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ObjectiveSource(str, Enum):
+    """Origin of a SwarmOS-owned objective."""
+
+    OPERATOR = "operator"
+    TELEMETRY = "telemetry"
+    EXTERNAL_EVENT = "external_event"
+    SYSTEM = "system"
+
+
+class ObjectiveAuthorityPolicy(str, Enum):
+    """How much dispatch authority the operator has delegated to SwarmOS."""
+
+    AUTONOMOUS = "autonomous"
+    APPROVAL_REQUIRED = "approval_required"
+
+
+class ObjectiveStatus(str, Enum):
+    """SwarmOS-owned lifecycle of an objective."""
+
+    PENDING = "pending"
+    WAITING_FOR_APPROVAL = "waiting_for_approval"
+    ACTIVE = "active"
+    SATISFIED = "satisfied"
+    UNRESOLVED = "unresolved"
+    FAILED = "failed"
+
+
 class AnomalyEvidence(BaseModel):
     """The *why* behind an anomaly: provenance + the triggering signal.
 
@@ -159,6 +186,26 @@ class MissionTask(BaseModel):
     priority: int = 0  # higher wins ties; emergency missions use 100+
     assigned_agent: str | None = None
     deadline: datetime | None = None
+    revision: int = Field(1, ge=1)
+    source: ObjectiveSource = ObjectiveSource.SYSTEM
+    requested_by: str | None = None
+    authority_grant_id: str | None = None
+    authority_grant_revision: int | None = Field(None, ge=1)
+    authority_policy: ObjectiveAuthorityPolicy = ObjectiveAuthorityPolicy.AUTONOMOUS
+    status: ObjectiveStatus = ObjectiveStatus.PENDING
+    ts: datetime = Field(default_factory=_now)
+
+
+class ObjectiveApprovalCommand(BaseModel):
+    """Approval for one exact, still-current SwarmOS decision proposal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    objective_id: str
+    decision_id: str
+    approved_by: str = Field(..., min_length=1)
+    action: Literal["approve", "reject", "override"] = "approve"
+    override_assignments: list[dict[str, str]] = Field(default_factory=list)
     ts: datetime = Field(default_factory=_now)
 
 

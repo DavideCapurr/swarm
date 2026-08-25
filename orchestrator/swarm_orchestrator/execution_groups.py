@@ -17,12 +17,33 @@ publish mechanism so it can be replaced without touching dispatch.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from swarm_core.allocations import (
+    AllocationEligibleUnit,
+    AllocationExcludedUnit,
+    AllocationExclusionReason,
+    AllocationScoreBreakdown,
+)
 from swarm_core.allocator import build_bid, has_capabilities, required_capabilities
+from swarm_core.authority import (
+    CandidateAssessment,
+    MissionAuthorityGrant,
+    MissionAuthorityVerdict,
+    MissionDecision,
+    MissionDecisionKind,
+    MissionDecisionReview,
+    MissionHardConstraints,
+    MissionReviewAction,
+    ObjectiveStateFrame,
+    SelectedAssignment,
+    evaluate_mission_authority,
+    evaluate_mission_hard_constraints,
+)
 from swarm_core.execution_groups import (
     ExecutionGroup,
     ExecutionGroupMember,
@@ -37,6 +58,8 @@ from swarm_core.messages import (
     Geo,
     MissionProgress,
     MissionTask,
+    ObjectiveApprovalCommand,
+    ObjectiveStatus,
     SensorKind,
 )
 from swarm_core.missions import (
@@ -59,6 +82,11 @@ logger = logging.getLogger("swarm.orchestrator.execution_groups")
 
 EXECUTION_GROUP_TOPIC = "swarm:execution-groups"
 MISSION_OBJECTIVE_TOPIC = "swarm:missions:objectives"
+OBJECTIVE_APPROVAL_TOPIC = "swarm:missions:approvals"
+MISSION_AUTHORITY_GRANT_TOPIC = "swarm:mission-authority-grants"
+MISSION_DECISION_TOPIC = "swarm:mission-decisions"
+MISSION_DECISION_REVIEW_TOPIC = "swarm:mission-decision-reviews"
+MISSION_OBJECTIVE_STATE_TOPIC = "swarm:mission-objective-states"
 
 RUNNING_GROUP_STATES = frozenset(
     {ExecutionGroupState.ACTIVE, ExecutionGroupState.DEGRADED}
@@ -72,6 +100,18 @@ _LOST_MEMBER_STATES = frozenset(
 class ExecutionRolePlan:
     role: str
     mission: MissionTask
+
+
+def _role_requirements(objective: MissionTask, role: str) -> list[str]:
+    """Resolve role-specific requirements, falling back to objective-wide ones."""
+
+    configured = objective.params.get("role_requirements", {})
+    if not isinstance(configured, dict):
+        raise ValueError("role_requirements must be a role-to-capabilities mapping")
+    raw = configured.get(role, objective.params.get("required_capabilities", []))
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        raise ValueError(f"role_requirements[{role!r}] must be a list of strings")
+    return sorted(set(raw))
 
 
 @dataclass(frozen=True)
@@ -97,6 +137,7 @@ class ReinforcementDecision:
 
 
 ReinforcementPolicy = Callable[[ReinforcementObservation], ReinforcementDecision]
+HardConstraintProvider = Callable[[], MissionHardConstraints | None]
 
 
 def shortfall_reinforcement_policy(
@@ -136,13 +177,33 @@ class ExecutionGroupOrchestrator(Orchestrator):
     max_reinforcements_per_objective: int = 1
     reinforcement_review_period_s: float = 2.0
     reinforcement_policy: ReinforcementPolicy = shortfall_reinforcement_policy
+    hard_constraint_provider: HardConstraintProvider | None = None
 
     _execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)
     _group_role_templates: dict[str, dict[str, MissionTask]] = field(
         default_factory=dict
     )
+    _group_missions: dict[str, MissionTask] = field(default_factory=dict)
     _group_task_to_role: dict[str, tuple[str, str]] = field(default_factory=dict)
     _reinforcement_records: dict[str, _ObjectiveReinforcementRecord] = field(
+        default_factory=dict
+    )
+    _objectives: dict[str, MissionTask] = field(default_factory=dict)
+    _pending_proposals: dict[str, str] = field(default_factory=dict)
+    _proposal_snapshots: dict[str, str] = field(default_factory=dict)
+    _authority_grants: dict[tuple[str, int], MissionAuthorityGrant] = field(
+        default_factory=dict
+    )
+    _latest_grant_revision: dict[str, int] = field(default_factory=dict)
+    _mission_decisions: dict[str, MissionDecision] = field(default_factory=dict)
+    _decision_reviews: dict[str, MissionDecisionReview] = field(default_factory=dict)
+    _decision_groups: dict[str, str] = field(default_factory=dict)
+    _objective_decisions: dict[str, str] = field(default_factory=dict)
+    _approved_decisions: dict[str, str] = field(default_factory=dict)
+    _group_candidate_assessments: dict[str, list[CandidateAssessment]] = field(
+        default_factory=dict
+    )
+    _group_diversions: dict[str, dict[str, str | None]] = field(
         default_factory=dict
     )
     _group_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -152,12 +213,37 @@ class ExecutionGroupOrchestrator(Orchestrator):
             super().run(),
             self._execution_group_progress_loop(),
             self._objective_loop(),
+            self._objective_approval_loop(),
+            self._authority_grant_loop(),
             self._reinforcement_loop(),
         )
 
     @property
     def execution_groups(self) -> dict[str, ExecutionGroup]:
         return self._execution_groups
+
+    @property
+    def objectives(self) -> dict[str, MissionTask]:
+        return self._objectives
+
+    @property
+    def mission_decisions(self) -> dict[str, MissionDecision]:
+        return self._mission_decisions
+
+    @property
+    def authority_grants(self) -> dict[tuple[str, int], MissionAuthorityGrant]:
+        return self._authority_grants
+
+    def register_authority_grant(self, grant: MissionAuthorityGrant) -> None:
+        key = (grant.grant_id, grant.revision)
+        existing = self._authority_grants.get(key)
+        if existing is not None and existing != grant:
+            raise ValueError("authority grant revision is immutable")
+        self._authority_grants[key] = grant
+        self._latest_grant_revision[grant.grant_id] = max(
+            grant.revision,
+            self._latest_grant_revision.get(grant.grant_id, 0),
+        )
 
     def group_role_for_mission(self, mission_id: str) -> str | None:
         mapping = self._group_task_to_role.get(mission_id)
@@ -202,6 +288,125 @@ class ExecutionGroupOrchestrator(Orchestrator):
             )
             await self._auction_and_dispatch(mission, anomaly_id=anomaly.id)
 
+    async def _auction_and_dispatch(
+        self,
+        mission: MissionTask,
+        *,
+        anomaly_id: str | None = None,
+    ) -> None:
+        """Run single-executor work through the same authority/decision pipeline."""
+
+        forced_assignments: dict[str, str] | None = None
+        diverted_from_by_agent: dict[str, str | None] | None = None
+        if not self._eligible_fleet(excluded_agent_ids=set(), mission=mission):
+            victim = (
+                self._nearest_airborne(self._snapshot_fleet(), mission)
+                if self.continuous_patrol
+                else None
+            )
+            if victim is not None:
+                forced_assignments = {"EXECUTOR": victim}
+                diverted_from_by_agent = {
+                    victim: self._agent_mission_ids.get(victim)
+                }
+
+        proposal = await self.dispatch_execution_group(
+            mission,
+            anomaly_id=anomaly_id,
+            plans=[
+                ExecutionRolePlan(
+                    role="EXECUTOR", mission=self._clone_mission(mission)
+                )
+            ],
+            forced_assignments=forced_assignments,
+            diverted_from_by_agent=diverted_from_by_agent,
+        )
+        await self._publish_single_allocation_projection(
+            mission=mission,
+            anomaly_id=anomaly_id,
+            proposal=proposal,
+        )
+
+    async def _publish_single_allocation_projection(
+        self,
+        *,
+        mission: MissionTask,
+        anomaly_id: str | None,
+        proposal: ExecutionGroup,
+    ) -> None:
+        """Keep the legacy allocation frame as a projection of MissionDecision."""
+
+        assessments = self._group_candidate_assessments.get(proposal.id, [])
+        fleet_by_id = {state.agent_id: state for state in self._snapshot_fleet()}
+        eligible: list[AllocationEligibleUnit] = []
+        excluded: list[AllocationExcludedUnit] = []
+        reason_map = {
+            "BUSY": AllocationExclusionReason.BUSY,
+            "LOW_BATTERY": AllocationExclusionReason.LOW_BATTERY,
+            "UNAVAILABLE": AllocationExclusionReason.UNAVAILABLE,
+            "CAPABILITY_MISMATCH": AllocationExclusionReason.CAPABILITY_MISMATCH,
+        }
+        for assessment in assessments:
+            state = fleet_by_id.get(assessment.agent_id)
+            if state is None:
+                continue
+            exclusion = next(
+                (
+                    reason_map[reason]
+                    for reason in assessment.exclusion_reasons
+                    if reason in reason_map
+                ),
+                None,
+            )
+            if exclusion is not None:
+                excluded.append(
+                    AllocationExcludedUnit(
+                        agent_id=state.agent_id,
+                        fsm_state=state.fsm_state,
+                        battery_pct=state.battery_pct,
+                        capabilities=state.capabilities,
+                        reason=exclusion,
+                        active_mission_id=(
+                            self._agent_mission_ids.get(state.agent_id)
+                            or state.current_mission_id
+                        ),
+                    )
+                )
+                continue
+            if assessment.score is not None:
+                eligible.append(
+                    AllocationEligibleUnit(
+                        agent_id=state.agent_id,
+                        fsm_state=state.fsm_state,
+                        battery_pct=state.battery_pct,
+                        capabilities=state.capabilities,
+                        score=assessment.score,
+                        score_breakdown=AllocationScoreBreakdown(
+                            **assessment.score_breakdown
+                        ),
+                    )
+                )
+
+        winner = proposal.members[0] if proposal.members else None
+        diversions = self._group_diversions.get(proposal.id, {})
+        mode = "no_award" if winner is None else "diversion" if diversions else "auction"
+        await self._publish_allocation_decision(
+            mission=mission,
+            anomaly_id=anomaly_id,
+            mode=mode,
+            eligible_units=eligible,
+            excluded_units=[
+                row
+                for row in excluded
+                if winner is None or row.agent_id != winner.agent_id
+            ],
+            winner_agent_id=winner.agent_id if winner is not None else None,
+            winner_score=winner.score if winner is not None else None,
+            diverted_from_mission_id=(
+                diversions.get(winner.agent_id) if winner is not None else None
+            ),
+        )
+
     def _should_cooperative_verify(self, anomaly: Anomaly) -> bool:
         return (
             self.cooperative_verify_enabled
@@ -217,26 +422,462 @@ class ExecutionGroupOrchestrator(Orchestrator):
             except Exception as exc:
                 logger.warning("rejected execution-group objective: %s", exc)
 
+    async def _objective_approval_loop(self) -> None:
+        async for _topic, payload in self.bus.subscribe(OBJECTIVE_APPROVAL_TOPIC):
+            try:
+                approval = ObjectiveApprovalCommand.model_validate_json(payload)
+                await self.approve_objective(approval)
+            except Exception as exc:
+                logger.warning("rejected objective approval: %s", exc)
+
+    async def _authority_grant_loop(self) -> None:
+        async for _topic, payload in self.bus.subscribe(MISSION_AUTHORITY_GRANT_TOPIC):
+            try:
+                grant = MissionAuthorityGrant.model_validate_json(payload)
+                self.register_authority_grant(grant)
+            except Exception as exc:
+                logger.warning("rejected mission authority grant: %s", exc)
+
+    async def prepare_execution_group(
+        self,
+        objective: MissionTask,
+        *,
+        anomaly_id: str | None = None,
+        reinforces_group_id: str | None = None,
+        decision_kind: MissionDecisionKind = MissionDecisionKind.LAUNCH_COMPOSITION,
+        plans: list[ExecutionRolePlan] | None = None,
+        excluded_agent_ids: set[str] | None = None,
+        forced_assignments: dict[str, str] | None = None,
+        diverted_from_by_agent: dict[str, str | None] | None = None,
+        supersedes_decision_id: str | None = None,
+    ) -> ExecutionGroup:
+        """Recommend a composition, evaluate authority, and publish both records."""
+
+        self._validate_objective(objective, has_explicit_plans=plans is not None)
+        material = self._material_snapshot(objective)
+        existing_decision_id = self._pending_proposals.get(objective.id)
+        superseded_decision_id = supersedes_decision_id or existing_decision_id
+        if existing_decision_id is not None:
+            existing_decision = self._mission_decisions.get(existing_decision_id)
+            existing_group_id = self._decision_groups.get(existing_decision_id)
+            existing = (
+                self._execution_groups.get(existing_group_id)
+                if existing_group_id is not None
+                else None
+            )
+            if (
+                existing is not None
+                and existing_decision is not None
+                and self._proposal_snapshots.get(existing_decision_id) == material
+                and existing_decision.decision_kind is decision_kind
+            ):
+                return existing
+            self._pending_proposals.pop(objective.id, None)
+
+        objective_plans = plans or self._plans_for_objective(objective)
+        group = await self._prepare_group(
+            objective=objective,
+            plans=objective_plans,
+            anomaly_id=anomaly_id,
+            reinforces_group_id=reinforces_group_id,
+            excluded_agent_ids=excluded_agent_ids,
+            forced_assignments=forced_assignments,
+            diverted_from_by_agent=diverted_from_by_agent,
+        )
+        decision = self._build_mission_decision(
+            objective=objective,
+            group=group,
+            plans=objective_plans,
+            decision_kind=decision_kind,
+            supersedes_decision_id=superseded_decision_id,
+        )
+        group.decision_id = decision.decision_id
+        self._objectives[objective.id] = objective
+        self._mission_decisions[decision.decision_id] = decision
+        self._decision_groups[decision.decision_id] = group.id
+        self._objective_decisions[objective.id] = decision.decision_id
+        self._proposal_snapshots[decision.decision_id] = material
+        await self._publish_decision(decision)
+        if decision_kind is not MissionDecisionKind.REPLACE_FAILED_EXECUTOR:
+            await self._publish_group(group)
+        if group.state is ExecutionGroupState.FAILED:
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            return group
+        if decision.authority_verdict is MissionAuthorityVerdict.DENIED:
+            group.state = ExecutionGroupState.FAILED
+            group.failure_reason = "AUTHORITY_DENIED"
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            await self._publish_group(group)
+            return group
+        self._pending_proposals[objective.id] = decision.decision_id
+        if decision.authority_verdict is MissionAuthorityVerdict.REVIEW_REQUIRED:
+            self._set_objective_status(objective, ObjectiveStatus.WAITING_FOR_APPROVAL)
+        return group
+
+    async def approve_objective(
+        self, approval: ObjectiveApprovalCommand
+    ) -> ExecutionGroup | None:
+        """Revalidate and dispatch one exact, still-current proposal."""
+
+        applied_group_id = self._approved_decisions.get(approval.decision_id)
+        if applied_group_id is not None:
+            return self._execution_groups.get(applied_group_id)
+
+        objective = self._objectives.get(approval.objective_id)
+        pending_decision_id = self._pending_proposals.get(approval.objective_id)
+        decision = self._mission_decisions.get(approval.decision_id)
+        if (
+            objective is None
+            or decision is None
+            or pending_decision_id != approval.decision_id
+        ):
+            return None
+        group_id = self._decision_groups.get(decision.decision_id)
+        proposal = self._execution_groups.get(group_id) if group_id is not None else None
+        if proposal is None:
+            return None
+        if not self._actor_may_review(decision, approval.approved_by):
+            return None
+
+        action = MissionReviewAction(approval.action)
+        if action is MissionReviewAction.REJECT:
+            await self._record_review(decision, approval, action=action)
+            self._pending_proposals.pop(objective.id, None)
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            proposal.failure_reason = "DECISION_REJECTED"
+            await self._publish_group(proposal)
+            return proposal
+        if action is MissionReviewAction.OVERRIDE:
+            return await self._override_decision(objective, decision, proposal, approval)
+
+        if decision.authority_verdict is MissionAuthorityVerdict.DENIED:
+            return None
+        if self._proposal_snapshots.get(decision.decision_id) != self._material_snapshot(objective):
+            self._pending_proposals.pop(objective.id, None)
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            return None
+        current_grant = self._grant_for_objective(objective)
+        if objective.authority_grant_id is not None and current_grant is None:
+            return None
+        verdict, reasons, _constraints = evaluate_mission_authority(
+            objective=objective,
+            decision_kind=decision.decision_kind,
+            selected_agent_ids=[row.agent_id for row in decision.selected_assignments],
+            grant=current_grant,
+        )
+        if verdict is MissionAuthorityVerdict.DENIED:
+            logger.warning(
+                "approval refused after authority revalidation: %s", ",".join(reasons)
+            )
+            return None
+        if not await self._claim_prepared_group_for_dispatch(proposal):
+            proposal.state = ExecutionGroupState.FAILED
+            proposal.failure_reason = "PROPOSAL_STALE"
+            self._pending_proposals.pop(objective.id, None)
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            await self._publish_group(proposal)
+            return None
+
+        await self._record_review(decision, approval, action=action)
+        self._approved_decisions[decision.decision_id] = proposal.id
+        self._pending_proposals.pop(objective.id, None)
+        self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
+        await self._dispatch_claimed_group(proposal)
+        return proposal
+
     async def dispatch_execution_group(
         self,
         objective: MissionTask,
         *,
         anomaly_id: str | None = None,
+        plans: list[ExecutionRolePlan] | None = None,
+        forced_assignments: dict[str, str] | None = None,
+        diverted_from_by_agent: dict[str, str | None] | None = None,
     ) -> ExecutionGroup:
-        if objective.kind == COOPERATIVE_VERIFY_KIND:
-            plans = self._cooperative_verify_plans(objective)
-        elif objective.kind == MissionKind.COVER.value:
-            plans = self._cover_plans(objective)
-        else:
+        proposal = await self.prepare_execution_group(
+            objective,
+            anomaly_id=anomaly_id,
+            plans=plans,
+            forced_assignments=forced_assignments,
+            diverted_from_by_agent=diverted_from_by_agent,
+        )
+        if proposal.decision_id is None:
+            return proposal
+        decision = self._mission_decisions[proposal.decision_id]
+        if decision.authority_verdict is not MissionAuthorityVerdict.AUTO_AUTHORIZED:
+            return proposal
+        if proposal.state is not ExecutionGroupState.FORMING:
+            return proposal
+        if not await self._claim_prepared_group_for_dispatch(proposal):
+            proposal.state = ExecutionGroupState.FAILED
+            proposal.failure_reason = "PROPOSAL_STALE"
+            self._pending_proposals.pop(objective.id, None)
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            await self._publish_group(proposal)
+            return proposal
+        self._pending_proposals.pop(objective.id, None)
+        self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
+        await self._dispatch_claimed_group(proposal)
+        return proposal
+
+    def _validate_objective(
+        self, objective: MissionTask, *, has_explicit_plans: bool
+    ) -> None:
+        if not has_explicit_plans and objective.kind not in {
+            COOPERATIVE_VERIFY_KIND,
+            MissionKind.COVER.value,
+        }:
             raise ValueError(
                 "execution groups require an orchestration-only COOPERATIVE_VERIFY "
-                "or COVER objective"
+                "or COVER objective unless explicit role plans are provided"
             )
-        return await self._form_and_dispatch_group(
-            objective=objective,
-            plans=plans,
-            anomaly_id=anomaly_id,
+        if (objective.authority_grant_id is None) != (
+            objective.authority_grant_revision is None
+        ):
+            raise ValueError("authority grant id and revision must be supplied together")
+
+    def _plans_for_objective(self, objective: MissionTask) -> list[ExecutionRolePlan]:
+        if objective.kind == COOPERATIVE_VERIFY_KIND:
+            return self._cooperative_verify_plans(objective)
+        return self._cover_plans(objective)
+
+    @staticmethod
+    def _material_snapshot(objective: MissionTask) -> str:
+        payload = objective.model_dump(mode="json")
+        payload.pop("status", None)
+        payload.pop("ts", None)
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+    def _grant_for_objective(
+        self, objective: MissionTask
+    ) -> MissionAuthorityGrant | None:
+        if (
+            objective.authority_grant_id is None
+            or objective.authority_grant_revision is None
+        ):
+            return None
+        if self._latest_grant_revision.get(objective.authority_grant_id) != (
+            objective.authority_grant_revision
+        ):
+            return None
+        return self._authority_grants.get(
+            (objective.authority_grant_id, objective.authority_grant_revision)
         )
+
+    def _build_mission_decision(
+        self,
+        *,
+        objective: MissionTask,
+        group: ExecutionGroup,
+        plans: list[ExecutionRolePlan],
+        decision_kind: MissionDecisionKind,
+        supersedes_decision_id: str | None,
+    ) -> MissionDecision:
+        grant = self._grant_for_objective(objective)
+        hard_constraints = (
+            self.hard_constraint_provider()
+            if self.hard_constraint_provider is not None
+            else None
+        )
+        hard_reasons, hard_snapshot = evaluate_mission_hard_constraints(
+            objective, hard_constraints
+        )
+        if objective.authority_grant_id is not None and grant is None:
+            verdict = MissionAuthorityVerdict.DENIED
+            authority_reasons = ["GRANT_NOT_AVAILABLE"]
+            authority_snapshot: dict[str, object] = {}
+        else:
+            verdict, authority_reasons, authority_snapshot = evaluate_mission_authority(
+                objective=objective,
+                decision_kind=decision_kind,
+                selected_agent_ids=[member.agent_id for member in group.members],
+                grant=grant,
+            )
+        if hard_reasons:
+            verdict = MissionAuthorityVerdict.DENIED
+            authority_reasons = [*hard_reasons, *authority_reasons]
+        constraints_snapshot: dict[str, object] = {
+            "hard": hard_snapshot,
+            "delegated_authority": authority_snapshot,
+        }
+
+        role_requirements = {
+            plan.role: sorted(required_capabilities(plan.mission)) for plan in plans
+        }
+        selected_assignments = [
+            SelectedAssignment(
+                agent_id=member.agent_id,
+                role=member.role,
+                mission_id=member.mission_id,
+                supplied_capabilities=list(member.supplied_capabilities),
+            )
+            for member in group.members
+        ]
+        full_requirements_satisfied = (
+            len(group.members) == group.requested_members
+            and all(
+                set(role_requirements.get(member.role, [])).issubset(
+                    member.supplied_capabilities
+                )
+                for member in group.members
+            )
+        )
+        requirements_snapshot: dict[str, object] = {
+            "objective_kind": objective.kind,
+            "requested_members": group.requested_members,
+            "required_capabilities": sorted(required_capabilities(objective)),
+            "role_requirements": role_requirements,
+        }
+        return MissionDecision(
+            objective_id=objective.id,
+            objective_revision=objective.revision,
+            decision_kind=decision_kind,
+            requirements_snapshot=requirements_snapshot,
+            constraints_snapshot=constraints_snapshot,
+            candidate_assessments=self._group_candidate_assessments.get(group.id, []),
+            selected_assignments=selected_assignments,
+            full_requirements_satisfied=full_requirements_satisfied,
+            authority_grant_id=grant.grant_id if grant is not None else None,
+            authority_grant_revision=grant.revision if grant is not None else None,
+            authority_verdict=verdict,
+            authority_reasons=authority_reasons,
+            supersedes_decision_id=supersedes_decision_id,
+        )
+
+    def _actor_may_review(self, decision: MissionDecision, actor_id: str) -> bool:
+        if decision.authority_grant_id is None:
+            return True
+        revision = decision.authority_grant_revision
+        if revision is None:
+            return False
+        grant = self._authority_grants.get((decision.authority_grant_id, revision))
+        if grant is None:
+            return False
+        return actor_id == grant.holder_id or actor_id in grant.approver_ids
+
+    async def _record_review(
+        self,
+        decision: MissionDecision,
+        approval: ObjectiveApprovalCommand,
+        *,
+        action: MissionReviewAction,
+        replacement_decision_id: str | None = None,
+    ) -> MissionDecisionReview:
+        review = MissionDecisionReview(
+            decision_id=decision.decision_id,
+            objective_id=decision.objective_id,
+            action=action,
+            actor_id=approval.approved_by,
+            replacement_decision_id=replacement_decision_id,
+        )
+        self._decision_reviews[review.review_id] = review
+        await self.bus.publish(MISSION_DECISION_REVIEW_TOPIC, review.model_dump_json())
+        return review
+
+    async def _override_decision(
+        self,
+        objective: MissionTask,
+        decision: MissionDecision,
+        proposal: ExecutionGroup,
+        approval: ObjectiveApprovalCommand,
+    ) -> ExecutionGroup | None:
+        """Create a superseding immutable selection, then commit that exact record."""
+
+        assignments: dict[str, str] = {}
+        for raw in approval.override_assignments:
+            role = raw.get("role")
+            agent_id = raw.get("agent_id")
+            if not role or not agent_id or role in assignments:
+                return None
+            assignments[role] = agent_id
+        if (
+            decision.decision_kind is MissionDecisionKind.REPLACE_FAILED_EXECUTOR
+            or objective.kind
+            not in {COOPERATIVE_VERIFY_KIND, MissionKind.COVER.value}
+        ):
+            plans = [
+                ExecutionRolePlan(
+                    role=member.role,
+                    mission=self._clone_mission(self._group_missions[member.mission_id]),
+                )
+                for member in proposal.members
+            ]
+        else:
+            plans = self._plans_for_objective(objective)
+        if set(assignments) != {plan.role for plan in plans}:
+            return None
+        if len(set(assignments.values())) != len(assignments):
+            return None
+
+        excluded: set[str] = set()
+        if proposal.reinforces_group_id is not None:
+            origin = self._execution_groups.get(proposal.reinforces_group_id)
+            if origin is not None:
+                excluded = {member.agent_id for member in origin.members}
+        self._pending_proposals.pop(objective.id, None)
+        replacement = await self.prepare_execution_group(
+            objective,
+            anomaly_id=proposal.anomaly_id,
+            reinforces_group_id=proposal.reinforces_group_id,
+            decision_kind=decision.decision_kind,
+            plans=plans,
+            excluded_agent_ids=excluded,
+            forced_assignments=assignments,
+            supersedes_decision_id=decision.decision_id,
+        )
+        if replacement.decision_id is None:
+            return replacement
+        replacement_decision = self._mission_decisions[replacement.decision_id]
+        await self._record_review(
+            decision,
+            approval,
+            action=MissionReviewAction.OVERRIDE,
+            replacement_decision_id=replacement_decision.decision_id,
+        )
+        if (
+            replacement.state is not ExecutionGroupState.FORMING
+            or not replacement_decision.full_requirements_satisfied
+            or replacement_decision.authority_verdict is MissionAuthorityVerdict.DENIED
+        ):
+            return replacement
+        if not await self._claim_prepared_group_for_dispatch(replacement):
+            replacement.state = ExecutionGroupState.FAILED
+            replacement.failure_reason = "PROPOSAL_STALE"
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            await self._publish_group(replacement)
+            return replacement
+        self._approved_decisions[replacement_decision.decision_id] = replacement.id
+        self._pending_proposals.pop(objective.id, None)
+        self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
+        await self._dispatch_claimed_group(replacement)
+        return replacement
+
+    async def _publish_decision(self, decision: MissionDecision) -> None:
+        await self.bus.publish(MISSION_DECISION_TOPIC, decision.model_dump_json())
+
+    def _set_objective_status(
+        self,
+        objective: MissionTask,
+        status: ObjectiveStatus,
+        *,
+        reason: str | None = None,
+    ) -> None:
+        objective.status = status
+        objective.ts = datetime.now(UTC)
+        self._objectives[objective.id] = objective
+        frame = ObjectiveStateFrame(
+            objective_id=objective.id,
+            objective_revision=objective.revision,
+            status=status,
+            decision_id=self._objective_decisions.get(objective.id),
+            reason=reason,
+            ts=objective.ts,
+        )
+        task = asyncio.create_task(
+            self.bus.publish(MISSION_OBJECTIVE_STATE_TOPIC, frame.model_dump_json())
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def _cooperative_verify_plans(
         self, objective: MissionTask
@@ -249,7 +890,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
         base_altitude_m = float(objective.params.get("base_altitude_m", 40.0))
         altitude_step_m = float(objective.params.get("altitude_step_m", 15.0))
         configured_roles = list(objective.params.get("roles", []))
-        required = list(objective.params.get("required_capabilities", []))
         sensors = [SensorKind(raw) for raw in objective.params.get("sensors", [])]
         default_roles = ["PRIMARY_OBSERVER", "SECONDARY_OBSERVER", "OVERWATCH"]
 
@@ -269,7 +909,12 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 altitude_m=base_altitude_m + altitude_step_m * idx,
                 priority=objective.priority,
                 deadline_s=None,
-                required_capabilities=required,
+                required_capabilities=_role_requirements(objective, role),
+                source=objective.source,
+                authority_policy=objective.authority_policy,
+                requested_by=objective.requested_by,
+                authority_grant_id=objective.authority_grant_id,
+                authority_grant_revision=objective.authority_grant_revision,
             )
             child.params["execution_role"] = role
             child.params["parent_objective_id"] = objective.id
@@ -283,8 +928,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
             raise ValueError("COVER fleet_size must be >= 1")
         if not area:
             raise ValueError("COVER requires a non-empty area")
-        required = list(objective.params.get("required_capabilities", []))
-
         plans: list[ExecutionRolePlan] = []
         for idx in range(fleet_size):
             slice_area = area[idx::fleet_size] or area
@@ -292,7 +935,14 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 area=slice_area,
                 altitude_m=float(objective.params.get("altitude_m", 60.0)),
                 priority=objective.priority,
-                required_capabilities=required,
+                required_capabilities=_role_requirements(
+                    objective, f"COVERAGE_SLICE_{idx + 1}"
+                ),
+                source=objective.source,
+                authority_policy=objective.authority_policy,
+                requested_by=objective.requested_by,
+                authority_grant_id=objective.authority_grant_id,
+                authority_grant_revision=objective.authority_grant_revision,
             )
             role = f"COVERAGE_SLICE_{idx + 1}"
             child.params["execution_role"] = role
@@ -302,14 +952,19 @@ class ExecutionGroupOrchestrator(Orchestrator):
             plans.append(ExecutionRolePlan(role=role, mission=child))
         return plans
 
-    async def _form_and_dispatch_group(
+    async def _prepare_group(
         self,
         *,
         objective: MissionTask,
         plans: list[ExecutionRolePlan],
         anomaly_id: str | None,
         reinforces_group_id: str | None = None,
+        excluded_agent_ids: set[str] | None = None,
+        forced_assignments: dict[str, str] | None = None,
+        diverted_from_by_agent: dict[str, str | None] | None = None,
     ) -> ExecutionGroup:
+        """Compose a proposal without claiming, publishing awards, or dispatching."""
+
         if not plans:
             raise ValueError("execution group requires at least one role")
 
@@ -325,16 +980,61 @@ class ExecutionGroupOrchestrator(Orchestrator):
             tuple[ExecutionRolePlan, str, float, dict[str, float]]
         ] = []
         unfilled: list[ExecutionRolePlan] = []
-        reserved: set[str] = set()
+        reserved: set[str] = set(excluded_agent_ids or ())
+        candidate_assessments: list[CandidateAssessment] = []
 
         for plan in plans:
-            choice = self._select_group_candidate(
-                plan.mission, excluded_agent_ids=reserved
-            )
+            forced_agent_id = (forced_assignments or {}).get(plan.role)
+            if forced_agent_id is None:
+                choice = self._select_group_candidate(
+                    plan.mission, excluded_agent_ids=reserved
+                )
+            else:
+                forced_state = next(
+                    (
+                        state
+                        for state in self._snapshot_fleet()
+                        if state.agent_id == forced_agent_id
+                        and self._is_group_candidate(
+                            state,
+                            excluded_agent_ids=reserved,
+                            mission=plan.mission,
+                            allowed_airborne_agent_ids=set(
+                                (diverted_from_by_agent or {}).keys()
+                            ),
+                        )
+                    ),
+                    None,
+                )
+                if forced_state is None:
+                    choice = None
+                else:
+                    bid = build_bid(plan.mission, forced_state)
+                    choice = (forced_agent_id, bid.score, dict(bid.reason))
             if choice is None:
                 unfilled.append(plan)
+                candidate_assessments.extend(
+                    self._candidate_assessments(
+                        plan,
+                        excluded_agent_ids=reserved,
+                        selected_agent_id=None,
+                        allowed_airborne_agent_ids=set(
+                            (diverted_from_by_agent or {}).keys()
+                        ),
+                    )
+                )
                 continue
             agent_id, score, breakdown = choice
+            candidate_assessments.extend(
+                self._candidate_assessments(
+                    plan,
+                    excluded_agent_ids=reserved,
+                    selected_agent_id=agent_id,
+                    allowed_airborne_agent_ids=set(
+                        (diverted_from_by_agent or {}).keys()
+                    ),
+                )
+            )
             reserved.add(agent_id)
             assignments.append((plan, agent_id, score, breakdown))
 
@@ -342,11 +1042,12 @@ class ExecutionGroupOrchestrator(Orchestrator):
             group.state = ExecutionGroupState.FAILED
             group.failure_reason = "INSUFFICIENT_ELIGIBLE_CAPACITY"
             self._execution_groups[group.id] = group
-            await self._publish_group(group)
+            self._group_candidate_assessments[group.id] = candidate_assessments
             return group
 
         members: list[ExecutionGroupMember] = []
         templates: dict[str, MissionTask] = {}
+        fleet_by_id = {state.agent_id: state for state in self._snapshot_fleet()}
         for plan, agent_id, score, breakdown in assignments:
             child = plan.mission
             child.params["execution_group_id"] = group.id
@@ -357,15 +1058,18 @@ class ExecutionGroupOrchestrator(Orchestrator):
                     mission_id=child.id,
                     score=score,
                     score_breakdown=breakdown,
+                    supplied_capabilities=list(fleet_by_id[agent_id].capabilities),
                 )
             )
             templates[plan.role] = self._clone_mission(child)
-            self._group_task_to_role[child.id] = (group.id, plan.role)
+            self._group_missions[child.id] = child
 
         group.members = members
-        group.state = ExecutionGroupState.ACTIVE
         self._execution_groups[group.id] = group
+        self._group_candidate_assessments[group.id] = candidate_assessments
         self._group_role_templates[group.id] = templates
+        if diverted_from_by_agent:
+            self._group_diversions[group.id] = dict(diverted_from_by_agent)
         if reinforces_group_id is None:
             self._reinforcement_records[group.id] = _ObjectiveReinforcementRecord(
                 objective=objective,
@@ -373,54 +1077,247 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 unfilled_plans=unfilled,
             )
 
-        for plan, agent_id, _score, _breakdown in assignments:
-            self._busy.add(agent_id)
-            self._agent_mission_ids[agent_id] = plan.mission.id
+        return group
 
-        try:
-            await self._publish_group(group)
-        except Exception:
-            for plan, agent_id, _score, _breakdown in assignments:
-                self._busy.discard(agent_id)
-                if self._agent_mission_ids.get(agent_id) == plan.mission.id:
-                    self._agent_mission_ids.pop(agent_id, None)
-            raise
+    async def _claim_prepared_group_for_dispatch(
+        self, group: ExecutionGroup
+    ) -> bool:
+        """Cancel an exact patrol diversion, then revalidate and claim."""
 
-        for (plan, agent_id, score, _breakdown), member in zip(
-            assignments, members, strict=True
+        for agent_id, diverted_from in self._group_diversions.get(group.id, {}).items():
+            if self._agent_mission_ids.get(agent_id) != diverted_from:
+                return False
+            task = self._agent_tasks.get(agent_id)
+            if task is not None and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.exception("failed to stop patrol before diversion")
+                    return False
+        return self._claim_prepared_group(group)
+
+    def _claim_prepared_group(self, group: ExecutionGroup) -> bool:
+        """Revalidate and claim every proposed member without an await boundary."""
+
+        if group.state is not ExecutionGroupState.FORMING:
+            return False
+        if group.decision_id is None:
+            return False
+        decision = self._mission_decisions.get(group.decision_id)
+        if decision is None:
+            return False
+        objective = self._objectives.get(decision.objective_id)
+        if objective is None:
+            return False
+        if self._proposal_snapshots.get(decision.decision_id) != self._material_snapshot(
+            objective
         ):
-            await self._publish_group_award(plan.mission, agent_id, score)
-            self._start_mission(agent_id, plan.mission, is_verify=True)
+            return False
+        grant = self._grant_for_objective(objective)
+        if objective.authority_grant_id is not None and grant is None:
+            return False
+        hard_constraints = (
+            self.hard_constraint_provider()
+            if self.hard_constraint_provider is not None
+            else None
+        )
+        hard_reasons, _hard_snapshot = evaluate_mission_hard_constraints(
+            objective, hard_constraints
+        )
+        if hard_reasons:
+            return False
+        verdict, _reasons, _constraints = evaluate_mission_authority(
+            objective=objective,
+            decision_kind=decision.decision_kind,
+            selected_agent_ids=[member.agent_id for member in group.members],
+            grant=grant,
+        )
+        if verdict is MissionAuthorityVerdict.DENIED:
+            return False
+        reserved: set[str] = set()
+        allowed_airborne = set(self._group_diversions.get(group.id, {}))
+        for member in group.members:
+            mission = self._group_missions.get(member.mission_id)
+            if mission is None:
+                return False
+            eligible_ids = {
+                state.agent_id
+                for state in self._eligible_fleet(
+                    excluded_agent_ids=reserved,
+                    mission=mission,
+                    allowed_airborne_agent_ids=allowed_airborne,
+                )
+            }
+            if member.agent_id not in eligible_ids:
+                return False
+            reserved.add(member.agent_id)
+
+        for member in group.members:
+            self._busy.add(member.agent_id)
+            self._agent_mission_ids[member.agent_id] = member.mission_id
+            self._group_task_to_role[member.mission_id] = (group.id, member.role)
+        group.state = ExecutionGroupState.ACTIVE
+        return True
+
+    async def _dispatch_claimed_group(self, group: ExecutionGroup) -> None:
+        decision = (
+            self._mission_decisions.get(group.decision_id)
+            if group.decision_id is not None
+            else None
+        )
+        if (
+            decision is not None
+            and decision.decision_kind is MissionDecisionKind.REPLACE_FAILED_EXECUTOR
+            and group.reinforces_group_id is not None
+        ):
+            origin = self._execution_groups.get(group.reinforces_group_id)
+            if origin is not None:
+                replacement_roles = {member.role for member in group.members}
+                replaced_by_role: dict[str, str] = {}
+                for index, member in enumerate(origin.members):
+                    if (
+                        member.role in replacement_roles
+                        and member.state is ExecutionGroupMemberState.FAILED
+                    ):
+                        replaced_by_role[member.role] = member.agent_id
+                        origin.members[index] = member.model_copy(
+                            update={"state": ExecutionGroupMemberState.REPLACED}
+                        )
+                for member in group.members:
+                    origin.members.append(
+                        member.model_copy(
+                            update={
+                                "replaces_agent_id": replaced_by_role.get(member.role)
+                            }
+                        )
+                    )
+                    self._group_task_to_role[member.mission_id] = (
+                        origin.id,
+                        member.role,
+                    )
+                origin.failure_reason = None
+                origin.decision_id = decision.decision_id
+                origin.composition_revision += 1
+                self._decision_groups[decision.decision_id] = origin.id
+                self._execution_groups.pop(group.id, None)
+                await self._publish_group(origin)
+        else:
+            await self._publish_group(group)
+        for member in group.members:
+            mission = self._group_missions[member.mission_id]
+            await self._publish_group_award(mission, member.agent_id, member.score)
+            self._start_mission(member.agent_id, mission, is_verify=True)
             logger.info(
                 "execution group %s role %s -> %s mission=%s",
                 group.id,
                 member.role,
-                agent_id,
+                member.agent_id,
                 member.mission_id,
             )
-        return group
 
     def _eligible_fleet(
         self,
         *,
         excluded_agent_ids: set[str],
         mission: MissionTask | None = None,
+        allowed_airborne_agent_ids: set[str] | None = None,
     ) -> list[FleetState]:
-        required = required_capabilities(mission) if mission is not None else set()
         eligible: list[FleetState] = []
         for state in self._snapshot_fleet():
-            if state.agent_id in excluded_agent_ids:
-                continue
-            if state.agent_id in self._busy or state.current_mission_id is not None:
-                continue
-            if state.battery_pct < MIN_BATTERY_PCT:
-                continue
-            if not is_available(state.fsm_state):
-                continue
-            if not has_capabilities(state, required):
-                continue
-            eligible.append(state)
+            if self._is_group_candidate(
+                state,
+                excluded_agent_ids=excluded_agent_ids,
+                mission=mission,
+                allowed_airborne_agent_ids=allowed_airborne_agent_ids or set(),
+            ):
+                eligible.append(state)
         return eligible
+
+    def _is_group_candidate(
+        self,
+        state: FleetState,
+        *,
+        excluded_agent_ids: set[str],
+        mission: MissionTask | None,
+        allowed_airborne_agent_ids: set[str],
+    ) -> bool:
+        if state.agent_id in excluded_agent_ids:
+            return False
+        is_bounded_diversion = state.agent_id in allowed_airborne_agent_ids
+        if state.agent_id in self._verifying:
+            return False
+        if (
+            not is_bounded_diversion
+            and (state.agent_id in self._busy or state.current_mission_id is not None)
+        ):
+            return False
+        if state.battery_pct < MIN_BATTERY_PCT:
+            return False
+        if not is_bounded_diversion and not is_available(state.fsm_state):
+            return False
+        required = required_capabilities(mission) if mission is not None else set()
+        return has_capabilities(state, required)
+
+    def _candidate_assessments(
+        self,
+        plan: ExecutionRolePlan,
+        *,
+        excluded_agent_ids: set[str],
+        selected_agent_id: str | None,
+        allowed_airborne_agent_ids: set[str] | None = None,
+    ) -> list[CandidateAssessment]:
+        """Record every candidate fact used by the deterministic selector."""
+
+        required = required_capabilities(plan.mission)
+        assessments: list[CandidateAssessment] = []
+        allowed_airborne = allowed_airborne_agent_ids or set()
+        for state in sorted(self._snapshot_fleet(), key=lambda item: item.agent_id):
+            selected = state.agent_id == selected_agent_id
+            score: float | None = None
+            breakdown: dict[str, float] = {}
+            if state.agent_id in excluded_agent_ids:
+                reason = "RESERVED_BY_HIGHER_RANKED_ROLE"
+            elif (
+                state.agent_id in self._verifying
+                or (
+                    state.agent_id not in allowed_airborne
+                    and (
+                        state.agent_id in self._busy
+                        or state.current_mission_id is not None
+                    )
+                )
+            ):
+                reason = "BUSY"
+            elif state.battery_pct < MIN_BATTERY_PCT:
+                reason = "LOW_BATTERY"
+            elif (
+                state.agent_id not in allowed_airborne
+                and not is_available(state.fsm_state)
+            ):
+                reason = "UNAVAILABLE"
+            elif not has_capabilities(state, required):
+                reason = "CAPABILITY_MISMATCH"
+            else:
+                bid = build_bid(plan.mission, state)
+                score = bid.score
+                breakdown = dict(bid.reason)
+                reason = "" if selected else "LOWER_SCORE"
+            assessments.append(
+                CandidateAssessment(
+                    agent_id=state.agent_id,
+                    role=plan.role,
+                    supplied_capabilities=list(state.capabilities),
+                    availability_state=state.fsm_state.value,
+                    score=score,
+                    score_breakdown=breakdown,
+                    selected=selected,
+                    exclusion_reasons=[reason] if reason else [],
+                )
+            )
+        return assessments
 
     def _select_group_candidate(
         self,
@@ -456,6 +1353,13 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 origin = self._execution_groups.get(origin_id)
                 if origin is None or origin.state not in RUNNING_GROUP_STATES:
                     self._reinforcement_records.pop(origin_id, None)
+                    continue
+                objective = self._objectives.get(origin.objective_mission_id)
+                if objective is not None and objective.status in {
+                    ObjectiveStatus.WAITING_FOR_APPROVAL,
+                    ObjectiveStatus.SATISFIED,
+                    ObjectiveStatus.FAILED,
+                }:
                     continue
                 if not record.unfilled_plans:
                     self._reinforcement_records.pop(origin_id, None)
@@ -519,12 +1423,32 @@ class ExecutionGroupOrchestrator(Orchestrator):
             )
             for plan in record.unfilled_plans[: decision.strength]
         ]
-        group = await self._form_and_dispatch_group(
-            objective=record.objective,
-            plans=plans,
+        group = await self.prepare_execution_group(
+            record.objective,
             anomaly_id=record.anomaly_id,
             reinforces_group_id=origin.id,
+            decision_kind=MissionDecisionKind.REINFORCE_CAPACITY,
+            plans=plans,
         )
+        mission_decision = (
+            self._mission_decisions.get(group.decision_id)
+            if group.decision_id is not None
+            else None
+        )
+        if (
+            group.state is ExecutionGroupState.FORMING
+            and mission_decision is not None
+            and mission_decision.authority_verdict
+            is MissionAuthorityVerdict.AUTO_AUTHORIZED
+        ):
+            if await self._claim_prepared_group_for_dispatch(group):
+                self._pending_proposals.pop(record.objective.id, None)
+                self._set_objective_status(record.objective, ObjectiveStatus.ACTIVE)
+                await self._dispatch_claimed_group(group)
+            else:
+                group.state = ExecutionGroupState.FAILED
+                group.failure_reason = "PROPOSAL_STALE"
+                await self._publish_group(group)
         record.reinforcement_group_ids.append(group.id)
         filled_roles = {member.role for member in group.members}
         record.unfilled_plans = [
@@ -697,6 +1621,16 @@ class ExecutionGroupOrchestrator(Orchestrator):
             if self._all_group_roles_completed(group):
                 group.state = ExecutionGroupState.COMPLETED
                 group.failure_reason = None
+                objective = self._objectives.get(group.objective_mission_id)
+                if objective is not None:
+                    # Execution completion is physical evidence, not semantic proof
+                    # that the objective's acceptance criteria were met. A truth
+                    # evaluator may promote this to SATISFIED separately.
+                    self._set_objective_status(
+                        objective,
+                        ObjectiveStatus.UNRESOLVED,
+                        reason="EXECUTION_COMPLETE_AWAITING_SEMANTIC_EVIDENCE",
+                    )
             else:
                 group.state = ExecutionGroupState.ACTIVE
             await self._publish_group(group)
@@ -732,51 +1666,52 @@ class ExecutionGroupOrchestrator(Orchestrator):
         if replacements_used >= self.max_group_replacements_per_role:
             group.state = ExecutionGroupState.FAILED
             group.failure_reason = f"ROLE_FAILED:{role}:REPLACEMENT_LIMIT"
+            objective = self._objectives.get(group.objective_mission_id)
+            if objective is not None:
+                self._set_objective_status(objective, ObjectiveStatus.FAILED)
             await self._publish_group(group)
             return
 
         template = self._group_role_templates[group.id][role]
         replacement_mission = self._clone_mission(template)
         replacement_mission.params["execution_group_id"] = group.id
-        used_agents = {member.agent_id for member in group.members}
-        choice = self._select_group_candidate(
-            replacement_mission,
-            excluded_agent_ids=used_agents,
-        )
-        if choice is None:
+        objective = self._objectives.get(group.objective_mission_id)
+        if objective is None:
             group.state = ExecutionGroupState.FAILED
-            group.failure_reason = f"ROLE_FAILED:{role}:NO_REPLACEMENT"
+            group.failure_reason = f"ROLE_FAILED:{role}:OBJECTIVE_MISSING"
             await self._publish_group(group)
             return
-
-        agent_id, score, breakdown = choice
-        failed = group.members[failed_index]
-        group.members[failed_index] = failed.model_copy(
-            update={"state": ExecutionGroupMemberState.REPLACED}
+        proposal = await self.prepare_execution_group(
+            objective,
+            anomaly_id=group.anomaly_id,
+            reinforces_group_id=group.id,
+            decision_kind=MissionDecisionKind.REPLACE_FAILED_EXECUTOR,
+            plans=[ExecutionRolePlan(role=role, mission=replacement_mission)],
+            excluded_agent_ids={member.agent_id for member in group.members},
         )
-        replacement = ExecutionGroupMember(
-            agent_id=agent_id,
-            role=role,
-            mission_id=replacement_mission.id,
-            state=ExecutionGroupMemberState.ASSIGNED,
-            score=score,
-            score_breakdown=breakdown,
-            replaces_agent_id=failed.agent_id,
+        if proposal.state is ExecutionGroupState.FAILED:
+            group.state = ExecutionGroupState.FAILED
+            group.failure_reason = f"ROLE_FAILED:{role}:NO_REPLACEMENT"
+            self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
+            await self._publish_group(group)
+            return
+        mission_decision = (
+            self._mission_decisions.get(proposal.decision_id)
+            if proposal.decision_id is not None
+            else None
         )
-        group.members.append(replacement)
-        group.state = ExecutionGroupState.DEGRADED
-        group.failure_reason = None
-        self._group_task_to_role[replacement_mission.id] = (group.id, role)
+        if (
+            mission_decision is not None
+            and mission_decision.authority_verdict
+            is MissionAuthorityVerdict.AUTO_AUTHORIZED
+            and await self._claim_prepared_group_for_dispatch(proposal)
+        ):
+            self._pending_proposals.pop(objective.id, None)
+            self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
+            await self._dispatch_claimed_group(proposal)
+            return
+        group.failure_reason = f"REASSIGNMENT_REVIEW_REQUIRED:{proposal.decision_id}"
         await self._publish_group(group)
-        await self._publish_group_award(replacement_mission, agent_id, score)
-        self._start_mission(agent_id, replacement_mission, is_verify=True)
-        logger.info(
-            "execution group %s replaced %s with %s for role %s",
-            group.id,
-            failed.agent_id,
-            agent_id,
-            role,
-        )
 
     def _all_group_roles_completed(self, group: ExecutionGroup) -> bool:
         roles = self._group_role_templates.get(group.id, {})
@@ -798,18 +1733,29 @@ class ExecutionGroupOrchestrator(Orchestrator):
     def _clone_mission(template: MissionTask) -> MissionTask:
         return MissionTask(
             kind=template.kind,
-            params=dict(template.params),
+            params=json.loads(json.dumps(template.params)),
             priority=template.priority,
             deadline=template.deadline,
+            source=template.source,
+            requested_by=template.requested_by,
+            authority_grant_id=template.authority_grant_id,
+            authority_grant_revision=template.authority_grant_revision,
+            authority_policy=template.authority_policy,
         )
 
 
 __all__ = (
     "EXECUTION_GROUP_TOPIC",
+    "MISSION_AUTHORITY_GRANT_TOPIC",
+    "MISSION_DECISION_REVIEW_TOPIC",
+    "MISSION_DECISION_TOPIC",
+    "MISSION_OBJECTIVE_STATE_TOPIC",
     "MISSION_OBJECTIVE_TOPIC",
+    "OBJECTIVE_APPROVAL_TOPIC",
     "RUNNING_GROUP_STATES",
     "ExecutionGroupOrchestrator",
     "ExecutionRolePlan",
+    "HardConstraintProvider",
     "ReinforcementDecision",
     "ReinforcementObservation",
     "ReinforcementPolicy",

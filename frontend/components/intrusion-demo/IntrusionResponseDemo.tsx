@@ -26,6 +26,8 @@ export function IntrusionResponseDemo() {
     allocations,
     anomalies,
     executionGroups,
+    missionDecisions,
+    objectiveStates,
     missionRuntime,
     missionRuntimeLog,
     missions,
@@ -33,6 +35,8 @@ export function IntrusionResponseDemo() {
     units,
     link,
     clock,
+    role,
+    reviewDecision,
   } = useSwarm();
 
   const frame = useMemo<SurfaceFrame>(
@@ -43,6 +47,12 @@ export function IntrusionResponseDemo() {
       anomalies,
       allocations,
       executionGroups,
+      missionDecisions,
+      objectiveStates,
+      canReviewDecision: role === "operator" || role === "commander",
+      onReviewDecision: async (decisionId, action) => {
+        await reviewDecision(decisionId, action);
+      },
       missions,
       missionRuntime,
       missionRuntimeLog,
@@ -55,10 +65,14 @@ export function IntrusionResponseDemo() {
       anomalies,
       allocations,
       executionGroups,
+      missionDecisions,
+      objectiveStates,
       missions,
       missionRuntime,
       missionRuntimeLog,
       payloadEvents,
+      role,
+      reviewDecision,
     ]
   );
 

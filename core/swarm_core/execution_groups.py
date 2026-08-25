@@ -53,6 +53,7 @@ class ExecutionGroupMember(BaseModel):
     state: ExecutionGroupMemberState = ExecutionGroupMemberState.ASSIGNED
     score: float
     score_breakdown: dict[str, float] = Field(default_factory=dict)
+    supplied_capabilities: list[str] = Field(default_factory=list)
     replaces_agent_id: str | None = None
     ts: datetime = Field(default_factory=_now)
 
@@ -66,6 +67,8 @@ class ExecutionGroup(BaseModel):
     objective_mission_id: str
     objective_kind: str
     anomaly_id: str | None = None
+    decision_id: str | None = None
+    composition_revision: int = Field(1, ge=1)
     # Generic objective requirements copied from the parent mission. This makes
     # the reason for group composition first-class truth without forcing a
     # Console to infer capabilities from member roles or aircraft metadata.

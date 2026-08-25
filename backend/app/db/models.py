@@ -189,6 +189,47 @@ class SectorVisitRow(Base):
     )
 
 
+class MissionAuthorityGrantRow(Base):
+    """Immutable mission-scoped authority grant revision."""
+
+    __tablename__ = "mission_authority_grants"
+
+    grant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    objective_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    holder_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MissionDecisionRow(Base):
+    """Append-only immutable mission decision record."""
+
+    __tablename__ = "mission_decisions"
+
+    decision_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    objective_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    objective_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    decision_kind: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    authority_verdict: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MissionDecisionReviewRow(Base):
+    """Append-only authenticated review of an immutable decision."""
+
+    __tablename__ = "mission_decision_reviews"
+
+    review_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    decision_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    objective_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 # ── Phase-4-aware health column: enum-like closure for `EventRow.kind` ───────
 #
 # The Console enum lives in `core.swarm_core.messages.EventKind`. We keep the
@@ -201,6 +242,9 @@ __all__ = (
     "AnomalyRow",
     "Base",
     "EventRow",
+    "MissionAuthorityGrantRow",
+    "MissionDecisionReviewRow",
+    "MissionDecisionRow",
     "MissionRow",
     "OperatorCommandRow",
     "SectorVisitRow",

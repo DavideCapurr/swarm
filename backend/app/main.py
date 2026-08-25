@@ -30,6 +30,7 @@ from backend.app.api.actions import router as actions_router
 from backend.app.api.admin import router as admin_router
 from backend.app.api.auth_routes import router as auth_router
 from backend.app.api.compliance import router as compliance_router
+from backend.app.api.mission_authority import router as mission_authority_router
 from backend.app.api.routes import public_router as public_api_router
 from backend.app.api.routes import router as api_router
 from backend.app.auth import (
@@ -162,6 +163,28 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
                 for event in events:
                     COORDINATOR.state.append_event(event)
                 logger.info("event backfill: %d row(s)", len(events))
+                grants = await get_repository().list_mission_authority_grants(
+                    limit=1000
+                )
+                decisions = await get_repository().list_mission_decisions(limit=1000)
+                reviews = await get_repository().list_mission_decision_reviews(
+                    limit=1000
+                )
+                COORDINATOR.state.mission_authority_grants = {
+                    (grant.grant_id, grant.revision): grant for grant in grants
+                }
+                COORDINATOR.state.mission_decisions = {
+                    decision.decision_id: decision for decision in decisions
+                }
+                COORDINATOR.state.mission_decision_reviews.clear()
+                COORDINATOR.state.mission_decision_reviews.extend(reviews)
+                logger.info(
+                    "mission authority backfill: %d grant(s), %d decision(s), "
+                    "%d review(s)",
+                    len(grants),
+                    len(decisions),
+                    len(reviews),
+                )
             except Exception:  # pragma: no cover — defensive
                 logger.exception("event backfill failed")
         except Exception:  # pragma: no cover
@@ -177,6 +200,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         fleet_manager = fleet_from_env(bus_consumer.bus)
         await fleet_manager.start()
+        fleet_manager.hydrate_authority_grants(
+            COORDINATOR.state.mission_authority_grants.values()
+        )
         logger.info("fleet: vendors=%s", fleet_manager.vendors)
     except UnknownVendor as e:
         logger.error("fleet: refusing to boot (%s)", e)
@@ -229,6 +255,7 @@ app.include_router(api_router)
 app.include_router(actions_router)
 app.include_router(admin_router)
 app.include_router(compliance_router)
+app.include_router(mission_authority_router)
 app.include_router(auth_router)
 app.include_router(obs_public_router)  # /ready
 app.include_router(obs_router)         # /metrics
