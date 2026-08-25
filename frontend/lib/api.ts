@@ -424,6 +424,7 @@ export type ExecutionGroupMember = {
   state: ExecutionGroupMemberState;
   score: number;
   score_breakdown: Record<string, number>;
+  supplied_capabilities?: string[];
   replaces_agent_id: string | null;
   ts: string;
 };
@@ -448,6 +449,71 @@ export type ExecutionGroup = {
   members: ExecutionGroupMember[];
   state: ExecutionGroupState;
   failure_reason: string | null;
+  decision_id?: string | null;
+  composition_revision?: number;
+  ts: string;
+};
+
+export type MissionAuthorityVerdict =
+  | "auto_authorized"
+  | "review_required"
+  | "denied";
+
+export type MissionDecisionKind =
+  | "LAUNCH_COMPOSITION"
+  | "REPLACE_FAILED_EXECUTOR"
+  | "REINFORCE_CAPACITY";
+
+export type CandidateAssessment = {
+  agent_id: string;
+  role: string;
+  supplied_capabilities: string[];
+  availability_state: string;
+  score: number | null;
+  score_breakdown: Record<string, number>;
+  selected: boolean;
+  exclusion_reasons: string[];
+};
+
+export type SelectedAssignment = {
+  agent_id: string;
+  role: string;
+  mission_id: string;
+  supplied_capabilities: string[];
+};
+
+export type MissionDecision = {
+  decision_id: string;
+  objective_id: string;
+  objective_revision: number;
+  decision_kind: MissionDecisionKind;
+  requirements_snapshot: Record<string, unknown>;
+  constraints_snapshot: Record<string, unknown>;
+  candidate_assessments: CandidateAssessment[];
+  selected_assignments: SelectedAssignment[];
+  full_requirements_satisfied: boolean;
+  authority_grant_id: string | null;
+  authority_grant_revision: number | null;
+  authority_verdict: MissionAuthorityVerdict;
+  authority_reasons: string[];
+  supersedes_decision_id: string | null;
+  created_at: string;
+};
+
+export type ObjectiveStatus =
+  | "pending"
+  | "waiting_for_approval"
+  | "active"
+  | "satisfied"
+  | "unresolved"
+  | "failed";
+
+export type ObjectiveStateFrame = {
+  objective_id: string;
+  objective_revision: number;
+  status: ObjectiveStatus;
+  decision_id: string | null;
+  reason: string | null;
   ts: string;
 };
 
@@ -587,6 +653,20 @@ export const api = {
     get<{ mission_runtime: MissionRuntimeEvent[] }>("/mission-runtime"),
   payloadEvents: (limit = 200) =>
     get<{ payload_events: PayloadEvent[] }>(`/payload-events?limit=${limit}`),
+  missionDecisions: () =>
+    get<{ decisions: MissionDecision[] }>("/mission-authority/decisions"),
+  objectiveStates: () =>
+    get<{ objective_states: ObjectiveStateFrame[] }>(
+      "/mission-authority/objectives"
+    ),
+  reviewMissionDecision: (
+    decisionId: string,
+    action: "approve" | "reject"
+  ) =>
+    post<{ decision_id: string; status: string }>(
+      `/mission-authority/decisions/${encodeURIComponent(decisionId)}/review`,
+      { action }
+    ),
   commands: (limit = 100) =>
     get<{ commands: OperatorCommand[] }>(`/commands?limit=${limit}`),
   anomalies: () => get<{ anomalies: AnomalyView[] }>("/anomalies"),

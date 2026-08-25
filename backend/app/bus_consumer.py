@@ -17,6 +17,12 @@ import time
 from typing import TYPE_CHECKING
 
 from swarm_core.allocations import AllocationDecision
+from swarm_core.authority import (
+    MissionAuthorityGrant,
+    MissionDecision,
+    MissionDecisionReview,
+    ObjectiveStateFrame,
+)
 from swarm_core.execution_groups import ExecutionGroup
 from swarm_core.messages import (
     AgentState,
@@ -114,6 +120,10 @@ class BusConsumer:
             asyncio.create_task(self._consume_progress()),
             asyncio.create_task(self._consume_allocations()),
             asyncio.create_task(self._consume_execution_groups()),
+            asyncio.create_task(self._consume_mission_authority_grants()),
+            asyncio.create_task(self._consume_mission_decisions()),
+            asyncio.create_task(self._consume_mission_decision_reviews()),
+            asyncio.create_task(self._consume_mission_objective_states()),
             asyncio.create_task(self._consume_mission_runtime()),
             asyncio.create_task(self._consume_payload_events()),
             asyncio.create_task(self._consume_streams()),
@@ -234,6 +244,69 @@ class BusConsumer:
                 continue
             for frame in await self._coordinator.apply_execution_group(group):
                 await self._hub.broadcast(frame)
+
+    async def _consume_mission_authority_grants(self) -> None:
+        async for _topic, payload in self.bus.subscribe(
+            "swarm:mission-authority-grants"
+        ):
+            try:
+                grant = MissionAuthorityGrant.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed mission authority grant from bus")
+                continue
+            async with self._coordinator.state.lock:
+                key = (grant.grant_id, grant.revision)
+                existing = self._coordinator.state.mission_authority_grants.get(key)
+                if existing is not None and existing != grant:
+                    logger.warning("dropped conflicting immutable authority grant")
+                    continue
+                self._coordinator.state.mission_authority_grants[key] = grant
+            await get_repository().write_mission_authority_grant(grant)
+            await self._hub.broadcast(
+                {"kind": "mission_authority_grant", "data": grant.model_dump(mode="json")}
+            )
+
+    async def _consume_mission_decisions(self) -> None:
+        async for _topic, payload in self.bus.subscribe("swarm:mission-decisions"):
+            try:
+                decision = MissionDecision.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed mission decision from bus")
+                continue
+            async with self._coordinator.state.lock:
+                self._coordinator.state.mission_decisions[decision.decision_id] = decision
+            await get_repository().write_mission_decision(decision)
+            await self._hub.broadcast(
+                {"kind": "mission_decision", "data": decision.model_dump(mode="json")}
+            )
+
+    async def _consume_mission_decision_reviews(self) -> None:
+        async for _topic, payload in self.bus.subscribe(
+            "swarm:mission-decision-reviews"
+        ):
+            try:
+                review = MissionDecisionReview.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed mission decision review from bus")
+                continue
+            async with self._coordinator.state.lock:
+                self._coordinator.state.mission_decision_reviews.append(review)
+            await get_repository().write_mission_decision_review(review)
+            await self._hub.broadcast(
+                {"kind": "mission_decision_review", "data": review.model_dump(mode="json")}
+            )
+
+    async def _consume_mission_objective_states(self) -> None:
+        async for _topic, payload in self.bus.subscribe(
+            "swarm:mission-objective-states"
+        ):
+            try:
+                frame = ObjectiveStateFrame.model_validate_json(payload)
+            except Exception:
+                logger.warning("dropped malformed objective state frame from bus")
+                continue
+            for projected in await self._coordinator.apply_objective_state(frame):
+                await self._hub.broadcast(projected)
 
     async def _consume_mission_runtime(self) -> None:
         """Forward mission ownership + adapter-supplied phase evidence."""

@@ -18,9 +18,11 @@ import type {
   AwarenessBreakdown,
   DockState,
   ExecutionGroup,
+  MissionDecision,
   MissionRuntimeEvent,
   MissionView,
   OperatorCommand,
+  ObjectiveStateFrame,
   PayloadEvent,
   Sector,
   Session,
@@ -69,6 +71,8 @@ export type WSMessage =
   | { kind: "stream"; data: StreamDescriptor }
   | { kind: "allocation"; data: AllocationDecision }
   | { kind: "execution_group"; data: ExecutionGroup }
+  | { kind: "mission_decision"; data: MissionDecision }
+  | { kind: "objective_state"; data: ObjectiveStateFrame }
   | { kind: "mission_runtime"; data: MissionRuntimeEvent }
   | { kind: "payload"; data: PayloadEvent };
 

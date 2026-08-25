@@ -1,8 +1,8 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildAuthorityView, type AuthorityInput } from "@/lib/authority";
-import type { ExecutionGroup, UnitState } from "@/lib/api";
+import type { ExecutionGroup, MissionDecision, UnitState } from "@/lib/api";
 
 import { MissionAuthorityPanel } from "../MissionAuthorityPanel";
 
@@ -77,7 +77,11 @@ const REINFORCEMENT: ExecutionGroup = {
   ],
 };
 
-function panel(groups: ExecutionGroup[]) {
+function panel(
+  groups: ExecutionGroup[],
+  decision?: MissionDecision,
+  onReview?: (decisionId: string, action: "approve" | "reject") => Promise<void>
+) {
   const input: AuthorityInput = {
     units: [unit("mav-001"), unit("mav-002"), unit("mav-004")],
     anomalies: [],
@@ -97,6 +101,9 @@ function panel(groups: ExecutionGroup[]) {
       beat={{ phase: "idle" }}
       capacity={view.capacity}
       channels={[]}
+      decision={decision}
+      canReview={Boolean(onReview)}
+      onReview={onReview}
       onSelectObjective={() => {}}
     />
   );
@@ -146,5 +153,33 @@ describe("an objective holding several swarms", () => {
     expect(queryByTestId("swarm-group-1")).toBeNull();
     expect(getByText("execution group")).toBeInTheDocument();
     expect(queryByTestId("slot-group-1-PRIMARY_OBSERVER")).not.toBeNull();
+  });
+
+  it("renders server reasons and reviews the exact immutable decision", () => {
+    const onReview = vi.fn(async () => {});
+    const decision: MissionDecision = {
+      decision_id: "decision-1",
+      objective_id: "parent-1",
+      objective_revision: 1,
+      decision_kind: "LAUNCH_COMPOSITION",
+      requirements_snapshot: {},
+      constraints_snapshot: {},
+      candidate_assessments: [],
+      selected_assignments: [],
+      full_requirements_satisfied: true,
+      authority_grant_id: null,
+      authority_grant_revision: null,
+      authority_verdict: "review_required",
+      authority_reasons: ["EXECUTOR_OUTSIDE_DELEGATION"],
+      supersedes_decision_id: null,
+      created_at: "2026-08-15T17:29:00.000Z",
+    };
+    const { getByTestId, getByText } = panel([ORIGIN], decision, onReview);
+
+    expect(getByTestId("mission-decision-boundary")).toHaveTextContent(
+      "EXECUTOR_OUTSIDE_DELEGATION"
+    );
+    fireEvent.click(getByText("APPROVE EXACT"));
+    expect(onReview).toHaveBeenCalledWith("decision-1", "approve");
   });
 });

@@ -9,6 +9,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from swarm_core.allocations import AllocationDecision
+from swarm_core.authority import (
+    MissionAuthorityGrant,
+    MissionDecision,
+    MissionDecisionReview,
+    ObjectiveStateFrame,
+)
 from swarm_core.execution_groups import ExecutionGroup
 from swarm_core.messages import (
     AnomalyView,
@@ -79,6 +85,14 @@ class SwarmState:
     # payload events retain their ordered action history.
     allocations: dict[str, AllocationDecision] = field(default_factory=dict)
     execution_groups: dict[str, ExecutionGroup] = field(default_factory=dict)
+    mission_authority_grants: dict[tuple[str, int], MissionAuthorityGrant] = field(
+        default_factory=dict
+    )
+    mission_decisions: dict[str, MissionDecision] = field(default_factory=dict)
+    mission_decision_reviews: deque[MissionDecisionReview] = field(
+        default_factory=lambda: deque(maxlen=500)
+    )
+    objective_states: dict[str, ObjectiveStateFrame] = field(default_factory=dict)
     mission_runtime: dict[str, MissionRuntimeEvent] = field(default_factory=dict)
     payload_events: deque[PayloadEvent] = field(
         default_factory=lambda: deque(maxlen=500)

@@ -119,6 +119,42 @@ It also provides early evidence that a real operating workflow can contain the m
 
 It does **not** prove that aircraft allocation itself is manual, that several aircraft must be composed for one objective, that the workflow is painful enough to buy software for, that operators would delegate mission-level authority, or that wildfire is the first wedge.
 
+## Evidence update — Georgios, 2026-08-25
+
+Georgios's operator/expert feedback adds a distinct authority signal. It should
+not be merged into the DOI evidence above because it answers a different
+question.
+
+Confirmed by the response:
+
+- mission requirements are established before vehicle selection;
+- a mission may require a heterogeneous combination of capabilities rather
+  than one preferred vehicle type;
+- the current process is largely human-led;
+- more automation is plausible, but the acceptable level depends on the
+  mission/risk owner's comfort;
+- a system must explain why a composition or reassignment was selected;
+- decision support is a credible entry point before broader delegation.
+
+This supports progressive, mission-scoped delegation. It does **not** support a
+new global autonomy mode or a four-mode product. The implementation question is
+which exact decision kinds a mission/risk owner delegates, under which
+constraints, and at which grant revision.
+
+Still unproven:
+
+- willingness to adopt or pay for SWARM;
+- which decision kinds operators will delegate first;
+- the exact geofence, altitude, executor, reserve, and mission constraints;
+- decision frequency and the cost of the present process;
+- integration feasibility and economic advantage in a live workflow;
+- whether the same authority pattern repeats across operators and verticals.
+
+Product changes from this evidence must remain generic: deterministic decision
+records, exact approval/rejection/override, and delegated rules for launch,
+replacement, and reinforcement. Do not infer a trust score, automatic expansion
+of authority, or a vertical-specific workflow from one source.
+
 ## Product interpretation guardrail
 
 The new evidence strengthens the reason to make capability-aware decisions visible in the product and demo. It does not yet justify:

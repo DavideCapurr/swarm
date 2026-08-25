@@ -29,10 +29,12 @@ import {
   type CommandResponse,
   type DockState,
   type ExecutionGroup,
+  type MissionDecision,
   type MissionRuntimeEvent,
   type MissionView,
   type OperatingMode,
   type OperatorCommand,
+  type ObjectiveStateFrame,
   type PayloadEvent,
   type Sector,
   type Session,
@@ -59,6 +61,10 @@ export type IntentResult = {
 };
 
 export type Dispatch = (intent: Intent, target: string) => Promise<IntentResult>;
+export type DecisionReview = (
+  decisionId: string,
+  action: "approve" | "reject"
+) => Promise<{ ok: boolean; status: number }>;
 
 // ── Context shape ──────────────────────────────────────────────────────────────
 
@@ -73,6 +79,8 @@ export type SwarmState = {
   commands: OperatorCommand[];
   allocations: AllocationDecision[];
   executionGroups: ExecutionGroup[];
+  missionDecisions: MissionDecision[];
+  objectiveStates: ObjectiveStateFrame[];
   missionRuntime: MissionRuntimeEvent[];
   /**
    * Append-only record of the runtime frames this session observed.
@@ -101,6 +109,7 @@ export type SwarmState = {
   // render the inline `autonomy baseline` chip.
   autonomyEnabled: boolean;
   dispatch: Dispatch;
+  reviewDecision: DecisionReview;
 };
 
 const SwarmContext = createContext<SwarmState | null>(null);
@@ -141,6 +150,8 @@ export function SwarmStateProvider({
   const [commands, setCommands] = useState<OperatorCommand[]>([]);
   const [allocations, setAllocations] = useState<AllocationDecision[]>([]);
   const [executionGroups, setExecutionGroups] = useState<ExecutionGroup[]>([]);
+  const [missionDecisions, setMissionDecisions] = useState<MissionDecision[]>([]);
+  const [objectiveStates, setObjectiveStates] = useState<ObjectiveStateFrame[]>([]);
   const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);
   const [missionRuntimeLog, setMissionRuntimeLog] = useState<MissionRuntimeEvent[]>([]);
   const [payloadEvents, setPayloadEvents] = useState<PayloadEvent[]>([]);
@@ -158,7 +169,7 @@ export function SwarmStateProvider({
     let cancelled = false;
     (async () => {
       try {
-        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, mr, pe] = await Promise.all([
+        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, mr, pe, md, os] = await Promise.all([
           api.session(),
           api.awareness(),
           api.docks(),
@@ -172,6 +183,8 @@ export function SwarmStateProvider({
           api.executionGroups(),
           api.missionRuntime(),
           api.payloadEvents(200),
+          api.missionDecisions(),
+          api.objectiveStates(),
         ]);
         if (cancelled) return;
         setSession(s.session);
@@ -185,6 +198,8 @@ export function SwarmStateProvider({
         setCommands(cm.commands);
         setAllocations(al.allocations);
         setExecutionGroups(eg.execution_groups);
+        setMissionDecisions(md.decisions);
+        setObjectiveStates(os.objective_states);
         setMissionRuntime(mr.mission_runtime);
         // The REST snapshot is latest-per-mission, so it seeds the log with
         // whatever the backend currently holds; live frames extend it.
@@ -214,6 +229,8 @@ export function SwarmStateProvider({
     setCommands([]);
     setAllocations([]);
     setExecutionGroups([]);
+    setMissionDecisions([]);
+    setObjectiveStates([]);
     setMissionRuntime([]);
     setMissionRuntimeLog([]);
     setPayloadEvents([]);
@@ -289,6 +306,16 @@ export function SwarmStateProvider({
         case "execution_group":
           setExecutionGroups((prev) => upsertById(prev, msg.data, "id"));
           return;
+        case "mission_decision":
+          setMissionDecisions((prev) =>
+            upsertById(prev, msg.data, "decision_id")
+          );
+          return;
+        case "objective_state":
+          setObjectiveStates((prev) =>
+            upsertById(prev, msg.data, "objective_id")
+          );
+          return;
         case "mission_runtime":
           setMissionRuntime((prev) => upsertById(prev, msg.data, "mission_id"));
           setMissionRuntimeLog((prev) => {
@@ -336,6 +363,13 @@ export function SwarmStateProvider({
     },
     []
   );
+  const reviewDecision: DecisionReview = useCallback(
+    async (decisionId, action) => {
+      const { status } = await api.reviewMissionDecision(decisionId, action);
+      return { ok: status >= 200 && status < 300, status };
+    },
+    []
+  );
 
   // Truth selectors — every one of these reads a field the server has
   // already populated. No client-side heuristics.
@@ -361,6 +395,8 @@ export function SwarmStateProvider({
       commands,
       allocations,
       executionGroups,
+      missionDecisions,
+      objectiveStates,
       missionRuntime,
       missionRuntimeLog,
       payloadEvents,
@@ -375,6 +411,7 @@ export function SwarmStateProvider({
       primaryDock,
       autonomyEnabled: session?.autonomy_enabled ?? false,
       dispatch,
+      reviewDecision,
     }),
     [
       session,
@@ -387,6 +424,8 @@ export function SwarmStateProvider({
       commands,
       allocations,
       executionGroups,
+      missionDecisions,
+      objectiveStates,
       missionRuntime,
       missionRuntimeLog,
       payloadEvents,
@@ -399,6 +438,7 @@ export function SwarmStateProvider({
       verifier,
       primaryDock,
       dispatch,
+      reviewDecision,
     ]
   );
 

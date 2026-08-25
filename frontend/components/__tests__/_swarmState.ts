@@ -12,9 +12,11 @@ import type {
   AwarenessBreakdown,
   DockState,
   ExecutionGroup,
+  MissionDecision,
   MissionRuntimeEvent,
   MissionView,
   OperatorCommand,
+  ObjectiveStateFrame,
   PayloadEvent,
   Sector,
   Session,
@@ -57,6 +59,8 @@ export function makeSwarmState(overrides: Partial<SwarmState> = {}): SwarmState 
     commands: overrides.commands ?? ([] as OperatorCommand[]),
     allocations: overrides.allocations ?? ([] as AllocationDecision[]),
     executionGroups: overrides.executionGroups ?? ([] as ExecutionGroup[]),
+    missionDecisions: overrides.missionDecisions ?? ([] as MissionDecision[]),
+    objectiveStates: overrides.objectiveStates ?? ([] as ObjectiveStateFrame[]),
     missionRuntime: overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
     missionRuntimeLog:
       overrides.missionRuntimeLog ?? overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
@@ -75,6 +79,10 @@ export function makeSwarmState(overrides: Partial<SwarmState> = {}): SwarmState 
       ok: true,
       status: 200,
       body: { command_id: "x", status: "accepted" },
+    })),
+    reviewDecision: overrides.reviewDecision ?? (async () => ({
+      ok: true,
+      status: 202,
     })),
   };
 }

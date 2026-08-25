@@ -13,8 +13,10 @@ import asyncio
 import contextlib
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
+
+from swarm_core.authority import MissionAuthorityGrant, MissionHardConstraints
 
 from adapters.base import AdapterRegistry
 from adapters.mavlink.adapter import MAVLinkAdapter
@@ -31,6 +33,18 @@ logger = logging.getLogger("backend.fleet")
 
 SUPPORTED_VENDORS: frozenset[str] = frozenset({"simulator", "mavlink"})
 IN_PROCESS_VENDORS: frozenset[str] = frozenset({"mavlink"})
+
+
+def _current_hard_constraints() -> MissionHardConstraints:
+    """Snapshot the live site geofence at each decision/claim boundary."""
+
+    from swarm_os import SWARM_STATE
+
+    geofence = SWARM_STATE.policy.site.geofence
+    return MissionHardConstraints(
+        authorized_area=list(geofence.polygon),
+        max_altitude_m=geofence.max_alt_m,
+    )
 
 
 class UnknownVendor(ValueError):
@@ -116,6 +130,7 @@ class FleetManager:
     cooperative_verify_enabled: bool = False
     cooperative_verify_min_confidence: float = 0.90
     cooperative_verify_team_size: int = 3
+    hard_constraint_provider: Callable[[], MissionHardConstraints | None] | None = None
 
     presence_response_enabled: bool = False
     presence_min_confidence: float = 0.85
@@ -161,6 +176,16 @@ class FleetManager:
             logger.exception("fleet: mission runtime boot failed")
             await self.stop()
             raise VendorBootError("MAVLink mission runtime boot failed") from exc
+
+    def hydrate_authority_grants(
+        self, grants: Iterable[MissionAuthorityGrant]
+    ) -> None:
+        """Restore immutable grant revisions before accepting new objectives."""
+
+        if self._mission_orchestrator is None:
+            return
+        for grant in grants:
+            self._mission_orchestrator.register_authority_grant(grant)
 
     def _configure_payload_runtime(self) -> None:
         if not self.presence_response_enabled:
@@ -212,6 +237,7 @@ class FleetManager:
                 cooperative_verify_enabled=self.cooperative_verify_enabled,
                 cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
                 cooperative_verify_team_size=self.cooperative_verify_team_size,
+                hard_constraint_provider=self.hard_constraint_provider,
             )
         else:
             orchestrator = BusFleetOrchestrator(
@@ -221,6 +247,7 @@ class FleetManager:
                 cooperative_verify_enabled=self.cooperative_verify_enabled,
                 cooperative_verify_min_confidence=self.cooperative_verify_min_confidence,
                 cooperative_verify_team_size=self.cooperative_verify_team_size,
+                hard_constraint_provider=self.hard_constraint_provider,
             )
 
         task = asyncio.create_task(orchestrator.run())
@@ -290,6 +317,7 @@ def fleet_from_env(bus: Bus, *, registry: AdapterRegistry | None = None) -> Flee
             maximum=1.0,
         ),
         cooperative_verify_team_size=cooperative_team_size,
+        hard_constraint_provider=_current_hard_constraints,
         presence_response_enabled=_env_flag("SWARM_PRESENCE_RESPONSE"),
         presence_min_confidence=_env_float(
             "SWARM_PRESENCE_MIN_CONFIDENCE",

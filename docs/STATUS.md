@@ -2,7 +2,7 @@
 
 Live status for the current technical state. Historical phase notes live in [`STATUS-archive.md`](STATUS-archive.md).
 
-## Current state — 2026-08-19
+## Current state — 2026-08-25
 
 SWARM has an end-to-end PX4 SITL coordination path, first-class SwarmOS-owned multi-agent `ExecutionGroup`s, live member replacement, and an operator Console that renders backend-owned allocation/runtime/payload truth.
 
@@ -33,6 +33,10 @@ The MAVLink/PX4 path remains **SITL-validated, not bench- or field-validated on 
 | Live execution-group member failure/replacement | **validated with PX4 process SIGKILL while `EN_ROUTE`** |
 | Partial-strength group composition | **implemented; orchestrator-test-validated only, no SITL run** |
 | Reinforcement of a running objective by a second group | **implemented behind a policy seam; orchestrator-test-validated only, no SITL run** |
+| Mission-scoped delegated authority | **implemented for launch, failed-executor replacement, and reinforcement; test-validated, no live operator trial** |
+| Immutable decision/review audit | **append-only DB + REST/WS projection implemented; migration round-trip tested** |
+| Exact authenticated approve/reject/override | **implemented; actor derived from JWT; test-validated** |
+| Objective semantic state separate from execution completion | **implemented; completion without semantic evidence remains unresolved** |
 | Intrusion demo Console `/demo/intrusion` | **final demo surface; truth renderer** |
 | Final demo rehearsal | **3 consecutive clean PASS takes, ~62 s each (2026-08-15); Console surface re-verified 2026-08-18** |
 | Same-aircraft preemption/diversion | **single-executor VERIFY under continuous patrol: implemented, orchestrator-test-validated (`test_diversion_truth.py`), no SITL run. Diverting a unit into an `ExecutionGroup` role: not implemented — `_eligible_fleet` excludes any agent already holding a mission** |
@@ -64,6 +68,13 @@ Physical agents/adapters own execution only:
 - telemetry, progress, and execution evidence.
 
 See [`adr/0011-central-decision-authority.md`](adr/0011-central-decision-authority.md).
+
+Delegated authority is defined separately from centralized control. SwarmOS may
+commit a mission-level decision only when the exact decision kind is delegated
+by the mission/risk owner or the immutable recommendation is approved by an
+authorized, authenticated reviewer. Hard geofence and altitude constraints
+remain non-waivable. See
+[`adr/0013-delegated-mission-authority-and-decision-records.md`](adr/0013-delegated-mission-authority-and-decision-records.md).
 
 ## Validated evidence
 

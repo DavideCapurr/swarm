@@ -117,6 +117,14 @@ For every conversation, capture:
 - **success metric**: what would make a pilot obviously useful?;
 - **pilot willingness**: what conditions would have to be true?;
 - **multi-agent advantage**: why would several coordinated units matter vs one manually operated drone?
+- **respondent/operator role**: what authority does the interviewee personally hold?;
+- **requester**: who asks for the operational outcome?;
+- **mission/risk owner**: who remains accountable for the decision and its risk?;
+- **current approver**: who authorizes launch, replacement, or reinforcement today?;
+- **delegable decisions**: which exact decisions software may make inside constraints?;
+- **non-delegable decisions**: which decisions must remain human-approved?;
+- **required rationale/evidence**: what must be shown before approval?;
+- **condition for increasing delegation**: what observed proof would justify a wider envelope?;
 
 ---
 
@@ -284,6 +292,17 @@ Almost everyone can say yes to those without revealing a real problem.
 
 Ask about what already happened, what they already pay for, and what they already do.
 
+## Mission-authority question bank
+
+Use these one at a time after a concrete mission has been described. They are
+discovery probes, not an outreach template.
+
+1. “For that mission, who was accountable for deciding the required outcome and who approved the aircraft or team?”
+2. “Which exact decisions, if any, could software make automatically inside predefined operational constraints?”
+3. “Which decisions would you not delegate, even if the system showed its rationale?”
+4. “What facts or evidence would you need to see before approving a proposed composition or reassignment?”
+5. “What repeated proof would make you comfortable widening that delegated authority over time?”
+
 ---
 
 ## Discovery log template
@@ -294,6 +313,7 @@ For each interview record:
 Date:
 Company / site:
 Role:
+Respondent/operator authority:
 Vertical:
 Site type / approximate scale:
 
@@ -305,6 +325,13 @@ Sensor / payload required:
 Payload integrated or interchangeable:
 Compatible platforms:
 Who decides final asset allocation:
+Requester:
+Mission/risk owner:
+Current approver:
+Delegable decisions:
+Non-delegable decisions:
+Required rationale/evidence:
+Condition for increasing delegation:
 Frequency:
 Current response time:
 People involved:

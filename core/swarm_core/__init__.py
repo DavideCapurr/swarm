@@ -11,6 +11,15 @@ This package is the canonical definition of:
 SwarmOS. Physical agents do not negotiate, allocate, or choose missions.
 """
 
+from swarm_core.authority import (
+    MissionAuthorityGrant,
+    MissionAuthorityRule,
+    MissionDecision,
+    MissionDecisionKind,
+    MissionDecisionReview,
+    MissionHardConstraints,
+    ObjectiveStateFrame,
+)
 from swarm_core.messages import (
     AgentState,
     Anomaly,
@@ -22,6 +31,10 @@ from swarm_core.messages import (
     Geo,
     MissionProgress,
     MissionTask,
+    ObjectiveApprovalCommand,
+    ObjectiveAuthorityPolicy,
+    ObjectiveSource,
+    ObjectiveStatus,
     SensorKind,
     Telemetry,
     Waypoint,
@@ -49,9 +62,20 @@ __all__ = [
     "CaptureResult",
     "FleetState",
     "Geo",
+    "MissionAuthorityGrant",
+    "MissionAuthorityRule",
+    "MissionDecision",
+    "MissionDecisionKind",
+    "MissionDecisionReview",
+    "MissionHardConstraints",
     "MissionKind",
     "MissionProgress",
     "MissionTask",
+    "ObjectiveApprovalCommand",
+    "ObjectiveAuthorityPolicy",
+    "ObjectiveSource",
+    "ObjectiveStateFrame",
+    "ObjectiveStatus",
     "SensorKind",
     "Telemetry",
     "Waypoint",

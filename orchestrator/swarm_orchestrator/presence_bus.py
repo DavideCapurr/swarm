@@ -38,6 +38,7 @@ from orchestrator.swarm_orchestrator.bus_fleet import BusFleetOrchestrator
 logger = logging.getLogger("swarm.orchestrator.presence_bus")
 
 PRIMARY_PRESENCE_ROLE = "PRIMARY_OBSERVER"
+SINGLE_EXECUTOR_ROLE = "EXECUTOR"
 _MAX_GROUP_ANOMALY_HISTORY = 500
 
 
@@ -113,7 +114,7 @@ class PresenceResponseBusFleetOrchestrator(BusFleetOrchestrator):
 
     def _mission_may_execute_presence_payload(self, mission: MissionTask) -> bool:
         role = self.group_role_for_mission(mission.id)
-        return role is None or role == PRIMARY_PRESENCE_ROLE
+        return role is None or role in {PRIMARY_PRESENCE_ROLE, SINGLE_EXECUTOR_ROLE}
 
     async def _run_mission(
         self,

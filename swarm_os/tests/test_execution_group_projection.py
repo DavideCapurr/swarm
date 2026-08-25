@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import pytest
+from swarm_core.authority import ObjectiveStateFrame
 from swarm_core.execution_groups import (
     ExecutionGroup,
     ExecutionGroupMember,
     ExecutionGroupMemberState,
     ExecutionGroupState,
 )
-from swarm_core.messages import Anomaly, AnomalyKind, AnomalyState, Geo, MissionProgress
+from swarm_core.messages import (
+    Anomaly,
+    AnomalyKind,
+    AnomalyState,
+    Geo,
+    MissionProgress,
+    ObjectiveStatus,
+)
 
 from swarm_os.coordinator import SwarmCoordinator
 from swarm_os.state import SwarmState
@@ -85,13 +93,47 @@ async def test_child_done_cannot_verify_cooperative_objective() -> None:
         )
     )
 
-    # One member completing is evidence, not authority to complete the shared
-    # objective. Only the aggregate ExecutionGroup lifecycle can do that.
+    # One member completing is execution evidence, not semantic success.
     assert state.anomalies[anomaly.id].state is AnomalyState.VERIFYING
 
     completed = _group(anomaly.id, state=ExecutionGroupState.COMPLETED)
     await coordinator.apply_execution_group(completed)
+    assert state.anomalies[anomaly.id].state is AnomalyState.VERIFYING
+
+    await coordinator.apply_objective_state(
+        ObjectiveStateFrame(
+            objective_id=completed.objective_mission_id,
+            objective_revision=1,
+            status=ObjectiveStatus.SATISFIED,
+        )
+    )
     assert state.anomalies[anomaly.id].state is AnomalyState.VERIFIED
+
+
+@pytest.mark.asyncio
+async def test_completed_execution_with_unresolved_objective_is_not_verified() -> None:
+    state = SwarmState.vineyard()
+    state.set_autonomy_enabled(False)
+    coordinator = SwarmCoordinator(state)
+    anomaly = Anomaly(
+        id="intrusion-unresolved",
+        kind=AnomalyKind.INTRUSION,
+        geo=Geo(lat=44.7001, lon=8.0301),
+        confidence=0.99,
+    )
+    await coordinator.apply_anomaly(anomaly)
+    completed = _group(anomaly.id, state=ExecutionGroupState.COMPLETED)
+    await coordinator.apply_execution_group(completed)
+    await coordinator.apply_objective_state(
+        ObjectiveStateFrame(
+            objective_id=completed.objective_mission_id,
+            objective_revision=1,
+            status=ObjectiveStatus.UNRESOLVED,
+            reason="EXECUTION_COMPLETE_AWAITING_SEMANTIC_EVIDENCE",
+        )
+    )
+
+    assert state.anomalies[anomaly.id].state is AnomalyState.PENDING
 
 
 @pytest.mark.asyncio

@@ -31,6 +31,7 @@ import {
   roleLabel,
   CAPACITY_SUMMARY_THRESHOLD,
 } from "@/lib/authority";
+import type { MissionDecision, ObjectiveStateFrame } from "@/lib/api";
 import type { PayloadChannel } from "@/lib/mission-story";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
@@ -52,6 +53,10 @@ export function MissionAuthorityPanel({
   beat,
   capacity,
   channels,
+  decision = null,
+  objectiveState = null,
+  canReview = false,
+  onReview,
   onSelectObjective,
 }: {
   objectives: ObjectiveAuthority[];
@@ -59,6 +64,13 @@ export function MissionAuthorityPanel({
   beat: AdaptationBeat;
   capacity: CapacityRow[];
   channels: PayloadChannel[];
+  decision?: MissionDecision | null;
+  objectiveState?: ObjectiveStateFrame | null;
+  canReview?: boolean;
+  onReview?: (
+    decisionId: string,
+    action: "approve" | "reject"
+  ) => Promise<void>;
   onSelectObjective: (key: string) => void;
 }) {
   const spare = capacity.filter((row) => row.commitment === "SPARE");
@@ -93,6 +105,12 @@ export function MissionAuthorityPanel({
           ) : null}
 
           <ObjectiveIdentity objective={focused} />
+          <DecisionBoundary
+            decision={decision}
+            objectiveState={objectiveState}
+            canReview={canReview}
+            onReview={onReview}
+          />
           <RequirementStrip objective={focused} />
           <OwnershipStamp objective={focused} />
           <Composition objective={focused} beat={beat} capacity={capacity} />
@@ -190,6 +208,84 @@ export function MissionAuthorityPanel({
         </>
       )}
     </Surface>
+  );
+}
+
+function DecisionBoundary({
+  decision,
+  objectiveState,
+  canReview,
+  onReview,
+}: {
+  decision: MissionDecision | null;
+  objectiveState: ObjectiveStateFrame | null;
+  canReview: boolean;
+  onReview?: (
+    decisionId: string,
+    action: "approve" | "reject"
+  ) => Promise<void>;
+}) {
+  if (!decision) return null;
+  const awaiting = decision.authority_verdict === "review_required";
+  const tone =
+    decision.authority_verdict === "auto_authorized"
+      ? "green"
+      : decision.authority_verdict === "denied"
+        ? "amber"
+        : "orbital";
+  return (
+    <div
+      className="px-3 py-[10px]"
+      style={{
+        borderTop: `1px solid ${HAIRLINE}`,
+        borderBottom: `1px solid ${HAIRLINE}`,
+      }}
+      data-testid="mission-decision-boundary"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Label>decision authority</Label>
+          <div className="mt-[6px]">
+            <Mono size={9.5} tone="ash">{decision.decision_kind}</Mono>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-[5px]">
+          <Mono size={10} tone={tone}>
+            {decision.authority_verdict.toUpperCase()}
+          </Mono>
+          {objectiveState ? (
+            <Mono size={9} tone="ash">
+              OBJECTIVE {objectiveState.status.toUpperCase()}
+            </Mono>
+          ) : null}
+        </div>
+      </div>
+      {decision.authority_reasons.length > 0 ? (
+        <div className="mt-[8px]">
+          <Mono size={8.5} tone="ash">
+            {decision.authority_reasons.join(" · ")}
+          </Mono>
+        </div>
+      ) : null}
+      {awaiting && canReview && onReview ? (
+        <div className="mt-[10px] flex gap-2">
+          <button
+            type="button"
+            className="pointer-events-auto flex-1 border border-orbital-blue/40 px-2 py-[7px] font-mono text-[9px] tracking-[0.08em] text-orbital-blue"
+            onClick={() => void onReview(decision.decision_id, "approve")}
+          >
+            APPROVE EXACT
+          </button>
+          <button
+            type="button"
+            className="pointer-events-auto flex-1 border border-amber-400/35 px-2 py-[7px] font-mono text-[9px] tracking-[0.08em] text-amber-300"
+            onClick={() => void onReview(decision.decision_id, "reject")}
+          >
+            REJECT
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
