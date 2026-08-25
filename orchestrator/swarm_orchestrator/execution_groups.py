@@ -189,7 +189,9 @@ class ExecutionGroupOrchestrator(Orchestrator):
         default_factory=dict
     )
     _objectives: dict[str, MissionTask] = field(default_factory=dict)
-    _pending_proposals: dict[str, str] = field(default_factory=dict)
+    # Exception-path state only. Auto-authorized decisions are auditable records
+    # but never enter a human-review queue.
+    _pending_review_decisions: dict[str, str] = field(default_factory=dict)
     _proposal_snapshots: dict[str, str] = field(default_factory=dict)
     _authority_grants: dict[tuple[str, int], MissionAuthorityGrant] = field(
         default_factory=dict
@@ -451,11 +453,11 @@ class ExecutionGroupOrchestrator(Orchestrator):
         diverted_from_by_agent: dict[str, str | None] | None = None,
         supersedes_decision_id: str | None = None,
     ) -> ExecutionGroup:
-        """Recommend a composition, evaluate authority, and publish both records."""
+        """Decide a composition, evaluate authority, and publish both records."""
 
         self._validate_objective(objective, has_explicit_plans=plans is not None)
         material = self._material_snapshot(objective)
-        existing_decision_id = self._pending_proposals.get(objective.id)
+        existing_decision_id = self._pending_review_decisions.get(objective.id)
         superseded_decision_id = supersedes_decision_id or existing_decision_id
         if existing_decision_id is not None:
             existing_decision = self._mission_decisions.get(existing_decision_id)
@@ -472,7 +474,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 and existing_decision.decision_kind is decision_kind
             ):
                 return existing
-            self._pending_proposals.pop(objective.id, None)
+            self._pending_review_decisions.pop(objective.id, None)
 
         objective_plans = plans or self._plans_for_objective(objective)
         group = await self._prepare_group(
@@ -509,8 +511,8 @@ class ExecutionGroupOrchestrator(Orchestrator):
             self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
             await self._publish_group(group)
             return group
-        self._pending_proposals[objective.id] = decision.decision_id
         if decision.authority_verdict is MissionAuthorityVerdict.REVIEW_REQUIRED:
+            self._pending_review_decisions[objective.id] = decision.decision_id
             self._set_objective_status(objective, ObjectiveStatus.WAITING_FOR_APPROVAL)
         return group
 
@@ -524,7 +526,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
             return self._execution_groups.get(applied_group_id)
 
         objective = self._objectives.get(approval.objective_id)
-        pending_decision_id = self._pending_proposals.get(approval.objective_id)
+        pending_decision_id = self._pending_review_decisions.get(approval.objective_id)
         decision = self._mission_decisions.get(approval.decision_id)
         if (
             objective is None
@@ -542,7 +544,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
         action = MissionReviewAction(approval.action)
         if action is MissionReviewAction.REJECT:
             await self._record_review(decision, approval, action=action)
-            self._pending_proposals.pop(objective.id, None)
+            self._pending_review_decisions.pop(objective.id, None)
             self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
             proposal.failure_reason = "DECISION_REJECTED"
             await self._publish_group(proposal)
@@ -553,7 +555,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
         if decision.authority_verdict is MissionAuthorityVerdict.DENIED:
             return None
         if self._proposal_snapshots.get(decision.decision_id) != self._material_snapshot(objective):
-            self._pending_proposals.pop(objective.id, None)
+            self._pending_review_decisions.pop(objective.id, None)
             self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
             return None
         current_grant = self._grant_for_objective(objective)
@@ -573,14 +575,14 @@ class ExecutionGroupOrchestrator(Orchestrator):
         if not await self._claim_prepared_group_for_dispatch(proposal):
             proposal.state = ExecutionGroupState.FAILED
             proposal.failure_reason = "PROPOSAL_STALE"
-            self._pending_proposals.pop(objective.id, None)
+            self._pending_review_decisions.pop(objective.id, None)
             self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
             await self._publish_group(proposal)
             return None
 
         await self._record_review(decision, approval, action=action)
         self._approved_decisions[decision.decision_id] = proposal.id
-        self._pending_proposals.pop(objective.id, None)
+        self._pending_review_decisions.pop(objective.id, None)
         self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
         await self._dispatch_claimed_group(proposal)
         return proposal
@@ -611,11 +613,9 @@ class ExecutionGroupOrchestrator(Orchestrator):
         if not await self._claim_prepared_group_for_dispatch(proposal):
             proposal.state = ExecutionGroupState.FAILED
             proposal.failure_reason = "PROPOSAL_STALE"
-            self._pending_proposals.pop(objective.id, None)
             self._set_objective_status(objective, ObjectiveStatus.UNRESOLVED)
             await self._publish_group(proposal)
             return proposal
-        self._pending_proposals.pop(objective.id, None)
         self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
         await self._dispatch_claimed_group(proposal)
         return proposal
@@ -814,7 +814,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
             origin = self._execution_groups.get(proposal.reinforces_group_id)
             if origin is not None:
                 excluded = {member.agent_id for member in origin.members}
-        self._pending_proposals.pop(objective.id, None)
+        self._pending_review_decisions.pop(objective.id, None)
         replacement = await self.prepare_execution_group(
             objective,
             anomaly_id=proposal.anomaly_id,
@@ -847,7 +847,7 @@ class ExecutionGroupOrchestrator(Orchestrator):
             await self._publish_group(replacement)
             return replacement
         self._approved_decisions[replacement_decision.decision_id] = replacement.id
-        self._pending_proposals.pop(objective.id, None)
+        self._pending_review_decisions.pop(objective.id, None)
         self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
         await self._dispatch_claimed_group(replacement)
         return replacement
@@ -1346,6 +1346,8 @@ class ExecutionGroupOrchestrator(Orchestrator):
                 logger.exception("reinforcement review failed")
 
     async def review_reinforcements(self) -> list[ExecutionGroup]:
+        """Re-evaluate shortfall in SwarmOS; this is not a human review step."""
+
         dispatched: list[ExecutionGroup] = []
         async with self._group_lock:
             for origin_id in list(self._reinforcement_records):
@@ -1442,7 +1444,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
             is MissionAuthorityVerdict.AUTO_AUTHORIZED
         ):
             if await self._claim_prepared_group_for_dispatch(group):
-                self._pending_proposals.pop(record.objective.id, None)
                 self._set_objective_status(record.objective, ObjectiveStatus.ACTIVE)
                 await self._dispatch_claimed_group(group)
             else:
@@ -1706,7 +1707,6 @@ class ExecutionGroupOrchestrator(Orchestrator):
             is MissionAuthorityVerdict.AUTO_AUTHORIZED
             and await self._claim_prepared_group_for_dispatch(proposal)
         ):
-            self._pending_proposals.pop(objective.id, None)
             self._set_objective_status(objective, ObjectiveStatus.ACTIVE)
             await self._dispatch_claimed_group(proposal)
             return

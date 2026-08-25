@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 from swarm_core.authority import (
+    MissionAuthorityConstraints,
     MissionAuthorityEffect,
     MissionAuthorityGrant,
     MissionAuthorityRule,
@@ -83,10 +84,10 @@ async def _orchestrator() -> tuple[
     return orchestrator, adapters
 
 
-def _objective(**kwargs: object) -> MissionTask:
+def _objective(*, team_size: int = 2, **kwargs: object) -> MissionTask:
     objective = COOPERATIVE_VERIFY(
         geo=Geo(lat=45.001, lon=9.001),
-        team_size=2,
+        team_size=team_size,
         hover_s=0.0,
         **kwargs,  # type: ignore[arg-type]
     )
@@ -95,6 +96,55 @@ def _objective(**kwargs: object) -> MissionTask:
         "SECONDARY_OBSERVER": ["visual_observation"],
     }
     return objective
+
+
+def _grant(
+    objective: MissionTask,
+    *decision_kinds: MissionDecisionKind,
+    constraints: MissionAuthorityConstraints | None = None,
+) -> MissionAuthorityGrant:
+    return MissionAuthorityGrant(
+        grant_id="grant-1",
+        revision=1,
+        objective_id=objective.id,
+        holder_id="risk-owner",
+        delegated_rules=[
+            MissionAuthorityRule(
+                decision_kind=decision_kind,
+                effect=MissionAuthorityEffect.AUTO_AUTHORIZE,
+                constraints=constraints or MissionAuthorityConstraints(),
+            )
+            for decision_kind in decision_kinds
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_autonomous_is_the_default_and_creates_no_pending_review() -> None:
+    orchestrator, adapters = await _orchestrator()
+    audit_only = _objective()
+
+    prepared = await orchestrator.prepare_execution_group(audit_only)
+    prepared_decision = orchestrator.mission_decisions[prepared.decision_id or ""]
+
+    assert (
+        prepared_decision.authority_verdict
+        is MissionAuthorityVerdict.AUTO_AUTHORIZED
+    )
+    assert prepared.state is ExecutionGroupState.FORMING
+    assert audit_only.id not in orchestrator._pending_review_decisions
+    assert not any(adapter.executed for adapter in adapters.values())
+
+    objective = _objective()
+
+    group = await orchestrator.dispatch_execution_group(objective)
+    decision = orchestrator.mission_decisions[group.decision_id or ""]
+    await _wait_group_terminal(orchestrator, group.id)
+
+    assert decision.authority_verdict is MissionAuthorityVerdict.AUTO_AUTHORIZED
+    assert objective.id not in orchestrator._pending_review_decisions
+    assert orchestrator._decision_reviews == {}
+    assert sum(len(adapter.executed) for adapter in adapters.values()) == 2
 
 
 @pytest.mark.asyncio
@@ -110,6 +160,9 @@ async def test_recommendation_without_launch_authority_does_not_execute() -> Non
     assert group.state is ExecutionGroupState.FORMING
     assert decision.authority_verdict is MissionAuthorityVerdict.REVIEW_REQUIRED
     assert objective.status.value == "waiting_for_approval"
+    assert (
+        orchestrator._pending_review_decisions[objective.id] == decision.decision_id
+    )
     assert not any(adapter.executed for adapter in adapters.values())
 
 
@@ -176,7 +229,7 @@ async def test_single_executor_launch_uses_the_same_exact_decision_pipeline() ->
 
 @pytest.mark.asyncio
 async def test_grant_auto_authorizes_launch_and_records_real_rationale() -> None:
-    orchestrator, _adapters = await _orchestrator()
+    orchestrator, adapters = await _orchestrator()
     objective = _objective(
         authority_grant_id="grant-1",
         authority_grant_revision=1,
@@ -212,6 +265,139 @@ async def test_grant_auto_authorizes_launch_and_records_real_rationale() -> None
         if row.role == "PRIMARY_OBSERVER" and row.agent_id == "agent-2"
     ]
     assert mismatch[0].exclusion_reasons == ["CAPABILITY_MISMATCH"]
+    assert objective.id not in orchestrator._pending_review_decisions
+    assert orchestrator._decision_reviews == {}
+    assert sum(len(adapter.executed) for adapter in adapters.values()) == 2
+
+
+@pytest.mark.asyncio
+async def test_out_of_envelope_grant_decision_waits_instead_of_executing() -> None:
+    orchestrator, adapters = await _orchestrator()
+    objective = _objective(
+        authority_grant_id="grant-1",
+        authority_grant_revision=1,
+    )
+    orchestrator.register_authority_grant(
+        _grant(
+            objective,
+            MissionDecisionKind.LAUNCH_COMPOSITION,
+            constraints=MissionAuthorityConstraints(
+                max_agents=2,
+                allowed_agent_ids=["agent-1"],
+            ),
+        )
+    )
+
+    group = await orchestrator.dispatch_execution_group(objective)
+    decision = orchestrator.mission_decisions[group.decision_id or ""]
+
+    assert group.state is ExecutionGroupState.FORMING
+    assert decision.authority_verdict is MissionAuthorityVerdict.REVIEW_REQUIRED
+    assert "EXECUTOR_OUTSIDE_DELEGATION" in decision.authority_reasons
+    assert objective.status.value == "waiting_for_approval"
+    assert not any(adapter.executed for adapter in adapters.values())
+
+
+@pytest.mark.asyncio
+async def test_grant_auto_authorizes_failed_executor_replacement() -> None:
+    orchestrator, adapters = await _orchestrator()
+    adapters["agent-1"].fail_first = True
+    objective = _objective(
+        authority_grant_id="grant-1",
+        authority_grant_revision=1,
+    )
+    orchestrator.register_authority_grant(
+        _grant(
+            objective,
+            MissionDecisionKind.LAUNCH_COMPOSITION,
+            MissionDecisionKind.REPLACE_FAILED_EXECUTOR,
+        )
+    )
+
+    group = await orchestrator.dispatch_execution_group(objective)
+    terminal = await _wait_group_terminal(orchestrator, group.id)
+    decisions = [
+        decision
+        for decision in orchestrator.mission_decisions.values()
+        if decision.objective_id == objective.id
+    ]
+
+    assert terminal.state is ExecutionGroupState.COMPLETED
+    assert [decision.decision_kind for decision in decisions] == [
+        MissionDecisionKind.LAUNCH_COMPOSITION,
+        MissionDecisionKind.REPLACE_FAILED_EXECUTOR,
+    ]
+    assert all(
+        decision.authority_verdict is MissionAuthorityVerdict.AUTO_AUTHORIZED
+        for decision in decisions
+    )
+    assert adapters["agent-3"].executed
+    assert orchestrator._decision_reviews == {}
+    assert objective.id not in orchestrator._pending_review_decisions
+
+
+@pytest.mark.asyncio
+async def test_grant_auto_authorizes_reinforcement_without_review() -> None:
+    orchestrator, adapters = await _orchestrator()
+    hold = asyncio.Event()
+    for adapter in adapters.values():
+        adapter.hold = hold
+    orchestrator.fleet_fixture = [
+        state.model_copy(
+            update={
+                "battery_pct": (
+                    10.0 if state.agent_id == "agent-3" else state.battery_pct
+                )
+            }
+        )
+        for state in orchestrator.fleet_fixture
+    ]
+    objective = _objective(
+        team_size=3,
+        authority_grant_id="grant-1",
+        authority_grant_revision=1,
+    )
+    orchestrator.register_authority_grant(
+        _grant(
+            objective,
+            MissionDecisionKind.LAUNCH_COMPOSITION,
+            MissionDecisionKind.REINFORCE_CAPACITY,
+        )
+    )
+
+    origin = await orchestrator.dispatch_execution_group(objective)
+    assert origin.state is ExecutionGroupState.ACTIVE
+    assert len(origin.members) == 2
+
+    orchestrator.fleet_fixture = [
+        state.model_copy(update={"battery_pct": 75.0})
+        if state.agent_id == "agent-3"
+        else state
+        for state in orchestrator.fleet_fixture
+    ]
+    dispatched = await orchestrator.review_reinforcements()
+    reinforcement = dispatched[0]
+    reinforcement_decision = orchestrator.mission_decisions[
+        reinforcement.decision_id or ""
+    ]
+    await asyncio.sleep(0)
+
+    assert (
+        reinforcement_decision.decision_kind
+        is MissionDecisionKind.REINFORCE_CAPACITY
+    )
+    assert (
+        reinforcement_decision.authority_verdict
+        is MissionAuthorityVerdict.AUTO_AUTHORIZED
+    )
+    assert reinforcement.state is ExecutionGroupState.ACTIVE
+    assert adapters["agent-3"].executed
+    assert orchestrator._decision_reviews == {}
+    assert objective.id not in orchestrator._pending_review_decisions
+
+    hold.set()
+    await _wait_group_terminal(orchestrator, origin.id)
+    await _wait_group_terminal(orchestrator, reinforcement.id)
 
 
 @pytest.mark.asyncio

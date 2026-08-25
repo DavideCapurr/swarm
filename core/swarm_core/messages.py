@@ -197,7 +197,7 @@ class MissionTask(BaseModel):
 
 
 class ObjectiveApprovalCommand(BaseModel):
-    """Approval for one exact, still-current SwarmOS decision proposal."""
+    """Optional review command for one exact, still-current SwarmOS decision."""
 
     model_config = ConfigDict(extra="forbid")
 

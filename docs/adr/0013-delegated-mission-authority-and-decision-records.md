@@ -24,6 +24,20 @@ It does not justify a pivot or a global four-mode autonomy system.
 > SwarmOS remains the sole mission-level control plane, but it may execute a
 > decision only under authority delegated by the mission/risk owner.
 
+### Control-loop invariant
+
+> Human approval is an optional boundary condition, not a stage of the SwarmOS
+> decision loop. Within delegated constraints, SwarmOS decides and adapts
+> without asking again.
+
+The normal control loop is therefore objective → constraints → capabilities →
+eligible capacity → SwarmOS decision/composition → execution → evidence →
+adaptation/recomposition. A review branch exists only when a grant rule
+explicitly requires it or a safe decision falls outside the delegated envelope.
+Hard-constraint violations remain denied and cannot be approved.
+The periodic reinforcement "review" is an automated SwarmOS reevaluation, not
+an operator approval step.
+
 ### Mission-scoped authority
 
 `MissionAuthorityGrant` is revisioned and scoped to one objective. It records
@@ -49,18 +63,19 @@ Initial composition, single-executor selection, replacement, and reinforcement
 follow one boundary:
 
 ```text
-recommend composition
+decide composition
 → evaluate hard constraints and exact authority revision
 → publish immutable MissionDecision
-→ exact review when required
-→ revalidate facts and authority
-→ atomically claim capacity
-→ dispatch physical missions
+├─ AUTO_AUTHORIZED → revalidate → atomically claim capacity → dispatch
+├─ REVIEW_REQUIRED → exact review → revalidate → claim → dispatch
+└─ DENIED → no physical effect
 ```
 
-A recommendation cannot call an adapter, publish an award, or claim capacity.
-An exact approval can commit only its still-current decision. Reject commits no
-physical effect. Override creates a new decision with
+Publishing a decision record does not itself call an adapter, publish an award,
+or claim capacity. Auto-authorized decisions continue immediately without a
+review object or pending-review state. An exact approval can commit only a
+still-current review-required decision. Reject commits no physical effect.
+Override creates a new decision with
 `supersedes_decision_id`; the original is never mutated.
 
 ### Immutable audit records
