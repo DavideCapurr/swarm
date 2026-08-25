@@ -90,6 +90,17 @@ def _load_runtime() -> tuple[Any, Any]:
     return YOLO, torch
 
 
+def ensure_runtime_available() -> None:
+    """Raise `CVRuntimeUnavailable` now if `ultralytics`/`torch` can't load.
+
+    Lets a caller like `CVPerception.run()` fail synchronously, before it
+    schedules any inference, instead of only discovering the gap deep
+    inside a fire-and-forget asyncio task.
+    """
+
+    _load_runtime()
+
+
 class YOLODetector:
     """Thin wrapper that picks the right pretrained weight per AnomalyKind.
 

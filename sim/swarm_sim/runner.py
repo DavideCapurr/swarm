@@ -14,6 +14,7 @@ import asyncio
 import logging
 import os
 import signal
+from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,29 @@ def _env_flag(name: str, *, default: bool = False) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _log_task_failure(task: asyncio.Task[None]) -> None:
+    """Surface a background task's unhandled exception immediately.
+
+    The tasks in `main()` are fire-and-forget: nothing awaits their result
+    until shutdown, and the final `asyncio.gather(..., return_exceptions=True)`
+    there discards whatever it collects. Without this callback a task that
+    raises (e.g. `CVPerception.run()` when the `cv` extra isn't installed)
+    dies with no log line and no other signal — the sim keeps running as if
+    nothing happened.
+    """
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error("background task %r failed", task.get_name(), exc_info=exc)
+
+
+def _spawn(coro: Coroutine[Any, Any, None], *, name: str) -> asyncio.Task[None]:
+    task = asyncio.create_task(coro, name=name)
+    task.add_done_callback(_log_task_failure)
+    return task
 
 
 async def _stream_telemetry_to_bus(adapter: SimulatedAdapter, bus: Bus) -> None:
@@ -256,11 +280,14 @@ async def main() -> None:
             loop.add_signal_handler(sig, _on_signal)
 
     tasks = [
-        asyncio.create_task(_tick_world(world, hz)),
-        asyncio.create_task(_publish_anomalies(world, bus)),
-        asyncio.create_task(_publish_fleet_state(world, registry, bus)),
-        asyncio.create_task(orchestrator.run()),
-        *[asyncio.create_task(_stream_telemetry_to_bus(a, bus)) for a in adapters],
+        _spawn(_tick_world(world, hz), name="tick_world"),
+        _spawn(_publish_anomalies(world, bus), name="publish_anomalies"),
+        _spawn(_publish_fleet_state(world, registry, bus), name="publish_fleet_state"),
+        _spawn(orchestrator.run(), name="orchestrator"),
+        *[
+            _spawn(_stream_telemetry_to_bus(a, bus), name=f"stream_telemetry:{a.agent_id}")
+            for a in adapters
+        ],
     ]
 
     sim_feed_path = os.getenv("SWARM_SIM_FEED_PATH")
@@ -273,8 +300,9 @@ async def main() -> None:
             logger.warning("ignoring SWARM_SIM_FEED_PATH=%r: %s", sim_feed_path, e)
         else:
             tasks.append(
-                asyncio.create_task(
-                    _publish_simulated_streams(world, bus, sim_feed_path)
+                _spawn(
+                    _publish_simulated_streams(world, bus, sim_feed_path),
+                    name="publish_simulated_streams",
                 )
             )
             logger.info(
