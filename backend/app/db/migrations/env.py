@@ -24,7 +24,12 @@ from backend.app.db.models import Base
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # `disable_existing_loggers` defaults to True, which would silently
+    # disable every logger already created elsewhere in the process (e.g.
+    # `sim.runner`) the moment a test runs a migration — alembic.ini only
+    # declares root/sqlalchemy/alembic, so anything else pays for that
+    # default forever, with no error, for the rest of the test session.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
