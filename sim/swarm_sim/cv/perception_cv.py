@@ -25,7 +25,7 @@ from pathlib import Path
 
 from swarm_core.messages import Anomaly, AnomalyKind, Geo
 
-from sim.swarm_sim.cv.detector import YOLODetector
+from sim.swarm_sim.cv.detector import YOLODetector, ensure_runtime_available
 from sim.swarm_sim.cv.weights import CVAssetError, list_fixtures
 from sim.swarm_sim.perception import IgnitionEvent, build_evidence
 
@@ -79,6 +79,12 @@ class CVPerception:
 
     async def run(self) -> None:
         """Schedule the ignitions and emit anomalies as they fire."""
+        # Fail fast, before the first `asyncio.sleep`. This coroutine runs
+        # as a fire-and-forget background task (see
+        # `runner._publish_anomalies`), so a missing `cv` extra must
+        # surface here — not silently, minutes into a demo, inside the
+        # first `detect_and_emit()` call.
+        ensure_runtime_available()
         if not self.ignitions:
             return
         for ev in sorted(self.ignitions, key=lambda e: e.after_s):
