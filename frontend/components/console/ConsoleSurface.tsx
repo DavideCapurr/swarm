@@ -25,6 +25,7 @@ import type {
   AnomalyView,
   ExecutionGroup,
   MissionDecision,
+  MissionDecisionReview,
   MissionRuntimeEvent,
   MissionView,
   ObjectiveStateFrame,
@@ -63,6 +64,7 @@ export type SurfaceFrame = {
   missionRuntimeLog: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
   missionDecisions?: MissionDecision[];
+  missionDecisionReviews?: MissionDecisionReview[];
   objectiveStates?: ObjectiveStateFrame[];
   canReviewDecision?: boolean;
   onReviewDecision?: (
@@ -160,6 +162,18 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
       ) ?? null
     );
   }, [focused, frame.objectiveStates]);
+  const focusedDecisionReview = useMemo(() => {
+    if (!focusedDecision) return null;
+    return (
+      [...(frame.missionDecisionReviews ?? [])]
+        .filter(
+          (review) =>
+            review.decision_id === focusedDecision.decision_id ||
+            review.replacement_decision_id === focusedDecision.decision_id
+        )
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null
+    );
+  }, [focusedDecision, frame.missionDecisionReviews]);
 
   // Executors the surface names, everywhere it names anything.
   //
@@ -353,6 +367,7 @@ export function ConsoleSurface({ frame }: { frame: SurfaceFrame }) {
           capacity={view.capacity}
           channels={channels}
           decision={focusedDecision}
+          decisionReview={focusedDecisionReview}
           objectiveState={focusedObjectiveState}
           canReview={frame.canReviewDecision ?? false}
           onReview={frame.onReviewDecision}

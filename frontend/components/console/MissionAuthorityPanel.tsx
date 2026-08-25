@@ -31,7 +31,11 @@ import {
   roleLabel,
   CAPACITY_SUMMARY_THRESHOLD,
 } from "@/lib/authority";
-import type { MissionDecision, ObjectiveStateFrame } from "@/lib/api";
+import type {
+  MissionDecision,
+  MissionDecisionReview,
+  ObjectiveStateFrame,
+} from "@/lib/api";
 import type { PayloadChannel } from "@/lib/mission-story";
 
 import { Divider, Dot, HAIRLINE, Label, Mono, Surface, SurfaceHeader } from "./Surface";
@@ -54,6 +58,7 @@ export function MissionAuthorityPanel({
   capacity,
   channels,
   decision = null,
+  decisionReview = null,
   objectiveState = null,
   canReview = false,
   onReview,
@@ -65,6 +70,7 @@ export function MissionAuthorityPanel({
   capacity: CapacityRow[];
   channels: PayloadChannel[];
   decision?: MissionDecision | null;
+  decisionReview?: MissionDecisionReview | null;
   objectiveState?: ObjectiveStateFrame | null;
   canReview?: boolean;
   onReview?: (
@@ -107,6 +113,7 @@ export function MissionAuthorityPanel({
           <ObjectiveIdentity objective={focused} />
           <DecisionBoundary
             decision={decision}
+            decisionReview={decisionReview}
             objectiveState={objectiveState}
             canReview={canReview}
             onReview={onReview}
@@ -213,11 +220,13 @@ export function MissionAuthorityPanel({
 
 function DecisionBoundary({
   decision,
+  decisionReview,
   objectiveState,
   canReview,
   onReview,
 }: {
   decision: MissionDecision | null;
+  decisionReview: MissionDecisionReview | null;
   objectiveState: ObjectiveStateFrame | null;
   canReview: boolean;
   onReview?: (
@@ -226,13 +235,22 @@ function DecisionBoundary({
   ) => Promise<void>;
 }) {
   if (!decision) return null;
-  const awaiting = decision.authority_verdict === "review_required";
+  const awaiting =
+    decision.authority_verdict === "review_required" && decisionReview === null;
   const tone =
     decision.authority_verdict === "auto_authorized"
       ? "green"
       : decision.authority_verdict === "denied"
         ? "amber"
         : "orbital";
+  const reviewLabel =
+    decisionReview?.action === "approve"
+      ? "APPROVED EXACT"
+      : decisionReview?.action === "reject"
+        ? "REJECTED"
+        : decisionReview?.action === "override"
+          ? "OVERRIDDEN"
+          : null;
   return (
     <div
       className="px-3 py-[10px]"
@@ -264,6 +282,13 @@ function DecisionBoundary({
         <div className="mt-[8px]">
           <Mono size={8.5} tone="ash">
             {decision.authority_reasons.join(" · ")}
+          </Mono>
+        </div>
+      ) : null}
+      {decisionReview ? (
+        <div className="mt-[8px]" data-testid="mission-decision-review">
+          <Mono size={8.5} tone={decisionReview.action === "reject" ? "amber" : "green"}>
+            {reviewLabel} · {decisionReview.actor_id}
           </Mono>
         </div>
       ) : null}

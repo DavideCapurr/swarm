@@ -19,6 +19,7 @@ import type {
   DockState,
   ExecutionGroup,
   MissionDecision,
+  MissionDecisionReview,
   MissionRuntimeEvent,
   MissionView,
   OperatorCommand,
@@ -72,6 +73,7 @@ export type WSMessage =
   | { kind: "allocation"; data: AllocationDecision }
   | { kind: "execution_group"; data: ExecutionGroup }
   | { kind: "mission_decision"; data: MissionDecision }
+  | { kind: "mission_decision_review"; data: MissionDecisionReview }
   | { kind: "objective_state"; data: ObjectiveStateFrame }
   | { kind: "mission_runtime"; data: MissionRuntimeEvent }
   | { kind: "payload"; data: PayloadEvent };

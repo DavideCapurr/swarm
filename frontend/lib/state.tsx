@@ -30,6 +30,7 @@ import {
   type DockState,
   type ExecutionGroup,
   type MissionDecision,
+  type MissionDecisionReview,
   type MissionRuntimeEvent,
   type MissionView,
   type OperatingMode,
@@ -80,6 +81,7 @@ export type SwarmState = {
   allocations: AllocationDecision[];
   executionGroups: ExecutionGroup[];
   missionDecisions: MissionDecision[];
+  missionDecisionReviews: MissionDecisionReview[];
   objectiveStates: ObjectiveStateFrame[];
   missionRuntime: MissionRuntimeEvent[];
   /**
@@ -151,6 +153,9 @@ export function SwarmStateProvider({
   const [allocations, setAllocations] = useState<AllocationDecision[]>([]);
   const [executionGroups, setExecutionGroups] = useState<ExecutionGroup[]>([]);
   const [missionDecisions, setMissionDecisions] = useState<MissionDecision[]>([]);
+  const [missionDecisionReviews, setMissionDecisionReviews] = useState<
+    MissionDecisionReview[]
+  >([]);
   const [objectiveStates, setObjectiveStates] = useState<ObjectiveStateFrame[]>([]);
   const [missionRuntime, setMissionRuntime] = useState<MissionRuntimeEvent[]>([]);
   const [missionRuntimeLog, setMissionRuntimeLog] = useState<MissionRuntimeEvent[]>([]);
@@ -169,7 +174,7 @@ export function SwarmStateProvider({
     let cancelled = false;
     (async () => {
       try {
-        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, mr, pe, md, os] = await Promise.all([
+        const [s, aw, dk, sc, un, ms, an, ev, cm, al, eg, mr, pe, md, mdr, os] = await Promise.all([
           api.session(),
           api.awareness(),
           api.docks(),
@@ -184,6 +189,7 @@ export function SwarmStateProvider({
           api.missionRuntime(),
           api.payloadEvents(200),
           api.missionDecisions(),
+          api.missionDecisionReviews(),
           api.objectiveStates(),
         ]);
         if (cancelled) return;
@@ -199,6 +205,7 @@ export function SwarmStateProvider({
         setAllocations(al.allocations);
         setExecutionGroups(eg.execution_groups);
         setMissionDecisions(md.decisions);
+        setMissionDecisionReviews(mdr.reviews);
         setObjectiveStates(os.objective_states);
         setMissionRuntime(mr.mission_runtime);
         // The REST snapshot is latest-per-mission, so it seeds the log with
@@ -230,6 +237,7 @@ export function SwarmStateProvider({
     setAllocations([]);
     setExecutionGroups([]);
     setMissionDecisions([]);
+    setMissionDecisionReviews([]);
     setObjectiveStates([]);
     setMissionRuntime([]);
     setMissionRuntimeLog([]);
@@ -309,6 +317,11 @@ export function SwarmStateProvider({
         case "mission_decision":
           setMissionDecisions((prev) =>
             upsertById(prev, msg.data, "decision_id")
+          );
+          return;
+        case "mission_decision_review":
+          setMissionDecisionReviews((prev) =>
+            upsertById(prev, msg.data, "review_id")
           );
           return;
         case "objective_state":
@@ -396,6 +409,7 @@ export function SwarmStateProvider({
       allocations,
       executionGroups,
       missionDecisions,
+      missionDecisionReviews,
       objectiveStates,
       missionRuntime,
       missionRuntimeLog,
@@ -425,6 +439,7 @@ export function SwarmStateProvider({
       allocations,
       executionGroups,
       missionDecisions,
+      missionDecisionReviews,
       objectiveStates,
       missionRuntime,
       missionRuntimeLog,

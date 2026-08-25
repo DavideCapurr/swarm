@@ -13,6 +13,7 @@ import type {
   DockState,
   ExecutionGroup,
   MissionDecision,
+  MissionDecisionReview,
   MissionRuntimeEvent,
   MissionView,
   OperatorCommand,
@@ -60,6 +61,8 @@ export function makeSwarmState(overrides: Partial<SwarmState> = {}): SwarmState 
     allocations: overrides.allocations ?? ([] as AllocationDecision[]),
     executionGroups: overrides.executionGroups ?? ([] as ExecutionGroup[]),
     missionDecisions: overrides.missionDecisions ?? ([] as MissionDecision[]),
+    missionDecisionReviews:
+      overrides.missionDecisionReviews ?? ([] as MissionDecisionReview[]),
     objectiveStates: overrides.objectiveStates ?? ([] as ObjectiveStateFrame[]),
     missionRuntime: overrides.missionRuntime ?? ([] as MissionRuntimeEvent[]),
     missionRuntimeLog:

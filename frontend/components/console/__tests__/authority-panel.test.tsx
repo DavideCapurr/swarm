@@ -2,7 +2,12 @@ import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildAuthorityView, type AuthorityInput } from "@/lib/authority";
-import type { ExecutionGroup, MissionDecision, UnitState } from "@/lib/api";
+import type {
+  ExecutionGroup,
+  MissionDecision,
+  MissionDecisionReview,
+  UnitState,
+} from "@/lib/api";
 
 import { MissionAuthorityPanel } from "../MissionAuthorityPanel";
 
@@ -80,7 +85,8 @@ const REINFORCEMENT: ExecutionGroup = {
 function panel(
   groups: ExecutionGroup[],
   decision?: MissionDecision,
-  onReview?: (decisionId: string, action: "approve" | "reject") => Promise<void>
+  onReview?: (decisionId: string, action: "approve" | "reject") => Promise<void>,
+  decisionReview?: MissionDecisionReview
 ) {
   const input: AuthorityInput = {
     units: [unit("mav-001"), unit("mav-002"), unit("mav-004")],
@@ -102,6 +108,7 @@ function panel(
       capacity={view.capacity}
       channels={[]}
       decision={decision}
+      decisionReview={decisionReview}
       canReview={Boolean(onReview)}
       onReview={onReview}
       onSelectObjective={() => {}}
@@ -181,5 +188,48 @@ describe("an objective holding several swarms", () => {
     );
     fireEvent.click(getByText("APPROVE EXACT"));
     expect(onReview).toHaveBeenCalledWith("decision-1", "approve");
+  });
+
+  it("renders the immutable review actor and removes stale review controls", () => {
+    const onReview = vi.fn(async () => {});
+    const decision: MissionDecision = {
+      decision_id: "decision-1",
+      objective_id: "parent-1",
+      objective_revision: 1,
+      decision_kind: "LAUNCH_COMPOSITION",
+      requirements_snapshot: {},
+      constraints_snapshot: {},
+      candidate_assessments: [],
+      selected_assignments: [],
+      full_requirements_satisfied: true,
+      authority_grant_id: "grant-1",
+      authority_grant_revision: 1,
+      authority_verdict: "review_required",
+      authority_reasons: ["REVIEW_REQUIRED"],
+      supersedes_decision_id: null,
+      created_at: "2026-08-15T17:29:00.000Z",
+    };
+    const review: MissionDecisionReview = {
+      review_id: "review-1",
+      decision_id: decision.decision_id,
+      objective_id: decision.objective_id,
+      action: "approve",
+      actor_id: "risk-owner",
+      replacement_decision_id: null,
+      created_at: "2026-08-15T17:29:01.000Z",
+    };
+
+    const { getByTestId, queryByText } = panel(
+      [ORIGIN],
+      decision,
+      onReview,
+      review
+    );
+
+    expect(getByTestId("mission-decision-review")).toHaveTextContent(
+      "APPROVED EXACT · risk-owner"
+    );
+    expect(queryByText("APPROVE EXACT")).toBeNull();
+    expect(queryByText("REJECT")).toBeNull();
   });
 });
