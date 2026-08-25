@@ -34,6 +34,7 @@ The MAVLink/PX4 path remains **SITL-validated, not bench- or field-validated on 
 | Partial-strength group composition | **implemented; orchestrator-test-validated only, no SITL run** |
 | Reinforcement of a running objective by a second group | **implemented behind a policy seam; orchestrator-test-validated only, no SITL run** |
 | Mission-scoped delegated authority | **implemented for launch, failed-executor replacement, and reinforcement; test-validated, no live operator trial** |
+| Recorded mission-authority replay | **D1 exact review → D2 delegated replacement; control-plane records, not frontend rationale** |
 | Immutable decision/review audit | **append-only DB + REST/WS projection implemented; migration round-trip tested** |
 | Exact authenticated approve/reject/override | **implemented; actor derived from JWT; test-validated** |
 | Objective semantic state separate from execution completion | **implemented; completion without semantic evidence remains unresolved** |
@@ -246,6 +247,8 @@ Not re-run on 2026-08-18: the two-PX4 SITL sequence, which needs Docker.
 - mission runtime phase/evidence;
 - `ExecutionGroup` composition, role ownership, and replacement history;
 - structured payload status and execution mode.
+- immutable mission decisions, authenticated reviews, and semantic objective
+  state frames.
 
 Stock CCTV/drone footage is visualization only and must remain clearly labeled simulated. The frontend must not calculate winners, synthesize mission state, upgrade a simulated payload to physical, or infer `ON_STATION` from a timer.
 

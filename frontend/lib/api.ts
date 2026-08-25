@@ -500,6 +500,18 @@ export type MissionDecision = {
   created_at: string;
 };
 
+export type MissionReviewAction = "approve" | "reject" | "override";
+
+export type MissionDecisionReview = {
+  review_id: string;
+  decision_id: string;
+  objective_id: string;
+  action: MissionReviewAction;
+  actor_id: string;
+  replacement_decision_id: string | null;
+  created_at: string;
+};
+
 export type ObjectiveStatus =
   | "pending"
   | "waiting_for_approval"
@@ -655,6 +667,8 @@ export const api = {
     get<{ payload_events: PayloadEvent[] }>(`/payload-events?limit=${limit}`),
   missionDecisions: () =>
     get<{ decisions: MissionDecision[] }>("/mission-authority/decisions"),
+  missionDecisionReviews: () =>
+    get<{ reviews: MissionDecisionReview[] }>("/mission-authority/reviews"),
   objectiveStates: () =>
     get<{ objective_states: ObjectiveStateFrame[] }>(
       "/mission-authority/objectives"

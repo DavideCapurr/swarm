@@ -150,6 +150,57 @@ describe("take b — the ADAPTED sequence", () => {
   });
 });
 
+describe("take b — recorded mission authority", () => {
+  const frames = takeBFrames();
+
+  it("holds launch until the exact recorded approval", () => {
+    const proposed = foldTakeB(7_500, frames);
+    expect(proposed.missionDecisions).toHaveLength(1);
+    expect(proposed.missionDecisions[0]).toMatchObject({
+      decision_kind: "LAUNCH_COMPOSITION",
+      authority_verdict: "review_required",
+    });
+    expect(proposed.missionDecisionReviews).toHaveLength(0);
+    expect(proposed.objectiveStates[0]?.status).toBe("waiting_for_approval");
+
+    const approved = foldTakeB(8_300, frames);
+    expect(approved.missionDecisionReviews[0]).toMatchObject({
+      decision_id: proposed.missionDecisions[0].decision_id,
+      action: "approve",
+      actor_id: "risk-owner",
+    });
+  });
+
+  it("shows D2 as a bounded auto-authorized replacement", () => {
+    const restored = foldTakeB(23_500, frames);
+    const replacement = restored.missionDecisions.find(
+      (decision) => decision.decision_kind === "REPLACE_FAILED_EXECUTOR"
+    );
+    expect(replacement).toMatchObject({
+      authority_verdict: "auto_authorized",
+      authority_reasons: ["MATCHED_DELEGATED_RULE"],
+      selected_assignments: [
+        {
+          agent_id: "mav-001",
+          role: "SECONDARY_OBSERVER",
+          mission_id: TAKE_B.replacement.mission,
+        },
+      ],
+    });
+    expect(restored.executionGroups[0]?.decision_id).toBe(
+      replacement?.decision_id
+    );
+  });
+
+  it("does not turn physical completion into semantic satisfaction", () => {
+    const completed = foldTakeB(50_000, frames);
+    expect(completed.objectiveStates[0]).toMatchObject({
+      status: "unresolved",
+      reason: "EXECUTION_COMPLETE_AWAITING_SEMANTIC_EVIDENCE",
+    });
+  });
+});
+
 /** One swarm per objective in takes A and B — neither of them reinforces. */
 describe("takes a and b hold one swarm each", () => {
   it.each(TAKES.slice(0, 2))("take $id", (take) => {

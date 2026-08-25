@@ -27,6 +27,7 @@ export function IntrusionResponseDemo() {
     anomalies,
     executionGroups,
     missionDecisions,
+    missionDecisionReviews,
     objectiveStates,
     missionRuntime,
     missionRuntimeLog,
@@ -48,6 +49,7 @@ export function IntrusionResponseDemo() {
       allocations,
       executionGroups,
       missionDecisions,
+      missionDecisionReviews,
       objectiveStates,
       canReviewDecision: role === "operator" || role === "commander",
       onReviewDecision: async (decisionId, action) => {
@@ -66,6 +68,7 @@ export function IntrusionResponseDemo() {
       allocations,
       executionGroups,
       missionDecisions,
+      missionDecisionReviews,
       objectiveStates,
       missions,
       missionRuntime,

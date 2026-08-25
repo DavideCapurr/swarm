@@ -1,0 +1,506 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-25T01:05:02.223181+00:00",
+  "generator": "scripts/record_mission_authority_replay.py",
+  "runtime": "ExecutionGroupOrchestrator + InMemoryBus + fake physical adapters",
+  "objective_id": "8582edb3f2984289ab756602ac03aad5",
+  "records": [
+    {
+      "sequence": 1,
+      "topic": "swarm:mission-decisions",
+      "data": {
+        "decision_id": "7d430eaedba34c4ba4dc597beee3f4ad",
+        "objective_id": "8582edb3f2984289ab756602ac03aad5",
+        "objective_revision": 1,
+        "decision_kind": "LAUNCH_COMPOSITION",
+        "requirements_snapshot": {
+          "objective_kind": "COOPERATIVE_VERIFY",
+          "requested_members": 3,
+          "required_capabilities": [],
+          "role_requirements": {
+            "PRIMARY_OBSERVER": [],
+            "SECONDARY_OBSERVER": [],
+            "OVERWATCH": []
+          }
+        },
+        "constraints_snapshot": {
+          "hard": {},
+          "delegated_authority": {
+            "max_agents": null,
+            "allowed_agent_ids": [],
+            "allowed_mission_kinds": [],
+            "authorized_area": null,
+            "max_altitude_m": null
+          }
+        },
+        "candidate_assessments": [
+          {
+            "agent_id": "mav-001",
+            "role": "PRIMARY_OBSERVER",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.014703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 70.0,
+              "battery_score": 0.5599999999999999,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": false,
+            "exclusion_reasons": [
+              "LOWER_SCORE"
+            ]
+          },
+          {
+            "agent_id": "mav-002",
+            "role": "PRIMARY_OBSERVER",
+            "supplied_capabilities": [
+              "wide_area_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.094703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 80.0,
+              "battery_score": 0.6400000000000001,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": false,
+            "exclusion_reasons": [
+              "LOWER_SCORE"
+            ]
+          },
+          {
+            "agent_id": "mav-003",
+            "role": "PRIMARY_OBSERVER",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.174703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 90.0,
+              "battery_score": 0.7200000000000001,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": false,
+            "exclusion_reasons": [
+              "LOWER_SCORE"
+            ]
+          },
+          {
+            "agent_id": "mav-004",
+            "role": "PRIMARY_OBSERVER",
+            "supplied_capabilities": [
+              "thermal_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.2467033197616972,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 99.0,
+              "battery_score": 0.792,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": true,
+            "exclusion_reasons": []
+          },
+          {
+            "agent_id": "mav-001",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.014703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 70.0,
+              "battery_score": 0.5599999999999999,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": false,
+            "exclusion_reasons": [
+              "LOWER_SCORE"
+            ]
+          },
+          {
+            "agent_id": "mav-002",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "wide_area_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.094703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 80.0,
+              "battery_score": 0.6400000000000001,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": false,
+            "exclusion_reasons": [
+              "LOWER_SCORE"
+            ]
+          },
+          {
+            "agent_id": "mav-003",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.174703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 90.0,
+              "battery_score": 0.7200000000000001,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": true,
+            "exclusion_reasons": []
+          },
+          {
+            "agent_id": "mav-004",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "thermal_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": null,
+            "score_breakdown": {},
+            "selected": false,
+            "exclusion_reasons": [
+              "RESERVED_BY_HIGHER_RANKED_ROLE"
+            ]
+          },
+          {
+            "agent_id": "mav-001",
+            "role": "OVERWATCH",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.014703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 70.0,
+              "battery_score": 0.5599999999999999,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": false,
+            "exclusion_reasons": [
+              "LOWER_SCORE"
+            ]
+          },
+          {
+            "agent_id": "mav-002",
+            "role": "OVERWATCH",
+            "supplied_capabilities": [
+              "wide_area_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.094703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 80.0,
+              "battery_score": 0.6400000000000001,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": true,
+            "exclusion_reasons": []
+          },
+          {
+            "agent_id": "mav-003",
+            "role": "OVERWATCH",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": null,
+            "score_breakdown": {},
+            "selected": false,
+            "exclusion_reasons": [
+              "RESERVED_BY_HIGHER_RANKED_ROLE"
+            ]
+          },
+          {
+            "agent_id": "mav-004",
+            "role": "OVERWATCH",
+            "supplied_capabilities": [
+              "thermal_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": null,
+            "score_breakdown": {},
+            "selected": false,
+            "exclusion_reasons": [
+              "RESERVED_BY_HIGHER_RANKED_ROLE"
+            ]
+          }
+        ],
+        "selected_assignments": [
+          {
+            "agent_id": "mav-004",
+            "role": "PRIMARY_OBSERVER",
+            "mission_id": "0a224497d6384724aa3ee4043dcffc26",
+            "supplied_capabilities": [
+              "thermal_observation",
+              "visual_observation"
+            ]
+          },
+          {
+            "agent_id": "mav-003",
+            "role": "SECONDARY_OBSERVER",
+            "mission_id": "b9a64ed080bc47e498ea18e4d8655069",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ]
+          },
+          {
+            "agent_id": "mav-002",
+            "role": "OVERWATCH",
+            "mission_id": "3dbd3eeaee6f43d29f6498a8042990ab",
+            "supplied_capabilities": [
+              "wide_area_observation",
+              "visual_observation"
+            ]
+          }
+        ],
+        "full_requirements_satisfied": true,
+        "authority_grant_id": "georgios-demo-grant",
+        "authority_grant_revision": 1,
+        "authority_verdict": "review_required",
+        "authority_reasons": [
+          "REVIEW_REQUIRED"
+        ],
+        "supersedes_decision_id": null,
+        "created_at": "2026-08-25T01:05:02.210377Z"
+      }
+    },
+    {
+      "sequence": 2,
+      "topic": "swarm:mission-decision-reviews",
+      "data": {
+        "review_id": "3e57d30fcdde405aaa96af5d48440e12",
+        "decision_id": "7d430eaedba34c4ba4dc597beee3f4ad",
+        "objective_id": "8582edb3f2984289ab756602ac03aad5",
+        "action": "approve",
+        "actor_id": "risk-owner",
+        "replacement_decision_id": null,
+        "created_at": "2026-08-25T01:05:02.210615Z"
+      }
+    },
+    {
+      "sequence": 3,
+      "topic": "swarm:mission-objective-states",
+      "data": {
+        "objective_id": "8582edb3f2984289ab756602ac03aad5",
+        "objective_revision": 1,
+        "status": "waiting_for_approval",
+        "decision_id": "7d430eaedba34c4ba4dc597beee3f4ad",
+        "reason": null,
+        "ts": "2026-08-25T01:05:02.210559Z"
+      }
+    },
+    {
+      "sequence": 4,
+      "topic": "swarm:mission-objective-states",
+      "data": {
+        "objective_id": "8582edb3f2984289ab756602ac03aad5",
+        "objective_revision": 1,
+        "status": "active",
+        "decision_id": "7d430eaedba34c4ba4dc597beee3f4ad",
+        "reason": null,
+        "ts": "2026-08-25T01:05:02.210622Z"
+      }
+    },
+    {
+      "sequence": 5,
+      "topic": "swarm:mission-decisions",
+      "data": {
+        "decision_id": "540fea39af814bbe95e149c6cad28cf3",
+        "objective_id": "8582edb3f2984289ab756602ac03aad5",
+        "objective_revision": 1,
+        "decision_kind": "REPLACE_FAILED_EXECUTOR",
+        "requirements_snapshot": {
+          "objective_kind": "COOPERATIVE_VERIFY",
+          "requested_members": 1,
+          "required_capabilities": [],
+          "role_requirements": {
+            "SECONDARY_OBSERVER": []
+          }
+        },
+        "constraints_snapshot": {
+          "hard": {},
+          "delegated_authority": {
+            "max_agents": 1,
+            "allowed_agent_ids": [
+              "mav-001"
+            ],
+            "allowed_mission_kinds": [
+              "COOPERATIVE_VERIFY"
+            ],
+            "authorized_area": null,
+            "max_altitude_m": 70.0
+          }
+        },
+        "candidate_assessments": [
+          {
+            "agent_id": "mav-001",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": 2.014703319761697,
+            "score_breakdown": {
+              "distance_m": 41.988684845134394,
+              "distance_score": 0.959703319761697,
+              "battery_pct": 70.0,
+              "battery_score": 0.5599999999999999,
+              "priority": 99.0,
+              "priority_score": 0.495,
+              "busy_penalty": 0.0
+            },
+            "selected": true,
+            "exclusion_reasons": []
+          },
+          {
+            "agent_id": "mav-002",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "wide_area_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": null,
+            "score_breakdown": {},
+            "selected": false,
+            "exclusion_reasons": [
+              "RESERVED_BY_HIGHER_RANKED_ROLE"
+            ]
+          },
+          {
+            "agent_id": "mav-003",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ],
+            "availability_state": "DOCKED",
+            "score": null,
+            "score_breakdown": {},
+            "selected": false,
+            "exclusion_reasons": [
+              "RESERVED_BY_HIGHER_RANKED_ROLE"
+            ]
+          },
+          {
+            "agent_id": "mav-004",
+            "role": "SECONDARY_OBSERVER",
+            "supplied_capabilities": [
+              "thermal_observation",
+              "visual_observation"
+            ],
+            "availability_state": "DOCKED",
+            "score": null,
+            "score_breakdown": {},
+            "selected": false,
+            "exclusion_reasons": [
+              "RESERVED_BY_HIGHER_RANKED_ROLE"
+            ]
+          }
+        ],
+        "selected_assignments": [
+          {
+            "agent_id": "mav-001",
+            "role": "SECONDARY_OBSERVER",
+            "mission_id": "a03fd8ddc5c140e89ec0eeb717296c42",
+            "supplied_capabilities": [
+              "visual_observation",
+              "relay"
+            ]
+          }
+        ],
+        "full_requirements_satisfied": true,
+        "authority_grant_id": "georgios-demo-grant",
+        "authority_grant_revision": 1,
+        "authority_verdict": "auto_authorized",
+        "authority_reasons": [
+          "MATCHED_DELEGATED_RULE"
+        ],
+        "supersedes_decision_id": null,
+        "created_at": "2026-08-25T01:05:02.210968Z"
+      }
+    },
+    {
+      "sequence": 6,
+      "topic": "swarm:mission-objective-states",
+      "data": {
+        "objective_id": "8582edb3f2984289ab756602ac03aad5",
+        "objective_revision": 1,
+        "status": "active",
+        "decision_id": "540fea39af814bbe95e149c6cad28cf3",
+        "reason": null,
+        "ts": "2026-08-25T01:05:02.210997Z"
+      }
+    },
+    {
+      "sequence": 7,
+      "topic": "swarm:mission-objective-states",
+      "data": {
+        "objective_id": "8582edb3f2984289ab756602ac03aad5",
+        "objective_revision": 1,
+        "status": "unresolved",
+        "decision_id": "540fea39af814bbe95e149c6cad28cf3",
+        "reason": "EXECUTION_COMPLETE_AWAITING_SEMANTIC_EVIDENCE",
+        "ts": "2026-08-25T01:05:02.217029Z"
+      }
+    }
+  ]
+}

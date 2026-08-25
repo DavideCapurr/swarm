@@ -33,11 +33,15 @@ import type {
   ExecutionGroup,
   ExecutionGroupMember,
   Geo,
+  MissionDecision,
+  MissionDecisionReview,
   MissionRuntimeEvent,
   MissionView,
+  ObjectiveStateFrame,
   PayloadEvent,
   UnitState,
 } from "./api";
+import authorityReplayArtifact from "./fixtures/mission-authority-replay.json";
 
 // ── Recorded identities (take 1) ──────────────────────────────────────────────
 
@@ -86,7 +90,10 @@ export type DemoFrame =
   | { at: number; kind: "runtime"; data: MissionRuntimeEvent }
   | { at: number; kind: "payload"; data: PayloadEvent }
   | { at: number; kind: "mission"; data: MissionView }
-  | { at: number; kind: "group"; data: ExecutionGroup };
+  | { at: number; kind: "group"; data: ExecutionGroup }
+  | { at: number; kind: "mission_decision"; data: MissionDecision }
+  | { at: number; kind: "mission_decision_review"; data: MissionDecisionReview }
+  | { at: number; kind: "objective_state"; data: ObjectiveStateFrame };
 
 const iso = (at: number) => new Date(TAKE_A.t0 + at).toISOString();
 
@@ -462,6 +469,9 @@ export type TakeSlice = {
   missionRuntimeLog: MissionRuntimeEvent[];
   payloadEvents: PayloadEvent[];
   missions: MissionView[];
+  missionDecisions: MissionDecision[];
+  missionDecisionReviews: MissionDecisionReview[];
+  objectiveStates: ObjectiveStateFrame[];
   now: number;
 };
 
@@ -475,6 +485,9 @@ function foldFrames(atMs: number, frames: DemoFrame[]): Omit<TakeSlice, "now"> {
   const runtimeLog: MissionRuntimeEvent[] = [];
   const payloads: PayloadEvent[] = [];
   const missions = new Map<string, MissionView>();
+  const decisions = new Map<string, MissionDecision>();
+  const reviews = new Map<string, MissionDecisionReview>();
+  const objectiveStates = new Map<string, ObjectiveStateFrame>();
 
   for (const frame of frames) {
     if (frame.at > atMs) break;
@@ -501,6 +514,15 @@ function foldFrames(atMs: number, frames: DemoFrame[]): Omit<TakeSlice, "now"> {
       case "group":
         groups.set(frame.data.id, frame.data);
         break;
+      case "mission_decision":
+        decisions.set(frame.data.decision_id, frame.data);
+        break;
+      case "mission_decision_review":
+        reviews.set(frame.data.review_id, frame.data);
+        break;
+      case "objective_state":
+        objectiveStates.set(frame.data.objective_id, frame.data);
+        break;
     }
   }
 
@@ -513,6 +535,9 @@ function foldFrames(atMs: number, frames: DemoFrame[]): Omit<TakeSlice, "now"> {
     missionRuntimeLog: runtimeLog,
     payloadEvents: payloads,
     missions: [...missions.values()],
+    missionDecisions: [...decisions.values()],
+    missionDecisionReviews: [...reviews.values()],
+    objectiveStates: [...objectiveStates.values()],
   };
 }
 
@@ -566,6 +591,65 @@ export const TAKE_B = {
   overwatch: { role: "OVERWATCH", agent: "mav-002", mission: "3dbd3eeaee6f43d29f6498a8042990ab", score: 2.2583201001 },
   replacement: { role: "SECONDARY_OBSERVER", agent: "mav-001", mission: "a03fd8ddc5c140e89ec0eeb717296c42", score: 2.2566069734, replaces: "mav-003" },
 } as const;
+
+type AuthorityRecordData = Record<string, unknown>;
+
+function recordedAuthority<T>(
+  topic: string,
+  matches: (data: AuthorityRecordData) => boolean
+): T {
+  const record = authorityReplayArtifact.records.find(
+    (candidate) =>
+      candidate.topic === topic &&
+      matches(candidate.data as unknown as AuthorityRecordData)
+  );
+  if (!record) throw new Error(`recorded authority frame missing: ${topic}`);
+  return record.data as unknown as T;
+}
+
+const TAKE_B_LAUNCH_DECISION = recordedAuthority<MissionDecision>(
+  "swarm:mission-decisions",
+  (data) => data.decision_kind === "LAUNCH_COMPOSITION"
+);
+const TAKE_B_REPLACEMENT_DECISION = recordedAuthority<MissionDecision>(
+  "swarm:mission-decisions",
+  (data) => data.decision_kind === "REPLACE_FAILED_EXECUTOR"
+);
+const TAKE_B_LAUNCH_REVIEW = recordedAuthority<MissionDecisionReview>(
+  "swarm:mission-decision-reviews",
+  (data) => data.decision_id === TAKE_B_LAUNCH_DECISION.decision_id
+);
+
+function recordedObjectiveState(
+  status: ObjectiveStateFrame["status"],
+  decisionId: string
+): ObjectiveStateFrame {
+  return recordedAuthority<ObjectiveStateFrame>(
+    "swarm:mission-objective-states",
+    (data) => data.status === status && data.decision_id === decisionId
+  );
+}
+
+const TAKE_B_WAITING_STATE = recordedObjectiveState(
+  "waiting_for_approval",
+  TAKE_B_LAUNCH_DECISION.decision_id
+);
+const TAKE_B_LAUNCH_ACTIVE_STATE = recordedObjectiveState(
+  "active",
+  TAKE_B_LAUNCH_DECISION.decision_id
+);
+const TAKE_B_REPLACEMENT_ACTIVE_STATE = recordedObjectiveState(
+  "active",
+  TAKE_B_REPLACEMENT_DECISION.decision_id
+);
+const TAKE_B_UNRESOLVED_STATE = recordedObjectiveState(
+  "unresolved",
+  TAKE_B_REPLACEMENT_DECISION.decision_id
+);
+
+if (authorityReplayArtifact.objective_id !== TAKE_B.objectiveMission) {
+  throw new Error("recorded authority objective does not match take B");
+}
 
 const OBJECTIVE_B: Geo = { lat: 47.39805, lon: 8.546, alt_m: 0 };
 
@@ -743,6 +827,11 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
       members,
       state,
       failure_reason: null,
+      decision_id:
+        atS >= 23
+          ? TAKE_B_REPLACEMENT_DECISION.decision_id
+          : TAKE_B_LAUNCH_DECISION.decision_id,
+      composition_revision: atS >= 23 ? 2 : 1,
       ts: isoB(atS * 1000),
     };
   }
@@ -900,8 +989,28 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
     groupMember(TAKE_B.overwatch.agent, TAKE_B.overwatch.role, TAKE_B.overwatch.mission, "ASSIGNED", TAKE_B.overwatch.score, 7),
   ];
   frames.push({ at: 7_000, kind: "group", data: groupFrame("FORMING", initialMembers, 7) });
+  frames.push({
+    at: 7_000,
+    kind: "mission_decision",
+    data: TAKE_B_LAUNCH_DECISION,
+  });
+  frames.push({
+    at: 7_000,
+    kind: "objective_state",
+    data: TAKE_B_WAITING_STATE,
+  });
 
   const activeMembers = initialMembers.map((member) => ({ ...member, state: "ACTIVE" as const }));
+  frames.push({
+    at: 8_200,
+    kind: "mission_decision_review",
+    data: TAKE_B_LAUNCH_REVIEW,
+  });
+  frames.push({
+    at: 8_500,
+    kind: "objective_state",
+    data: TAKE_B_LAUNCH_ACTIVE_STATE,
+  });
   frames.push({ at: 8_500, kind: "group", data: groupFrame("ACTIVE", activeMembers, 8.5) });
 
   for (const entry of roster.slice(0, 3)) {
@@ -951,6 +1060,16 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
       TAKE_B.replacement.replaces
     ),
   ];
+  frames.push({
+    at: 22_800,
+    kind: "mission_decision",
+    data: TAKE_B_REPLACEMENT_DECISION,
+  });
+  frames.push({
+    at: 23_000,
+    kind: "objective_state",
+    data: TAKE_B_REPLACEMENT_ACTIVE_STATE,
+  });
   frames.push({ at: 23_000, kind: "group", data: groupFrame("ACTIVE", restored, 23) });
   frames.push({
     at: 24_000,
@@ -1000,6 +1119,11 @@ function pushHeroGroupFrames(frames: DemoFrame[], t0: number): void {
       ),
       50
     ),
+  });
+  frames.push({
+    at: 50_000,
+    kind: "objective_state",
+    data: TAKE_B_UNRESOLVED_STATE,
   });
 
   // Observed tracks, sampled so the map has a path to draw.
