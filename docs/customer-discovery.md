@@ -184,6 +184,72 @@ Increase discovery emphasis on environments where heterogeneous inspection and v
 
 Wildfire remains worth investigating, but should be approached as a coordination/composition problem rather than as a small-drone replacement thesis.
 
+## Outreach sent — Wave 1, 2026-08-26
+
+First discovery-question emails sent (Mail.app, iCloud account), one distinct
+question per operational segment (offshore composition / live-incident
+composition / multi-platform sensing composition). Do not re-contact these
+until a response, or a clear non-response after a reasonable follow-up
+window, is logged below:
+
+- Jan Christian Torvestad, Equinor — jcto@equinor.com
+- Kenneth Solbjør, Oceaneering — ksolbjor@oceaneering.com
+- Trond Eriksen, Equinor — treri@equinor.com
+- Jason Day, Texas DPS — jason.day@dps.texas.gov
+- Matt Dutton, BLM — mdutton@blm.gov
+- Brian Hon, Arizona DPS — bhon@azdps.gov
+- Laura Dwyer, NOAA OMAO — laura.e.dwyer@noaa.gov
+- Travis Potter, FEMA — Travis.Potter@fema.dhs.gov
+- Daniel Cheatham, Phoenix Fire — daniel.cheatham@phoenix.gov
+- William Mowitt, NOAA Ocean Exploration — William.Mowitt@noaa.gov
+
+## Outreach sent — Wave 2, 2026-08-26 (same day, 25 total)
+
+Sent same day after Wave 1, to reach 25 total for 2026-08-26. Same one
+tailored question per person, no pitch. Do not re-contact until a response
+is logged below:
+
+- Aaron Fritch, Texas DPS — aaron.fritch@dps.texas.gov
+- Todd Burton, USGS — tburton@usgs.gov
+- Robert Dooley, Florida Highway Patrol — robertdooley@flhsmv.gov
+- Robin Murphy, CRASAR/Texas A&M — robin.r.murphy@tamu.edu (expert/falsification contact, not lead gen — asked where the "missing control layer" thesis breaks down, not a discovery question)
+- Per Gerhard Grini, Equinor — pgg@equinor.com
+- Jenny Laird, USACE ERDC — Jennifer.G.Laird@usace.army.mil
+- Anthony "Lance" Infanger, Phoenix PD — anthony.infanger@phoenix.gov
+- Chris Eisenbrey, Edison Electric Institute — ceisenbrey@eei.org (industry association, not an operator — asked about the pattern across member utilities)
+- Scott Bishaw, US Fish & Wildlife — scott_bishaw@fws.gov
+- Mark Rogers, NOAA UAS Division — mark.e.rogers@noaa.gov
+- Jordan Black, NPS — jordan_black@nps.gov
+- Ewing "Dave" Underwood, BIA — ewing.underwood@bia.gov
+- Ryne Hicks, USFS — ryne.hicks@usda.gov
+- Michael Connor, Gilbert Fire & Rescue — michael.connor@gilbertaz.gov
+- Matthew Bridgefarmer, Texas Parks & Wildlife — Matthew.Bridgefarmer@tpwd.texas.gov
+
+Skipped this round: the research pass also produced "Tyler Mungall, USFS" at
+ryne.hicks-style address ryan.mungall@usda.gov — name and email handle don't
+match (Tyler vs Ryan). Do not send until the correct first name is confirmed.
+
+Still held for a later wave (after response signal from today, or once
+Mungall is resolved): William Bollfrass (USFS), James Gray (FHWA), Lee
+Mastroianni and Justin Gogel (ONR — learning/falsification contacts, same
+category as Robin Murphy).
+
+## Signal targets for replies
+
+For every reply to Wave 1/2, classify per the evidence-discipline categories
+above, and specifically watch for three escalating signals before writing
+any reply back:
+
+1. confirmation the coordination/allocation problem is real today (not
+   solved by an existing tool, still manual/ad hoc);
+2. openness to delegating that specific decision to software, even
+   partially;
+3. willingness to test against their own assets, simulators, or systems.
+
+Do not ask for (2) or (3) in a first-touch cold email. Ask for them only as
+a follow-up once a reply shows genuine engagement, consistent with the
+Georgios evidence entry above (decision support before broader delegation).
+
 ## Writing style
 
 Messages should be short, specific, human, and easy to answer asynchronously.
